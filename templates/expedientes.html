@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Expedientes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            max-width: 1000px;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 14px;
+            background: #fafafa;
+        }
+
+        a.boton {
+            display: inline-block;
+            padding: 10px 14px;
+            margin-right: 8px;
+            margin-top: 10px;
+            border: 1px solid #999;
+            border-radius: 8px;
+            text-decoration: none;
+            color: black;
+            background: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Expedientes creados</h1>
+
+    <p>
+        <a class="boton" href="/">Volver al inicio</a>
+        <a class="boton" href="/nuevo-expediente">Nuevo expediente</a>
+    </p>
+
+    {% if expedientes %}
+    {% for expediente in expedientes %}
+    <div class="card">
+        <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+        <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
+        <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+        <p><strong>Tipo de inmueble:</strong> {{ expediente.tipo_inmueble or '-' }}</p>
+        <p><strong>Plantas:</strong> {{ expediente.descripcion_plantas }}</p>
+
+        <a class="boton" href="/detalle-expediente/{{ expediente.id }}">Abrir expediente</a>
+        <a class="boton" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No hay expedientes creados todavía.</p>
+    {% endif %}
+</body>
+
+</html>

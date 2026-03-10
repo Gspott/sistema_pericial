@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Editar registro</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            max-width: 800px;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 14px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 15px;
+            font-size: 18px;
+            width: 100%;
+            background: #1e3a8a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+        }
+
+        img {
+            max-width: 260px;
+            border-radius: 8px;
+            display: block;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Editar registro de patología</h1>
+
+    <form method="post" action="/actualizar-registro/{{ registro.id }}" enctype="multipart/form-data">
+        <label>Estancia</label>
+        <select name="estancia_id" required>
+            {% for estancia in estancias %}
+            <option value="{{ estancia.id }}" {% if estancia.id==registro.estancia_id %}selected{% endif %}>
+                {{ estancia.nombre }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Elemento afectado</label>
+        <input name="elemento" value="{{ registro.elemento }}" required>
+
+        <label>Patología</label>
+        <select name="patologia" required>
+            {% for p in patologias %}
+            <option value="{{ p.nombre }}" {% if p.nombre==registro.patologia %}selected{% endif %}>
+                {{ p.nombre }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Observaciones</label>
+        <textarea name="observaciones" rows="5">{{ registro.observaciones or '' }}</textarea>
+
+        {% if registro.foto %}
+        <p><strong>Foto actual</strong></p>
+        <img src="/uploads/{{ registro.foto }}" alt="Foto actual">
+
+        <label>¿Eliminar foto actual?</label>
+        <select name="eliminar_foto_actual">
+            <option value="no">No</option>
+            <option value="si">Sí</option>
+        </select>
+        {% else %}
+        <input type="hidden" name="eliminar_foto_actual" value="no">
+        {% endif %}
+
+        <label>Nueva foto</label>
+        <input type="file" name="foto" accept="image/*">
+
+        <button type="submit">Guardar cambios</button>
+    </form>
+
+    <br>
+    <a href="/registrar-patologias/{{ registro.visita_id }}">Volver</a>
+</body>
+
+</html>
