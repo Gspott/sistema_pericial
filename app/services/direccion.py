@@ -6,7 +6,6 @@ from urllib.request import Request, urlopen
 
 def _consultar_nominatim(params: dict) -> list[dict[str, Any]]:
     url = f"https://nominatim.openstreetmap.org/search?{urlencode(params)}"
-
     request = Request(
         url,
         headers={"User-Agent": "sistema_pericial/1.0"},
@@ -46,9 +45,7 @@ async def autocompletar_direccion(direccion: str) -> dict[str, str]:
             or address.get("county")
             or ""
         )
-
         provincia = address.get("province") or address.get("state") or ""
-
         codigo_postal = address.get("postcode", "")
 
         return {
@@ -93,9 +90,7 @@ async def sugerir_direcciones(texto: str) -> list[dict[str, str]]:
                 or address.get("county")
                 or ""
             )
-
             provincia = address.get("province") or address.get("state") or ""
-
             codigo_postal = address.get("postcode", "")
 
             sugerencias.append(

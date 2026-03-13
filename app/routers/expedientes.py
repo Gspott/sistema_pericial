@@ -1,12 +1,19 @@
-from fastapi import APIRouter, Form, Query, Request, HTTPException
+from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.database import get_connection
-from app.services.direccion import autocompletar_direccion
-from app.utils.helpers import formatear_plantas
 from app.services.direccion import autocompletar_direccion, sugerir_direcciones
+from app.utils.helpers import formatear_plantas
 
 router = APIRouter()
+
+
+@router.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return request.app.state.templates.TemplateResponse(
+        "index.html",
+        {"request": request},
+    )
 
 
 @router.get("/autocompletar-direccion")
@@ -16,7 +23,8 @@ async def autocompletar_direccion_endpoint(direccion: str = Query(..., min_lengt
         return JSONResponse(content=datos)
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"No se pudo autocompletar la dirección: {str(e)}"
+            status_code=500,
+            detail=f"No se pudo autocompletar la dirección: {str(e)}",
         )
 
 
@@ -27,16 +35,9 @@ async def buscar_direcciones_endpoint(q: str = Query(..., min_length=3)):
         return JSONResponse(content=resultados)
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"No se pudieron obtener sugerencias: {str(e)}"
+            status_code=500,
+            detail=f"No se pudieron obtener sugerencias: {str(e)}",
         )
-
-
-@router.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return request.app.state.templates.TemplateResponse(
-        "index.html",
-        {"request": request},
-    )
 
 
 @router.get("/expedientes", response_class=HTMLResponse)
@@ -111,10 +112,11 @@ def guardar_expediente(
         """
         INSERT INTO expedientes (
             numero_expediente, cliente, direccion, codigo_postal, ciudad, provincia,
-            tipo_inmueble, orientacion_inmueble, anio_construccion, plantas_bajo_rasante,
-            plantas_sobre_baja, uso_inmueble, superficie, observaciones_generales,
-            planta_unidad, puerta_unidad, superficie_unidad, dormitorios_unidad,
-            banos_unidad, observaciones_bloque, observaciones_unidad, reformado,
+            tipo_inmueble, orientacion_inmueble, anio_construccion,
+            plantas_bajo_rasante, plantas_sobre_baja, uso_inmueble,
+            superficie, observaciones_generales, planta_unidad, puerta_unidad,
+            superficie_unidad, dormitorios_unidad, banos_unidad,
+            observaciones_bloque, observaciones_unidad, reformado,
             fecha_reforma, observaciones_reforma
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -151,7 +153,10 @@ def guardar_expediente(
     conn.commit()
     conn.close()
 
-    return RedirectResponse(url=f"/detalle-expediente/{expediente_id}", status_code=303)
+    return RedirectResponse(
+        url=f"/detalle-expediente/{expediente_id}",
+        status_code=303,
+    )
 
 
 @router.get("/detalle-expediente/{expediente_id}", response_class=HTMLResponse)
@@ -175,8 +180,16 @@ def detalle_expediente(request: Request, expediente_id: int):
     visitas_raw = cur.execute(
         """
         SELECT v.*,
-               (SELECT COUNT(*) FROM estancias e WHERE e.visita_id = v.id) AS total_estancias,
-               (SELECT COUNT(*) FROM registros_patologias rp WHERE rp.visita_id = v.id) AS total_patologias
+               (
+                   SELECT COUNT(*)
+                   FROM estancias e
+                   WHERE e.visita_id = v.id
+               ) AS total_estancias,
+               (
+                   SELECT COUNT(*)
+                   FROM registros_patologias rp
+                   WHERE rp.visita_id = v.id
+               ) AS total_patologias
         FROM visitas v
         WHERE v.expediente_id = ?
         ORDER BY v.id DESC
@@ -185,6 +198,7 @@ def detalle_expediente(request: Request, expediente_id: int):
     ).fetchall()
 
     visitas = []
+
     for visita in visitas_raw:
         visita_dict = dict(visita)
 
@@ -195,6 +209,7 @@ def detalle_expediente(request: Request, expediente_id: int):
                    rp.patologia,
                    rp.observaciones,
                    rp.foto,
+                   rp.estancia_id,
                    e.nombre AS estancia_nombre
             FROM registros_patologias rp
             INNER JOIN estancias e ON rp.estancia_id = e.id
@@ -215,8 +230,9 @@ def detalle_expediente(request: Request, expediente_id: int):
             (visita["id"],),
         ).fetchone()
 
-        visita_dict["patologias_detalle"] = patologias
+        visita_dict["patologias_detalle"] = [dict(p) for p in patologias]
         visita_dict["climatologia"] = clima["resumen"] if clima else None
+
         visitas.append(visita_dict)
 
     conn.close()
@@ -229,7 +245,11 @@ def detalle_expediente(request: Request, expediente_id: int):
 
     return request.app.state.templates.TemplateResponse(
         "detalle_expediente.html",
-        {"request": request, "expediente": expediente_dict, "visitas": visitas},
+        {
+            "request": request,
+            "expediente": expediente_dict,
+            "visitas": visitas,
+        },
     )
 
 
@@ -292,13 +312,29 @@ def actualizar_expediente(
     cur.execute(
         """
         UPDATE expedientes
-        SET numero_expediente = ?, cliente = ?, direccion = ?, codigo_postal = ?,
-            ciudad = ?, provincia = ?, tipo_inmueble = ?, orientacion_inmueble = ?,
-            anio_construccion = ?, plantas_bajo_rasante = ?, plantas_sobre_baja = ?,
-            uso_inmueble = ?, superficie = ?, observaciones_generales = ?,
-            planta_unidad = ?, puerta_unidad = ?, superficie_unidad = ?,
-            dormitorios_unidad = ?, banos_unidad = ?, observaciones_bloque = ?,
-            observaciones_unidad = ?, reformado = ?, fecha_reforma = ?,
+        SET numero_expediente = ?,
+            cliente = ?,
+            direccion = ?,
+            codigo_postal = ?,
+            ciudad = ?,
+            provincia = ?,
+            tipo_inmueble = ?,
+            orientacion_inmueble = ?,
+            anio_construccion = ?,
+            plantas_bajo_rasante = ?,
+            plantas_sobre_baja = ?,
+            uso_inmueble = ?,
+            superficie = ?,
+            observaciones_generales = ?,
+            planta_unidad = ?,
+            puerta_unidad = ?,
+            superficie_unidad = ?,
+            dormitorios_unidad = ?,
+            banos_unidad = ?,
+            observaciones_bloque = ?,
+            observaciones_unidad = ?,
+            reformado = ?,
+            fecha_reforma = ?,
             observaciones_reforma = ?
         WHERE id = ?
         """,
@@ -334,4 +370,7 @@ def actualizar_expediente(
     conn.commit()
     conn.close()
 
-    return RedirectResponse(url=f"/detalle-expediente/{expediente_id}", status_code=303)
+    return RedirectResponse(
+        url=f"/detalle-expediente/{expediente_id}",
+        status_code=303,
+    )

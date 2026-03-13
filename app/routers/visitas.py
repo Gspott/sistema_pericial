@@ -8,6 +8,7 @@ router = APIRouter()
 
 @router.get("/nueva-visita/{expediente_id}", response_class=HTMLResponse)
 def nueva_visita(request: Request, expediente_id: int):
+
     conn = get_connection()
     cur = conn.cursor()
 
@@ -38,6 +39,7 @@ def guardar_visita(
     tecnico: str = Form(...),
     observaciones_visita: str = Form(""),
 ):
+
     conn = get_connection()
     cur = conn.cursor()
 
@@ -63,6 +65,7 @@ def guardar_visita(
     ).fetchone()
 
     if ultima_visita:
+
         estancias_previas = cur.execute(
             """
             SELECT nombre, tipo_estancia, planta, observaciones

@@ -12,6 +12,7 @@ def get_connection():
 def asegurar_columna(cur, tabla, columna, definicion):
     columnas = cur.execute(f"PRAGMA table_info({tabla})").fetchall()
     nombres = [col[1] for col in columnas]
+
     if columna not in nombres:
         cur.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {definicion}")
 

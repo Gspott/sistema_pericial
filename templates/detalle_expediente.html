@@ -19,13 +19,8 @@
             background: #fafafa;
         }
 
-        .subcard {
-            border-top: 1px solid #ddd;
-            padding-top: 12px;
-            margin-top: 12px;
-        }
-
-        a.boton {
+        a.boton,
+        button.boton {
             display: inline-block;
             padding: 10px 14px;
             margin-right: 8px;
@@ -35,20 +30,35 @@
             text-decoration: none;
             color: black;
             background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .bloque-patologia {
+            border-top: 1px solid #ddd;
+            margin-top: 10px;
+            padding-top: 10px;
         }
 
         .foto-mini {
-            display: inline-block;
-            margin-top: 8px;
-            max-width: 220px;
-            max-height: 180px;
-            border: 1px solid #ccc;
+            max-width: 180px;
             border-radius: 8px;
+            display: block;
+            margin-top: 8px;
         }
 
-        h2,
-        h3 {
-            margin-top: 0;
+        .acciones-patologia {
+            margin-top: 10px;
+        }
+
+        .acciones-patologia form {
+            display: inline-block;
+        }
+
+        .boton-peligro {
+            border-color: #b42318;
+            color: white;
+            background: #b42318;
         }
     </style>
 </head>
@@ -60,6 +70,7 @@
         <a class="boton" href="/expedientes">Volver a expedientes</a>
         <a class="boton" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
         <a class="boton" href="/nueva-visita/{{ expediente.id }}">Nueva visita</a>
+        <a class="boton" href="/generar-informe/{{ expediente.id }}">Generar informe Word</a>
     </p>
 
     <div class="card">
@@ -112,36 +123,40 @@
         <p><strong>Estancias:</strong> {{ visita.total_estancias }}</p>
         <p><strong>Patologías registradas:</strong> {{ visita.total_patologias }}</p>
 
+        {% if visita.climatologia %}
+        <p><strong>Climatología:</strong> {{ visita.climatologia }}</p>
+        {% endif %}
+
         <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
         <a class="boton" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>
 
-        <div class="subcard">
-            <h3>Climatología</h3>
-            <p>{{ visita.climatologia or 'No hay climatología registrada para esta visita.' }}</p>
-        </div>
-
-        <div class="subcard">
+        {% if visita.patologias_detalle %}
+        <div class="bloque-patologia">
             <h3>Detalle de patologías</h3>
 
-            {% if visita.patologias_detalle %}
             {% for patologia in visita.patologias_detalle %}
-            <div class="subcard">
+            <div style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #eee;">
                 <p><strong>Estancia:</strong> {{ patologia.estancia_nombre }}</p>
                 <p><strong>Elemento:</strong> {{ patologia.elemento }}</p>
                 <p><strong>Patología:</strong> {{ patologia.patologia }}</p>
                 <p><strong>Observaciones:</strong> {{ patologia.observaciones or '-' }}</p>
 
                 {% if patologia.foto %}
-                <p>
-                    <img class="foto-mini" src="/uploads/{{ patologia.foto }}" alt="Foto patología">
-                </p>
+                <img class="foto-mini" src="/uploads/{{ patologia.foto }}" alt="Fotografía patología">
                 {% endif %}
+
+                <div class="acciones-patologia">
+                    <a class="boton" href="/editar-registro/{{ patologia.id }}">Editar</a>
+
+                    <form method="post" action="/borrar-registro/{{ patologia.id }}"
+                        onsubmit="return confirm('¿Seguro que quieres borrar esta patología?');">
+                        <button type="submit" class="boton boton-peligro">Borrar</button>
+                    </form>
+                </div>
             </div>
             {% endfor %}
-            {% else %}
-            <p>No hay patologías registradas en esta visita.</p>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
     {% endfor %}
     {% else %}

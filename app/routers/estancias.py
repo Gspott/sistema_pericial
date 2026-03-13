@@ -9,6 +9,7 @@ router = APIRouter()
 
 @router.get("/definir-estancias/{visita_id}", response_class=HTMLResponse)
 def definir_estancias(request: Request, visita_id: int):
+
     conn = get_connection()
     cur = conn.cursor()
 
@@ -39,139 +40,12 @@ def definir_estancias(request: Request, visita_id: int):
 
     return request.app.state.templates.TemplateResponse(
         "definir_estancias.html",
-        {"request": request, "visita": visita, "estancias": estancias},
+        {
+            "request": request,
+            "visita": visita,
+            "estancias": estancias,
+        },
     )
-
-
-@router.post("/guardar-estancia")
-def guardar_estancia(
-    visita_id: int = Form(...),
-    nombre: str = Form(...),
-    tipo_estancia: str = Form(...),
-    planta: str = Form(""),
-    observaciones: str = Form(""),
-):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (visita_id, nombre, tipo_estancia, planta, observaciones),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return RedirectResponse(url=f"/definir-estancias/{visita_id}", status_code=303)
-
-
-@router.get("/editar-estancia/{estancia_id}", response_class=HTMLResponse)
-def editar_estancia(request: Request, estancia_id: int):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    estancia = cur.execute(
-        """
-        SELECT *
-        FROM estancias
-        WHERE id = ?
-        """,
-        (estancia_id,),
-    ).fetchone()
-
-    conn.close()
-
-    if not estancia:
-        return HTMLResponse("<h1>Estancia no encontrada</h1>", status_code=404)
-
-    return request.app.state.templates.TemplateResponse(
-        "editar_estancia.html",
-        {"request": request, "estancia": estancia},
-    )
-
-
-@router.post("/actualizar-estancia/{estancia_id}")
-def actualizar_estancia(
-    estancia_id: int,
-    nombre: str = Form(...),
-    tipo_estancia: str = Form(...),
-    planta: str = Form(""),
-    observaciones: str = Form(""),
-):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    estancia = cur.execute(
-        "SELECT visita_id FROM estancias WHERE id = ?",
-        (estancia_id,),
-    ).fetchone()
-
-    if not estancia:
-        conn.close()
-        return HTMLResponse("<h1>Estancia no encontrada</h1>", status_code=404)
-
-    visita_id = estancia["visita_id"]
-
-    cur.execute(
-        """
-        UPDATE estancias
-        SET nombre = ?, tipo_estancia = ?, planta = ?, observaciones = ?
-        WHERE id = ?
-        """,
-        (nombre, tipo_estancia, planta, observaciones, estancia_id),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return RedirectResponse(url=f"/definir-estancias/{visita_id}", status_code=303)
-
-
-@router.post("/borrar-estancia/{estancia_id}")
-def borrar_estancia(estancia_id: int):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    estancia = cur.execute(
-        """
-        SELECT visita_id
-        FROM estancias
-        WHERE id = ?
-        """,
-        (estancia_id,),
-    ).fetchone()
-
-    if not estancia:
-        conn.close()
-        return HTMLResponse("<h1>Estancia no encontrada</h1>", status_code=404)
-
-    visita_id = estancia["visita_id"]
-
-    registros = cur.execute(
-        """
-        SELECT foto
-        FROM registros_patologias
-        WHERE estancia_id = ?
-        """,
-        (estancia_id,),
-    ).fetchall()
-
-    for registro in registros:
-        borrar_foto_si_existe(registro["foto"])
-
-    cur.execute(
-        "DELETE FROM registros_patologias WHERE estancia_id = ?",
-        (estancia_id,),
-    )
-    cur.execute("DELETE FROM estancias WHERE id = ?", (estancia_id,))
-
-    conn.commit()
-    conn.close()
-
-    return RedirectResponse(url=f"/definir-estancias/{visita_id}", status_code=303)
 
 
 @router.post("/generar-estancias-base")
@@ -184,17 +58,22 @@ def generar_estancias_base(
     incluir_pasillo: str = Form("no"),
     incluir_terraza: str = Form("no"),
 ):
+
     conn = get_connection()
     cur = conn.cursor()
 
     existentes = cur.execute(
         """
-        SELECT COUNT(*) FROM estancias WHERE visita_id = ?
+        SELECT COUNT(*) AS total
+        FROM estancias
+        WHERE visita_id = ?
         """,
         (visita_id,),
-    ).fetchone()[0]
+    ).fetchone()
 
-    if existentes == 0:
+    total_existentes = existentes["total"] if existentes else 0
+
+    if total_existentes == 0:
         if incluir_salon == "si":
             cur.execute(
                 """
@@ -252,4 +131,88 @@ def generar_estancias_base(
     conn.commit()
     conn.close()
 
-    return RedirectResponse(url=f"/definir-estancias/{visita_id}", status_code=303)
+    return RedirectResponse(
+        url=f"/definir-estancias/{visita_id}",
+        status_code=303,
+    )
+
+
+@router.post("/guardar-estancia")
+def guardar_estancia(
+    visita_id: int = Form(...),
+    nombre: str = Form(...),
+    tipo_estancia: str = Form(...),
+    planta: str = Form(""),
+    observaciones: str = Form(""),
+):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (visita_id, nombre, tipo_estancia, planta, observaciones),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/definir-estancias/{visita_id}",
+        status_code=303,
+    )
+
+
+@router.post("/borrar-estancia/{estancia_id}")
+def borrar_estancia(estancia_id: int):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    estancia = cur.execute(
+        """
+        SELECT visita_id
+        FROM estancias
+        WHERE id = ?
+        """,
+        (estancia_id,),
+    ).fetchone()
+
+    if not estancia:
+        conn.close()
+        return HTMLResponse("<h1>Estancia no encontrada</h1>", status_code=404)
+
+    visita_id = estancia["visita_id"]
+
+    registros = cur.execute(
+        """
+        SELECT foto
+        FROM registros_patologias
+        WHERE estancia_id = ?
+        """,
+        (estancia_id,),
+    ).fetchall()
+
+    for registro in registros:
+        borrar_foto_si_existe(registro["foto"])
+
+    cur.execute(
+        "DELETE FROM registros_patologias WHERE estancia_id = ?",
+        (estancia_id,),
+    )
+
+    cur.execute(
+        "DELETE FROM estancias WHERE id = ?",
+        (estancia_id,),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/definir-estancias/{visita_id}",
+        status_code=303,
+    )
