@@ -8,12 +8,94 @@ from app.utils.helpers import formatear_plantas
 router = APIRouter()
 
 
+def es_dispositivo_movil(user_agent: str) -> bool:
+    if not user_agent:
+        return False
+
+    user_agent = user_agent.lower()
+    palabras_clave = [
+        "iphone",
+        "android",
+        "ipad",
+        "ipod",
+        "mobile",
+        "opera mini",
+        "windows phone",
+    ]
+    return any(palabra in user_agent for palabra in palabras_clave)
+
+
 @router.get("/", response_class=HTMLResponse)
 def home(request: Request):
+    user_agent = request.headers.get("user-agent", "")
+
+    if es_dispositivo_movil(user_agent):
+        return RedirectResponse(url="/iphone", status_code=302)
+
     return request.app.state.templates.TemplateResponse(
         "index.html",
         {"request": request},
     )
+
+
+@router.get("/iphone", response_class=HTMLResponse)
+def iphone_panel(request: Request):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    expedientes_raw = cur.execute(
+        """
+        SELECT *
+        FROM expedientes
+        ORDER BY id DESC
+        LIMIT 20
+        """
+    ).fetchall()
+
+    expedientes = []
+
+    for expediente in expedientes_raw:
+        expediente_dict = dict(expediente)
+
+        ultima_visita = cur.execute(
+            """
+            SELECT id, fecha
+            FROM visitas
+            WHERE expediente_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (expediente["id"],),
+        ).fetchone()
+
+        expediente_dict["ultima_visita_id"] = (
+            ultima_visita["id"] if ultima_visita else None
+        )
+        expediente_dict["ultima_visita_fecha"] = (
+            ultima_visita["fecha"] if ultima_visita else None
+        )
+
+        expediente_dict["descripcion_plantas"] = formatear_plantas(
+            expediente_dict.get("plantas_bajo_rasante"),
+            expediente_dict.get("plantas_sobre_baja"),
+        )
+
+        expedientes.append(expediente_dict)
+
+    conn.close()
+
+    return request.app.state.templates.TemplateResponse(
+        "iphone_inicio.html",
+        {
+            "request": request,
+            "expedientes": expedientes,
+        },
+    )
+
+
+@router.get("/iPhone")
+def iphone_panel_alias():
+    return RedirectResponse(url="/iphone", status_code=302)
 
 
 @router.get("/autocompletar-direccion")
