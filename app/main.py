@@ -1,17 +1,14 @@
-import os
-
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import STATIC_DIR, TEMPLATES_DIR, UPLOAD_DIR
+from app.config import STATIC_DIR, TEMPLATES_DIR, UPLOAD_DIR, ensure_directories
 from app.database import init_db
 from app.routers import estancias, expedientes, patologias, visitas
 
 app = FastAPI(title="Sistema Pericial")
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(STATIC_DIR, exist_ok=True)
+ensure_directories()
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
