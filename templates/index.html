@@ -4,40 +4,20 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="manifest" href="/static/manifest.json">
+    <link rel="stylesheet" href="/static/mobile.css">
     <title>Sistema Pericial</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-        }
-
-        .botones {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            max-width: 340px;
-        }
-
-        a.boton {
-            display: block;
-            padding: 18px 20px;
-            font-size: 18px;
-            text-decoration: none;
-            color: black;
-            border: 1px solid #ccc;
-            border-radius: 10px;
-            background: #f5f5f5;
-            text-align: center;
-        }
-    </style>
 </head>
 
 <body>
-    <h1>Sistema Pericial</h1>
+    <div class="page">
+        <h1>Sistema Pericial</h1>
 
-    <div class="botones">
-        <a class="boton" href="/nuevo-expediente">Nuevo expediente</a>
-        <a class="boton" href="/expedientes">Consultar expedientes</a>
+        <div class="card">
+            <div class="actions">
+                <a class="boton" href="/nuevo-expediente">Nuevo expediente</a>
+                <a class="boton secundario" href="/expedientes">Consultar expedientes</a>
+            </div>
+        </div>
     </div>
 </body>
 
