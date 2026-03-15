@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Detalle expediente</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            max-width: 1000px;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 14px;
+            background: #fafafa;
+        }
+
+        a.boton,
+        button.boton {
+            display: inline-block;
+            padding: 10px 14px;
+            margin-right: 8px;
+            margin-top: 10px;
+            border: 1px solid #999;
+            border-radius: 8px;
+            text-decoration: none;
+            color: black;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .bloque-patologia {
+            border-top: 1px solid #ddd;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+
+        .foto-mini {
+            max-width: 180px;
+            border-radius: 8px;
+            display: block;
+            margin-top: 8px;
+        }
+
+        .acciones-patologia {
+            margin-top: 10px;
+        }
+
+        .acciones-patologia form {
+            display: inline-block;
+        }
+
+        .boton-peligro {
+            border-color: #b42318;
+            color: white;
+            background: #b42318;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Expediente {{ expediente.numero_expediente }}</h1>
+
+    <p>
+        <a class="boton" href="/expedientes">Volver a expedientes</a>
+        <a class="boton" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
+        <a class="boton" href="/nueva-visita/{{ expediente.id }}">Nueva visita</a>
+        <a class="boton" href="/generar-informe/{{ expediente.id }}">Generar informe Word</a>
+    </p>
+
+    <div class="card">
+        <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
+        <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+        <p><strong>Código postal:</strong> {{ expediente.codigo_postal or '-' }}</p>
+        <p><strong>Ciudad:</strong> {{ expediente.ciudad or '-' }}</p>
+        <p><strong>Provincia:</strong> {{ expediente.provincia or '-' }}</p>
+        <p><strong>Tipo de inmueble:</strong> {{ expediente.tipo_inmueble or '-' }}</p>
+        <p><strong>Orientación:</strong> {{ expediente.orientacion_inmueble or '-' }}</p>
+        <p><strong>Año de construcción:</strong> {{ expediente.anio_construccion or '-' }}</p>
+        <p><strong>Plantas:</strong> {{ expediente.descripcion_plantas }}</p>
+        <p><strong>Uso:</strong> {{ expediente.uso_inmueble or '-' }}</p>
+        <p><strong>Superficie:</strong> {{ expediente.superficie or '-' }}</p>
+        <p><strong>Observaciones generales:</strong> {{ expediente.observaciones_generales or '-' }}</p>
+    </div>
+
+    {% if expediente.tipo_inmueble == "Piso" %}
+    <div class="card">
+        <h2>Características del bloque</h2>
+        <p><strong>Observaciones del bloque:</strong> {{ expediente.observaciones_bloque or '-' }}</p>
+    </div>
+
+    <div class="card">
+        <h2>Características de la unidad</h2>
+        <p><strong>Planta de la unidad:</strong> {{ expediente.planta_unidad or '-' }}</p>
+        <p><strong>Puerta / unidad:</strong> {{ expediente.puerta_unidad or '-' }}</p>
+        <p><strong>Superficie de la unidad:</strong> {{ expediente.superficie_unidad or '-' }}</p>
+        <p><strong>Dormitorios:</strong> {{ expediente.dormitorios_unidad or '-' }}</p>
+        <p><strong>Baños:</strong> {{ expediente.banos_unidad or '-' }}</p>
+        <p><strong>Observaciones de la unidad:</strong> {{ expediente.observaciones_unidad or '-' }}</p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2>Reforma</h2>
+        <p><strong>Reformado:</strong> {{ expediente.reformado or 'No' }}</p>
+        <p><strong>Fecha de reforma:</strong> {{ expediente.fecha_reforma or '-' }}</p>
+        <p><strong>Observaciones de la reforma:</strong> {{ expediente.observaciones_reforma or '-' }}</p>
+    </div>
+
+    <h2>Visitas del expediente</h2>
+
+    {% if visitas %}
+    {% for visita in visitas %}
+    <div class="card">
+        <p><strong>Fecha:</strong> {{ visita.fecha }}</p>
+        <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
+        <p><strong>Observaciones de visita:</strong> {{ visita.observaciones_visita or '-' }}</p>
+        <p><strong>Estancias:</strong> {{ visita.total_estancias }}</p>
+        <p><strong>Patologías registradas:</strong> {{ visita.total_patologias }}</p>
+
+        {% if visita.climatologia %}
+        <p><strong>Climatología:</strong> {{ visita.climatologia }}</p>
+        {% endif %}
+
+        <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
+        <a class="boton" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>
+
+        {% if visita.patologias_detalle %}
+        <div class="bloque-patologia">
+            <h3>Detalle de patologías</h3>
+
+            {% for patologia in visita.patologias_detalle %}
+            <div style="margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #eee;">
+                <p><strong>Estancia:</strong> {{ patologia.estancia_nombre }}</p>
+                <p><strong>Elemento:</strong> {{ patologia.elemento }}</p>
+                <p><strong>Patología:</strong> {{ patologia.patologia }}</p>
+                <p><strong>Observaciones:</strong> {{ patologia.observaciones or '-' }}</p>
+
+                {% if patologia.foto %}
+                <img class="foto-mini" src="/uploads/{{ patologia.foto }}" alt="Fotografía patología">
+                {% endif %}
+
+                <div class="acciones-patologia">
+                    <a class="boton" href="/editar-registro/{{ patologia.id }}">Editar</a>
+
+                    <form method="post" action="/borrar-registro/{{ patologia.id }}"
+                        onsubmit="return confirm('¿Seguro que quieres borrar esta patología?');">
+                        <button type="submit" class="boton boton-peligro">Borrar</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No hay visitas creadas todavía para este expediente.</p>
+    {% endif %}
+</body>
+
+</html>

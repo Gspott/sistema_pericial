@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Registrar patologías</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            max-width: 1000px;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background: #fafafa;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button,
+        .boton {
+            display: inline-block;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: none;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+            background: #1e3a8a;
+            color: white;
+        }
+
+        .secundario {
+            background: #efefef;
+            color: black;
+            border: 1px solid #ccc;
+        }
+
+        .foto {
+            max-width: 240px;
+            border-radius: 8px;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .acciones-superiores {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Registrar patologías</h1>
+
+    <div class="acciones-superiores">
+        <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Volver a estancias</a>
+        <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+
+        <form method="post" action="/anadir-climatologia/{{ visita.id }}" style="display:inline;">
+            <button type="submit">Añadir climatología última semana</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
+        <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
+        <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
+    </div>
+
+    {% if clima %}
+    <div class="card">
+        <h2>Climatología</h2>
+        <p>{{ clima.resumen }}</p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2>Nuevo registro</h2>
+
+        <form method="post" action="/guardar-registro" enctype="multipart/form-data">
+            <input type="hidden" name="visita_id" value="{{ visita.id }}">
+
+            <label>Estancia</label>
+            <select name="estancia_id" required>
+                <option value="">Seleccionar</option>
+                {% for estancia in estancias %}
+                <option value="{{ estancia.id }}">{{ estancia.nombre }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Elemento afectado</label>
+            <input name="elemento" required placeholder="Ej. Techo, pared medianera, solado...">
+
+            <label>Patología</label>
+            <select name="patologia" required>
+                <option value="">Seleccionar</option>
+                {% for patologia in patologias %}
+                <option value="{{ patologia.nombre }}">{{ patologia.nombre }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Observaciones</label>
+            <textarea name="observaciones" rows="5"></textarea>
+
+            <label>Fotografía</label>
+            <input type="file" name="foto" accept="image/*">
+
+            <button type="submit">Guardar registro</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Registros guardados</h2>
+
+        {% if registros %}
+        {% for registro in registros %}
+        <div style="border-top:1px solid #ddd; padding-top:12px; margin-top:12px;">
+            <p><strong>Estancia:</strong> {{ registro.estancia_nombre }}</p>
+            <p><strong>Elemento:</strong> {{ registro.elemento }}</p>
+            <p><strong>Patología:</strong> {{ registro.patologia }}</p>
+            <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
+
+            {% if registro.foto %}
+            <img class="foto" src="/uploads/{{ registro.foto }}" alt="Fotografía patología">
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>Todavía no hay patologías registradas.</p>
+        {% endif %}
+    </div>
+</body>
+
+</html>

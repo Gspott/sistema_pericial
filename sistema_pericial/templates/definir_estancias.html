@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Definir estancias</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            max-width: 900px;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background: #fafafa;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button,
+        .boton {
+            display: inline-block;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: none;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+            background: #1e3a8a;
+            color: white;
+        }
+
+        .secundario {
+            background: #efefef;
+            color: black;
+            border: 1px solid #ccc;
+        }
+
+        .peligro {
+            background: #b42318;
+            color: white;
+            border: none;
+        }
+
+        .acciones {
+            margin-top: 10px;
+        }
+
+        .acciones form {
+            display: inline-block;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Definir estancias</h1>
+
+    <p>
+        <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+        <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Ir a registrar patologías</a>
+    </p>
+
+    <div class="card">
+        <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
+        <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
+        <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
+    </div>
+
+    <div class="card">
+        <h2>Generación rápida de estancias</h2>
+
+        <form method="post" action="/generar-estancias-base">
+            <input type="hidden" name="visita_id" value="{{ visita.id }}">
+
+            <label>Número de dormitorios</label>
+            <input type="number" name="num_dormitorios" value="0" min="0">
+
+            <label>Número de baños</label>
+            <input type="number" name="num_banos" value="0" min="0">
+
+            <label>¿Incluir salón?</label>
+            <select name="incluir_salon">
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+            </select>
+
+            <label>¿Incluir cocina?</label>
+            <select name="incluir_cocina">
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+            </select>
+
+            <label>¿Incluir pasillo?</label>
+            <select name="incluir_pasillo">
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+            </select>
+
+            <label>¿Incluir terraza?</label>
+            <select name="incluir_terraza">
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+            </select>
+
+            <button type="submit">Generar estancias base</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Añadir estancia manualmente</h2>
+
+        <form method="post" action="/guardar-estancia">
+            <input type="hidden" name="visita_id" value="{{ visita.id }}">
+
+            <label>Nombre de la estancia</label>
+            <input name="nombre" required>
+
+            <label>Tipo de estancia</label>
+            <input name="tipo_estancia" required>
+
+            <label>Planta</label>
+            <input name="planta" placeholder="Ej. Sótano, PB, PB+1...">
+
+            <label>Observaciones</label>
+            <textarea name="observaciones" rows="4"></textarea>
+
+            <button type="submit">Guardar estancia</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Estancias registradas</h2>
+
+        {% if estancias %}
+        {% for estancia in estancias %}
+        <div style="border-top:1px solid #ddd; padding-top:12px; margin-top:12px;">
+            <p><strong>{{ estancia.nombre }}</strong></p>
+            <p>Tipo: {{ estancia.tipo_estancia }}</p>
+            <p>Planta: {{ estancia.planta or '-' }}</p>
+            <p>Observaciones: {{ estancia.observaciones or '-' }}</p>
+
+            <div class="acciones">
+                <a class="boton secundario" href="/editar-estancia/{{ estancia.id }}">Editar</a>
+
+                <form method="post" action="/borrar-estancia/{{ estancia.id }}"
+                    onsubmit="return confirm('¿Seguro que quieres borrar esta estancia y sus patologías asociadas?');">
+                    <button class="peligro" type="submit">Borrar</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>Todavía no hay estancias registradas.</p>
+        {% endif %}
+    </div>
+</body>
+
+</html>

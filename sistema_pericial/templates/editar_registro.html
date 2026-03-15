@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Editar patología registrada</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            max-width: 900px;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background: #fafafa;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button,
+        .boton {
+            display: inline-block;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: none;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+            background: #1e3a8a;
+            color: white;
+        }
+
+        .secundario {
+            background: #efefef;
+            color: black;
+            border: 1px solid #ccc;
+        }
+
+        .foto {
+            max-width: 280px;
+            border-radius: 8px;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .inline {
+            display: inline-block;
+            margin-right: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Editar patología registrada</h1>
+
+    <p>
+        <a class="boton secundario" href="/registrar-patologias/{{ registro.visita_id }}">Volver a registrar
+            patologías</a>
+        <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+    </p>
+
+    <div class="card">
+        <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
+        <p><strong>Fecha de visita:</strong> {{ visita.fecha }}</p>
+    </div>
+
+    <div class="card">
+        <form method="post" action="/actualizar-registro/{{ registro.id }}" enctype="multipart/form-data">
+
+            <label>Estancia</label>
+            <select name="estancia_id" required>
+                <option value="">Seleccionar</option>
+                {% for estancia in estancias %}
+                <option value="{{ estancia.id }}" {% if registro.estancia_id==estancia.id %}selected{% endif %}>
+                    {{ estancia.nombre }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label>Elemento afectado</label>
+            <input name="elemento" value="{{ registro.elemento }}" required>
+
+            <label>Patología</label>
+            <select name="patologia" required>
+                <option value="">Seleccionar</option>
+                {% for item in patologias %}
+                <option value="{{ item.nombre }}" {% if registro.patologia==item.nombre %}selected{% endif %}>
+                    {{ item.nombre }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label>Observaciones</label>
+            <textarea name="observaciones" rows="5">{{ registro.observaciones or '' }}</textarea>
+
+            {% if registro.foto %}
+            <div>
+                <p><strong>Fotografía actual:</strong></p>
+                <img class="foto" src="/uploads/{{ registro.foto }}" alt="Fotografía actual">
+
+                <label class="inline">
+                    <input type="radio" name="eliminar_foto_actual" value="no" checked>
+                    Mantener foto actual
+                </label>
+
+                <label class="inline">
+                    <input type="radio" name="eliminar_foto_actual" value="si">
+                    Eliminar foto actual
+                </label>
+            </div>
+            {% else %}
+            <input type="hidden" name="eliminar_foto_actual" value="no">
+            {% endif %}
+
+            <label>Nueva fotografía (opcional)</label>
+            <input type="file" name="foto" accept="image/*">
+
+            <button type="submit">Guardar cambios</button>
+        </form>
+    </div>
+</body>
+
+</html>
