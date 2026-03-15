@@ -3,68 +3,38 @@
 
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/mobile.css">
     <title>Nueva visita</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 30px;
-            max-width: 700px;
-        }
-
-        input,
-        textarea {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 14px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-
-        button {
-            padding: 15px;
-            font-size: 18px;
-            width: 100%;
-            background: #1e3a8a;
-            color: white;
-            border: none;
-            border-radius: 8px;
-        }
-
-        .info {
-            background: #f6f6f6;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 14px;
-            margin-bottom: 18px;
-        }
-    </style>
 </head>
 
 <body>
-    <h1>Nueva visita</h1>
+    <div class="page">
+        <h1>Nueva visita</h1>
 
-    <div class="info">
-        <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
-        <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
-        <p>Al guardar esta visita, se copiarán automáticamente las estancias de la última visita existente del
-            expediente, si las hubiera.</p>
+        <div class="card">
+            <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+            <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+        </div>
+
+        <div class="card">
+            <form method="post" action="/guardar-visita/{{ expediente.id }}">
+                <label>Fecha visita</label>
+                <input type="date" name="fecha" required>
+
+                <label>Técnico</label>
+                <input name="tecnico" required>
+
+                <label>Observaciones visita</label>
+                <textarea name="observaciones_visita"></textarea>
+
+                <button type="submit">Crear visita</button>
+            </form>
+        </div>
+
+        <div class="actions">
+            <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Cancelar</a>
+        </div>
     </div>
-
-    <form method="post" action="/guardar-visita/{{ expediente.id }}">
-        <label>Fecha de visita</label>
-        <input type="date" name="fecha" required>
-
-        <label>Técnico</label>
-        <input name="tecnico" required>
-
-        <label>Observaciones de visita</label>
-        <textarea name="observaciones_visita" rows="5"></textarea>
-
-        <button type="submit">Guardar visita</button>
-    </form>
-
-    <br>
-    <a href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
 </body>
 
 </html>
