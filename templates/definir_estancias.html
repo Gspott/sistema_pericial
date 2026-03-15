@@ -4,58 +4,112 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/mobile.css">
-    <title>Estancias</title>
+    <title>Definir estancias</title>
 </head>
 
 <body>
-
     <div class="page">
-
-        <h1>Estancias</h1>
+        <h1>Definir estancias</h1>
 
         <div class="actions">
-            <a class="boton secundario" href="/detalle-expediente/{{ expediente_id }}">Volver</a>
+            <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+            <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Ir a registrar patologías</a>
         </div>
 
-        {% for estancia in estancias %}
-
         <div class="card">
-
-            <p><strong>{{ estancia.nombre }}</strong></p>
-
-            <div class="actions">
-
-                <a class="boton" href="/editar-estancia/{{ estancia.id }}">
-                    Editar
-                </a>
-
-                <form method="post" action="/borrar-estancia/{{ estancia.id }}">
-                    <button class="boton peligro">Borrar</button>
-                </form>
-
-            </div>
-
+            <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
+            <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
+            <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
         </div>
 
-        {% endfor %}
-
         <div class="card">
+            <h2>Generación rápida de estancias</h2>
 
-            <h2>Nueva estancia</h2>
+            <form method="post" action="/generar-estancias-base">
+                <input type="hidden" name="visita_id" value="{{ visita.id }}">
 
-            <form method="post">
+                <label>Número de dormitorios</label>
+                <input type="number" name="num_dormitorios" value="0" min="0">
 
-                <label>Nombre estancia</label>
-                <input name="nombre">
+                <label>Número de baños</label>
+                <input type="number" name="num_banos" value="0" min="0">
 
-                <button type="submit">Añadir estancia</button>
+                <label>¿Incluir salón?</label>
+                <select name="incluir_salon">
+                    <option value="si">Sí</option>
+                    <option value="no">No</option>
+                </select>
 
+                <label>¿Incluir cocina?</label>
+                <select name="incluir_cocina">
+                    <option value="si">Sí</option>
+                    <option value="no">No</option>
+                </select>
+
+                <label>¿Incluir pasillo?</label>
+                <select name="incluir_pasillo">
+                    <option value="si">Sí</option>
+                    <option value="no">No</option>
+                </select>
+
+                <label>¿Incluir terraza?</label>
+                <select name="incluir_terraza">
+                    <option value="si">Sí</option>
+                    <option value="no">No</option>
+                </select>
+
+                <button type="submit">Generar estancias base</button>
             </form>
-
         </div>
 
-    </div>
+        <div class="card">
+            <h2>Añadir estancia manualmente</h2>
 
+            <form method="post" action="/guardar-estancia">
+                <input type="hidden" name="visita_id" value="{{ visita.id }}">
+
+                <label>Nombre de la estancia</label>
+                <input name="nombre" required>
+
+                <label>Tipo de estancia</label>
+                <input name="tipo_estancia" required>
+
+                <label>Planta</label>
+                <input name="planta" placeholder="Ej. Sótano, PB, PB+1...">
+
+                <label>Observaciones</label>
+                <textarea name="observaciones" rows="4"></textarea>
+
+                <button type="submit">Guardar estancia</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Estancias registradas</h2>
+
+            {% if estancias %}
+            {% for estancia in estancias %}
+            <div class="list-item">
+                <p><strong>{{ estancia.nombre }}</strong></p>
+                <p>Tipo: {{ estancia.tipo_estancia }}</p>
+                <p>Planta: {{ estancia.planta or '-' }}</p>
+                <p>Observaciones: {{ estancia.observaciones or '-' }}</p>
+
+                <div class="actions">
+                    <a class="boton secundario" href="/editar-estancia/{{ estancia.id }}">Editar</a>
+
+                    <form method="post" action="/borrar-estancia/{{ estancia.id }}"
+                        onsubmit="return confirm('¿Seguro que quieres borrar esta estancia y sus patologías asociadas?');">
+                        <button class="peligro" type="submit">Borrar</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p>Todavía no hay estancias registradas.</p>
+            {% endif %}
+        </div>
+    </div>
 </body>
 
 </html>

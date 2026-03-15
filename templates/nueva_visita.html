@@ -8,36 +8,35 @@
 </head>
 
 <body>
-
     <div class="page">
-
         <h1>Nueva visita</h1>
 
         <div class="card">
+            <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+            <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+            <p>Al guardar esta visita, se copiarán automáticamente las estancias de la última visita existente del
+                expediente, si las hubiera.</p>
+        </div>
 
-            <form method="post">
-
-                <label>Fecha visita</label>
-                <input type="date" name="fecha">
+        <form method="post" action="/guardar-visita/{{ expediente.id }}">
+            <div class="card">
+                <label>Fecha de visita</label>
+                <input type="date" name="fecha" required>
 
                 <label>Técnico</label>
-                <input name="tecnico">
+                <input name="tecnico" required>
 
-                <label>Observaciones visita</label>
-                <textarea name="observaciones_visita"></textarea>
+                <label>Observaciones de visita</label>
+                <textarea name="observaciones_visita" rows="5"></textarea>
 
-                <button type="submit">Crear visita</button>
-
-            </form>
-
-        </div>
+                <button type="submit">Guardar visita</button>
+            </div>
+        </form>
 
         <div class="actions">
-            <a class="boton secundario" href="/detalle-expediente/{{ expediente_id }}">Cancelar</a>
+            <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
         </div>
-
     </div>
-
 </body>
 
 </html>

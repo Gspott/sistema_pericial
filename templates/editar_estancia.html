@@ -8,30 +8,35 @@
 </head>
 
 <body>
-
     <div class="page">
-
         <h1>Editar estancia</h1>
 
         <div class="card">
+            <form method="post" action="/actualizar-estancia/{{ estancia.id }}">
+                <label>Nombre</label>
+                <input name="nombre" value="{{ estancia.nombre }}" required>
 
-            <form method="post">
+                <label>Tipo de estancia</label>
+                <input name="tipo_estancia" value="{{ estancia.tipo_estancia }}" required>
 
-                <label>Nombre estancia</label>
-                <input name="nombre" value="{{ estancia.nombre }}">
+                <label>Planta</label>
+                <input name="planta" value="{{ estancia.planta or '' }}">
 
-                <button type="submit">Guardar</button>
+                <label>Observaciones</label>
+                <textarea name="observaciones" rows="5">{{ estancia.observaciones or '' }}</textarea>
 
+                <div class="actions">
+                    <button type="submit" name="siguiente" value="estancias">Guardar y volver a estancias</button>
+                    <button type="submit" name="siguiente" value="patologias">Guardar e ir a patologías</button>
+                </div>
             </form>
-
         </div>
 
         <div class="actions">
-            <a class="boton secundario" href="/definir-estancias/{{ visita_id }}">Cancelar</a>
+            <a class="boton secundario" href="/definir-estancias/{{ estancia.visita_id }}">Volver a estancias</a>
+            <a class="boton secundario" href="/registrar-patologias/{{ estancia.visita_id }}">Ir a patologías</a>
         </div>
-
     </div>
-
 </body>
 
 </html>

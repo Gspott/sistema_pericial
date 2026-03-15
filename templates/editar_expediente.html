@@ -8,60 +8,174 @@
 </head>
 
 <body>
-
     <div class="page">
-
         <h1>Editar expediente</h1>
 
-        <div class="card">
+        <form method="post" action="/actualizar-expediente/{{ expediente.id }}">
+            <div class="card">
+                <h2>Datos generales</h2>
 
-            <form method="post">
-
-                <label>Número expediente</label>
-                <input name="numero_expediente" value="{{ expediente.numero_expediente }}">
+                <label>Número de expediente</label>
+                <input name="numero_expediente" value="{{ expediente.numero_expediente }}" required>
 
                 <label>Cliente</label>
-                <input name="cliente" value="{{ expediente.cliente }}">
+                <input name="cliente" value="{{ expediente.cliente }}" required>
 
                 <label>Dirección</label>
-                <input name="direccion" value="{{ expediente.direccion }}">
-
-                <label>Código postal</label>
-                <input name="codigo_postal" value="{{ expediente.codigo_postal }}">
-
-                <label>Ciudad</label>
-                <input name="ciudad" value="{{ expediente.ciudad }}">
+                <input name="direccion" value="{{ expediente.direccion }}" required>
 
                 <label>Tipo de inmueble</label>
-                <input name="tipo_inmueble" value="{{ expediente.tipo_inmueble }}">
+                <select name="tipo_inmueble" id="tipo_inmueble" onchange="actualizarVisibilidadPiso()">
+                    <option value="">Seleccionar</option>
+                    <option value="Vivienda unifamiliar" {% if expediente.tipo_inmueble=="Vivienda unifamiliar"
+                        %}selected{% endif %}>Vivienda unifamiliar</option>
+                    <option value="Vivienda plurifamiliar" {% if expediente.tipo_inmueble=="Vivienda plurifamiliar"
+                        %}selected{% endif %}>Vivienda plurifamiliar</option>
+                    <option value="Piso" {% if expediente.tipo_inmueble=="Piso" %}selected{% endif %}>Piso</option>
+                    <option value="Local comercial" {% if expediente.tipo_inmueble=="Local comercial" %}selected{% endif
+                        %}>Local comercial</option>
+                    <option value="Oficina" {% if expediente.tipo_inmueble=="Oficina" %}selected{% endif %}>Oficina
+                    </option>
+                    <option value="Nave industrial" {% if expediente.tipo_inmueble=="Nave industrial" %}selected{% endif
+                        %}>Nave industrial</option>
+                    <option value="Garaje" {% if expediente.tipo_inmueble=="Garaje" %}selected{% endif %}>Garaje
+                    </option>
+                    <option value="Trastero" {% if expediente.tipo_inmueble=="Trastero" %}selected{% endif %}>Trastero
+                    </option>
+                    <option value="Edificio completo" {% if expediente.tipo_inmueble=="Edificio completo" %}selected{%
+                        endif %}>Edificio completo</option>
+                    <option value="Otro" {% if expediente.tipo_inmueble=="Otro" %}selected{% endif %}>Otro</option>
+                </select>
 
-                <label>Orientación</label>
-                <input name="orientacion_inmueble" value="{{ expediente.orientacion_inmueble }}">
+                <label>Orientación del inmueble</label>
+                <select name="orientacion_inmueble">
+                    <option value="">Seleccionar</option>
+                    <option value="Norte" {% if expediente.orientacion_inmueble=="Norte" %}selected{% endif %}>Norte
+                    </option>
+                    <option value="Sur" {% if expediente.orientacion_inmueble=="Sur" %}selected{% endif %}>Sur</option>
+                    <option value="Este" {% if expediente.orientacion_inmueble=="Este" %}selected{% endif %}>Este
+                    </option>
+                    <option value="Oeste" {% if expediente.orientacion_inmueble=="Oeste" %}selected{% endif %}>Oeste
+                    </option>
+                    <option value="Noreste" {% if expediente.orientacion_inmueble=="Noreste" %}selected{% endif %}>
+                        Noreste</option>
+                    <option value="Noroeste" {% if expediente.orientacion_inmueble=="Noroeste" %}selected{% endif %}>
+                        Noroeste</option>
+                    <option value="Sureste" {% if expediente.orientacion_inmueble=="Sureste" %}selected{% endif %}>
+                        Sureste</option>
+                    <option value="Suroeste" {% if expediente.orientacion_inmueble=="Suroeste" %}selected{% endif %}>
+                        Suroeste</option>
+                    <option value="Norte-Sur" {% if expediente.orientacion_inmueble=="Norte-Sur" %}selected{% endif %}>
+                        Norte-Sur</option>
+                    <option value="Este-Oeste" {% if expediente.orientacion_inmueble=="Este-Oeste" %}selected{% endif
+                        %}>Este-Oeste</option>
+                </select>
 
-                <label>Año construcción</label>
-                <input name="anio_construccion" value="{{ expediente.anio_construccion }}">
+                <label>Año de construcción</label>
+                <input name="anio_construccion" value="{{ expediente.anio_construccion or '' }}">
 
-                <label>Plantas</label>
-                <input name="descripcion_plantas" value="{{ expediente.descripcion_plantas }}">
+                <label>Plantas bajo rasante</label>
+                <input type="number" name="plantas_bajo_rasante" min="0"
+                    value="{{ expediente.plantas_bajo_rasante or 0 }}">
+
+                <label>Plantas sobre baja</label>
+                <input type="number" name="plantas_sobre_baja" min="0" value="{{ expediente.plantas_sobre_baja or 0 }}">
+
+                <label>Uso del inmueble</label>
+                <input name="uso_inmueble" value="{{ expediente.uso_inmueble or '' }}">
 
                 <label>Superficie</label>
-                <input name="superficie" value="{{ expediente.superficie }}">
+                <input name="superficie" value="{{ expediente.superficie or '' }}">
 
-                <label>Observaciones</label>
-                <textarea name="observaciones_generales">{{ expediente.observaciones_generales }}</textarea>
+                <label>Observaciones generales</label>
+                <textarea name="observaciones_generales"
+                    rows="4">{{ expediente.observaciones_generales or '' }}</textarea>
+            </div>
 
+            <div id="bloque_piso_bloque" class="card {% if expediente.tipo_inmueble != 'Piso' %}oculto{% endif %}">
+                <h2>Características del bloque</h2>
+
+                <label>Observaciones del bloque</label>
+                <textarea name="observaciones_bloque" rows="4">{{ expediente.observaciones_bloque or '' }}</textarea>
+            </div>
+
+            <div id="bloque_piso_unidad" class="card {% if expediente.tipo_inmueble != 'Piso' %}oculto{% endif %}">
+                <h2>Características de la unidad</h2>
+
+                <label>Planta de la unidad</label>
+                <input name="planta_unidad" value="{{ expediente.planta_unidad or '' }}">
+
+                <label>Puerta / unidad</label>
+                <input name="puerta_unidad" value="{{ expediente.puerta_unidad or '' }}">
+
+                <label>Superficie de la unidad</label>
+                <input name="superficie_unidad" value="{{ expediente.superficie_unidad or '' }}">
+
+                <label>Dormitorios de la unidad</label>
+                <input name="dormitorios_unidad" value="{{ expediente.dormitorios_unidad or '' }}">
+
+                <label>Baños de la unidad</label>
+                <input name="banos_unidad" value="{{ expediente.banos_unidad or '' }}">
+
+                <label>Observaciones de la unidad</label>
+                <textarea name="observaciones_unidad" rows="4">{{ expediente.observaciones_unidad or '' }}</textarea>
+            </div>
+
+            <div class="card">
+                <h2>Reforma</h2>
+
+                <label>¿Reformado?</label>
+                <select name="reformado" id="reformado" onchange="actualizarVisibilidadReforma()">
+                    <option value="No" {% if expediente.reformado !="Sí" %}selected{% endif %}>No</option>
+                    <option value="Sí" {% if expediente.reformado=="Sí" %}selected{% endif %}>Sí</option>
+                </select>
+
+                <div id="campos_reforma" class="{% if expediente.reformado != 'Sí' %}oculto{% endif %}">
+                    <label>Fecha de la reforma</label>
+                    <input type="date" name="fecha_reforma" value="{{ expediente.fecha_reforma or '' }}">
+
+                    <label>Observaciones sobre la reforma</label>
+                    <textarea name="observaciones_reforma"
+                        rows="4">{{ expediente.observaciones_reforma or '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="actions">
                 <button type="submit">Guardar cambios</button>
-
-            </form>
-
-        </div>
-
-        <div class="actions">
-            <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Cancelar</a>
-        </div>
-
+                <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+            </div>
+        </form>
     </div>
 
+    <script>
+        function actualizarVisibilidadPiso() {
+            const tipo = document.getElementById("tipo_inmueble").value;
+            const bloque1 = document.getElementById("bloque_piso_bloque");
+            const bloque2 = document.getElementById("bloque_piso_unidad");
+
+            if (tipo === "Piso") {
+                bloque1.classList.remove("oculto");
+                bloque2.classList.remove("oculto");
+            } else {
+                bloque1.classList.add("oculto");
+                bloque2.classList.add("oculto");
+            }
+        }
+
+        function actualizarVisibilidadReforma() {
+            const reformado = document.getElementById("reformado").value;
+            const bloque = document.getElementById("campos_reforma");
+
+            if (reformado === "Sí") {
+                bloque.classList.remove("oculto");
+            } else {
+                bloque.classList.add("oculto");
+            }
+        }
+
+        actualizarVisibilidadPiso();
+        actualizarVisibilidadReforma();
+    </script>
 </body>
 
 </html>
