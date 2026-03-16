@@ -2,8 +2,16 @@
 <html lang="es">
 
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/mobile.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/static/mobile.css?v=3">
+    <script src="/static/pwa.js?v=3" defer></script>
+
     <title>Nuevo expediente</title>
 </head>
 
@@ -11,151 +19,39 @@
     <div class="page">
         <h1>Nuevo expediente</h1>
 
-        <form method="post" action="/guardar-expediente">
-            <div class="card">
-                <h2>Datos generales</h2>
+        <div class="actions">
+            <a class="boton secundario" href="/">Volver al inicio</a>
+            <a class="boton secundario" href="/expedientes">Ver expedientes</a>
+        </div>
 
-                <label>Número de expediente</label>
-                <input name="numero_expediente" required>
+        <div class="card">
+            <form method="post" action="/guardar-expediente">
+                <label for="numero_expediente">Número de expediente</label>
+                <input type="text" id="numero_expediente" name="numero_expediente" required>
 
-                <label>Cliente</label>
-                <input name="cliente" required>
+                <label for="cliente">Cliente</label>
+                <input type="text" id="cliente" name="cliente" required>
 
-                <label>Dirección</label>
-                <input name="direccion" required>
+                <label for="direccion">Dirección</label>
+                <input type="text" id="direccion" name="direccion" required>
 
-                <label>Tipo de inmueble</label>
-                <select name="tipo_inmueble" id="tipo_inmueble" onchange="actualizarVisibilidadPiso()">
-                    <option value="">Seleccionar</option>
+                <label for="tipo_inmueble">Tipo de inmueble</label>
+                <select id="tipo_inmueble" name="tipo_inmueble">
+                    <option value="">Seleccionar...</option>
                     <option value="Vivienda unifamiliar">Vivienda unifamiliar</option>
-                    <option value="Vivienda plurifamiliar">Vivienda plurifamiliar</option>
                     <option value="Piso">Piso</option>
-                    <option value="Local comercial">Local comercial</option>
+                    <option value="Local">Local</option>
                     <option value="Oficina">Oficina</option>
-                    <option value="Nave industrial">Nave industrial</option>
+                    <option value="Nave">Nave</option>
                     <option value="Garaje">Garaje</option>
                     <option value="Trastero">Trastero</option>
-                    <option value="Edificio completo">Edificio completo</option>
                     <option value="Otro">Otro</option>
                 </select>
 
-                <label>Orientación del inmueble</label>
-                <select name="orientacion_inmueble">
-                    <option value="">Seleccionar</option>
-                    <option value="Norte">Norte</option>
-                    <option value="Sur">Sur</option>
-                    <option value="Este">Este</option>
-                    <option value="Oeste">Oeste</option>
-                    <option value="Noreste">Noreste</option>
-                    <option value="Noroeste">Noroeste</option>
-                    <option value="Sureste">Sureste</option>
-                    <option value="Suroeste">Suroeste</option>
-                    <option value="Norte-Sur">Norte-Sur</option>
-                    <option value="Este-Oeste">Este-Oeste</option>
-                </select>
-
-                <label>Año de construcción</label>
-                <input name="anio_construccion">
-
-                <label>Plantas bajo rasante</label>
-                <input type="number" name="plantas_bajo_rasante" min="0" value="0">
-
-                <label>Plantas sobre baja</label>
-                <input type="number" name="plantas_sobre_baja" min="0" value="0">
-
-                <label>Uso del inmueble</label>
-                <input name="uso_inmueble">
-
-                <label>Superficie</label>
-                <input name="superficie">
-
-                <label>Observaciones generales</label>
-                <textarea name="observaciones_generales" rows="4"></textarea>
-            </div>
-
-            <div id="bloque_piso_bloque" class="card oculto">
-                <h2>Características del bloque</h2>
-
-                <label>Observaciones del bloque</label>
-                <textarea name="observaciones_bloque" rows="4"></textarea>
-            </div>
-
-            <div id="bloque_piso_unidad" class="card oculto">
-                <h2>Características de la unidad</h2>
-
-                <label>Planta de la unidad</label>
-                <input name="planta_unidad">
-
-                <label>Puerta / unidad</label>
-                <input name="puerta_unidad">
-
-                <label>Superficie de la unidad</label>
-                <input name="superficie_unidad">
-
-                <label>Dormitorios de la unidad</label>
-                <input name="dormitorios_unidad">
-
-                <label>Baños de la unidad</label>
-                <input name="banos_unidad">
-
-                <label>Observaciones de la unidad</label>
-                <textarea name="observaciones_unidad" rows="4"></textarea>
-            </div>
-
-            <div class="card">
-                <h2>Reforma</h2>
-
-                <label>¿Reformado?</label>
-                <select name="reformado" id="reformado" onchange="actualizarVisibilidadReforma()">
-                    <option value="No" selected>No</option>
-                    <option value="Sí">Sí</option>
-                </select>
-
-                <div id="campos_reforma" class="oculto">
-                    <label>Fecha de la reforma</label>
-                    <input type="date" name="fecha_reforma">
-
-                    <label>Observaciones sobre la reforma</label>
-                    <textarea name="observaciones_reforma" rows="4"></textarea>
-                </div>
-            </div>
-
-            <div class="actions">
-                <button type="submit">Guardar expediente</button>
-                <a class="boton secundario" href="/">Volver</a>
-            </div>
-        </form>
+                <button class="boton" type="submit">Guardar expediente</button>
+            </form>
+        </div>
     </div>
-
-    <script>
-        function actualizarVisibilidadPiso() {
-            const tipo = document.getElementById("tipo_inmueble").value;
-            const bloque1 = document.getElementById("bloque_piso_bloque");
-            const bloque2 = document.getElementById("bloque_piso_unidad");
-
-            if (tipo === "Piso") {
-                bloque1.classList.remove("oculto");
-                bloque2.classList.remove("oculto");
-            } else {
-                bloque1.classList.add("oculto");
-                bloque2.classList.add("oculto");
-            }
-        }
-
-        function actualizarVisibilidadReforma() {
-            const reformado = document.getElementById("reformado").value;
-            const bloque = document.getElementById("campos_reforma");
-
-            if (reformado === "Sí") {
-                bloque.classList.remove("oculto");
-            } else {
-                bloque.classList.add("oculto");
-            }
-        }
-
-        actualizarVisibilidadPiso();
-        actualizarVisibilidadReforma();
-    </script>
 </body>
 
 </html>

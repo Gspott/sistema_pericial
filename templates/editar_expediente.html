@@ -2,8 +2,16 @@
 <html lang="es">
 
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/mobile.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/static/mobile.css?v=4">
+    <script src="/static/pwa.js?v=4" defer></script>
+
     <title>Editar expediente</title>
 </head>
 
@@ -11,171 +19,123 @@
     <div class="page">
         <h1>Editar expediente</h1>
 
-        <form method="post" action="/actualizar-expediente/{{ expediente.id }}">
-            <div class="card">
-                <h2>Datos generales</h2>
+        <div class="actions">
+            <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+            <a class="boton secundario" href="/expedientes">Ver expedientes</a>
+        </div>
 
-                <label>Número de expediente</label>
-                <input name="numero_expediente" value="{{ expediente.numero_expediente }}" required>
+        <div class="card">
+            <form method="post" action="/actualizar-expediente/{{ expediente.id }}">
+                <label for="numero_expediente">Número de expediente</label>
+                <input type="text" id="numero_expediente" name="numero_expediente"
+                    value="{{ expediente.numero_expediente }}" required>
 
-                <label>Cliente</label>
-                <input name="cliente" value="{{ expediente.cliente }}" required>
+                <label for="cliente">Cliente</label>
+                <input type="text" id="cliente" name="cliente" value="{{ expediente.cliente }}" required>
 
-                <label>Dirección</label>
-                <input name="direccion" value="{{ expediente.direccion }}" required>
+                <label for="direccion">Dirección</label>
+                <input type="text" id="direccion" name="direccion" value="{{ expediente.direccion }}" required>
 
-                <label>Tipo de inmueble</label>
-                <select name="tipo_inmueble" id="tipo_inmueble" onchange="actualizarVisibilidadPiso()">
-                    <option value="">Seleccionar</option>
+                <label for="tipo_inmueble">Tipo de inmueble</label>
+                <select id="tipo_inmueble" name="tipo_inmueble">
+                    <option value="">Seleccionar...</option>
                     <option value="Vivienda unifamiliar" {% if expediente.tipo_inmueble=="Vivienda unifamiliar"
                         %}selected{% endif %}>Vivienda unifamiliar</option>
-                    <option value="Vivienda plurifamiliar" {% if expediente.tipo_inmueble=="Vivienda plurifamiliar"
-                        %}selected{% endif %}>Vivienda plurifamiliar</option>
                     <option value="Piso" {% if expediente.tipo_inmueble=="Piso" %}selected{% endif %}>Piso</option>
-                    <option value="Local comercial" {% if expediente.tipo_inmueble=="Local comercial" %}selected{% endif
-                        %}>Local comercial</option>
+                    <option value="Local" {% if expediente.tipo_inmueble=="Local" %}selected{% endif %}>Local</option>
                     <option value="Oficina" {% if expediente.tipo_inmueble=="Oficina" %}selected{% endif %}>Oficina
                     </option>
-                    <option value="Nave industrial" {% if expediente.tipo_inmueble=="Nave industrial" %}selected{% endif
-                        %}>Nave industrial</option>
+                    <option value="Nave" {% if expediente.tipo_inmueble=="Nave" %}selected{% endif %}>Nave</option>
                     <option value="Garaje" {% if expediente.tipo_inmueble=="Garaje" %}selected{% endif %}>Garaje
                     </option>
                     <option value="Trastero" {% if expediente.tipo_inmueble=="Trastero" %}selected{% endif %}>Trastero
                     </option>
-                    <option value="Edificio completo" {% if expediente.tipo_inmueble=="Edificio completo" %}selected{%
-                        endif %}>Edificio completo</option>
                     <option value="Otro" {% if expediente.tipo_inmueble=="Otro" %}selected{% endif %}>Otro</option>
                 </select>
 
-                <label>Orientación del inmueble</label>
-                <select name="orientacion_inmueble">
-                    <option value="">Seleccionar</option>
-                    <option value="Norte" {% if expediente.orientacion_inmueble=="Norte" %}selected{% endif %}>Norte
-                    </option>
-                    <option value="Sur" {% if expediente.orientacion_inmueble=="Sur" %}selected{% endif %}>Sur</option>
-                    <option value="Este" {% if expediente.orientacion_inmueble=="Este" %}selected{% endif %}>Este
-                    </option>
-                    <option value="Oeste" {% if expediente.orientacion_inmueble=="Oeste" %}selected{% endif %}>Oeste
-                    </option>
-                    <option value="Noreste" {% if expediente.orientacion_inmueble=="Noreste" %}selected{% endif %}>
-                        Noreste</option>
-                    <option value="Noroeste" {% if expediente.orientacion_inmueble=="Noroeste" %}selected{% endif %}>
-                        Noroeste</option>
-                    <option value="Sureste" {% if expediente.orientacion_inmueble=="Sureste" %}selected{% endif %}>
-                        Sureste</option>
-                    <option value="Suroeste" {% if expediente.orientacion_inmueble=="Suroeste" %}selected{% endif %}>
-                        Suroeste</option>
-                    <option value="Norte-Sur" {% if expediente.orientacion_inmueble=="Norte-Sur" %}selected{% endif %}>
-                        Norte-Sur</option>
-                    <option value="Este-Oeste" {% if expediente.orientacion_inmueble=="Este-Oeste" %}selected{% endif
-                        %}>Este-Oeste</option>
-                </select>
+                <label for="orientacion_inmueble">Orientación</label>
+                <input type="text" id="orientacion_inmueble" name="orientacion_inmueble"
+                    value="{{ expediente.orientacion_inmueble or '' }}">
 
-                <label>Año de construcción</label>
-                <input name="anio_construccion" value="{{ expediente.anio_construccion or '' }}">
+                <label for="anio_construccion">Año de construcción</label>
+                <input type="text" id="anio_construccion" name="anio_construccion"
+                    value="{{ expediente.anio_construccion or '' }}">
 
-                <label>Plantas bajo rasante</label>
-                <input type="number" name="plantas_bajo_rasante" min="0"
-                    value="{{ expediente.plantas_bajo_rasante or 0 }}">
+                <label for="plantas_bajo_rasante">Plantas bajo rasante</label>
+                <input type="number" id="plantas_bajo_rasante" name="plantas_bajo_rasante" min="0"
+                    value="{{ expediente.plantas_bajo_rasante or '0' }}">
 
-                <label>Plantas sobre baja</label>
-                <input type="number" name="plantas_sobre_baja" min="0" value="{{ expediente.plantas_sobre_baja or 0 }}">
+                <label for="plantas_sobre_baja">Plantas sobre baja</label>
+                <input type="number" id="plantas_sobre_baja" name="plantas_sobre_baja" min="0"
+                    value="{{ expediente.plantas_sobre_baja or '0' }}">
 
-                <label>Uso del inmueble</label>
-                <input name="uso_inmueble" value="{{ expediente.uso_inmueble or '' }}">
+                <label for="uso_inmueble">Uso del inmueble</label>
+                <input type="text" id="uso_inmueble" name="uso_inmueble" value="{{ expediente.uso_inmueble or '' }}">
 
-                <label>Superficie</label>
-                <input name="superficie" value="{{ expediente.superficie or '' }}">
+                <label for="superficie">Superficie</label>
+                <input type="text" id="superficie" name="superficie" value="{{ expediente.superficie or '' }}">
 
-                <label>Observaciones generales</label>
-                <textarea name="observaciones_generales"
-                    rows="4">{{ expediente.observaciones_generales or '' }}</textarea>
-            </div>
+                <label for="observaciones_generales">Observaciones generales</label>
+                <textarea id="observaciones_generales"
+                    name="observaciones_generales">{{ expediente.observaciones_generales or '' }}</textarea>
 
-            <div id="bloque_piso_bloque" class="card {% if expediente.tipo_inmueble != 'Piso' %}oculto{% endif %}">
-                <h2>Características del bloque</h2>
+                <div class="card" style="margin-top: 16px;">
+                    <h2>Datos de piso / unidad</h2>
 
-                <label>Observaciones del bloque</label>
-                <textarea name="observaciones_bloque" rows="4">{{ expediente.observaciones_bloque or '' }}</textarea>
-            </div>
+                    <label for="planta_unidad">Planta de la unidad</label>
+                    <input type="text" id="planta_unidad" name="planta_unidad"
+                        value="{{ expediente.planta_unidad or '' }}">
 
-            <div id="bloque_piso_unidad" class="card {% if expediente.tipo_inmueble != 'Piso' %}oculto{% endif %}">
-                <h2>Características de la unidad</h2>
+                    <label for="puerta_unidad">Puerta / unidad</label>
+                    <input type="text" id="puerta_unidad" name="puerta_unidad"
+                        value="{{ expediente.puerta_unidad or '' }}">
 
-                <label>Planta de la unidad</label>
-                <input name="planta_unidad" value="{{ expediente.planta_unidad or '' }}">
+                    <label for="superficie_unidad">Superficie de la unidad</label>
+                    <input type="text" id="superficie_unidad" name="superficie_unidad"
+                        value="{{ expediente.superficie_unidad or '' }}">
 
-                <label>Puerta / unidad</label>
-                <input name="puerta_unidad" value="{{ expediente.puerta_unidad or '' }}">
+                    <label for="dormitorios_unidad">Dormitorios</label>
+                    <input type="text" id="dormitorios_unidad" name="dormitorios_unidad"
+                        value="{{ expediente.dormitorios_unidad or '' }}">
 
-                <label>Superficie de la unidad</label>
-                <input name="superficie_unidad" value="{{ expediente.superficie_unidad or '' }}">
+                    <label for="banos_unidad">Baños</label>
+                    <input type="text" id="banos_unidad" name="banos_unidad"
+                        value="{{ expediente.banos_unidad or '' }}">
 
-                <label>Dormitorios de la unidad</label>
-                <input name="dormitorios_unidad" value="{{ expediente.dormitorios_unidad or '' }}">
+                    <label for="observaciones_bloque">Observaciones del bloque</label>
+                    <textarea id="observaciones_bloque"
+                        name="observaciones_bloque">{{ expediente.observaciones_bloque or '' }}</textarea>
 
-                <label>Baños de la unidad</label>
-                <input name="banos_unidad" value="{{ expediente.banos_unidad or '' }}">
-
-                <label>Observaciones de la unidad</label>
-                <textarea name="observaciones_unidad" rows="4">{{ expediente.observaciones_unidad or '' }}</textarea>
-            </div>
-
-            <div class="card">
-                <h2>Reforma</h2>
-
-                <label>¿Reformado?</label>
-                <select name="reformado" id="reformado" onchange="actualizarVisibilidadReforma()">
-                    <option value="No" {% if expediente.reformado !="Sí" %}selected{% endif %}>No</option>
-                    <option value="Sí" {% if expediente.reformado=="Sí" %}selected{% endif %}>Sí</option>
-                </select>
-
-                <div id="campos_reforma" class="{% if expediente.reformado != 'Sí' %}oculto{% endif %}">
-                    <label>Fecha de la reforma</label>
-                    <input type="date" name="fecha_reforma" value="{{ expediente.fecha_reforma or '' }}">
-
-                    <label>Observaciones sobre la reforma</label>
-                    <textarea name="observaciones_reforma"
-                        rows="4">{{ expediente.observaciones_reforma or '' }}</textarea>
+                    <label for="observaciones_unidad">Observaciones de la unidad</label>
+                    <textarea id="observaciones_unidad"
+                        name="observaciones_unidad">{{ expediente.observaciones_unidad or '' }}</textarea>
                 </div>
-            </div>
 
-            <div class="actions">
-                <button type="submit">Guardar cambios</button>
-                <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
-            </div>
-        </form>
+                <div class="card" style="margin-top: 16px;">
+                    <h2>Reforma</h2>
+
+                    <label for="reformado">¿Reformado?</label>
+                    <select id="reformado" name="reformado">
+                        <option value="No" {% if expediente.reformado=="No" or not expediente.reformado %}selected{%
+                            endif %}>No</option>
+                        <option value="Sí" {% if expediente.reformado=="Sí" %}selected{% endif %}>Sí</option>
+                    </select>
+
+                    <label for="fecha_reforma">Fecha de reforma</label>
+                    <input type="text" id="fecha_reforma" name="fecha_reforma"
+                        value="{{ expediente.fecha_reforma or '' }}">
+
+                    <label for="observaciones_reforma">Observaciones de la reforma</label>
+                    <textarea id="observaciones_reforma"
+                        name="observaciones_reforma">{{ expediente.observaciones_reforma or '' }}</textarea>
+                </div>
+
+                <div class="actions">
+                    <button class="boton" type="submit">Guardar cambios</button>
+                </div>
+            </form>
+        </div>
     </div>
-
-    <script>
-        function actualizarVisibilidadPiso() {
-            const tipo = document.getElementById("tipo_inmueble").value;
-            const bloque1 = document.getElementById("bloque_piso_bloque");
-            const bloque2 = document.getElementById("bloque_piso_unidad");
-
-            if (tipo === "Piso") {
-                bloque1.classList.remove("oculto");
-                bloque2.classList.remove("oculto");
-            } else {
-                bloque1.classList.add("oculto");
-                bloque2.classList.add("oculto");
-            }
-        }
-
-        function actualizarVisibilidadReforma() {
-            const reformado = document.getElementById("reformado").value;
-            const bloque = document.getElementById("campos_reforma");
-
-            if (reformado === "Sí") {
-                bloque.classList.remove("oculto");
-            } else {
-                bloque.classList.add("oculto");
-            }
-        }
-
-        actualizarVisibilidadPiso();
-        actualizarVisibilidadReforma();
-    </script>
 </body>
 
 </html>

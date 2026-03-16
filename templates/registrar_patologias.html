@@ -2,147 +2,119 @@
 <html lang="es">
 
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/static/mobile.css?v=4">
+    <script src="/static/pwa.js?v=4" defer></script>
+
     <title>Registrar patologías</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 30px;
-            max-width: 1000px;
-        }
-
-        .card {
-            border: 1px solid #ccc;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-            background: #fafafa;
-        }
-
-        input,
-        textarea,
-        select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 12px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-
-        button,
-        .boton {
-            display: inline-block;
-            padding: 12px 16px;
-            border-radius: 8px;
-            border: none;
-            text-decoration: none;
-            font-size: 16px;
-            cursor: pointer;
-            background: #1e3a8a;
-            color: white;
-        }
-
-        .secundario {
-            background: #efefef;
-            color: black;
-            border: 1px solid #ccc;
-        }
-
-        .foto {
-            max-width: 240px;
-            border-radius: 8px;
-            display: block;
-            margin-top: 10px;
-        }
-
-        .acciones-superiores {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 16px;
-        }
-    </style>
 </head>
 
 <body>
-    <h1>Registrar patologías</h1>
+    <div class="page">
+        <h1>Registrar patologías</h1>
 
-    <div class="acciones-superiores">
-        <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Volver a estancias</a>
-        <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+        <div class="actions">
+            <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Volver a estancias</a>
+            <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+        </div>
 
-        <form method="post" action="/anadir-climatologia/{{ visita.id }}" style="display:inline;">
-            <button type="submit">Añadir climatología última semana</button>
-        </form>
-    </div>
+        <div class="card">
+            <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
+            <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
+            <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
+            <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
+            <p><strong>Observaciones:</strong> {{ visita.observaciones_visita or '-' }}</p>
+        </div>
 
-    <div class="card">
-        <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
-        <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
-        <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
-    </div>
+        {% if clima %}
+        <div class="card">
+            <h2>Climatología</h2>
+            <p>{{ clima.resumen }}</p>
+        </div>
+        {% endif %}
 
-    {% if clima %}
-    <div class="card">
-        <h2>Climatología</h2>
-        <p>{{ clima.resumen }}</p>
-    </div>
-    {% endif %}
+        <div class="actions">
+            <form method="post" action="/anadir-climatologia/{{ visita.id }}">
+                <button class="boton secundario" type="submit">Añadir climatología</button>
+            </form>
+        </div>
 
-    <div class="card">
-        <h2>Nuevo registro</h2>
+        <div class="card">
+            <h2>Nuevo registro</h2>
 
-        <form method="post" action="/guardar-registro" enctype="multipart/form-data">
-            <input type="hidden" name="visita_id" value="{{ visita.id }}">
+            {% if estancias %}
+            <form method="post" action="/guardar-registro" enctype="multipart/form-data">
+                <input type="hidden" name="visita_id" value="{{ visita.id }}">
 
-            <label>Estancia</label>
-            <select name="estancia_id" required>
-                <option value="">Seleccionar</option>
-                {% for estancia in estancias %}
-                <option value="{{ estancia.id }}">{{ estancia.nombre }}</option>
-                {% endfor %}
-            </select>
+                <label for="estancia_id">Estancia</label>
+                <select id="estancia_id" name="estancia_id" required>
+                    <option value="">Seleccionar...</option>
+                    {% for estancia in estancias %}
+                    <option value="{{ estancia.id }}">
+                        {{ estancia.nombre }}{% if estancia.planta %} ({{ estancia.planta }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
 
-            <label>Elemento afectado</label>
-            <input name="elemento" required placeholder="Ej. Techo, pared medianera, solado...">
+                <label for="elemento">Elemento afectado</label>
+                <input type="text" id="elemento" name="elemento" placeholder="Ej. muro exterior, techo, carpintería"
+                    required>
 
-            <label>Patología</label>
-            <select name="patologia" required>
-                <option value="">Seleccionar</option>
-                {% for patologia in patologias %}
-                <option value="{{ patologia.nombre }}">{{ patologia.nombre }}</option>
-                {% endfor %}
-            </select>
+                <label for="patologia">Patología</label>
+                <input list="lista_patologias" id="patologia" name="patologia"
+                    placeholder="Selecciona o escribe una patología" required>
+                <datalist id="lista_patologias">
+                    {% for item in patologias %}
+                    <option value="{{ item.nombre }}">
+                        {% endfor %}
+                </datalist>
 
-            <label>Observaciones</label>
-            <textarea name="observaciones" rows="5"></textarea>
+                <label for="observaciones">Observaciones</label>
+                <textarea id="observaciones" name="observaciones"></textarea>
 
-            <label>Fotografía</label>
-            <input type="file" name="foto" accept="image/*">
+                <label for="foto">Foto</label>
+                <input type="file" id="foto" name="foto" accept="image/*">
 
-            <button type="submit">Guardar registro</button>
-        </form>
-    </div>
-
-    <div class="card">
-        <h2>Registros guardados</h2>
-
-        {% if registros %}
-        {% for registro in registros %}
-        <div style="border-top:1px solid #ddd; padding-top:12px; margin-top:12px;">
-            <p><strong>Estancia:</strong> {{ registro.estancia_nombre }}</p>
-            <p><strong>Elemento:</strong> {{ registro.elemento }}</p>
-            <p><strong>Patología:</strong> {{ registro.patologia }}</p>
-            <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
-
-            {% if registro.foto %}
-            <img class="foto" src="/uploads/{{ registro.foto }}" alt="Fotografía patología">
+                <button class="boton" type="submit">Guardar registro</button>
+            </form>
+            {% else %}
+            <p class="empty">Primero debes crear al menos una estancia para poder registrar patologías.</p>
             {% endif %}
         </div>
-        {% endfor %}
-        {% else %}
-        <p>Todavía no hay patologías registradas.</p>
-        {% endif %}
+
+        <div class="card">
+            <h2>Registros guardados</h2>
+
+            {% if registros %}
+            {% for registro in registros %}
+            <div class="card">
+                <p><strong>Estancia:</strong> {{ registro.estancia_nombre }}</p>
+                <p><strong>Elemento:</strong> {{ registro.elemento }}</p>
+                <p><strong>Patología:</strong> {{ registro.patologia }}</p>
+                <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
+
+                {% if registro.foto %}
+                <img src="/uploads/{{ registro.foto }}" alt="Foto patología">
+                {% endif %}
+
+                <div class="actions">
+                    <a class="boton" href="/editar-registro/{{ registro.id }}">Editar</a>
+                    <form method="post" action="/borrar-registro/{{ registro.id }}">
+                        <button class="boton secundario" type="submit">Borrar</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="empty">Todavía no hay patologías registradas para esta visita.</p>
+            {% endif %}
+        </div>
     </div>
 </body>
 

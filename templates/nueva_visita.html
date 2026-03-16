@@ -2,8 +2,16 @@
 <html lang="es">
 
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/mobile.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/static/mobile.css?v=3">
+    <script src="/static/pwa.js?v=3" defer></script>
+
     <title>Nueva visita</title>
 </head>
 
@@ -11,30 +19,29 @@
     <div class="page">
         <h1>Nueva visita</h1>
 
-        <div class="card">
-            <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
-            <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
-            <p>Al guardar esta visita, se copiarán automáticamente las estancias de la última visita existente del
-                expediente, si las hubiera.</p>
-        </div>
-
-        <form method="post" action="/guardar-visita/{{ expediente.id }}">
-            <div class="card">
-                <label>Fecha de visita</label>
-                <input type="date" name="fecha" required>
-
-                <label>Técnico</label>
-                <input name="tecnico" required>
-
-                <label>Observaciones de visita</label>
-                <textarea name="observaciones_visita" rows="5"></textarea>
-
-                <button type="submit">Guardar visita</button>
-            </div>
-        </form>
-
         <div class="actions">
             <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+        </div>
+
+        <div class="card">
+            <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+            <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
+            <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+        </div>
+
+        <div class="card">
+            <form method="post" action="/guardar-visita/{{ expediente.id }}">
+                <label for="fecha">Fecha</label>
+                <input type="date" id="fecha" name="fecha" required>
+
+                <label for="tecnico">Técnico</label>
+                <input type="text" id="tecnico" name="tecnico" required>
+
+                <label for="observaciones_visita">Observaciones de la visita</label>
+                <textarea id="observaciones_visita" name="observaciones_visita"></textarea>
+
+                <button class="boton" type="submit">Guardar visita</button>
+            </form>
         </div>
     </div>
 </body>

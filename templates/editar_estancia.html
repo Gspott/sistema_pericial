@@ -2,8 +2,16 @@
 <html lang="es">
 
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/mobile.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/static/mobile.css?v=3">
+    <script src="/static/pwa.js?v=3" defer></script>
+
     <title>Editar estancia</title>
 </head>
 
@@ -13,28 +21,52 @@
 
         <div class="card">
             <form method="post" action="/actualizar-estancia/{{ estancia.id }}">
-                <label>Nombre</label>
-                <input name="nombre" value="{{ estancia.nombre }}" required>
+                <label for="nombre">Nombre de la estancia</label>
+                <input type="text" id="nombre" name="nombre" value="{{ estancia.nombre }}" required>
 
-                <label>Tipo de estancia</label>
-                <input name="tipo_estancia" value="{{ estancia.tipo_estancia }}" required>
+                <label for="tipo_estancia">Tipo de estancia</label>
+                <select id="tipo_estancia" name="tipo_estancia" required>
+                    <option value="Salón" {% if estancia.tipo_estancia=="Salón" %}selected{% endif %}>Salón</option>
+                    <option value="Comedor" {% if estancia.tipo_estancia=="Comedor" %}selected{% endif %}>Comedor
+                    </option>
+                    <option value="Cocina" {% if estancia.tipo_estancia=="Cocina" %}selected{% endif %}>Cocina</option>
+                    <option value="Dormitorio" {% if estancia.tipo_estancia=="Dormitorio" %}selected{% endif %}>
+                        Dormitorio</option>
+                    <option value="Baño" {% if estancia.tipo_estancia=="Baño" %}selected{% endif %}>Baño</option>
+                    <option value="Aseo" {% if estancia.tipo_estancia=="Aseo" %}selected{% endif %}>Aseo</option>
+                    <option value="Pasillo" {% if estancia.tipo_estancia=="Pasillo" %}selected{% endif %}>Pasillo
+                    </option>
+                    <option value="Recibidor" {% if estancia.tipo_estancia=="Recibidor" %}selected{% endif %}>Recibidor
+                    </option>
+                    <option value="Terraza" {% if estancia.tipo_estancia=="Terraza" %}selected{% endif %}>Terraza
+                    </option>
+                    <option value="Lavadero" {% if estancia.tipo_estancia=="Lavadero" %}selected{% endif %}>Lavadero
+                    </option>
+                    <option value="Trastero" {% if estancia.tipo_estancia=="Trastero" %}selected{% endif %}>Trastero
+                    </option>
+                    <option value="Garaje" {% if estancia.tipo_estancia=="Garaje" %}selected{% endif %}>Garaje</option>
+                    <option value="Sótano" {% if estancia.tipo_estancia=="Sótano" %}selected{% endif %}>Sótano</option>
+                    <option value="Buhardilla" {% if estancia.tipo_estancia=="Buhardilla" %}selected{% endif %}>
+                        Buhardilla</option>
+                    <option value="Otro" {% if estancia.tipo_estancia=="Otro" %}selected{% endif %}>Otro</option>
+                </select>
 
-                <label>Planta</label>
-                <input name="planta" value="{{ estancia.planta or '' }}">
+                <label for="planta">Planta</label>
+                <input type="text" id="planta" name="planta" value="{{ estancia.planta or '' }}">
 
-                <label>Observaciones</label>
-                <textarea name="observaciones" rows="5">{{ estancia.observaciones or '' }}</textarea>
+                <label for="observaciones">Observaciones</label>
+                <textarea id="observaciones" name="observaciones">{{ estancia.observaciones or '' }}</textarea>
+
+                <label for="siguiente">Después de guardar</label>
+                <select id="siguiente" name="siguiente">
+                    <option value="estancias">Volver a estancias</option>
+                    <option value="patologias">Ir a patologías</option>
+                </select>
 
                 <div class="actions">
-                    <button type="submit" name="siguiente" value="estancias">Guardar y volver a estancias</button>
-                    <button type="submit" name="siguiente" value="patologias">Guardar e ir a patologías</button>
+                    <button class="boton" type="submit">Guardar cambios</button>
                 </div>
             </form>
-        </div>
-
-        <div class="actions">
-            <a class="boton secundario" href="/definir-estancias/{{ estancia.visita_id }}">Volver a estancias</a>
-            <a class="boton secundario" href="/registrar-patologias/{{ estancia.visita_id }}">Ir a patologías</a>
         </div>
     </div>
 </body>
