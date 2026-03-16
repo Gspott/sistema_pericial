@@ -1,7 +1,7 @@
 {
     "name": "Sistema Pericial",
     "short_name": "Pericial",
-    "start_url": "/iphone",
+    "start_url": "/",
     "display": "standalone",
     "background_color": "#111827",
     "theme_color": "#111827",
