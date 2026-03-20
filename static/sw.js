@@ -1,9 +1,13 @@
-const CACHE_NAME = "sistema-pericial-v3";
+const CACHE_NAME = "sistema-pericial-v4";
 const STATIC_ASSETS = [
     "/",
+    "/favicon.ico",
+    "/apple-touch-icon.png",
     "/manifest.json",
     "/static/mobile.css?v=3",
-    "/static/pwa.js?v=3"
+    "/static/pwa.js?v=3",
+    "/static/icon-192.png",
+    "/static/icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {

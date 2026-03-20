@@ -1,0 +1,10 @@
+{$DUCKDNS_DOMAIN}.duckdns.org {
+    encode zstd gzip
+
+    reverse_proxy 127.0.0.1:8000
+
+    header {
+        X-Forwarded-Proto {scheme}
+        X-Forwarded-Host {host}
+    }
+}

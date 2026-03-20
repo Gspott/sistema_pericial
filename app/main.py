@@ -1,37 +1,63 @@
+from pathlib import Path
 import os
 import sqlite3
 import shutil
 from uuid import uuid4
 
-from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.config import (
+    APP_HOST,
+    APP_PORT,
+    BASE_URL,
+    DB_PATH,
+    STATIC_DIR,
+    TEMPLATES_DIR,
+    UPLOAD_DIR,
+    ensure_directories,
+)
+from app.database import init_db
+from app.utils.helpers import formatear_plantas
+
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+STATIC_PATH = Path(STATIC_DIR)
+TEMPLATES_PATH = Path(TEMPLATES_DIR)
+UPLOAD_PATH = Path(UPLOAD_DIR)
+DB_FILE = Path(DB_PATH)
 
-templates = Jinja2Templates(directory="templates")
+ensure_directories()
+init_db()
 
-DB_PATH = "pericial.db"
-UPLOAD_DIR = "uploads"
+app.mount("/static", StaticFiles(directory=str(STATIC_PATH)), name="static")
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_PATH)), name="uploads")
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+templates = Jinja2Templates(directory=str(TEMPLATES_PATH))
+app.state.base_url = BASE_URL
+app.state.app_host = APP_HOST
+app.state.app_port = APP_PORT
 
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_FILE))
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def borrar_foto_si_existe(nombre_foto):
     if nombre_foto:
-        ruta = os.path.join(UPLOAD_DIR, nombre_foto)
-        if os.path.exists(ruta):
-            os.remove(ruta)
+        ruta = UPLOAD_PATH / nombre_foto
+        if ruta.exists():
+            ruta.unlink()
+
+
+def require_row(row, detail: str):
+    if row is None:
+        raise HTTPException(status_code=404, detail=detail)
+    return row
 
 
 def get_table_columns(table_name: str):
@@ -70,7 +96,7 @@ def ensure_climatologia_table():
 @app.get("/manifest.json")
 def manifest():
     return FileResponse(
-        "static/manifest.json",
+        str(STATIC_PATH / "manifest.json"),
         media_type="application/manifest+json",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
@@ -79,9 +105,27 @@ def manifest():
 @app.get("/sw.js")
 def service_worker():
     return FileResponse(
-        "static/sw.js",
+        str(STATIC_PATH / "sw.js"),
         media_type="application/javascript",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse(
+        str(STATIC_PATH / "favicon.png"),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/apple-touch-icon.png")
+def apple_touch_icon():
+    return FileResponse(
+        str(STATIC_PATH / "icon-192.png"),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 
@@ -114,9 +158,18 @@ def listar_expedientes(request: Request):
 
     conn.close()
 
+    expedientes_procesados = []
+    for expediente in expedientes:
+        item = dict(expediente)
+        item["descripcion_plantas"] = formatear_plantas(
+            item.get("plantas_bajo_rasante"),
+            item.get("plantas_sobre_baja"),
+        )
+        expedientes_procesados.append(item)
+
     return templates.TemplateResponse(
         "expedientes.html",
-        {"request": request, "expedientes": expedientes},
+        {"request": request, "expedientes": expedientes_procesados},
     )
 
 
@@ -168,6 +221,7 @@ def detalle_expediente(request: Request, expediente_id: int):
         "SELECT * FROM expedientes WHERE id=?",
         (expediente_id,),
     ).fetchone()
+    require_row(expediente, "Expediente no encontrado")
 
     visitas = cur.execute(
         """
@@ -210,6 +264,7 @@ def editar_expediente(request: Request, expediente_id: int):
         "SELECT * FROM expedientes WHERE id=?",
         (expediente_id,),
     ).fetchone()
+    require_row(expediente, "Expediente no encontrado")
 
     conn.close()
 
@@ -309,6 +364,7 @@ def nueva_visita(request: Request, expediente_id: int):
         "SELECT * FROM expedientes WHERE id=?",
         (expediente_id,),
     ).fetchone()
+    require_row(expediente, "Expediente no encontrado")
 
     conn.close()
 
@@ -370,6 +426,7 @@ def definir_estancias(request: Request, visita_id: int):
         """,
         (visita_id,),
     ).fetchone()
+    require_row(visita, "Visita no encontrada")
 
     estancias = cur.execute(
         "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
@@ -426,6 +483,7 @@ def editar_estancia(request: Request, estancia_id: int):
         "SELECT * FROM estancias WHERE id=?",
         (estancia_id,),
     ).fetchone()
+    require_row(estancia, "Estancia no encontrada")
 
     conn.close()
 
@@ -454,6 +512,10 @@ def actualizar_estancia(
         "SELECT visita_id FROM estancias WHERE id=?",
         (estancia_id,),
     ).fetchone()
+
+    if not estancia:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Estancia no encontrada")
 
     visita_id = estancia["visita_id"]
 
@@ -490,6 +552,10 @@ def borrar_estancia(estancia_id: int):
         "SELECT visita_id FROM estancias WHERE id=?",
         (estancia_id,),
     ).fetchone()
+
+    if not estancia:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Estancia no encontrada")
 
     visita_id = estancia["visita_id"]
 
@@ -559,6 +625,7 @@ def registrar_patologias(request: Request, visita_id: int):
         """,
         (visita_id,),
     ).fetchone()
+    require_row(visita, "Visita no encontrada")
 
     estancias = cur.execute(
         "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
@@ -627,9 +694,9 @@ def guardar_registro(
     if foto and foto.filename:
         extension = os.path.splitext(foto.filename)[1].lower()
         nombre_foto = f"{uuid4().hex}{extension}"
-        ruta_destino = os.path.join(UPLOAD_DIR, nombre_foto)
+        ruta_destino = UPLOAD_PATH / nombre_foto
 
-        with open(ruta_destino, "wb") as buffer:
+        with ruta_destino.open("wb") as buffer:
             shutil.copyfileobj(foto.file, buffer)
 
     cur.execute(
@@ -659,6 +726,10 @@ def editar_registro(request: Request, registro_id: int):
         "SELECT * FROM registros_patologias WHERE id=?",
         (registro_id,),
     ).fetchone()
+
+    if not registro:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
 
     estancias = cur.execute(
         "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
@@ -704,6 +775,10 @@ def actualizar_registro(
         (registro_id,),
     ).fetchone()
 
+    if not registro:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
+
     visita_id = registro["visita_id"]
     nombre_foto = registro["foto"]
 
@@ -717,9 +792,9 @@ def actualizar_registro(
 
         extension = os.path.splitext(foto.filename)[1].lower()
         nombre_foto = f"{uuid4().hex}{extension}"
-        ruta_destino = os.path.join(UPLOAD_DIR, nombre_foto)
+        ruta_destino = UPLOAD_PATH / nombre_foto
 
-        with open(ruta_destino, "wb") as buffer:
+        with ruta_destino.open("wb") as buffer:
             shutil.copyfileobj(foto.file, buffer)
 
     cur.execute(
@@ -749,6 +824,10 @@ def borrar_registro(registro_id: int):
         "SELECT visita_id, foto FROM registros_patologias WHERE id=?",
         (registro_id,),
     ).fetchone()
+
+    if not registro:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
 
     if registro["foto"]:
         borrar_foto_si_existe(registro["foto"])

@@ -1,15 +1,27 @@
 #!/bin/zsh
 
-TOKEN="8699636159:AAEz3jWqiCDnactyICJdLQVwEEd_rEjkWN8"
-CHAT_ID="477674266"
-PROJECT="/Users/carlosblanco/sistema_pericial"
-CLOUDFLARED="/opt/homebrew/bin/cloudflared"
-FASTAPI_PLIST="/Users/carlosblanco/Library/LaunchAgents/com.macmini.fastapi.plist"
-UID_NUM=$(id -u)
+set -eu
 
+PROJECT="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT" || exit 1
 
+if [ -f ".env" ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+CHAT_ID="${TELEGRAM_CHAT_ID:-}"
+CLOUDFLARED="${CLOUDFLARED_BIN:-/opt/homebrew/bin/cloudflared}"
+FASTAPI_PLIST="${FASTAPI_PLIST:-$HOME/Library/LaunchAgents/com.macmini.fastapi.plist}"
+APP_PORT="${APP_PORT:-${PORT:-8000}}"
+UID_NUM=$(id -u)
+
 send_msg() {
+  if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+    return 0
+  fi
   curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
     -d chat_id="$CHAT_ID" \
     -d text="$1" >/dev/null
@@ -23,7 +35,7 @@ launchctl kickstart -k "gui/$UID_NUM/com.macmini.fastapi" 2>/dev/null
 # 2. Esperar a que FastAPI responda
 READY="no"
 for i in {1..30}; do
-  if curl -fsS http://127.0.0.1:8000/ping >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:${APP_PORT}/ping" >/dev/null 2>&1; then
     READY="si"
     break
   fi
@@ -36,12 +48,12 @@ if [ "$READY" != "si" ]; then
 fi
 
 # 3. Cerrar túnel anterior
-pkill -f "cloudflared tunnel --url http://127.0.0.1:8000" 2>/dev/null
+pkill -f "cloudflared tunnel --url http://127.0.0.1:${APP_PORT}" 2>/dev/null
 sleep 2
 
 # 4. Crear túnel nuevo apuntando a 127.0.0.1
 : > "$PROJECT/cloudflared.log"
-nohup "$CLOUDFLARED" tunnel --url http://127.0.0.1:8000 > "$PROJECT/cloudflared.log" 2>&1 &
+nohup "$CLOUDFLARED" tunnel --url "http://127.0.0.1:${APP_PORT}" > "$PROJECT/cloudflared.log" 2>&1 &
 
 URL=""
 for i in {1..60}; do

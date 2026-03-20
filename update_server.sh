@@ -1,26 +1,32 @@
 #!/bin/zsh
 
-PROJECT="/Users/carlosblanco/sistema_pericial"
+set -eu
 
-TOKEN="8699636159:AAEz3jWqiCDnactyICJdLQVwEEd_rEjkWN8"
-CHAT_ID="477674266"
+PROJECT="$(cd "$(dirname "$0")" && pwd)"
+cd "$PROJECT" || exit 1
+
+if [ -f ".env" ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
 send_msg() {
+if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+  return 0
+fi
 curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
--d chat_id="$CHAT_ID" \
--d text="$1" >/dev/null
+  -d chat_id="$CHAT_ID" \
+  -d text="$1" >/dev/null
 }
-
-cd "$PROJECT" || exit 1
 
 send_msg "🔄 Actualizando servidor desde GitHub..."
 
 git pull
 
-# reiniciar FastAPI
-pkill -f uvicorn
-sleep 2
-
-launchctl kickstart -k gui/$(id -u)/com.macmini.fastapi
+./start_server.sh
 
 send_msg "✅ Servidor actualizado"
