@@ -26,7 +26,7 @@ def valor_o_guion(valor):
 
 
 def configurar_documento(doc: Document) -> None:
-    seccion = doc.sections[0]
+    seccion = doc.sections[-1]
     seccion.top_margin = Cm(2.5)
     seccion.bottom_margin = Cm(2.5)
     seccion.left_margin = Cm(2.5)
@@ -128,7 +128,6 @@ def add_tabla_datos_expediente(doc: Document, expediente) -> None:
         ("Orientación", expediente["orientacion_inmueble"]),
         ("Año de construcción", expediente["anio_construccion"]),
         ("Uso del inmueble", expediente["uso_inmueble"]),
-        ("Superficie", expediente["superficie"]),
     ]
 
     for etiqueta, valor in filas:
@@ -220,23 +219,27 @@ def add_apartado_datos_generales(doc: Document, expediente) -> None:
         doc, "Observaciones generales", expediente["observaciones_generales"]
     )
 
-    if expediente["tipo_inmueble"] == "Piso":
+    numero_unidad = "2.1"
+
+    if expediente["observaciones_bloque"]:
         doc.add_heading("2.1 Características del bloque", level=2)
         add_etiqueta_valor(
             doc, "Observaciones del bloque", expediente["observaciones_bloque"]
         )
+        numero_unidad = "2.2"
 
-        doc.add_heading("2.2 Características de la unidad", level=2)
-        add_etiqueta_valor(doc, "Planta de la unidad", expediente["planta_unidad"])
-        add_etiqueta_valor(doc, "Puerta / unidad", expediente["puerta_unidad"])
-        add_etiqueta_valor(
-            doc, "Superficie de la unidad", expediente["superficie_unidad"]
-        )
-        add_etiqueta_valor(doc, "Dormitorios", expediente["dormitorios_unidad"])
-        add_etiqueta_valor(doc, "Baños", expediente["banos_unidad"])
-        add_etiqueta_valor(
-            doc, "Observaciones de la unidad", expediente["observaciones_unidad"]
-        )
+    doc.add_heading(f"{numero_unidad} Características de la unidad", level=2)
+    add_etiqueta_valor(doc, "Planta de la unidad", expediente["planta_unidad"])
+    add_etiqueta_valor(doc, "Puerta / unidad", expediente["puerta_unidad"])
+    add_etiqueta_valor(
+        doc, "Superficie construida", expediente["superficie_construida"]
+    )
+    add_etiqueta_valor(doc, "Superficie útil", expediente["superficie_util"])
+    add_etiqueta_valor(doc, "Dormitorios", expediente["dormitorios_unidad"])
+    add_etiqueta_valor(doc, "Baños", expediente["banos_unidad"])
+    add_etiqueta_valor(
+        doc, "Observaciones de la unidad", expediente["observaciones_unidad"]
+    )
 
 
 def add_apartado_reforma(doc: Document, expediente) -> None:

@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="/static/mobile.css?v=6">
     <script src="/static/pwa.js?v=4" defer></script>
 
-    <title>Editar registro</title>
+    <title>Editar visita</title>
 </head>
 
 <body>
@@ -24,58 +24,30 @@
             <a class="boton secundario" href="/logout">Cerrar sesión</a>
         </div>
 
-        <h1>Editar patología</h1>
+        <h1>Editar visita</h1>
 
         <div class="actions">
-            <a class="boton secundario" href="/registrar-patologias/{{ registro.visita_id }}">Volver a patologías</a>
+            <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+            <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Ver estancias</a>
         </div>
 
         <div class="card">
-            <form method="post" action="/actualizar-registro/{{ registro.id }}" enctype="multipart/form-data">
-                <label for="estancia_id">Estancia</label>
-                <select id="estancia_id" name="estancia_id" required>
-                    {% for estancia in estancias %}
-                    <option value="{{ estancia.id }}" {% if estancia.id==registro.estancia_id %}selected{% endif %}>
-                        {{ estancia.nombre }}{% if estancia.planta %} ({{ estancia.planta }}){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
+            <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
+            <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
+        </div>
 
-                <label for="elemento">Elemento afectado</label>
-                <input type="text" id="elemento" name="elemento" value="{{ registro.elemento }}" required>
+        <div class="card">
+            <form method="post" action="/actualizar-visita/{{ visita.id }}">
+                <label for="fecha">Fecha</label>
+                <input type="date" id="fecha" name="fecha" value="{{ visita.fecha }}" required>
 
-                <label for="patologia">Patología</label>
-                <input list="lista_patologias" id="patologia" name="patologia" value="{{ registro.patologia }}"
-                    required>
-                <datalist id="lista_patologias">
-                    {% for item in patologias %}
-                    <option value="{{ item.nombre }}">
-                    {% endfor %}
-                </datalist>
+                <label for="tecnico">Técnico</label>
+                <input type="text" id="tecnico" name="tecnico" value="{{ visita.tecnico }}" required>
 
-                <label for="observaciones">Observaciones</label>
-                <textarea id="observaciones" name="observaciones">{{ registro.observaciones or '' }}</textarea>
+                <label for="observaciones_visita">Observaciones de la visita</label>
+                <textarea id="observaciones_visita" name="observaciones_visita">{{ visita.observaciones_visita or '' }}</textarea>
 
-                {% if registro.foto %}
-                <div class="card" style="margin-top: 16px;">
-                    <p><strong>Foto actual:</strong></p>
-                    <img src="/uploads/{{ registro.foto }}" alt="Foto del registro">
-                    <label for="eliminar_foto_actual">Eliminar foto actual</label>
-                    <select id="eliminar_foto_actual" name="eliminar_foto_actual">
-                        <option value="no" selected>No</option>
-                        <option value="si">Sí</option>
-                    </select>
-                </div>
-                {% else %}
-                <input type="hidden" name="eliminar_foto_actual" value="no">
-                {% endif %}
-
-                <label for="foto">Nueva foto</label>
-                <input type="file" id="foto" name="foto" accept="image/*">
-
-                <div class="actions">
-                    <button class="boton" type="submit">Guardar cambios</button>
-                </div>
+                <button class="boton" type="submit">Guardar cambios</button>
             </form>
         </div>
     </div>

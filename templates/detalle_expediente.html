@@ -11,20 +11,30 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=3">
+    <link rel="stylesheet" href="/static/mobile.css?v=6">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Detalle expediente</title>
 </head>
 
 <body>
-    <div class="page">
+    <div class="page with-top-nav">
+        <div class="topbar">
+            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
+            <a class="boton secundario" href="/logout">Cerrar sesión</a>
+        </div>
+
         <h1>Expediente {{ expediente.numero_expediente }}</h1>
 
         <div class="actions">
             <a class="boton secundario" href="/expedientes">Volver a expedientes</a>
             <a class="boton" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
             <a class="boton" href="/nueva-visita/{{ expediente.id }}">Nueva visita</a>
+            <a class="boton secundario" href="/generar-informe/{{ expediente.id }}">Generar informe</a>
+            <form method="post" action="/borrar-expediente/{{ expediente.id }}"
+                onsubmit="return confirm('¿Seguro que quieres borrar este expediente y todos sus datos asociados?');">
+                <button class="boton secundario" type="submit">Borrar expediente</button>
+            </form>
         </div>
 
         <div class="card">
@@ -35,26 +45,26 @@
             <p><strong>Año de construcción:</strong> {{ expediente.anio_construccion or '-' }}</p>
             <p><strong>Plantas:</strong> {{ expediente.descripcion_plantas }}</p>
             <p><strong>Uso:</strong> {{ expediente.uso_inmueble or '-' }}</p>
-            <p><strong>Superficie:</strong> {{ expediente.superficie or '-' }}</p>
             <p><strong>Observaciones generales:</strong> {{ expediente.observaciones_generales or '-' }}</p>
         </div>
 
-        {% if expediente.tipo_inmueble == "Piso" %}
+        {% if expediente.observaciones_bloque %}
         <div class="card">
             <h2>Características del bloque</h2>
             <p><strong>Observaciones del bloque:</strong> {{ expediente.observaciones_bloque or '-' }}</p>
         </div>
+        {% endif %}
 
         <div class="card">
             <h2>Características de la unidad</h2>
             <p><strong>Planta de la unidad:</strong> {{ expediente.planta_unidad or '-' }}</p>
             <p><strong>Puerta / unidad:</strong> {{ expediente.puerta_unidad or '-' }}</p>
-            <p><strong>Superficie de la unidad:</strong> {{ expediente.superficie_unidad or '-' }}</p>
+            <p><strong>Superficie construida:</strong> {{ expediente.superficie_construida or '-' }}</p>
+            <p><strong>Superficie útil:</strong> {{ expediente.superficie_util or '-' }}</p>
             <p><strong>Dormitorios:</strong> {{ expediente.dormitorios_unidad or '-' }}</p>
             <p><strong>Baños:</strong> {{ expediente.banos_unidad or '-' }}</p>
             <p><strong>Observaciones de la unidad:</strong> {{ expediente.observaciones_unidad or '-' }}</p>
         </div>
-        {% endif %}
 
         <div class="card">
             <h2>Reforma</h2>
@@ -75,6 +85,10 @@
             <p><strong>Patologías registradas:</strong> {{ visita.total_patologias }}</p>
 
             <div class="actions">
+                <form method="post" action="/anadir-climatologia/{{ visita.id }}">
+                    <button class="boton secundario" type="submit">Generar climatología</button>
+                </form>
+                <a class="boton secundario" href="/editar-visita/{{ visita.id }}">Editar visita</a>
                 <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
                 <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>
             </div>
@@ -86,6 +100,45 @@
         </div>
         {% endif %}
     </div>
+
+    <nav class="top-nav" aria-label="Navegación principal">
+        <a class="top-nav-item" href="/">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 10.5 12 3l9 7.5"></path>
+                <path d="M5 9.5V21h14V9.5"></path>
+            </svg>
+            <span class="top-nav-label">Inicio</span>
+        </a>
+        <a class="top-nav-item active" href="/expedientes">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path>
+            </svg>
+            <span class="top-nav-label">Expedientes</span>
+        </a>
+        <a class="top-nav-item center" href="/nuevo-expediente" aria-label="Nuevo expediente">
+            <span class="top-nav-plus">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14"></path>
+                    <path d="M5 12h14"></path>
+                </svg>
+            </span>
+            <span class="top-nav-label">Nuevo</span>
+        </a>
+        <a class="top-nav-item" href="/biblioteca-patologias">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5.5 4.5h10A2.5 2.5 0 0 1 18 7v12H7a2 2 0 0 0-2 2"></path>
+                <path d="M5.5 4.5A2.5 2.5 0 0 0 3 7v12.5A1.5 1.5 0 0 0 4.5 21H18"></path>
+            </svg>
+            <span class="top-nav-label">Biblioteca</span>
+        </a>
+        <a class="top-nav-item" href="/logout">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 19a7.5 7.5 0 1 0-7 0"></path>
+                <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+            </svg>
+            <span class="top-nav-label">Perfil</span>
+        </a>
+    </nav>
 </body>
 
 </html>

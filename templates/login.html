@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=6">
+    <script src="/static/pwa.js?v=4" defer></script>
+
+    <title>Acceso</title>
+</head>
+
+<body>
+    <div class="page">
+        <div class="card">
+            <h1>Iniciar sesión</h1>
+            <p class="subtitle">Accede al sistema pericial con tu usuario.</p>
+
+            {% if error %}
+            <p class="error">{{ error }}</p>
+            {% endif %}
+
+            <form method="post" action="/login">
+                <label for="username">Usuario</label>
+                <input type="text" id="username" name="username" value="{{ form_data.username if form_data else '' }}"
+                    required>
+
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required>
+
+                <button class="boton" type="submit">Iniciar sesión</button>
+            </form>
+
+            <div class="actions" style="margin-top: 16px;">
+                <a class="boton secundario" href="/crear-usuario">Crear usuario</a>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

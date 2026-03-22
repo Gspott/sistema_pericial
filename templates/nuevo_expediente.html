@@ -11,14 +11,19 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=3">
+    <link rel="stylesheet" href="/static/mobile.css?v=6">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Nuevo expediente</title>
 </head>
 
 <body>
-    <div class="page">
+    <div class="page with-top-nav">
+        <div class="topbar">
+            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
+            <a class="boton secundario" href="/logout">Cerrar sesión</a>
+        </div>
+
         <h1>Nuevo expediente</h1>
 
         <div class="actions">
@@ -29,13 +34,23 @@
         <div class="card">
             <form method="post" action="/guardar-expediente">
                 <label for="numero_expediente">Número de expediente</label>
-                <input type="text" id="numero_expediente" name="numero_expediente" required>
+                <input type="text" id="numero_expediente" value="{{ numero_expediente_sugerido }}" readonly>
 
                 <label for="cliente">Cliente</label>
                 <input type="text" id="cliente" name="cliente" required>
 
                 <label for="direccion">Dirección</label>
-                <input type="text" id="direccion" name="direccion" required>
+                <input type="text" id="direccion" name="direccion" autocomplete="off" required>
+                <div id="direccion_sugerencias" class="address-suggestions"></div>
+
+                <label for="codigo_postal">Código postal</label>
+                <input type="text" id="codigo_postal" name="codigo_postal">
+
+                <label for="ciudad">Ciudad</label>
+                <input type="text" id="ciudad" name="ciudad">
+
+                <label for="provincia">Provincia</label>
+                <input type="text" id="provincia" name="provincia">
 
                 <label for="tipo_inmueble">Tipo de inmueble</label>
                 <select id="tipo_inmueble" name="tipo_inmueble">
@@ -50,10 +65,256 @@
                     <option value="Otro">Otro</option>
                 </select>
 
+                <label for="orientacion_inmueble">Orientación</label>
+                <select id="orientacion_inmueble" name="orientacion_inmueble">
+                    <option value="">Seleccionar...</option>
+                    <option value="Norte">Norte</option>
+                    <option value="Sur">Sur</option>
+                    <option value="Este">Este</option>
+                    <option value="Oeste">Oeste</option>
+                    <option value="Noreste">Noreste</option>
+                    <option value="Noroeste">Noroeste</option>
+                    <option value="Sureste">Sureste</option>
+                    <option value="Suroeste">Suroeste</option>
+                </select>
+
+                <label for="anio_construccion">Año de construcción</label>
+                <select id="anio_construccion" name="anio_construccion">
+                    <option value="">Seleccionar...</option>
+                    {% for anio in anios_disponibles %}
+                    <option value="{{ anio }}">{{ anio }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="plantas_bajo_rasante">Plantas bajo rasante</label>
+                <input type="number" id="plantas_bajo_rasante" name="plantas_bajo_rasante" min="0" value="0">
+
+                <label for="plantas_sobre_baja">Plantas sobre baja</label>
+                <input type="number" id="plantas_sobre_baja" name="plantas_sobre_baja" min="0" value="0">
+
+                <label for="uso_inmueble">Uso del inmueble</label>
+                <input type="text" id="uso_inmueble" name="uso_inmueble">
+
+                <label for="observaciones_generales">Observaciones generales</label>
+                <textarea id="observaciones_generales" name="observaciones_generales"></textarea>
+
+                <div>
+                    <h2>Características de la unidad</h2>
+
+                    <label for="planta_unidad">Planta de la unidad</label>
+                    <input type="text" id="planta_unidad" name="planta_unidad">
+
+                    <label for="puerta_unidad">Puerta / unidad</label>
+                    <input type="text" id="puerta_unidad" name="puerta_unidad">
+
+                    <label for="superficie_construida">Superficie construida</label>
+                    <input type="text" id="superficie_construida" name="superficie_construida">
+
+                    <label for="superficie_util">Superficie útil</label>
+                    <input type="text" id="superficie_util" name="superficie_util">
+
+                    <label for="dormitorios_unidad">Dormitorios de la unidad</label>
+                    <input type="text" id="dormitorios_unidad" name="dormitorios_unidad">
+
+                    <label for="banos_unidad">Baños de la unidad</label>
+                    <input type="text" id="banos_unidad" name="banos_unidad">
+
+                    <p class="unit-hint">Si el expediente tiene visitas previas, la nueva visita copiará esas estancias; si no, se generarán estancias base desde dormitorios y baños.</p>
+
+                    <label for="observaciones_bloque">Observaciones del bloque</label>
+                    <textarea id="observaciones_bloque" name="observaciones_bloque"></textarea>
+
+                    <label for="observaciones_unidad">Observaciones de la unidad</label>
+                    <textarea id="observaciones_unidad" name="observaciones_unidad"></textarea>
+                </div>
+
+                <label for="reformado">¿Reformado?</label>
+                <select id="reformado" name="reformado">
+                    <option value="No" selected>No</option>
+                    <option value="Sí">Sí</option>
+                </select>
+
+                <label for="fecha_reforma">Fecha de reforma</label>
+                <select id="fecha_reforma" name="fecha_reforma">
+                    <option value="">Sin reforma / no aplica</option>
+                    {% for anio in anios_disponibles %}
+                    <option value="{{ anio }}">{{ anio }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="observaciones_reforma">Observaciones de la reforma</label>
+                <textarea id="observaciones_reforma" name="observaciones_reforma"></textarea>
+
                 <button class="boton" type="submit">Guardar expediente</button>
             </form>
         </div>
     </div>
+
+    <script>
+        const direccionInput = document.getElementById("direccion");
+        const codigoPostalInput = document.getElementById("codigo_postal");
+        const ciudadInput = document.getElementById("ciudad");
+        const provinciaInput = document.getElementById("provincia");
+        const sugerenciasBox = document.getElementById("direccion_sugerencias");
+        let sugerenciasCache = [];
+        let sugerenciasTimeout = null;
+
+        function limpiarSugerencias() {
+            sugerenciasCache = [];
+            sugerenciasBox.innerHTML = "";
+            sugerenciasBox.classList.remove("visible");
+        }
+
+        function aplicarDireccion(item) {
+            direccionInput.value = item.direccion || direccionInput.value;
+            codigoPostalInput.value = item.codigo_postal || "";
+            ciudadInput.value = item.ciudad || "";
+            provinciaInput.value = item.provincia || "";
+            limpiarSugerencias();
+        }
+
+        async function rellenarDatosDireccion() {
+            const direccion = direccionInput.value.trim();
+
+            if (direccion.length < 3) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/autocompletar-direccion?direccion=${encodeURIComponent(direccion)}`);
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const datos = await response.json();
+
+                if (datos && Object.keys(datos).length > 0) {
+                    codigoPostalInput.value = datos.codigo_postal || "";
+                    ciudadInput.value = datos.ciudad || "";
+                    provinciaInput.value = datos.provincia || "";
+                }
+            } catch (error) {
+                console.error("No se pudo autocompletar la dirección", error);
+            }
+        }
+
+        function renderizarSugerencias(sugerencias) {
+            if (!sugerencias.length) {
+                limpiarSugerencias();
+                return;
+            }
+
+            sugerenciasBox.innerHTML = "";
+
+            sugerencias.forEach((item) => {
+                const boton = document.createElement("button");
+                boton.type = "button";
+                boton.className = "address-suggestion";
+                boton.textContent = item.direccion;
+                boton.addEventListener("mousedown", (event) => {
+                    event.preventDefault();
+                    aplicarDireccion(item);
+                });
+                sugerenciasBox.appendChild(boton);
+            });
+
+            sugerenciasBox.classList.add("visible");
+        }
+
+        async function cargarSugerencias() {
+            const texto = direccionInput.value.trim();
+
+            if (texto.length < 3) {
+                limpiarSugerencias();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/buscar-direcciones?q=${encodeURIComponent(texto)}`);
+
+                if (!response.ok) {
+                    limpiarSugerencias();
+                    return;
+                }
+
+                sugerenciasCache = await response.json();
+                renderizarSugerencias(sugerenciasCache);
+            } catch (error) {
+                console.error("No se pudieron cargar sugerencias de dirección", error);
+                limpiarSugerencias();
+            }
+        }
+
+        async function resolverDireccionManual() {
+            const valor = direccionInput.value.trim();
+
+            if (valor.length < 3) {
+                limpiarSugerencias();
+                return;
+            }
+
+            const seleccionada = sugerenciasCache.find((item) => item.direccion === valor);
+
+            if (seleccionada) {
+                aplicarDireccion(seleccionada);
+                return;
+            }
+
+            limpiarSugerencias();
+            await rellenarDatosDireccion();
+        }
+
+        direccionInput.addEventListener("input", () => {
+            clearTimeout(sugerenciasTimeout);
+            sugerenciasTimeout = setTimeout(cargarSugerencias, 300);
+        });
+        direccionInput.addEventListener("change", resolverDireccionManual);
+        direccionInput.addEventListener("blur", () => {
+            setTimeout(() => {
+                resolverDireccionManual();
+            }, 150);
+        });
+    </script>
+
+    <nav class="top-nav" aria-label="Navegación principal">
+        <a class="top-nav-item" href="/">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 10.5 12 3l9 7.5"></path>
+                <path d="M5 9.5V21h14V9.5"></path>
+            </svg>
+            <span class="top-nav-label">Inicio</span>
+        </a>
+        <a class="top-nav-item" href="/expedientes">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path>
+            </svg>
+            <span class="top-nav-label">Expedientes</span>
+        </a>
+        <a class="top-nav-item center active" href="/nuevo-expediente" aria-label="Nuevo expediente">
+            <span class="top-nav-plus">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14"></path>
+                    <path d="M5 12h14"></path>
+                </svg>
+            </span>
+            <span class="top-nav-label">Nuevo</span>
+        </a>
+        <a class="top-nav-item" href="/biblioteca-patologias">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5.5 4.5h10A2.5 2.5 0 0 1 18 7v12H7a2 2 0 0 0-2 2"></path>
+                <path d="M5.5 4.5A2.5 2.5 0 0 0 3 7v12.5A1.5 1.5 0 0 0 4.5 21H18"></path>
+            </svg>
+            <span class="top-nav-label">Biblioteca</span>
+        </a>
+        <a class="top-nav-item" href="/logout">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 19a7.5 7.5 0 1 0-7 0"></path>
+                <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+            </svg>
+            <span class="top-nav-label">Perfil</span>
+        </a>
+    </nav>
 </body>
 
 </html>
