@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=6">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Nueva visita</title>
@@ -37,19 +37,58 @@
         </div>
 
         <div class="card">
-            <p>Al guardar la visita se copiarán primero las estancias de la visita anterior más reciente; si no existen, se generarán estancias base según dormitorios y baños de la unidad.</p>
+            <p>La climatología queda vinculada a la visita. Si todavía no existe, al generarla se crea la visita con los datos actuales del formulario y después podrás terminar de guardarla sin duplicados.</p>
         </div>
 
+        {% if clima_error %}
         <div class="card">
-            <form method="post" action="/guardar-visita/{{ expediente.id }}">
+            <p class="error">{{ clima_error }}</p>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <form id="visita-form" method="post" action="/guardar-visita/{{ expediente.id }}">
+                <input type="hidden" name="visita_id" value="{{ visita_form.id }}">
+                <input type="hidden" name="latitud" id="latitud" value="">
+                <input type="hidden" name="longitud" id="longitud" value="">
+                <input type="hidden" name="ubicacion_referencia" id="ubicacion_referencia"
+                    value="{{ clima.ubicacion if clima else expediente.direccion }}">
+
                 <label for="fecha">Fecha</label>
-                <input type="date" id="fecha" name="fecha" required>
+                <input type="date" id="fecha" name="fecha" value="{{ visita_form.fecha }}" required>
 
                 <label for="tecnico">Técnico</label>
-                <input type="text" id="tecnico" name="tecnico" required>
+                <input type="text" id="tecnico" name="tecnico" value="{{ visita_form.tecnico }}" required>
+
+                <div class="section-divider"></div>
+
+                <h2>Climatología</h2>
+                <button class="boton secundario" id="boton-clima" type="submit"
+                    formaction="/registrar-climatologia-visita/{{ expediente.id }}">Obtener y registrar climatología</button>
+                <p class="helper-text" id="geo-status">Si autorizas la geolocalización, se usará tu ubicación actual; si no, se usará la dirección del expediente.</p>
+
+                {% if clima %}
+                <div class="card inner-card">
+                    <p><strong>Ubicación usada:</strong> {{ clima.ubicacion or expediente.direccion }}</p>
+                    <p>{{ clima.resumen }}</p>
+
+                    {% if clima_detalle %}
+                    <div class="weather-day-list">
+                        {% for dia in clima_detalle %}
+                        <div class="weather-day-item">
+                            <p><strong>{{ dia.fecha }}</strong></p>
+                            <p>Temperatura: {{ dia.temperatura_texto }}</p>
+                            <p>Viento: {{ dia.viento_texto }}</p>
+                            <p>Precipitación: {{ dia.precipitacion_texto }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
 
                 <label for="observaciones_visita">Observaciones de la visita</label>
-                <textarea id="observaciones_visita" name="observaciones_visita"></textarea>
+                <textarea id="observaciones_visita" name="observaciones_visita">{{ visita_form.observaciones_visita or '' }}</textarea>
 
                 <button class="boton" type="submit">Guardar visita</button>
             </form>
@@ -94,6 +133,64 @@
             <span class="top-nav-label">Perfil</span>
         </a>
     </nav>
+
+    <script>
+        const climaButton = document.getElementById("boton-clima");
+        const visitaForm = document.getElementById("visita-form");
+        const latitudInput = document.getElementById("latitud");
+        const longitudInput = document.getElementById("longitud");
+        const ubicacionInput = document.getElementById("ubicacion_referencia");
+        const geoStatus = document.getElementById("geo-status");
+        const fallbackDireccion = {{ expediente.direccion | tojson }};
+        let climaEnCurso = false;
+
+        function limpiarCoordenadas() {
+            latitudInput.value = "";
+            longitudInput.value = "";
+        }
+
+        function obtenerUbicacionActual() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error("Geolocalización no disponible"));
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => resolve(position.coords),
+                    (error) => reject(error),
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 8000,
+                        maximumAge: 300000,
+                    }
+                );
+            });
+        }
+
+        climaButton.addEventListener("click", async (event) => {
+            event.preventDefault();
+            if (climaEnCurso) {
+                return;
+            }
+            climaEnCurso = true;
+            geoStatus.textContent = "Obteniendo ubicación y climatología...";
+
+            try {
+                const coords = await obtenerUbicacionActual();
+                latitudInput.value = coords.latitude;
+                longitudInput.value = coords.longitude;
+                ubicacionInput.value = "Geolocalización del dispositivo";
+                geoStatus.textContent = "Ubicación obtenida. Consultando climatología...";
+            } catch (error) {
+                limpiarCoordenadas();
+                ubicacionInput.value = fallbackDireccion;
+                geoStatus.textContent = "No se pudo usar la geolocalización. Se consultará la dirección del expediente.";
+            }
+
+            visitaForm.requestSubmit(climaButton);
+        });
+    </script>
 </body>
 
 </html>

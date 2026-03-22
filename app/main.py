@@ -1,10 +1,12 @@
 import binascii
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import shutil
 import sqlite3
+from urllib.parse import quote_plus
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -27,7 +29,7 @@ from app.config import (
     ensure_directories,
 )
 from app.database import init_db
-from app.services.clima import generar_resumen
+from app.services.clima import obtener_climatologia
 from app.services.direccion import autocompletar_direccion, sugerir_direcciones
 from app.services.informe import generar_informe, limpiar_nombre_archivo
 from app.utils.helpers import formatear_plantas
@@ -105,10 +107,31 @@ def ensure_climatologia_table():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 visita_id INTEGER NOT NULL,
                 resumen TEXT,
+                detalle_json TEXT,
+                ubicacion TEXT,
+                latitud REAL,
+                longitud REAL,
+                fecha_generacion TEXT,
                 FOREIGN KEY (visita_id) REFERENCES visitas (id)
             )
             """
         )
+        columnas = {
+            row["name"]
+            for row in cur.execute("PRAGMA table_info(climatologia_visitas)").fetchall()
+        }
+        if "detalle_json" not in columnas:
+            cur.execute("ALTER TABLE climatologia_visitas ADD COLUMN detalle_json TEXT")
+        if "ubicacion" not in columnas:
+            cur.execute("ALTER TABLE climatologia_visitas ADD COLUMN ubicacion TEXT")
+        if "latitud" not in columnas:
+            cur.execute("ALTER TABLE climatologia_visitas ADD COLUMN latitud REAL")
+        if "longitud" not in columnas:
+            cur.execute("ALTER TABLE climatologia_visitas ADD COLUMN longitud REAL")
+        if "fecha_generacion" not in columnas:
+            cur.execute(
+                "ALTER TABLE climatologia_visitas ADD COLUMN fecha_generacion TEXT"
+            )
         tablas = {
             row["name"]
             for row in cur.execute(
@@ -133,6 +156,152 @@ def ensure_climatologia_table():
         conn.commit()
     finally:
         conn.close()
+
+
+def limpiar_texto(valor) -> str:
+    return str(valor or "").strip()
+
+
+def parsear_float(valor):
+    try:
+        return float(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def obtener_climatologia_guardada(cur, visita_id: int):
+    clima = cur.execute(
+        """
+        SELECT *
+        FROM climatologia_visitas
+        WHERE visita_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (visita_id,),
+    ).fetchone()
+
+    detalle = []
+    if clima and clima["detalle_json"]:
+        try:
+            detalle = json.loads(clima["detalle_json"])
+        except json.JSONDecodeError:
+            detalle = []
+
+    return clima, detalle
+
+
+def persistir_climatologia(cur, visita_id: int, climatologia: dict):
+    cur.execute("DELETE FROM climatologia_visitas WHERE visita_id=?", (visita_id,))
+    cur.execute(
+        """
+        INSERT INTO climatologia_visitas (
+            visita_id,
+            resumen,
+            detalle_json,
+            ubicacion,
+            latitud,
+            longitud,
+            fecha_generacion
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            visita_id,
+            climatologia.get("resumen"),
+            climatologia.get("detalle_json"),
+            climatologia.get("ubicacion"),
+            climatologia.get("latitud"),
+            climatologia.get("longitud"),
+            datetime.now().isoformat(timespec="seconds"),
+        ),
+    )
+
+
+def crear_visita_si_no_existe(
+    cur,
+    expediente,
+    visita_id,
+    fecha: str,
+    tecnico: str,
+    observaciones_visita: str,
+):
+    if visita_id:
+        return visita_id, False
+
+    cur.execute(
+        """
+        INSERT INTO visitas
+        (expediente_id, fecha, tecnico, observaciones_visita)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            expediente["id"],
+            fecha,
+            tecnico,
+            observaciones_visita,
+        ),
+    )
+    nueva_visita_id = cur.lastrowid
+    copiado = copiar_estancias_visita_anterior(cur, expediente["id"], nueva_visita_id)
+
+    if not copiado:
+        crear_estancias_base(
+            cur,
+            nueva_visita_id,
+            expediente["tipo_inmueble"] or "",
+            expediente["dormitorios_unidad"],
+            expediente["banos_unidad"],
+        )
+
+    return nueva_visita_id, True
+
+
+def propagar_acabados_estancia(
+    cur,
+    expediente_id: int,
+    estancia_id: int,
+    acabados_anteriores: dict,
+    acabados_nuevos: dict,
+):
+    for campo, valor_nuevo in acabados_nuevos.items():
+        valor_limpio = limpiar_texto(valor_nuevo)
+        valor_anterior = limpiar_texto(acabados_anteriores.get(campo))
+
+        if valor_anterior or not valor_limpio:
+            continue
+
+        existe_previo = cur.execute(
+            f"""
+            SELECT 1
+            FROM estancias es
+            INNER JOIN visitas v ON es.visita_id = v.id
+            WHERE v.expediente_id = ?
+              AND es.id <> ?
+              AND TRIM(IFNULL(es.{campo}, '')) <> ''
+            LIMIT 1
+            """,
+            (expediente_id, estancia_id),
+        ).fetchone()
+
+        if existe_previo:
+            continue
+
+        cur.execute(
+            f"""
+            UPDATE estancias
+            SET {campo} = ?
+            WHERE id IN (
+                SELECT es.id
+                FROM estancias es
+                INNER JOIN visitas v ON es.visita_id = v.id
+                WHERE v.expediente_id = ?
+                  AND es.id <> ?
+                  AND TRIM(IFNULL(es.{campo}, '')) = ''
+            )
+            """,
+            (valor_limpio, expediente_id, estancia_id),
+        )
 
 
 def generar_numero_expediente():
@@ -195,28 +364,58 @@ def crear_estancias_base(cur, visita_id: int, tipo_inmueble: str, dormitorios, b
     for nombre, tipo_estancia in estancias_base:
         cur.execute(
             """
-            INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO estancias (
+                visita_id,
+                nombre,
+                tipo_estancia,
+                ventilacion,
+                planta,
+                acabado_pavimento,
+                acabado_paramento,
+                acabado_techo,
+                observaciones
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (visita_id, nombre, tipo_estancia, "", ""),
+            (visita_id, nombre, tipo_estancia, "", "", "", "", "", ""),
         )
 
     for i in range(1, parsear_entero_positivo(dormitorios) + 1):
         cur.execute(
             """
-            INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO estancias (
+                visita_id,
+                nombre,
+                tipo_estancia,
+                ventilacion,
+                planta,
+                acabado_pavimento,
+                acabado_paramento,
+                acabado_techo,
+                observaciones
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (visita_id, f"Dormitorio {i}", "Dormitorio", "", ""),
+            (visita_id, f"Dormitorio {i}", "Dormitorio", "", "", "", "", "", ""),
         )
 
     for i in range(1, parsear_entero_positivo(banos) + 1):
         cur.execute(
             """
-            INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO estancias (
+                visita_id,
+                nombre,
+                tipo_estancia,
+                ventilacion,
+                planta,
+                acabado_pavimento,
+                acabado_paramento,
+                acabado_techo,
+                observaciones
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (visita_id, f"Baño {i}", "Baño", "", ""),
+            (visita_id, f"Baño {i}", "Baño", "", "", "", "", "", ""),
         )
 
 
@@ -250,7 +449,15 @@ def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: i
 
     estancias_previas = cur.execute(
         """
-        SELECT nombre, tipo_estancia, planta, observaciones
+        SELECT
+            nombre,
+            tipo_estancia,
+            ventilacion,
+            planta,
+            acabado_pavimento,
+            acabado_paramento,
+            acabado_techo,
+            observaciones
         FROM estancias
         WHERE visita_id = ?
         ORDER BY id ASC
@@ -264,14 +471,28 @@ def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: i
     for estancia in estancias_previas:
         cur.execute(
             """
-            INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO estancias (
+                visita_id,
+                nombre,
+                tipo_estancia,
+                ventilacion,
+                planta,
+                acabado_pavimento,
+                acabado_paramento,
+                acabado_techo,
+                observaciones
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 nueva_visita_id,
                 estancia["nombre"],
                 estancia["tipo_estancia"],
+                estancia["ventilacion"],
                 estancia["planta"],
+                estancia["acabado_pavimento"],
+                estancia["acabado_paramento"],
+                estancia["acabado_techo"],
                 estancia["observaciones"],
             ),
         )
@@ -1288,8 +1509,14 @@ def actualizar_expediente(
 
 
 @app.get("/nueva-visita/{expediente_id}", response_class=HTMLResponse)
-def nueva_visita(request: Request, expediente_id: int):
+def nueva_visita(
+    request: Request,
+    expediente_id: int,
+    visita_id: int | None = Query(None),
+    clima_error: str = Query(""),
+):
     current_user = get_current_user(request)
+    ensure_climatologia_table()
 
     conn = get_connection()
     cur = conn.cursor()
@@ -1297,12 +1524,42 @@ def nueva_visita(request: Request, expediente_id: int):
     expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
     require_row(expediente, "Expediente no encontrado")
 
+    visita = None
+    clima = None
+    clima_detalle = []
+    if visita_id:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if visita["expediente_id"] != expediente_id:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Visita no encontrada")
+        clima, clima_detalle = obtener_climatologia_guardada(cur, visita_id)
+
     conn.close()
+
+    visita_form = {
+        "id": visita["id"] if visita else "",
+        "fecha": (visita["fecha"] if visita else datetime.now().strftime("%Y-%m-%d")),
+        "tecnico": (
+            visita["tecnico"]
+            if visita
+            else f"{current_user['nombre']} {current_user['apellido1']}".strip()
+            or current_user["username"]
+        ),
+        "observaciones_visita": visita["observaciones_visita"] if visita else "",
+    }
 
     return render_template(
         request,
         "nueva_visita.html",
-        {"expediente": expediente},
+        {
+            "expediente": expediente,
+            "visita": visita,
+            "visita_form": visita_form,
+            "clima": clima,
+            "clima_detalle": clima_detalle,
+            "clima_error": clima_error,
+        },
     )
 
 
@@ -1310,6 +1567,7 @@ def nueva_visita(request: Request, expediente_id: int):
 def guardar_visita(
     request: Request,
     expediente_id: int,
+    visita_id: int | None = Form(None),
     fecha: str = Form(...),
     tecnico: str = Form(...),
     observaciones_visita: str = Form(""),
@@ -1322,25 +1580,32 @@ def guardar_visita(
     expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
     require_row(expediente, "Expediente no encontrado")
 
-    cur.execute(
-        """
-        INSERT INTO visitas
-        (expediente_id, fecha, tecnico, observaciones_visita)
-        VALUES (?, ?, ?, ?)
-        """,
-        (expediente_id, fecha, tecnico, observaciones_visita),
-    )
+    fecha_limpia = limpiar_texto(fecha) or datetime.now().strftime("%Y-%m-%d")
+    tecnico_limpio = limpiar_texto(tecnico) or current_user["username"]
+    observaciones_limpias = observaciones_visita or ""
 
-    visita_id = cur.lastrowid
-    copiado = copiar_estancias_visita_anterior(cur, expediente_id, visita_id)
-
-    if not copiado:
-        crear_estancias_base(
+    if visita_id:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if visita["expediente_id"] != expediente_id:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Visita no encontrada")
+        cur.execute(
+            """
+            UPDATE visitas
+            SET fecha=?, tecnico=?, observaciones_visita=?
+            WHERE id=?
+            """,
+            (fecha_limpia, tecnico_limpio, observaciones_limpias, visita_id),
+        )
+    else:
+        visita_id, _ = crear_visita_si_no_existe(
             cur,
-            visita_id,
-            expediente["tipo_inmueble"] or "",
-            expediente["dormitorios_unidad"],
-            expediente["banos_unidad"],
+            expediente,
+            None,
+            fecha_limpia,
+            tecnico_limpio,
+            observaciones_limpias,
         )
 
     conn.commit()
@@ -1480,55 +1745,115 @@ def generar_estancias_base(
         if incluir_salon == "si":
             cur.execute(
                 """
-                INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO estancias (
+                    visita_id,
+                    nombre,
+                    tipo_estancia,
+                    ventilacion,
+                    planta,
+                    acabado_pavimento,
+                    acabado_paramento,
+                    acabado_techo,
+                    observaciones
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Salón", "Salón", "", ""),
+                (visita_id, "Salón", "Salón", "", "", "", "", "", ""),
             )
 
         if incluir_cocina == "si":
             cur.execute(
                 """
-                INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO estancias (
+                    visita_id,
+                    nombre,
+                    tipo_estancia,
+                    ventilacion,
+                    planta,
+                    acabado_pavimento,
+                    acabado_paramento,
+                    acabado_techo,
+                    observaciones
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Cocina", "Cocina", "", ""),
+                (visita_id, "Cocina", "Cocina", "", "", "", "", "", ""),
             )
 
         if incluir_pasillo == "si":
             cur.execute(
                 """
-                INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO estancias (
+                    visita_id,
+                    nombre,
+                    tipo_estancia,
+                    ventilacion,
+                    planta,
+                    acabado_pavimento,
+                    acabado_paramento,
+                    acabado_techo,
+                    observaciones
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Pasillo", "Pasillo", "", ""),
+                (visita_id, "Pasillo", "Pasillo", "", "", "", "", "", ""),
             )
 
         if incluir_terraza == "si":
             cur.execute(
                 """
-                INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO estancias (
+                    visita_id,
+                    nombre,
+                    tipo_estancia,
+                    ventilacion,
+                    planta,
+                    acabado_pavimento,
+                    acabado_paramento,
+                    acabado_techo,
+                    observaciones
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Terraza", "Terraza", "", ""),
+                (visita_id, "Terraza", "Terraza", "", "", "", "", "", ""),
             )
 
         for i in range(1, num_dormitorios + 1):
             cur.execute(
                 """
-                INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO estancias (
+                    visita_id,
+                    nombre,
+                    tipo_estancia,
+                    ventilacion,
+                    planta,
+                    acabado_pavimento,
+                    acabado_paramento,
+                    acabado_techo,
+                    observaciones
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, f"Dormitorio {i}", "Dormitorio", "", ""),
+                (visita_id, f"Dormitorio {i}", "Dormitorio", "", "", "", "", "", ""),
             )
 
         for i in range(1, num_banos + 1):
             cur.execute(
                 """
-                INSERT INTO estancias (visita_id, nombre, tipo_estancia, planta, observaciones)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO estancias (
+                    visita_id,
+                    nombre,
+                    tipo_estancia,
+                    ventilacion,
+                    planta,
+                    acabado_pavimento,
+                    acabado_paramento,
+                    acabado_techo,
+                    observaciones
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, f"Baño {i}", "Baño", "", ""),
+                (visita_id, f"Baño {i}", "Baño", "", "", "", "", "", ""),
             )
 
     conn.commit()
@@ -1546,7 +1871,11 @@ def guardar_estancia(
     visita_id: int = Form(...),
     nombre: str = Form(...),
     tipo_estancia: str = Form(...),
+    ventilacion: str = Form(""),
     planta: str = Form(""),
+    acabado_pavimento: str = Form(""),
+    acabado_paramento: str = Form(""),
+    acabado_techo: str = Form(""),
     observaciones: str = Form(""),
 ):
     current_user = get_current_user(request)
@@ -1560,10 +1889,47 @@ def guardar_estancia(
     cur.execute(
         """
         INSERT INTO estancias
-        (visita_id, nombre, tipo_estancia, planta, observaciones)
-        VALUES (?, ?, ?, ?, ?)
+        (
+            visita_id,
+            nombre,
+            tipo_estancia,
+            ventilacion,
+            planta,
+            acabado_pavimento,
+            acabado_paramento,
+            acabado_techo,
+            observaciones
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (visita_id, nombre, tipo_estancia, planta, observaciones),
+        (
+            visita_id,
+            nombre,
+            tipo_estancia,
+            limpiar_texto(ventilacion),
+            planta,
+            limpiar_texto(acabado_pavimento),
+            limpiar_texto(acabado_paramento),
+            limpiar_texto(acabado_techo),
+            observaciones,
+        ),
+    )
+    nueva_estancia_id = cur.lastrowid
+
+    propagar_acabados_estancia(
+        cur,
+        visita["expediente_id"],
+        nueva_estancia_id,
+        {
+            "acabado_pavimento": "",
+            "acabado_paramento": "",
+            "acabado_techo": "",
+        },
+        {
+            "acabado_pavimento": acabado_pavimento,
+            "acabado_paramento": acabado_paramento,
+            "acabado_techo": acabado_techo,
+        },
     )
 
     conn.commit()
@@ -1600,7 +1966,11 @@ def actualizar_estancia(
     estancia_id: int,
     nombre: str = Form(...),
     tipo_estancia: str = Form(...),
+    ventilacion: str = Form(""),
     planta: str = Form(""),
+    acabado_pavimento: str = Form(""),
+    acabado_paramento: str = Form(""),
+    acabado_techo: str = Form(""),
     observaciones: str = Form(""),
     siguiente: str = Form("estancias"),
 ):
@@ -1613,14 +1983,43 @@ def actualizar_estancia(
     require_row(estancia, "Estancia no encontrada")
 
     visita_id = estancia["visita_id"]
+    acabados_anteriores = {
+        "acabado_pavimento": estancia["acabado_pavimento"],
+        "acabado_paramento": estancia["acabado_paramento"],
+        "acabado_techo": estancia["acabado_techo"],
+    }
+    acabados_nuevos = {
+        "acabado_pavimento": acabado_pavimento,
+        "acabado_paramento": acabado_paramento,
+        "acabado_techo": acabado_techo,
+    }
 
     cur.execute(
         """
         UPDATE estancias
-        SET nombre=?, tipo_estancia=?, planta=?, observaciones=?
+        SET nombre=?, tipo_estancia=?, ventilacion=?, planta=?,
+            acabado_pavimento=?, acabado_paramento=?, acabado_techo=?, observaciones=?
         WHERE id=?
         """,
-        (nombre, tipo_estancia, planta, observaciones, estancia_id),
+        (
+            nombre,
+            tipo_estancia,
+            limpiar_texto(ventilacion),
+            planta,
+            limpiar_texto(acabado_pavimento),
+            limpiar_texto(acabado_paramento),
+            limpiar_texto(acabado_techo),
+            observaciones,
+            estancia_id,
+        ),
+    )
+
+    propagar_acabados_estancia(
+        cur,
+        estancia["expediente_id"],
+        estancia_id,
+        acabados_anteriores,
+        acabados_nuevos,
     )
 
     conn.commit()
@@ -1666,6 +2065,86 @@ def borrar_estancia(request: Request, estancia_id: int):
 # -------------------------------------------------------
 
 
+@app.post("/registrar-climatologia-visita/{expediente_id}")
+def registrar_climatologia_visita(
+    request: Request,
+    expediente_id: int,
+    visita_id: int | None = Form(None),
+    fecha: str = Form(""),
+    tecnico: str = Form(""),
+    observaciones_visita: str = Form(""),
+    latitud: str = Form(""),
+    longitud: str = Form(""),
+    ubicacion_referencia: str = Form(""),
+):
+    current_user = get_current_user(request)
+    ensure_climatologia_table()
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+    require_row(expediente, "Expediente no encontrado")
+
+    fecha_final = limpiar_texto(fecha) or datetime.now().strftime("%Y-%m-%d")
+    tecnico_final = (
+        limpiar_texto(tecnico)
+        or f"{current_user['nombre']} {current_user['apellido1']}".strip()
+        or current_user["username"]
+    )
+
+    if visita_id:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if visita["expediente_id"] != expediente_id:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Visita no encontrada")
+        cur.execute(
+            """
+            UPDATE visitas
+            SET fecha=?, tecnico=?, observaciones_visita=?
+            WHERE id=?
+            """,
+            (fecha_final, tecnico_final, observaciones_visita, visita_id),
+        )
+    else:
+        visita_id, _ = crear_visita_si_no_existe(
+            cur,
+            expediente,
+            None,
+            fecha_final,
+            tecnico_final,
+            observaciones_visita,
+        )
+
+    clima_error = ""
+    try:
+        climatologia = obtener_climatologia(
+            direccion=expediente["direccion"],
+            lat=parsear_float(latitud),
+            lon=parsear_float(longitud),
+            ubicacion_label=limpiar_texto(ubicacion_referencia) or expediente["direccion"],
+        )
+        persistir_climatologia(cur, visita_id, climatologia)
+    except Exception:
+        clima_error = "No se pudo obtener la climatología en este momento. La visita sigue guardada y puedes intentarlo de nuevo."
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=(
+            f"/nueva-visita/{expediente_id}?visita_id={visita_id}"
+            + (
+                f"&clima_error={quote_plus(clima_error)}"
+                if clima_error
+                else ""
+            )
+        ),
+        status_code=303,
+    )
+
+
 @app.post("/anadir-climatologia/{visita_id}")
 def anadir_climatologia(request: Request, visita_id: int):
     current_user = get_current_user(request)
@@ -1677,22 +2156,28 @@ def anadir_climatologia(request: Request, visita_id: int):
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
 
-    resumen = generar_resumen(visita["direccion"])
-
-    cur.execute("DELETE FROM climatologia_visitas WHERE visita_id=?", (visita_id,))
-    cur.execute(
-        """
-        INSERT INTO climatologia_visitas (visita_id, resumen)
-        VALUES (?, ?)
-        """,
-        (visita_id, resumen),
-    )
+    clima_error = ""
+    try:
+        climatologia = obtener_climatologia(
+            direccion=visita["direccion"],
+            ubicacion_label=visita["direccion"],
+        )
+        persistir_climatologia(cur, visita_id, climatologia)
+    except Exception:
+        clima_error = "No se pudo obtener la climatología en este momento. La visita sigue disponible y puedes intentarlo de nuevo."
 
     conn.commit()
     conn.close()
 
     return RedirectResponse(
-        url=f"/registrar-patologias/{visita_id}",
+        url=(
+            f"/nueva-visita/{visita['expediente_id']}?visita_id={visita_id}"
+            + (
+                f"&clima_error={quote_plus(clima_error)}"
+                if clima_error
+                else ""
+            )
+        ),
         status_code=303,
     )
 
@@ -1729,16 +2214,7 @@ def registrar_patologias(request: Request, visita_id: int):
         (visita_id,),
     ).fetchall()
 
-    clima = cur.execute(
-        """
-        SELECT *
-        FROM climatologia_visitas
-        WHERE visita_id=?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (visita_id,),
-    ).fetchone()
+    clima, clima_detalle = obtener_climatologia_guardada(cur, visita_id)
 
     patologias = cur.execute(
         "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
@@ -1754,6 +2230,7 @@ def registrar_patologias(request: Request, visita_id: int):
             "estancias": estancias,
             "registros": registros,
             "clima": clima,
+            "clima_detalle": clima_detalle,
             "patologias": patologias,
         },
     )

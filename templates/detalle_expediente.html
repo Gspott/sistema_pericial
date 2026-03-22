@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=6">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Detalle expediente</title>
@@ -85,9 +85,6 @@
             <p><strong>Patologías registradas:</strong> {{ visita.total_patologias }}</p>
 
             <div class="actions">
-                <form method="post" action="/anadir-climatologia/{{ visita.id }}">
-                    <button class="boton secundario" type="submit">Generar climatología</button>
-                </form>
                 <a class="boton secundario" href="/editar-visita/{{ visita.id }}">Editar visita</a>
                 <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
                 <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>
