@@ -40,11 +40,9 @@
             <p>La climatología queda vinculada a la visita. Si todavía no existe, al generarla se crea la visita con los datos actuales del formulario y después podrás terminar de guardarla sin duplicados.</p>
         </div>
 
-        {% if clima_error %}
-        <div class="card">
-            <p class="error">{{ clima_error }}</p>
+        <div class="card" id="clima-error-card" {% if not clima_error %}hidden{% endif %}>
+            <p class="error" id="clima-error-text">{{ clima_error or '' }}</p>
         </div>
-        {% endif %}
 
         <div class="card">
             <form id="visita-form" method="post" action="/guardar-visita/{{ expediente.id }}">
@@ -63,29 +61,28 @@
                 <div class="section-divider"></div>
 
                 <h2>Climatología</h2>
-                <button class="boton secundario" id="boton-clima" type="submit"
-                    formaction="/registrar-climatologia-visita/{{ expediente.id }}">Obtener y registrar climatología</button>
+                <button class="boton secundario" id="boton-clima" type="button">Obtener y registrar climatología</button>
                 <p class="helper-text" id="geo-status">Si autorizas la geolocalización, se usará tu ubicación actual; si no, se usará la dirección del expediente.</p>
 
-                {% if clima %}
-                <div class="card inner-card">
-                    <p><strong>Ubicación usada:</strong> {{ clima.ubicacion or expediente.direccion }}</p>
-                    <p>{{ clima.resumen }}</p>
+                <div class="card inner-card" id="clima-card" {% if not clima %}hidden{% endif %}>
+                    <p><strong>Ubicación usada:</strong> <span id="clima-ubicacion">{{ clima.ubicacion or expediente.direccion if clima else '' }}</span></p>
+                    <p id="clima-resumen">{{ clima.resumen if clima else '' }}</p>
 
-                    {% if clima_detalle %}
-                    <div class="weather-day-list">
+                    <div class="weather-day-list" id="clima-resumen-diario">
+                        {% if clima_detalle %}
                         {% for dia in clima_detalle %}
                         <div class="weather-day-item">
                             <p><strong>{{ dia.fecha }}</strong></p>
                             <p>Temperatura: {{ dia.temperatura_texto }}</p>
+                            <p>Temperatura media: {{ dia.temperatura_media_texto }}</p>
+                            <p>Humedad media: {{ dia.humedad_texto }}</p>
                             <p>Viento: {{ dia.viento_texto }}</p>
                             <p>Precipitación: {{ dia.precipitacion_texto }}</p>
                         </div>
                         {% endfor %}
+                        {% endif %}
                     </div>
-                    {% endif %}
                 </div>
-                {% endif %}
 
                 <label for="observaciones_visita">Observaciones de la visita</label>
                 <textarea id="observaciones_visita" name="observaciones_visita">{{ visita_form.observaciones_visita or '' }}</textarea>
@@ -141,7 +138,14 @@
         const longitudInput = document.getElementById("longitud");
         const ubicacionInput = document.getElementById("ubicacion_referencia");
         const geoStatus = document.getElementById("geo-status");
+        const climaCard = document.getElementById("clima-card");
+        const climaUbicacion = document.getElementById("clima-ubicacion");
+        const climaResumen = document.getElementById("clima-resumen");
+        const climaResumenDiario = document.getElementById("clima-resumen-diario");
+        const climaErrorCard = document.getElementById("clima-error-card");
+        const climaErrorText = document.getElementById("clima-error-text");
         const fallbackDireccion = {{ expediente.direccion | tojson }};
+        const expedienteId = {{ expediente.id }};
         let climaEnCurso = false;
 
         function limpiarCoordenadas() {
@@ -168,27 +172,90 @@
             });
         }
 
-        climaButton.addEventListener("click", async (event) => {
-            event.preventDefault();
+        function mostrarErrorClima(texto) {
+            climaErrorCard.hidden = false;
+            climaErrorText.textContent = texto;
+        }
+
+        function limpiarErrorClima() {
+            climaErrorCard.hidden = true;
+            climaErrorText.textContent = "";
+        }
+
+        function renderResumenDiario(resumenDiario) {
+            climaResumenDiario.innerHTML = "";
+
+            resumenDiario.forEach((dia) => {
+                const item = document.createElement("div");
+                item.className = "weather-day-item";
+                item.innerHTML = `
+                    <p><strong>${dia.fecha}</strong></p>
+                    <p>Temperatura: ${dia.temperatura.min} °C / ${dia.temperatura.max} °C</p>
+                    <p>Temperatura media: ${dia.temperatura.media} °C</p>
+                    <p>Humedad media: ${dia.humedad_media} %</p>
+                    <p>Viento: ${dia.viento_max_kmh} km/h</p>
+                    <p>Precipitación: ${dia.precipitacion_total_mm} mm</p>
+                `;
+                climaResumenDiario.appendChild(item);
+            });
+        }
+
+        climaButton.addEventListener("click", async () => {
             if (climaEnCurso) {
                 return;
             }
+
             climaEnCurso = true;
-            geoStatus.textContent = "Obteniendo ubicación y climatología...";
+            climaButton.disabled = true;
+            geoStatus.textContent = "Obteniendo climatología...";
+            limpiarErrorClima();
+
+            const formData = new FormData(visitaForm);
+            formData.set("expediente_id", String(expedienteId));
+            formData.set("municipio", fallbackDireccion);
 
             try {
                 const coords = await obtenerUbicacionActual();
-                latitudInput.value = coords.latitude;
-                longitudInput.value = coords.longitude;
-                ubicacionInput.value = "Geolocalización del dispositivo";
+                formData.set("latitud", String(coords.latitude));
+                formData.set("longitud", String(coords.longitude));
+                formData.set("ubicacion_referencia", "Geolocalización del dispositivo");
                 geoStatus.textContent = "Ubicación obtenida. Consultando climatología...";
             } catch (error) {
                 limpiarCoordenadas();
-                ubicacionInput.value = fallbackDireccion;
+                formData.set("latitud", "");
+                formData.set("longitud", "");
+                formData.set("ubicacion_referencia", fallbackDireccion);
                 geoStatus.textContent = "No se pudo usar la geolocalización. Se consultará la dirección del expediente.";
             }
 
-            visitaForm.requestSubmit(climaButton);
+            try {
+                const response = await fetch("/api/climatologia", {
+                    method: "POST",
+                    body: formData,
+                    credentials: "same-origin",
+                });
+                const data = await response.json().catch(() => null);
+
+                if (!response.ok || !data || !data.ok) {
+                    mostrarErrorClima((data && data.clima_error) || "No se pudo obtener la climatología.");
+                    geoStatus.textContent = "No se pudo obtener la climatología.";
+                    return;
+                }
+
+                visitaForm.querySelector('input[name="visita_id"]').value = data.visita_id || "";
+                ubicacionInput.value = data.clima.ubicacion || fallbackDireccion;
+                climaUbicacion.textContent = data.clima.ubicacion || fallbackDireccion;
+                climaResumen.textContent = data.clima.resumen || "";
+                renderResumenDiario(data.clima.resumen_diario || []);
+                climaCard.hidden = false;
+                geoStatus.textContent = "Climatología registrada correctamente.";
+            } catch (error) {
+                mostrarErrorClima("No se pudo obtener la climatología. Puedes seguir trabajando y volver a intentarlo.");
+                geoStatus.textContent = "Error al consultar climatología.";
+            } finally {
+                climaEnCurso = false;
+                climaButton.disabled = false;
+            }
         });
     </script>
 </body>

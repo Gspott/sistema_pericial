@@ -1,206 +1,143 @@
-import json
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 
-import requests
+import httpx
 
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
-ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 
-def _parse_float(value):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _normalizar_texto(value) -> str:
-    return str(value or "").strip()
-
-
-def _formatear_numero(value, suffix: str = "") -> str:
+def _round_or_none(value, digits: int):
     if value is None:
-        return "-"
-
-    numero = round(float(value), 1)
-    if numero.is_integer():
-        return f"{int(numero)}{suffix}"
-    return f"{numero}{suffix}"
+        return None
+    return round(float(value), digits)
 
 
-def obtener_coordenadas(direccion):
-    direccion_limpia = _normalizar_texto(direccion)
-    if not direccion_limpia:
-        return None, None
+async def geocodificar(municipio: str) -> tuple[float, float]:
+    municipio_limpio = str(municipio or "").strip()
+    if not municipio_limpio:
+        raise ValueError("No se indicó un municipio o dirección para geocodificar")
 
-    response = requests.get(
-        GEOCODING_URL,
-        params={
-            "name": direccion_limpia,
-            "count": 1,
-            "language": "es",
-            "format": "json",
-        },
-        timeout=20,
-    )
-    response.raise_for_status()
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(
+            GEOCODING_URL,
+            params={
+                "name": municipio_limpio,
+                "count": 1,
+                "language": "es",
+            },
+        )
+        response.raise_for_status()
+
     data = response.json()
+    resultados = data.get("results") or []
+    if not resultados:
+        raise ValueError(f"No se encontró el municipio: {municipio_limpio}")
 
-    if "results" not in data or not data["results"]:
-        return None, None
-
-    lugar = data["results"][0]
-    return lugar["latitude"], lugar["longitude"]
+    primer_resultado = resultados[0]
+    return float(primer_resultado["latitude"]), float(primer_resultado["longitude"])
 
 
-def obtener_clima_semana(lat, lon):
-    latitud = _parse_float(lat)
-    longitud = _parse_float(lon)
-
-    if latitud is None or longitud is None:
-        return []
-
-    hoy = datetime.now().date()
-    inicio = hoy - timedelta(days=6)
-
-    response = requests.get(
-        ARCHIVE_URL,
-        params={
-            "latitude": latitud,
-            "longitude": longitud,
-            "hourly": "temperature_2m,precipitation,wind_speed_10m",
-            "timezone": "auto",
-            "start_date": inicio.strftime("%Y-%m-%d"),
-            "end_date": hoy.strftime("%Y-%m-%d"),
-        },
-        timeout=20,
-    )
-    response.raise_for_status()
-    data = response.json()
-
-    hourly = data.get("hourly") or {}
-    fechas = hourly.get("time") or []
+def _agrupar_por_dia(hourly: dict) -> list[dict]:
+    horas = hourly.get("time") or []
     temperaturas = hourly.get("temperature_2m") or []
-    precipitaciones = hourly.get("precipitation") or []
+    humedades = hourly.get("relative_humidity_2m") or []
     vientos = hourly.get("wind_speed_10m") or []
+    precipitaciones = hourly.get("precipitation") or []
 
-    if not fechas:
-        return []
+    if not (
+        horas
+        and len(horas) == len(temperaturas) == len(humedades) == len(vientos) == len(precipitaciones)
+    ):
+        raise ValueError("Respuesta incompleta de Open-Meteo")
 
     acumulado = defaultdict(
         lambda: {
-            "fecha": "",
             "temperaturas": [],
-            "precipitaciones": [],
+            "humedades": [],
             "vientos": [],
+            "precipitaciones": [],
         }
     )
 
-    for fecha_hora, temperatura, precipitacion, viento in zip(
-        fechas,
+    for timestamp, temperatura, humedad, viento, precipitacion in zip(
+        horas,
         temperaturas,
-        precipitaciones,
+        humedades,
         vientos,
+        precipitaciones,
     ):
-        fecha = fecha_hora.split("T", 1)[0]
+        fecha = str(timestamp)[:10]
         item = acumulado[fecha]
-        item["fecha"] = fecha
+        item["temperaturas"].append(float(temperatura))
+        item["humedades"].append(float(humedad))
+        item["vientos"].append(float(viento))
+        item["precipitaciones"].append(float(precipitacion))
 
-        if temperatura is not None:
-            item["temperaturas"].append(float(temperatura))
-        if precipitacion is not None:
-            item["precipitaciones"].append(float(precipitacion))
-        if viento is not None:
-            item["vientos"].append(float(viento))
-
-    detalle = []
-    for fecha in sorted(acumulado.keys(), reverse=True):
+    resumen = []
+    for fecha in sorted(acumulado.keys()):
         item = acumulado[fecha]
         temperaturas_dia = item["temperaturas"]
-        precipitaciones_dia = item["precipitaciones"]
+        humedades_dia = item["humedades"]
         vientos_dia = item["vientos"]
+        precipitaciones_dia = item["precipitaciones"]
 
-        detalle.append(
+        resumen.append(
             {
                 "fecha": fecha,
-                "temperatura_min": min(temperaturas_dia) if temperaturas_dia else None,
-                "temperatura_max": max(temperaturas_dia) if temperaturas_dia else None,
-                "viento": max(vientos_dia) if vientos_dia else None,
-                "precipitacion": sum(precipitaciones_dia) if precipitaciones_dia else 0.0,
-                "temperatura_texto": (
-                    f"{_formatear_numero(min(temperaturas_dia), ' °C')} / "
-                    f"{_formatear_numero(max(temperaturas_dia), ' °C')}"
-                    if temperaturas_dia
-                    else "-"
+                "temperatura": {
+                    "min": _round_or_none(min(temperaturas_dia), 1),
+                    "max": _round_or_none(max(temperaturas_dia), 1),
+                    "media": _round_or_none(
+                        sum(temperaturas_dia) / len(temperaturas_dia),
+                        1,
+                    ),
+                },
+                "humedad_media": _round_or_none(
+                    sum(humedades_dia) / len(humedades_dia),
+                    1,
                 ),
-                "viento_texto": _formatear_numero(
-                    max(vientos_dia) if vientos_dia else None,
-                    " km/h",
-                ),
-                "precipitacion_texto": _formatear_numero(
-                    sum(precipitaciones_dia) if precipitaciones_dia else 0.0,
-                    " mm",
-                ),
+                "viento_max_kmh": _round_or_none(max(vientos_dia), 1),
+                "precipitacion_total_mm": _round_or_none(sum(precipitaciones_dia), 2),
             }
         )
 
-    return detalle
+    return resumen
 
 
-def construir_resumen(detalle):
-    if not detalle:
-        return "No se pudo obtener climatología para esta ubicación."
+async def obtener_climatologia(lat: float, lon: float) -> dict:
+    fecha_hasta = date.today()
+    fecha_desde = fecha_hasta - timedelta(days=7)
 
-    temperaturas_max = [
-        item["temperatura_max"] for item in detalle if item["temperatura_max"] is not None
-    ]
-    temperaturas_min = [
-        item["temperatura_min"] for item in detalle if item["temperatura_min"] is not None
-    ]
-    precipitacion_total = sum(item["precipitacion"] or 0 for item in detalle)
-    viento_max = max((item["viento"] or 0 for item in detalle), default=0)
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(
+            FORECAST_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation",
+                "start_date": fecha_desde.strftime("%Y-%m-%d"),
+                "end_date": fecha_hasta.strftime("%Y-%m-%d"),
+                "timezone": "Europe/Madrid",
+                "wind_speed_unit": "kmh",
+            },
+        )
+        response.raise_for_status()
 
-    return (
-        "Última semana registrada: "
-        f"temperaturas entre {_formatear_numero(min(temperaturas_min), ' °C')} "
-        f"y {_formatear_numero(max(temperaturas_max), ' °C')}, "
-        f"viento hasta {_formatear_numero(viento_max, ' km/h')} "
-        f"y precipitación acumulada de {_formatear_numero(precipitacion_total, ' mm')}."
-    )
+    data = response.json()
+    hourly = data.get("hourly")
+    if not isinstance(hourly, dict) or not (hourly.get("time") or []):
+        raise ValueError("Respuesta incompleta de Open-Meteo")
 
-
-def obtener_climatologia(direccion=None, lat=None, lon=None, ubicacion_label=""):
-    latitud = _parse_float(lat)
-    longitud = _parse_float(lon)
-    ubicacion = _normalizar_texto(ubicacion_label) or _normalizar_texto(direccion)
-
-    if latitud is None or longitud is None:
-        latitud, longitud = obtener_coordenadas(direccion)
-
-    if latitud is None or longitud is None:
-        return {
-            "resumen": "No se pudo obtener climatología para esta ubicación.",
-            "detalle": [],
-            "detalle_json": "[]",
-            "ubicacion": ubicacion,
-            "latitud": None,
-            "longitud": None,
-        }
-
-    detalle = obtener_clima_semana(latitud, longitud)
-    resumen = construir_resumen(detalle)
+    resumen_diario = _agrupar_por_dia(hourly)
 
     return {
-        "resumen": resumen,
-        "detalle": detalle,
-        "detalle_json": json.dumps(detalle, ensure_ascii=False),
-        "ubicacion": ubicacion,
-        "latitud": latitud,
-        "longitud": longitud,
+        "coordenadas": {"lat": float(lat), "lon": float(lon)},
+        "periodo": {
+            "desde": fecha_desde.strftime("%Y-%m-%d"),
+            "hasta": fecha_hasta.strftime("%Y-%m-%d"),
+        },
+        "resumen_diario": resumen_diario,
+        "datos_horarios": hourly,
     }
-
-
-def generar_resumen(direccion):
-    return obtener_climatologia(direccion=direccion)["resumen"]

@@ -2,6 +2,7 @@ import binascii
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import shutil
@@ -29,7 +30,7 @@ from app.config import (
     ensure_directories,
 )
 from app.database import init_db
-from app.services.clima import obtener_climatologia
+from app.services.clima import geocodificar, obtener_climatologia
 from app.services.direccion import autocompletar_direccion, sugerir_direcciones
 from app.services.informe import generar_informe, limpiar_nombre_archivo
 from app.utils.helpers import formatear_plantas
@@ -51,6 +52,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_PATH))
 app.state.base_url = BASE_URL
 app.state.app_host = APP_HOST
 app.state.app_port = APP_PORT
+
+logger = logging.getLogger(__name__)
 
 PUBLIC_PATHS = {
     "/login",
@@ -169,6 +172,87 @@ def parsear_float(valor):
         return None
 
 
+def resumen_diario_a_tarjetas(resumen_diario):
+    tarjetas = []
+    for dia in resumen_diario or []:
+        temperatura = dia.get("temperatura") or {}
+        temp_min = temperatura.get("min")
+        temp_max = temperatura.get("max")
+        temp_media = temperatura.get("media")
+
+        tarjetas.append(
+            {
+                "fecha": dia.get("fecha", ""),
+                "temperatura_texto": (
+                    f"{temp_min} °C / {temp_max} °C"
+                    if temp_min is not None and temp_max is not None
+                    else "-"
+                ),
+                "temperatura_media_texto": (
+                    f"{temp_media} °C" if temp_media is not None else "-"
+                ),
+                "humedad_texto": (
+                    f"{dia.get('humedad_media')} %"
+                    if dia.get("humedad_media") is not None
+                    else "-"
+                ),
+                "viento_texto": (
+                    f"{dia.get('viento_max_kmh')} km/h"
+                    if dia.get("viento_max_kmh") is not None
+                    else "-"
+                ),
+                "precipitacion_texto": (
+                    f"{dia.get('precipitacion_total_mm')} mm"
+                    if dia.get("precipitacion_total_mm") is not None
+                    else "-"
+                ),
+            }
+        )
+
+    return tarjetas
+
+
+def construir_resumen_climatologia(resumen_diario):
+    if not resumen_diario:
+        return "No se pudo obtener climatología para esta ubicación."
+
+    temp_min = min(
+        (
+            dia.get("temperatura", {}).get("min")
+            for dia in resumen_diario
+            if dia.get("temperatura", {}).get("min") is not None
+        ),
+        default=None,
+    )
+    temp_max = max(
+        (
+            dia.get("temperatura", {}).get("max")
+            for dia in resumen_diario
+            if dia.get("temperatura", {}).get("max") is not None
+        ),
+        default=None,
+    )
+    viento_max = max(
+        (
+            dia.get("viento_max_kmh")
+            for dia in resumen_diario
+            if dia.get("viento_max_kmh") is not None
+        ),
+        default=None,
+    )
+    precipitacion_total = round(
+        sum(dia.get("precipitacion_total_mm") or 0 for dia in resumen_diario),
+        2,
+    )
+
+    return (
+        "Última semana registrada: "
+        f"temperaturas entre {temp_min} °C y {temp_max} °C, "
+        f"viento hasta {viento_max} km/h "
+        f"y precipitación acumulada de {precipitacion_total} mm."
+    )
+
+
 def obtener_climatologia_guardada(cur, visita_id: int):
     clima = cur.execute(
         """
@@ -184,7 +268,13 @@ def obtener_climatologia_guardada(cur, visita_id: int):
     detalle = []
     if clima and clima["detalle_json"]:
         try:
-            detalle = json.loads(clima["detalle_json"])
+            payload = json.loads(clima["detalle_json"])
+            if isinstance(payload, dict):
+                detalle = resumen_diario_a_tarjetas(payload.get("resumen_diario") or [])
+            elif isinstance(payload, list):
+                detalle = payload
+            else:
+                detalle = []
         except json.JSONDecodeError:
             detalle = []
 
@@ -193,6 +283,9 @@ def obtener_climatologia_guardada(cur, visita_id: int):
 
 def persistir_climatologia(cur, visita_id: int, climatologia: dict):
     cur.execute("DELETE FROM climatologia_visitas WHERE visita_id=?", (visita_id,))
+    resumen_diario = climatologia.get("resumen_diario") or []
+    resumen = climatologia.get("resumen") or construir_resumen_climatologia(resumen_diario)
+    coordenadas = climatologia.get("coordenadas") or {}
     cur.execute(
         """
         INSERT INTO climatologia_visitas (
@@ -208,14 +301,35 @@ def persistir_climatologia(cur, visita_id: int, climatologia: dict):
         """,
         (
             visita_id,
-            climatologia.get("resumen"),
-            climatologia.get("detalle_json"),
+            resumen,
+            json.dumps(climatologia, ensure_ascii=False),
             climatologia.get("ubicacion"),
-            climatologia.get("latitud"),
-            climatologia.get("longitud"),
+            coordenadas.get("lat"),
+            coordenadas.get("lon"),
             datetime.now().isoformat(timespec="seconds"),
         ),
     )
+
+
+async def solicitar_climatologia_open_meteo(
+    *,
+    latitud,
+    longitud,
+    municipio: str,
+    ubicacion_label: str,
+):
+    lat = parsear_float(latitud)
+    lon = parsear_float(longitud)
+
+    if lat is None or lon is None:
+        lat, lon = await geocodificar(municipio)
+
+    climatologia = await obtener_climatologia(lat, lon)
+    climatologia["ubicacion"] = limpiar_texto(ubicacion_label) or limpiar_texto(municipio)
+    climatologia["resumen"] = construir_resumen_climatologia(
+        climatologia.get("resumen_diario") or []
+    )
+    return climatologia
 
 
 def crear_visita_si_no_existe(
@@ -2066,7 +2180,7 @@ def borrar_estancia(request: Request, estancia_id: int):
 
 
 @app.post("/registrar-climatologia-visita/{expediente_id}")
-def registrar_climatologia_visita(
+async def registrar_climatologia_visita(
     request: Request,
     expediente_id: int,
     visita_id: int | None = Form(None),
@@ -2119,14 +2233,15 @@ def registrar_climatologia_visita(
 
     clima_error = ""
     try:
-        climatologia = obtener_climatologia(
-            direccion=expediente["direccion"],
-            lat=parsear_float(latitud),
-            lon=parsear_float(longitud),
+        climatologia = await solicitar_climatologia_open_meteo(
+            latitud=latitud,
+            longitud=longitud,
+            municipio=expediente["direccion"],
             ubicacion_label=limpiar_texto(ubicacion_referencia) or expediente["direccion"],
         )
         persistir_climatologia(cur, visita_id, climatologia)
-    except Exception:
+    except Exception as exc:
+        logger.error("[ERROR climatología] %s", exc)
         clima_error = "No se pudo obtener la climatología en este momento. La visita sigue guardada y puedes intentarlo de nuevo."
 
     conn.commit()
@@ -2146,7 +2261,7 @@ def registrar_climatologia_visita(
 
 
 @app.post("/anadir-climatologia/{visita_id}")
-def anadir_climatologia(request: Request, visita_id: int):
+async def anadir_climatologia(request: Request, visita_id: int):
     current_user = get_current_user(request)
     ensure_climatologia_table()
 
@@ -2158,12 +2273,15 @@ def anadir_climatologia(request: Request, visita_id: int):
 
     clima_error = ""
     try:
-        climatologia = obtener_climatologia(
-            direccion=visita["direccion"],
+        climatologia = await solicitar_climatologia_open_meteo(
+            latitud=None,
+            longitud=None,
+            municipio=visita["direccion"],
             ubicacion_label=visita["direccion"],
         )
         persistir_climatologia(cur, visita_id, climatologia)
-    except Exception:
+    except Exception as exc:
+        logger.error("[ERROR climatología] %s", exc)
         clima_error = "No se pudo obtener la climatología en este momento. La visita sigue disponible y puedes intentarlo de nuevo."
 
     conn.commit()
@@ -2180,6 +2298,96 @@ def anadir_climatologia(request: Request, visita_id: int):
         ),
         status_code=303,
     )
+
+
+@app.post("/api/climatologia")
+async def api_climatologia(
+    request: Request,
+    expediente_id: int = Form(...),
+    visita_id: int | None = Form(None),
+    fecha: str = Form(""),
+    tecnico: str = Form(""),
+    observaciones_visita: str = Form(""),
+    latitud: str = Form(""),
+    longitud: str = Form(""),
+    municipio: str = Form(""),
+    ubicacion_referencia: str = Form(""),
+):
+    current_user = get_current_user(request)
+    ensure_climatologia_table()
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+    require_row(expediente, "Expediente no encontrado")
+
+    fecha_final = limpiar_texto(fecha) or datetime.now().strftime("%Y-%m-%d")
+    tecnico_final = (
+        limpiar_texto(tecnico)
+        or f"{current_user['nombre']} {current_user['apellido1']}".strip()
+        or current_user["username"]
+    )
+    observaciones_finales = observaciones_visita or ""
+
+    if visita_id:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if visita["expediente_id"] != expediente_id:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Visita no encontrada")
+        cur.execute(
+            """
+            UPDATE visitas
+            SET fecha=?, tecnico=?, observaciones_visita=?
+            WHERE id=?
+            """,
+            (fecha_final, tecnico_final, observaciones_finales, visita_id),
+        )
+    else:
+        visita_id, _ = crear_visita_si_no_existe(
+            cur,
+            expediente,
+            None,
+            fecha_final,
+            tecnico_final,
+            observaciones_finales,
+        )
+
+    try:
+        climatologia = await solicitar_climatologia_open_meteo(
+            latitud=latitud,
+            longitud=longitud,
+            municipio=municipio or expediente["direccion"],
+            ubicacion_label=limpiar_texto(ubicacion_referencia) or municipio or expediente["direccion"],
+        )
+        persistir_climatologia(cur, visita_id, climatologia)
+        conn.commit()
+        conn.close()
+
+        return JSONResponse(
+            {
+                "ok": True,
+                "visita_id": visita_id,
+                "clima": {
+                    "ubicacion": climatologia.get("ubicacion"),
+                    "resumen": climatologia.get("resumen"),
+                    "resumen_diario": climatologia.get("resumen_diario") or [],
+                },
+            }
+        )
+    except Exception as exc:
+        logger.error("[ERROR climatología] %s", exc)
+        conn.commit()
+        conn.close()
+        return JSONResponse(
+            {
+                "ok": False,
+                "visita_id": visita_id,
+                "clima_error": "No se pudo obtener la climatología. Puedes seguir trabajando y volver a intentarlo.",
+            },
+            status_code=200,
+        )
 
 
 # -------------------------------------------------------

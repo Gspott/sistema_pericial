@@ -44,24 +44,24 @@
 
         {% if estancias %}
         {% for estancia in estancias %}
-        <div class="card card-clickable">
-            <a class="card-link-cover" href="/editar-estancia/{{ estancia.id }}"
-                aria-label="Editar estancia {{ estancia.nombre }}"></a>
+        <div class="card estancia-card">
+            <a class="estancia-card-link" href="/editar-estancia/{{ estancia.id }}"
+                aria-label="Editar estancia {{ estancia.nombre }}">
+                <div class="estancia-card-content">
+                    <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
+                    <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
+                    <p><strong>Ventilación:</strong> {{ estancia.ventilacion or '-' }}</p>
+                    <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
+                    <p><strong>Pavimento:</strong> {{ estancia.acabado_pavimento or '-' }}</p>
+                    <p><strong>Paramento:</strong> {{ estancia.acabado_paramento or '-' }}</p>
+                    <p><strong>Techo:</strong> {{ estancia.acabado_techo or '-' }}</p>
+                    <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
+                </div>
+            </a>
 
-            <div class="card-content">
-                <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
-                <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
-                <p><strong>Ventilación:</strong> {{ estancia.ventilacion or '-' }}</p>
-                <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
-                <p><strong>Pavimento:</strong> {{ estancia.acabado_pavimento or '-' }}</p>
-                <p><strong>Paramento:</strong> {{ estancia.acabado_paramento or '-' }}</p>
-                <p><strong>Techo:</strong> {{ estancia.acabado_techo or '-' }}</p>
-                <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
-            </div>
-
-            <div class="card-actions">
+            <div class="estancia-card-delete">
                 <form method="post" action="/borrar-estancia/{{ estancia.id }}">
-                    <button class="boton secundario" type="submit">Borrar</button>
+                    <button class="boton secundario boton-peligro" type="submit">Borrar</button>
                 </form>
             </div>
         </div>

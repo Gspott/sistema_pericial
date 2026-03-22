@@ -77,6 +77,47 @@ p {
     margin-bottom: 16px;
 }
 
+.estancia-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: stretch;
+}
+
+.estancia-card-link {
+    display: block;
+    min-height: 44px;
+    color: inherit;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.estancia-card-link:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+    border-radius: 12px;
+}
+
+.estancia-card-content {
+    height: 100%;
+}
+
+.estancia-card-content p:last-child {
+    margin-bottom: 0;
+}
+
+.estancia-card-delete {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-left: 8px;
+}
+
+.estancia-card-delete form {
+    width: auto;
+    margin: 0;
+}
+
 .card-clickable {
     position: relative;
     padding-bottom: 84px;
@@ -191,6 +232,10 @@ p {
     color: var(--secondary-text);
 }
 
+.boton-peligro {
+    min-width: 96px;
+}
+
 .empty {
     color: var(--muted);
 }
@@ -281,6 +326,10 @@ td {
 
     .card-actions form {
         width: auto;
+    }
+
+    .estancia-card-delete {
+        padding-left: 16px;
     }
 
     .weather-day-list {
