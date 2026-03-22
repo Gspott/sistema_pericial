@@ -226,12 +226,20 @@ def init_db():
             visita_id INTEGER NOT NULL,
             nombre TEXT NOT NULL,
             tipo_estancia TEXT NOT NULL,
+            ventilacion TEXT,
             planta TEXT,
+            acabado_pavimento TEXT,
+            acabado_paramento TEXT,
+            acabado_techo TEXT,
             observaciones TEXT,
             FOREIGN KEY (visita_id) REFERENCES visitas (id)
         )
         """
     )
+    asegurar_columna(cur, "estancias", "ventilacion", "TEXT")
+    asegurar_columna(cur, "estancias", "acabado_pavimento", "TEXT")
+    asegurar_columna(cur, "estancias", "acabado_paramento", "TEXT")
+    asegurar_columna(cur, "estancias", "acabado_techo", "TEXT")
 
     cur.execute(
         """
@@ -255,10 +263,20 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             visita_id INTEGER NOT NULL,
             resumen TEXT,
+            detalle_json TEXT,
+            ubicacion TEXT,
+            latitud REAL,
+            longitud REAL,
+            fecha_generacion TEXT,
             FOREIGN KEY (visita_id) REFERENCES visitas (id)
         )
         """
     )
+    asegurar_columna(cur, "climatologia_visitas", "detalle_json", "TEXT")
+    asegurar_columna(cur, "climatologia_visitas", "ubicacion", "TEXT")
+    asegurar_columna(cur, "climatologia_visitas", "latitud", "REAL")
+    asegurar_columna(cur, "climatologia_visitas", "longitud", "REAL")
+    asegurar_columna(cur, "climatologia_visitas", "fecha_generacion", "TEXT")
 
     cur.execute(
         """

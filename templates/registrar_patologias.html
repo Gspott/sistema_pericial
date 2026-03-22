@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=6">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Registrar patologías</title>
@@ -42,7 +42,21 @@
         {% if clima %}
         <div class="card">
             <h2>Climatología</h2>
+            <p><strong>Ubicación:</strong> {{ clima.ubicacion or visita.direccion }}</p>
             <p>{{ clima.resumen }}</p>
+
+            {% if clima_detalle %}
+            <div class="weather-day-list">
+                {% for dia in clima_detalle %}
+                <div class="weather-day-item">
+                    <p><strong>{{ dia.fecha }}</strong></p>
+                    <p>Temperatura: {{ dia.temperatura_texto }}</p>
+                    <p>Viento: {{ dia.viento_texto }}</p>
+                    <p>Precipitación: {{ dia.precipitacion_texto }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -64,17 +78,20 @@
                 </select>
 
                 <label for="elemento">Elemento afectado</label>
-                <input type="text" id="elemento" name="elemento" placeholder="Ej. muro exterior, techo, carpintería"
-                    required>
+                <select id="elemento" name="elemento" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="pavimento">pavimento</option>
+                    <option value="paramento">paramento</option>
+                    <option value="techo">techo</option>
+                </select>
 
                 <label for="patologia">Patología</label>
-                <input list="lista_patologias" id="patologia" name="patologia"
-                    placeholder="Selecciona o escribe una patología" required>
-                <datalist id="lista_patologias">
+                <select id="patologia" name="patologia" required>
+                    <option value="">Seleccionar...</option>
                     {% for item in patologias %}
-                    <option value="{{ item.nombre }}">
+                    <option value="{{ item.nombre }}">{{ item.nombre }}</option>
                     {% endfor %}
-                </datalist>
+                </select>
 
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones"></textarea>
@@ -94,18 +111,22 @@
 
             {% if registros %}
             {% for registro in registros %}
-            <div class="card">
-                <p><strong>Estancia:</strong> {{ registro.estancia_nombre }}</p>
-                <p><strong>Elemento:</strong> {{ registro.elemento }}</p>
-                <p><strong>Patología:</strong> {{ registro.patologia }}</p>
-                <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
+            <div class="card card-clickable">
+                <a class="card-link-cover" href="/editar-registro/{{ registro.id }}"
+                    aria-label="Editar patología {{ registro.patologia }}"></a>
 
-                {% if registro.foto %}
-                <img src="/uploads/{{ registro.foto }}" alt="Foto patología">
-                {% endif %}
+                <div class="card-content">
+                    <p><strong>Estancia:</strong> {{ registro.estancia_nombre }}</p>
+                    <p><strong>Elemento:</strong> {{ registro.elemento }}</p>
+                    <p><strong>Patología:</strong> {{ registro.patologia }}</p>
+                    <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
 
-                <div class="actions">
-                    <a class="boton" href="/editar-registro/{{ registro.id }}">Editar</a>
+                    {% if registro.foto %}
+                    <img src="/uploads/{{ registro.foto }}" alt="Foto patología">
+                    {% endif %}
+                </div>
+
+                <div class="card-actions">
                     <form method="post" action="/borrar-registro/{{ registro.id }}">
                         <button class="boton secundario" type="submit">Borrar</button>
                     </form>

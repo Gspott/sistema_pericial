@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=6">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Editar registro</title>
@@ -42,22 +42,30 @@
                 </select>
 
                 <label for="elemento">Elemento afectado</label>
-                <input type="text" id="elemento" name="elemento" value="{{ registro.elemento }}" required>
+                <select id="elemento" name="elemento" required>
+                    {% if registro.elemento not in ['pavimento', 'paramento', 'techo'] %}
+                    <option value="{{ registro.elemento }}" selected>{{ registro.elemento }}</option>
+                    {% endif %}
+                    <option value="pavimento" {% if registro.elemento=="pavimento" %}selected{% endif %}>pavimento</option>
+                    <option value="paramento" {% if registro.elemento=="paramento" %}selected{% endif %}>paramento</option>
+                    <option value="techo" {% if registro.elemento=="techo" %}selected{% endif %}>techo</option>
+                </select>
 
                 <label for="patologia">Patología</label>
-                <input list="lista_patologias" id="patologia" name="patologia" value="{{ registro.patologia }}"
-                    required>
-                <datalist id="lista_patologias">
+                <select id="patologia" name="patologia" required>
+                    <option value="{{ registro.patologia }}" selected>{{ registro.patologia }}</option>
                     {% for item in patologias %}
-                    <option value="{{ item.nombre }}">
+                    {% if item.nombre != registro.patologia %}
+                    <option value="{{ item.nombre }}">{{ item.nombre }}</option>
+                    {% endif %}
                     {% endfor %}
-                </datalist>
+                </select>
 
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ registro.observaciones or '' }}</textarea>
 
                 {% if registro.foto %}
-                <div class="card" style="margin-top: 16px;">
+                <div class="card inner-card">
                     <p><strong>Foto actual:</strong></p>
                     <img src="/uploads/{{ registro.foto }}" alt="Foto del registro">
                     <label for="eliminar_foto_actual">Eliminar foto actual</label>

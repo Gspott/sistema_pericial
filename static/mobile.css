@@ -77,6 +77,77 @@ p {
     margin-bottom: 16px;
 }
 
+.card-clickable {
+    position: relative;
+    padding-bottom: 84px;
+}
+
+.card-link-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+}
+
+.card-content,
+.card-actions {
+    position: relative;
+    z-index: 2;
+}
+
+.card-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
+.card-actions form {
+    width: 100%;
+}
+
+.inner-card {
+    margin-top: 16px;
+    margin-bottom: 16px;
+    background: #f8fafc;
+    box-shadow: none;
+}
+
+.field-group {
+    margin: 0 0 16px 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+
+.field-group legend {
+    padding: 0 8px;
+    font-weight: 700;
+}
+
+.helper-text {
+    color: var(--muted);
+    margin-top: 10px;
+}
+
+.section-divider {
+    height: 1px;
+    margin: 18px 0;
+    background: var(--border);
+}
+
+.weather-day-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.weather-day-item {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
 .page.with-top-nav {
     padding-top: 104px;
 }
@@ -206,6 +277,14 @@ td {
 
     .card {
         padding: 20px;
+    }
+
+    .card-actions form {
+        width: auto;
+    }
+
+    .weather-day-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

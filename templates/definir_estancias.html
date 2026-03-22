@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=6">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Definir estancias</title>
@@ -34,15 +34,47 @@
 
         <div class="actions">
             <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+        </div>
+
+        <div class="actions">
             <a class="boton" href="/registrar-patologias/{{ visita.id }}">Ir a patologías</a>
         </div>
 
-        <div class="card">
-            <p>Las estancias de esta visita se han copiado de la visita anterior más reciente o, si no existían, se han generado desde las características de la unidad; puedes ajustarlas manualmente aquí.</p>
+        <h2>Estancias registradas</h2>
+
+        {% if estancias %}
+        {% for estancia in estancias %}
+        <div class="card card-clickable">
+            <a class="card-link-cover" href="/editar-estancia/{{ estancia.id }}"
+                aria-label="Editar estancia {{ estancia.nombre }}"></a>
+
+            <div class="card-content">
+                <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
+                <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
+                <p><strong>Ventilación:</strong> {{ estancia.ventilacion or '-' }}</p>
+                <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
+                <p><strong>Pavimento:</strong> {{ estancia.acabado_pavimento or '-' }}</p>
+                <p><strong>Paramento:</strong> {{ estancia.acabado_paramento or '-' }}</p>
+                <p><strong>Techo:</strong> {{ estancia.acabado_techo or '-' }}</p>
+                <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
+            </div>
+
+            <div class="card-actions">
+                <form method="post" action="/borrar-estancia/{{ estancia.id }}">
+                    <button class="boton secundario" type="submit">Borrar</button>
+                </form>
+            </div>
         </div>
+        {% endfor %}
+        {% else %}
+        <div class="card">
+            <p class="empty">Todavía no hay estancias registradas para esta visita.</p>
+        </div>
+        {% endif %}
 
         <div class="card">
             <h2>Añadir estancia</h2>
+            <p class="subtitle">Las estancias de esta visita se han copiado de la visita anterior más reciente o, si no existían, se han generado desde las características de la unidad.</p>
 
             <form method="post" action="/guardar-estancia">
                 <input type="hidden" name="visita_id" value="{{ visita.id }}">
@@ -70,8 +102,24 @@
                     <option value="Otro">Otro</option>
                 </select>
 
+                <label for="ventilacion">Ventilación</label>
+                <select id="ventilacion" name="ventilacion">
+                    <option value="">Seleccionar...</option>
+                    <option value="Sí">Sí</option>
+                    <option value="No">No</option>
+                </select>
+
                 <label for="planta">Planta</label>
                 <input type="text" id="planta" name="planta" placeholder="Ej. Baja, 1ª, sótano">
+
+                <label for="acabado_pavimento">Pavimento</label>
+                <input type="text" id="acabado_pavimento" name="acabado_pavimento" placeholder="Ej. Gres">
+
+                <label for="acabado_paramento">Paramento</label>
+                <input type="text" id="acabado_paramento" name="acabado_paramento" placeholder="Ej. Pintura plástica">
+
+                <label for="acabado_techo">Techo</label>
+                <input type="text" id="acabado_techo" name="acabado_techo" placeholder="Ej. Enlucido pintado">
 
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones"></textarea>
@@ -79,31 +127,6 @@
                 <button class="boton" type="submit">Guardar estancia</button>
             </form>
         </div>
-
-        <h2>Estancias registradas</h2>
-
-        {% if estancias %}
-        {% for estancia in estancias %}
-        <div class="card">
-            <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
-            <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
-            <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
-            <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
-
-            <div class="actions">
-                <a class="boton" href="/editar-estancia/{{ estancia.id }}">Editar</a>
-
-                <form method="post" action="/borrar-estancia/{{ estancia.id }}">
-                    <button class="boton secundario" type="submit">Borrar</button>
-                </form>
-            </div>
-        </div>
-        {% endfor %}
-        {% else %}
-        <div class="card">
-            <p class="empty">Todavía no hay estancias registradas para esta visita.</p>
-        </div>
-        {% endif %}
     </div>
 
     <nav class="top-nav" aria-label="Navegación principal">
