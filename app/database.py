@@ -17,9 +17,151 @@ def asegurar_columna(cur, tabla, columna, definicion):
         cur.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {definicion}")
 
 
+def migrar_expedientes_superficies(cur):
+    columnas = {
+        col[1] for col in cur.execute("PRAGMA table_info(expedientes)").fetchall()
+    }
+
+    requiere_migracion = (
+        "superficie" in columnas
+        or "superficie_unidad" in columnas
+        or "superficie_construida" not in columnas
+        or "superficie_util" not in columnas
+    )
+
+    if not requiere_migracion:
+        return
+
+    cur.execute(
+        """
+        CREATE TABLE expedientes_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_expediente TEXT NOT NULL,
+            cliente TEXT NOT NULL,
+            direccion TEXT NOT NULL,
+            codigo_postal TEXT,
+            ciudad TEXT,
+            provincia TEXT,
+            tipo_inmueble TEXT,
+            orientacion_inmueble TEXT,
+            anio_construccion TEXT,
+            plantas_bajo_rasante TEXT,
+            plantas_sobre_baja TEXT,
+            uso_inmueble TEXT,
+            observaciones_generales TEXT,
+            planta_unidad TEXT,
+            puerta_unidad TEXT,
+            superficie_construida TEXT,
+            superficie_util TEXT,
+            dormitorios_unidad TEXT,
+            banos_unidad TEXT,
+            observaciones_bloque TEXT,
+            observaciones_unidad TEXT,
+            reformado TEXT,
+            fecha_reforma TEXT,
+            observaciones_reforma TEXT,
+            owner_user_id INTEGER,
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+
+    superficie_construida_expr = (
+        "superficie_construida"
+        if "superficie_construida" in columnas
+        else "superficie_unidad"
+        if "superficie_unidad" in columnas
+        else "NULL"
+    )
+    superficie_util_expr = "superficie_util" if "superficie_util" in columnas else "NULL"
+
+    cur.execute(
+        f"""
+        INSERT INTO expedientes_new (
+            id,
+            numero_expediente,
+            cliente,
+            direccion,
+            codigo_postal,
+            ciudad,
+            provincia,
+            tipo_inmueble,
+            orientacion_inmueble,
+            anio_construccion,
+            plantas_bajo_rasante,
+            plantas_sobre_baja,
+            uso_inmueble,
+            observaciones_generales,
+            planta_unidad,
+            puerta_unidad,
+            superficie_construida,
+            superficie_util,
+            dormitorios_unidad,
+            banos_unidad,
+            observaciones_bloque,
+            observaciones_unidad,
+            reformado,
+            fecha_reforma,
+            observaciones_reforma,
+            owner_user_id
+        )
+        SELECT
+            id,
+            numero_expediente,
+            cliente,
+            direccion,
+            codigo_postal,
+            ciudad,
+            provincia,
+            tipo_inmueble,
+            orientacion_inmueble,
+            anio_construccion,
+            plantas_bajo_rasante,
+            plantas_sobre_baja,
+            uso_inmueble,
+            observaciones_generales,
+            planta_unidad,
+            puerta_unidad,
+            {superficie_construida_expr},
+            {superficie_util_expr},
+            dormitorios_unidad,
+            banos_unidad,
+            observaciones_bloque,
+            observaciones_unidad,
+            reformado,
+            fecha_reforma,
+            observaciones_reforma,
+            owner_user_id
+        FROM expedientes
+        """
+    )
+
+    cur.execute("DROP TABLE expedientes")
+    cur.execute("ALTER TABLE expedientes_new RENAME TO expedientes")
+
+
 def init_db():
     conn = get_connection()
     cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            apellido1 TEXT NOT NULL,
+            apellido2 TEXT NOT NULL,
+            telefono TEXT,
+            email TEXT,
+            titulacion TEXT,
+            numero_colegiado TEXT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            activo INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
 
     cur.execute(
         """
@@ -37,25 +179,32 @@ def init_db():
             plantas_bajo_rasante TEXT,
             plantas_sobre_baja TEXT,
             uso_inmueble TEXT,
-            superficie TEXT,
             observaciones_generales TEXT,
             planta_unidad TEXT,
             puerta_unidad TEXT,
-            superficie_unidad TEXT,
+            superficie_construida TEXT,
+            superficie_util TEXT,
             dormitorios_unidad TEXT,
             banos_unidad TEXT,
             observaciones_bloque TEXT,
             observaciones_unidad TEXT,
             reformado TEXT,
             fecha_reforma TEXT,
-            observaciones_reforma TEXT
+            observaciones_reforma TEXT,
+            owner_user_id INTEGER,
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
         )
         """
     )
 
+    migrar_expedientes_superficies(cur)
+
     asegurar_columna(cur, "expedientes", "codigo_postal", "TEXT")
     asegurar_columna(cur, "expedientes", "ciudad", "TEXT")
     asegurar_columna(cur, "expedientes", "provincia", "TEXT")
+    asegurar_columna(cur, "expedientes", "owner_user_id", "INTEGER")
+    asegurar_columna(cur, "expedientes", "superficie_construida", "TEXT")
+    asegurar_columna(cur, "expedientes", "superficie_util", "TEXT")
 
     cur.execute(
         """
