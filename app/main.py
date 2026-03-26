@@ -30,6 +30,7 @@ from app.config import (
     ensure_directories,
 )
 from app.database import init_db
+from app.services.catastro import consultar_catastro_por_referencia
 from app.services.clima import geocodificar, obtener_climatologia
 from app.services.direccion import autocompletar_direccion, sugerir_direcciones
 from app.services.informe import generar_informe, limpiar_nombre_archivo
@@ -69,6 +70,362 @@ PUBLIC_PREFIXES = ("/static/", "/uploads/")
 AUTH_PAGES = {"/login", "/crear-usuario"}
 SESSION_COOKIE_NAME = "sistema_pericial_session"
 SESSION_COOKIE_SECURE = BASE_URL.startswith("https://")
+TIPO_INFORME_LABELS = {
+    "patologias": "Patologías",
+    "inspeccion": "Inspección del inmueble",
+    "valoracion": "Valoración inmobiliaria",
+    "habitabilidad": "Habitabilidad",
+}
+DESTINATARIO_LABELS = {
+    "particular": "Cliente particular / empresa",
+    "judicial": "Encargo judicial",
+}
+AMBITO_PATOLOGIAS_LABELS = {
+    "interior": "Interior",
+    "exterior": "Exterior",
+    "interior_exterior": "Interior y exterior",
+}
+ZONA_EXTERIOR_LABELS = {
+    "fachada": "Fachada",
+    "cubierta": "Cubierta",
+    "medianera": "Medianera",
+    "patio": "Patio",
+    "terraza": "Terraza",
+    "exterior_general": "Exterior general",
+}
+ELEMENTO_EXTERIOR_LABELS = {
+    "revestimiento": "Revestimiento",
+    "cerramiento": "Cerramiento",
+    "cornisa": "Cornisa",
+    "alero": "Alero",
+    "peto": "Peto",
+    "impermeabilizacion": "Impermeabilizacion",
+    "carpinteria_exterior": "Carpinteria exterior",
+    "barandilla": "Barandilla",
+    "bajante": "Bajante",
+    "canalon": "Canalon",
+    "forjado": "Forjado",
+    "otro": "Otro",
+}
+LOCALIZACION_EXTERIOR_LABELS = {
+    "horizontal": "Horizontal",
+    "vertical": "Vertical",
+    "encuentro": "Encuentro",
+    "puntual": "Puntual",
+}
+AMBITO_MAPA_OPTIONS = [
+    ("edificio_completo", "Edificio completo"),
+    ("nivel", "Nivel"),
+    ("unidad", "Unidad"),
+    ("zona_comun", "Zona común"),
+    ("exterior", "Exterior"),
+]
+AMBITO_MAPA_LABELS = dict(AMBITO_MAPA_OPTIONS)
+GRAVEDAD_CUADRANTE_OPTIONS = [
+    ("leve", "Leve"),
+    ("media", "Media"),
+    ("grave", "Grave"),
+]
+GRAVEDAD_CUADRANTE_LABELS = dict(GRAVEDAD_CUADRANTE_OPTIONS)
+ESTADO_INSPECCION_OPTIONS = [
+    ("no_necesita_reparacion", "No necesita reparación"),
+    ("necesita_reparacion", "Necesita reparación"),
+    ("defecto_grave", "Defecto grave"),
+    ("no_inspeccionado", "No inspeccionado"),
+]
+INSPECCION_GENERAL_GROUPS = [
+    (
+        "Información general / conjunto del inmueble",
+        [
+            ("puerta_entrada", "Puerta de entrada"),
+            ("vestibulo", "Vestíbulo"),
+            ("ventilacion_cruzada", "Ventilación cruzada"),
+            ("ventilacion_general_inmueble", "Ventilación general del inmueble"),
+            ("iluminacion_natural_general", "Iluminación natural general"),
+            ("orientacion_general", "Orientación general"),
+            ("reformado_cambio_uso", "Reformado / cambio de uso"),
+        ],
+    ),
+    (
+        "Estructura",
+        [
+            ("estructura_vertical", "Estructura vertical"),
+            ("estructura_horizontal", "Estructura horizontal"),
+            ("forjados_voladizos", "Forjados / voladizos"),
+            ("cubiertas", "Cubiertas"),
+            ("soleras_losas", "Soleras / losas"),
+        ],
+    ),
+    (
+        "Instalaciones generales",
+        [
+            ("instalacion_electrica_general", "Instalación eléctrica general"),
+            ("agua_acs", "Agua / ACS"),
+            ("calefaccion", "Calefacción"),
+            ("climatizacion", "Climatización"),
+        ],
+    ),
+    (
+        "Carpinterías generales",
+        [
+            ("carpinterias_generales", "Carpinterías generales"),
+            ("persianas_generales", "Persianas generales"),
+            ("barandillas_generales", "Barandillas generales"),
+            ("vierteaguas_generales", "Vierteaguas generales"),
+        ],
+    ),
+]
+INSPECCION_ESTANCIA_BASE_ITEMS = [
+    ("puerta", "Puerta"),
+    ("revestimiento", "Revestimiento"),
+    ("iluminacion", "Iluminación"),
+    ("mobiliario", "Mobiliario"),
+    ("mecanismos_electricos", "Mecanismos eléctricos"),
+    ("humedades", "Humedades"),
+    ("techo", "Techo"),
+    ("pavimento", "Pavimento"),
+]
+INSPECCION_ESTANCIA_BANO_ITEMS = [
+    ("banera_ducha", "Bañera / ducha"),
+    ("mampara", "Mampara"),
+    ("lavabo", "Lavabo"),
+    ("inodoro", "Inodoro"),
+    ("bide", "Bidé"),
+    ("espejo", "Espejo"),
+    ("ventilacion_forzada", "Ventilación forzada"),
+    ("condensacion", "Condensación"),
+    ("griferia", "Grifería"),
+    ("sifones", "Sifones"),
+    ("desagues", "Desagües"),
+    ("llaves_paso", "Llaves de paso"),
+]
+INSPECCION_ESTANCIA_COCINA_ITEMS = [
+    ("extractor", "Extractor"),
+    ("encimera", "Encimera"),
+    ("zona_coccion", "Zona de cocción"),
+    ("frigorifico", "Frigorífico"),
+    ("horno", "Horno"),
+    ("fregadero", "Fregadero"),
+    ("griferia", "Grifería"),
+    ("sifones", "Sifones"),
+    ("desagues", "Desagües"),
+    ("llaves_paso", "Llaves de paso"),
+    ("conexion_lavavajillas", "Conexión lavavajillas"),
+]
+INSPECCION_ESTANCIA_HABITABLE_ITEMS = [
+    ("persiana", "Persiana"),
+    ("cajon_persiana", "Cajón persiana"),
+    ("carpinteria_estancia", "Carpintería estancia"),
+    ("cierre_manivela", "Cierre / manivela"),
+    ("tomas_corriente", "Tomas de corriente"),
+]
+INSPECCION_EXTERIOR_ITEMS = [
+    ("fachadas", "Fachadas"),
+    ("cubiertas_exteriores", "Cubiertas"),
+    ("patios_exteriores", "Patios"),
+    ("terrazas_balcones", "Terrazas / balcones"),
+    ("jardines", "Jardines"),
+    ("entorno_inmediato", "Entorno inmediato"),
+    ("carpinterias_exteriores", "Carpinterías exteriores"),
+    ("barandillas_exteriores", "Barandillas exteriores"),
+    ("rejas_exteriores", "Rejas exteriores"),
+    ("toldos", "Toldos"),
+    ("tendederos", "Tendederos"),
+]
+INSPECCION_ELEMENTOS_COMUNES_ITEMS = [
+    ("portal_acceso", "Portal acceso"),
+    ("vestibulo_comun", "Vestíbulo común"),
+    ("pasillos_comunes", "Pasillos comunes"),
+    ("escaleras", "Escaleras"),
+    ("ascensor", "Ascensor"),
+    ("patio_luces", "Patio de luces"),
+    ("patio_ventilacion", "Patio de ventilación"),
+    ("fachada_comun", "Fachada común"),
+    ("cubierta_comun", "Cubierta común"),
+    ("cuarto_instalaciones_comunes", "Cuarto instalaciones comunes"),
+]
+ESTADO_HABITABILIDAD_OPTIONS = [
+    ("cumple", "Cumple"),
+    ("no_cumple", "No cumple"),
+    ("no_aplica", "No aplica"),
+    ("no_inspeccionado", "No inspeccionado"),
+]
+CONCLUSION_HABITABILIDAD_OPTIONS = [
+    ("apto", "Apto"),
+    ("apto_con_deficiencias", "Apto con deficiencias"),
+    ("no_apto", "No apto"),
+]
+HABITABILIDAD_GENERAL_ITEMS = [
+    ("ventilacion_general", "Ventilación general"),
+    ("iluminacion_natural_general", "Iluminación natural general"),
+    ("salubridad_general", "Salubridad general"),
+    ("seguridad_uso", "Seguridad de uso"),
+    ("instalaciones_basicas", "Instalaciones básicas"),
+    ("accesibilidad_basica", "Accesibilidad básica"),
+    ("adecuacion_uso_residencial", "Adecuación al uso residencial"),
+]
+HABITABILIDAD_ESTANCIA_ITEMS = [
+    ("ventilacion", "Ventilación"),
+    ("iluminacion", "Iluminación"),
+    ("humedades_condensaciones", "Humedades / condensaciones"),
+    ("salubridad", "Salubridad"),
+    ("seguridad_uso_estancia", "Seguridad de uso"),
+]
+HABITABILIDAD_EXTERIOR_ITEMS = [
+    ("patio_ventilacion", "Patio de ventilación"),
+    ("fachada_humedades", "Fachada / humedades"),
+    ("cubierta_filtraciones", "Cubierta / filtraciones"),
+]
+VALORACION_DATOS_GENERALES_ITEMS = [
+    ("finalidad_valoracion", "Finalidad de la valoración"),
+    ("identificacion_bien", "Identificación del bien"),
+    ("superficie_valoracion", "Superficie"),
+    ("estado_conservacion", "Estado de conservación"),
+    ("antiguedad", "Antigüedad"),
+    ("calidades", "Calidades"),
+    ("ubicacion_valoracion", "Ubicación"),
+]
+VALORACION_ENCARGO_ITEMS = [
+    ("nombre_solicitante", "Solicitante"),
+    ("nif_cif_solicitante", "NIF/CIF"),
+    ("domicilio_solicitante", "Domicilio"),
+    ("entidad_financiera", "Entidad financiera"),
+    ("finalidad_valoracion_detallada", "Finalidad detallada"),
+]
+VALORACION_DOCUMENTACION_ITEMS = [
+    ("documentacion_utilizada", "Documentación utilizada"),
+    ("datos_registrales", "Datos registrales"),
+]
+VALORACION_SUPERFICIES_ITEMS = [
+    ("superficie_util", "Útil"),
+    ("superficie_terraza", "Terraza"),
+    ("superficie_zonas_comunes", "Zonas comunes"),
+    ("superficie_total", "Total"),
+    ("superficie_comprobada", "Superficie comprobada"),
+]
+VALORACION_SITUACION_LEGAL_ITEMS = [
+    ("situacion_ocupacion", "Ocupación"),
+    ("situacion_urbanistica", "Urbanística"),
+    ("servidumbres", "Servidumbres"),
+    ("linderos", "Linderos"),
+]
+VALORACION_ENTORNO_ITEMS = [
+    ("descripcion_entorno", "Descripción"),
+    ("grado_consolidacion", "Consolidación"),
+    ("antiguedad_entorno", "Antigüedad entorno"),
+    ("rasgos_urbanos", "Rasgos urbanos"),
+    ("nivel_renta", "Nivel renta"),
+    ("uso_predominante", "Uso predominante"),
+    ("equipamientos", "Equipamientos"),
+    ("infraestructuras", "Infraestructuras"),
+]
+VALORACION_EDIFICIO_ITEMS = [
+    ("tipo_edificio", "Tipo edificio"),
+    ("numero_portales", "Portales"),
+    ("numero_escaleras", "Escaleras"),
+    ("numero_ascensores", "Ascensores"),
+]
+VALORACION_INMUEBLE_ITEMS = [
+    ("vistas", "Vistas"),
+    ("uso_residencial", "Uso residencial"),
+]
+VALORACION_CONSTRUCTIVO_ITEMS = [
+    ("estructura", "Estructura"),
+    ("cubierta", "Cubierta"),
+    ("cerramientos", "Cerramientos"),
+    ("aislamiento", "Aislamiento"),
+    ("carpinteria", "Carpintería"),
+    ("acristalamiento", "Acristalamiento"),
+    ("instalaciones", "Instalaciones"),
+]
+VALORACION_ESTADO_ITEMS = [
+    ("estado_inmueble", "Estado inmueble"),
+    ("regimen_ocupacion", "Régimen de ocupación"),
+    ("inmueble_arrendado", "Inmueble arrendado"),
+]
+VALORACION_FECHAS_ITEMS = [
+    ("fecha_visita", "Fecha visita"),
+    ("fecha_emision", "Fecha emisión"),
+    ("fecha_caducidad", "Fecha caducidad"),
+]
+VALORACION_METODO_ITEMS = [
+    ("criterios_metodo_valoracion", "Criterios / método de valoración"),
+    ("testigos_comparables", "Testigos comparables"),
+    ("observaciones_testigos", "Observaciones testigos"),
+    ("variables_mercado", "Variables de mercado"),
+    ("metodo_homogeneizacion", "Método de homogeneización"),
+]
+VALORACION_RESULTADO_ITEMS = [
+    ("valor_unitario", "Valor unitario"),
+    ("valor_resultante", "Valor resultante"),
+    ("valor_tasacion_final", "Valor de tasación final"),
+    (
+        "condicionantes_limitaciones_valoracion",
+        "Condicionantes / limitaciones",
+    ),
+    ("observaciones_valoracion", "Observaciones"),
+]
+COMPARABLE_VALORACION_ITEMS = [
+    ("direccion_testigo", "Dirección testigo"),
+    ("fuente_testigo", "Fuente"),
+    ("fecha_testigo", "Fecha"),
+    ("precio_oferta", "Precio oferta"),
+    ("valor_unitario", "Valor unitario"),
+    ("superficie_construida", "Superficie construida"),
+    ("superficie_util", "Superficie útil"),
+    ("tipologia", "Tipología"),
+    ("planta", "Planta"),
+    ("dormitorios", "Dormitorios"),
+    ("banos", "Baños"),
+    ("estado_conservacion", "Estado de conservación"),
+    ("antiguedad", "Antigüedad"),
+    ("calidad_constructiva", "Calidad constructiva"),
+    ("visitado", "Visitado"),
+    ("observaciones", "Observaciones"),
+]
+TIPO_NIVEL_OPTIONS = [
+    ("bajo_rasante", "Bajo rasante"),
+    ("baja", "Baja"),
+    ("sobre_rasante", "Sobre rasante"),
+    ("cubierta", "Cubierta"),
+    ("otro", "Otro"),
+]
+TIPO_NIVEL_LABELS = dict(TIPO_NIVEL_OPTIONS)
+TIPO_UNIDAD_OPTIONS = [
+    ("vivienda", "Vivienda"),
+    ("local", "Local"),
+    ("oficina", "Oficina"),
+    ("garaje", "Garaje"),
+    ("trastero", "Trastero"),
+    ("zona_comun", "Zona común"),
+    ("exterior", "Exterior"),
+    ("otro", "Otro"),
+]
+TIPO_UNIDAD_LABELS = dict(TIPO_UNIDAD_OPTIONS)
+VINCULO_UNIDAD_OPTIONS = [
+    ("principal", "Principal"),
+    ("anejo", "Anejo"),
+    ("comun", "Común"),
+    ("exterior", "Exterior"),
+]
+VINCULO_UNIDAD_LABELS = dict(VINCULO_UNIDAD_OPTIONS)
+TIPO_ANEJO_OPTIONS = [
+    ("garaje", "Garaje"),
+    ("trastero", "Trastero"),
+    ("terraza", "Terraza"),
+    ("patio", "Patio"),
+    ("cuarto_anejo", "Cuarto anejo"),
+    ("otro", "Otro"),
+]
+TIPO_ANEJO_LABELS = dict(TIPO_ANEJO_OPTIONS)
+AMBITO_VISITA_OPTIONS = [
+    ("edificio_completo", "Edificio completo"),
+    ("nivel", "Nivel / planta"),
+    ("unidad", "Unidad"),
+    ("zona_comun", "Zona común"),
+    ("exterior", "Exterior"),
+]
+AMBITO_VISITA_LABELS = dict(AMBITO_VISITA_OPTIONS)
 
 
 def get_connection():
@@ -82,6 +439,30 @@ def borrar_foto_si_existe(nombre_foto):
         ruta = UPLOAD_PATH / nombre_foto
         if ruta.exists():
             ruta.unlink()
+
+
+def guardar_upload_si_existe(archivo: UploadFile | None):
+    if not archivo or not archivo.filename:
+        return None
+
+    extension = os.path.splitext(archivo.filename)[1].lower()
+    nombre_archivo = f"{uuid4().hex}{extension}"
+    ruta_destino = UPLOAD_PATH / nombre_archivo
+
+    with ruta_destino.open("wb") as buffer:
+        shutil.copyfileobj(archivo.file, buffer)
+
+    return nombre_archivo
+
+
+def guardar_imagen_catastro_si_existe(contenido: bytes | None, extension: str | None):
+    if not contenido or not extension:
+        return ""
+
+    nombre_archivo = f"catastro_{uuid4().hex}{extension}"
+    ruta = UPLOAD_PATH / nombre_archivo
+    ruta.write_bytes(contenido)
+    return nombre_archivo
 
 
 def require_row(row, detail: str):
@@ -163,6 +544,384 @@ def ensure_climatologia_table():
 
 def limpiar_texto(valor) -> str:
     return str(valor or "").strip()
+
+
+def parse_optional_int(valor):
+    texto = limpiar_texto(valor)
+    if not texto:
+        return None
+    try:
+        return int(texto)
+    except ValueError:
+        return None
+
+
+def fila_a_dict(fila, columnas):
+    if not fila:
+        return {columna: "" for columna in columnas}
+    return {columna: limpiar_texto(fila[columna]) for columna in columnas}
+
+
+def upsert_tabla_por_visita(cur, tabla: str, visita_id: int, valores: dict):
+    columnas = list(valores.keys())
+    placeholders = ", ".join(["?"] * (len(columnas) + 1))
+    updates = ", ".join([f"{col}=excluded.{col}" for col in columnas])
+    cur.execute(
+        f"""
+        INSERT INTO {tabla} (visita_id, {", ".join(columnas)})
+        VALUES ({placeholders})
+        ON CONFLICT(visita_id) DO UPDATE SET {updates}
+        """,
+        [visita_id] + [valores[col] for col in columnas],
+    )
+
+
+def upsert_inspeccion_estancia(cur, visita_id: int, estancia_id: int, valores: dict):
+    columnas = list(valores.keys())
+    placeholders = ", ".join(["?"] * (len(columnas) + 2))
+    updates = ", ".join([f"{col}=excluded.{col}" for col in columnas])
+    cur.execute(
+        f"""
+        INSERT INTO inspeccion_estancias (visita_id, estancia_id, {", ".join(columnas)})
+        VALUES ({placeholders})
+        ON CONFLICT(visita_id, estancia_id) DO UPDATE SET {updates}
+        """,
+        [visita_id, estancia_id] + [valores[col] for col in columnas],
+    )
+
+
+def upsert_habitabilidad_estancia(cur, visita_id: int, estancia_id: int, valores: dict):
+    columnas = list(valores.keys())
+    placeholders = ", ".join(["?"] * (len(columnas) + 2))
+    updates = ", ".join([f"{col}=excluded.{col}" for col in columnas])
+    cur.execute(
+        f"""
+        INSERT INTO habitabilidad_estancias (visita_id, estancia_id, {", ".join(columnas)})
+        VALUES ({placeholders})
+        ON CONFLICT(visita_id, estancia_id) DO UPDATE SET {updates}
+        """,
+        [visita_id, estancia_id] + [valores[col] for col in columnas],
+    )
+
+
+def cargar_datos_valoracion_visita(cur, visita_id: int):
+    columnas = (
+        [item[0] for item in VALORACION_ENCARGO_ITEMS]
+        + [item[0] for item in VALORACION_DOCUMENTACION_ITEMS]
+        + [item[0] for item in VALORACION_DATOS_GENERALES_ITEMS]
+        + [item[0] for item in VALORACION_SUPERFICIES_ITEMS]
+        + [item[0] for item in VALORACION_SITUACION_LEGAL_ITEMS]
+        + [item[0] for item in VALORACION_ENTORNO_ITEMS]
+        + [item[0] for item in VALORACION_EDIFICIO_ITEMS]
+        + [item[0] for item in VALORACION_INMUEBLE_ITEMS]
+        + [item[0] for item in VALORACION_CONSTRUCTIVO_ITEMS]
+        + [item[0] for item in VALORACION_ESTADO_ITEMS]
+        + [item[0] for item in VALORACION_FECHAS_ITEMS]
+        + [item[0] for item in VALORACION_METODO_ITEMS]
+        + [item[0] for item in VALORACION_RESULTADO_ITEMS]
+    )
+    return fila_a_dict(
+        cur.execute(
+            "SELECT * FROM valoracion_visita WHERE visita_id=?",
+            (visita_id,),
+        ).fetchone(),
+        columnas,
+    )
+
+
+def comparable_valoracion_form_vacio():
+    return {campo: "" for campo, _ in COMPARABLE_VALORACION_ITEMS}
+
+
+def obtener_items_inspeccion_estancia(tipo_estancia: str):
+    tipo = limpiar_texto(tipo_estancia).lower()
+    items = list(INSPECCION_ESTANCIA_BASE_ITEMS)
+
+    if tipo in {"baño", "aseo"}:
+        items.extend(INSPECCION_ESTANCIA_BANO_ITEMS)
+    elif tipo == "cocina":
+        items.extend(INSPECCION_ESTANCIA_COCINA_ITEMS)
+    elif tipo in {"salón", "salon", "dormitorio", "comedor", "recibidor", "pasillo"}:
+        items.extend(INSPECCION_ESTANCIA_HABITABLE_ITEMS)
+
+    return items
+
+
+def cargar_datos_inspeccion_visita(cur, visita_id: int, estancias):
+    general_columnas = [item[0] for _, grupo in INSPECCION_GENERAL_GROUPS for item in grupo]
+    general_columnas.append("observaciones_generales_inspeccion")
+    exterior_columnas = [item[0] for item in INSPECCION_EXTERIOR_ITEMS] + [
+        "observaciones_exteriores"
+    ]
+    comunes_columnas = [item[0] for item in INSPECCION_ELEMENTOS_COMUNES_ITEMS] + [
+        "observaciones_elementos_comunes"
+    ]
+
+    general = fila_a_dict(
+        cur.execute(
+            "SELECT * FROM inspeccion_general_visita WHERE visita_id=?",
+            (visita_id,),
+        ).fetchone(),
+        general_columnas,
+    )
+    exterior = fila_a_dict(
+        cur.execute(
+            "SELECT * FROM inspeccion_exterior WHERE visita_id=?",
+            (visita_id,),
+        ).fetchone(),
+        exterior_columnas,
+    )
+    comunes = fila_a_dict(
+        cur.execute(
+            "SELECT * FROM inspeccion_elementos_comunes WHERE visita_id=?",
+            (visita_id,),
+        ).fetchone(),
+        comunes_columnas,
+    )
+
+    inspecciones_estancia = {
+        fila["estancia_id"]: fila
+        for fila in cur.execute(
+            "SELECT * FROM inspeccion_estancias WHERE visita_id=?",
+            (visita_id,),
+        ).fetchall()
+    }
+
+    estancias_inspeccion = []
+    for estancia in estancias:
+        items = obtener_items_inspeccion_estancia(estancia["tipo_estancia"])
+        columnas = [item[0] for item in items] + ["observaciones_estancia_inspeccion"]
+        estancias_inspeccion.append(
+            {
+                "estancia": estancia,
+                "campos": items,
+                "datos": fila_a_dict(inspecciones_estancia.get(estancia["id"]), columnas),
+            }
+        )
+
+    return {
+        "general": general,
+        "exterior": exterior,
+        "comunes": comunes,
+        "estancias": estancias_inspeccion,
+    }
+
+
+def cargar_datos_habitabilidad_visita(cur, visita_id: int, estancias):
+    general_columnas = [item[0] for item in HABITABILIDAD_GENERAL_ITEMS] + [
+        "conclusion_habitabilidad",
+        "observaciones_generales_habitabilidad",
+    ]
+    exterior_columnas = [item[0] for item in HABITABILIDAD_EXTERIOR_ITEMS] + [
+        "observaciones_exterior_habitabilidad"
+    ]
+
+    general = fila_a_dict(
+        cur.execute(
+            "SELECT * FROM habitabilidad_general_visita WHERE visita_id=?",
+            (visita_id,),
+        ).fetchone(),
+        general_columnas,
+    )
+    exterior = fila_a_dict(
+        cur.execute(
+            "SELECT * FROM habitabilidad_exterior WHERE visita_id=?",
+            (visita_id,),
+        ).fetchone(),
+        exterior_columnas,
+    )
+
+    habitabilidad_estancias = {
+        fila["estancia_id"]: fila
+        for fila in cur.execute(
+            "SELECT * FROM habitabilidad_estancias WHERE visita_id=?",
+            (visita_id,),
+        ).fetchall()
+    }
+
+    estancias_habitabilidad = []
+    for estancia in estancias:
+        columnas = [item[0] for item in HABITABILIDAD_ESTANCIA_ITEMS] + [
+            "observaciones_estancia_habitabilidad"
+        ]
+        estancias_habitabilidad.append(
+            {
+                "estancia": estancia,
+                "campos": HABITABILIDAD_ESTANCIA_ITEMS,
+                "datos": fila_a_dict(
+                    habitabilidad_estancias.get(estancia["id"]),
+                    columnas,
+                ),
+            }
+        )
+
+    return {
+        "general": general,
+        "exterior": exterior,
+        "estancias": estancias_habitabilidad,
+    }
+
+
+async def guardar_datos_inspeccion_desde_form(cur, visita_id: int, estancias, form):
+    visita = cur.execute(
+        """
+        SELECT v.*, n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita
+        FROM visitas v
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
+        WHERE v.id=?
+        """,
+        (visita_id,),
+    ).fetchone()
+
+    general_valores = {}
+    for _, grupo in INSPECCION_GENERAL_GROUPS:
+        for campo, _ in grupo:
+            general_valores[campo] = (
+                limpiar_texto(form.get(f"insp_general__{campo}")) or "no_inspeccionado"
+            )
+    general_valores["observaciones_generales_inspeccion"] = limpiar_texto(
+        form.get("insp_general__observaciones_generales_inspeccion")
+    )
+    upsert_tabla_por_visita(cur, "inspeccion_general_visita", visita_id, general_valores)
+
+    exterior_valores = {
+        campo: limpiar_texto(form.get(f"insp_exterior__{campo}")) or "no_inspeccionado"
+        for campo, _ in INSPECCION_EXTERIOR_ITEMS
+    }
+    exterior_valores["observaciones_exteriores"] = limpiar_texto(
+        form.get("insp_exterior__observaciones_exteriores")
+    )
+    upsert_tabla_por_visita(cur, "inspeccion_exterior", visita_id, exterior_valores)
+
+    comunes_valores = {
+        campo: limpiar_texto(form.get(f"insp_comunes__{campo}")) or "no_inspeccionado"
+        for campo, _ in INSPECCION_ELEMENTOS_COMUNES_ITEMS
+    }
+    comunes_valores["observaciones_elementos_comunes"] = limpiar_texto(
+        form.get("insp_comunes__observaciones_elementos_comunes")
+    )
+    upsert_tabla_por_visita(
+        cur,
+        "inspeccion_elementos_comunes",
+        visita_id,
+        comunes_valores,
+    )
+
+    for estancia in estancias:
+        if visita:
+            validar_estancia_para_visita(cur, visita, estancia["id"])
+        valores = {
+            campo: (
+                limpiar_texto(form.get(f"insp_estancia_{estancia['id']}__{campo}"))
+                or "no_inspeccionado"
+            )
+            for campo, _ in obtener_items_inspeccion_estancia(estancia["tipo_estancia"])
+        }
+        valores["observaciones_estancia_inspeccion"] = limpiar_texto(
+            form.get(
+                f"insp_estancia_{estancia['id']}__observaciones_estancia_inspeccion"
+            )
+        )
+        upsert_inspeccion_estancia(cur, visita_id, estancia["id"], valores)
+
+
+async def guardar_datos_habitabilidad_desde_form(cur, visita_id: int, estancias, form):
+    visita = cur.execute(
+        """
+        SELECT v.*, n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita
+        FROM visitas v
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
+        WHERE v.id=?
+        """,
+        (visita_id,),
+    ).fetchone()
+
+    general_valores = {
+        campo: limpiar_texto(form.get(f"hab_general__{campo}")) or "no_inspeccionado"
+        for campo, _ in HABITABILIDAD_GENERAL_ITEMS
+    }
+    general_valores["conclusion_habitabilidad"] = limpiar_texto(
+        form.get("hab_general__conclusion_habitabilidad")
+    )
+    general_valores["observaciones_generales_habitabilidad"] = limpiar_texto(
+        form.get("hab_general__observaciones_generales_habitabilidad")
+    )
+    upsert_tabla_por_visita(
+        cur,
+        "habitabilidad_general_visita",
+        visita_id,
+        general_valores,
+    )
+
+    exterior_valores = {
+        campo: limpiar_texto(form.get(f"hab_exterior__{campo}")) or "no_inspeccionado"
+        for campo, _ in HABITABILIDAD_EXTERIOR_ITEMS
+    }
+    exterior_valores["observaciones_exterior_habitabilidad"] = limpiar_texto(
+        form.get("hab_exterior__observaciones_exterior_habitabilidad")
+    )
+    upsert_tabla_por_visita(cur, "habitabilidad_exterior", visita_id, exterior_valores)
+
+    for estancia in estancias:
+        if visita:
+            validar_estancia_para_visita(cur, visita, estancia["id"])
+        valores = {
+            campo: (
+                limpiar_texto(form.get(f"hab_estancia_{estancia['id']}__{campo}"))
+                or "no_inspeccionado"
+            )
+            for campo, _ in HABITABILIDAD_ESTANCIA_ITEMS
+        }
+        valores["observaciones_estancia_habitabilidad"] = limpiar_texto(
+            form.get(
+                f"hab_estancia_{estancia['id']}__observaciones_estancia_habitabilidad"
+            )
+        )
+        upsert_habitabilidad_estancia(cur, visita_id, estancia["id"], valores)
+
+
+async def guardar_datos_valoracion_desde_form(cur, visita_id: int, form):
+    cur.execute(
+        """
+        SELECT v.*, n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita
+        FROM visitas v
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
+        WHERE v.id=?
+        """,
+        (visita_id,),
+    ).fetchone()
+
+    columnas = (
+        [item[0] for item in VALORACION_ENCARGO_ITEMS]
+        + [item[0] for item in VALORACION_DOCUMENTACION_ITEMS]
+        + [item[0] for item in VALORACION_DATOS_GENERALES_ITEMS]
+        + [item[0] for item in VALORACION_SUPERFICIES_ITEMS]
+        + [item[0] for item in VALORACION_SITUACION_LEGAL_ITEMS]
+        + [item[0] for item in VALORACION_ENTORNO_ITEMS]
+        + [item[0] for item in VALORACION_EDIFICIO_ITEMS]
+        + [item[0] for item in VALORACION_INMUEBLE_ITEMS]
+        + [item[0] for item in VALORACION_CONSTRUCTIVO_ITEMS]
+        + [item[0] for item in VALORACION_ESTADO_ITEMS]
+        + [item[0] for item in VALORACION_FECHAS_ITEMS]
+        + [item[0] for item in VALORACION_METODO_ITEMS]
+        + [item[0] for item in VALORACION_RESULTADO_ITEMS]
+    )
+    valores = {
+        columna: limpiar_texto(form.get(f"valoracion__{columna}"))
+        for columna in columnas
+    }
+    upsert_tabla_por_visita(cur, "valoracion_visita", visita_id, valores)
+
+
+def etiquetar_opcion(valor: str, opciones: dict[str, str]) -> str:
+    valor_limpio = limpiar_texto(valor)
+    return opciones.get(valor_limpio, valor_limpio or "-")
 
 
 def parsear_float(valor):
@@ -339,6 +1098,9 @@ def crear_visita_si_no_existe(
     fecha: str,
     tecnico: str,
     observaciones_visita: str,
+    ambito_visita: str = "",
+    nivel_id=None,
+    unidad_id=None,
 ):
     if visita_id:
         return visita_id, False
@@ -346,14 +1108,17 @@ def crear_visita_si_no_existe(
     cur.execute(
         """
         INSERT INTO visitas
-        (expediente_id, fecha, tecnico, observaciones_visita)
-        VALUES (?, ?, ?, ?)
+        (expediente_id, fecha, tecnico, observaciones_visita, ambito_visita, nivel_id, unidad_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             expediente["id"],
             fecha,
             tecnico,
             observaciones_visita,
+            limpiar_texto(ambito_visita),
+            nivel_id,
+            unidad_id,
         ),
     )
     nueva_visita_id = cur.lastrowid
@@ -462,6 +1227,20 @@ def parsear_entero_positivo(valor) -> int:
 
 
 def crear_estancias_base(cur, visita_id: int, tipo_inmueble: str, dormitorios, banos):
+    visita = cur.execute(
+        """
+        SELECT ambito_visita, unidad_id
+        FROM visitas
+        WHERE id=?
+        """,
+        (visita_id,),
+    ).fetchone()
+    ambito_visita = limpiar_texto(visita["ambito_visita"]) if visita else ""
+    unidad_id = visita["unidad_id"] if visita else None
+
+    if ambito_visita and ambito_visita != "unidad":
+        return
+
     existentes = cur.execute(
         "SELECT COUNT(*) AS total FROM estancias WHERE visita_id=?",
         (visita_id,),
@@ -487,11 +1266,12 @@ def crear_estancias_base(cur, visita_id: int, tipo_inmueble: str, dormitorios, b
                 acabado_pavimento,
                 acabado_paramento,
                 acabado_techo,
-                observaciones
+                observaciones,
+                unidad_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (visita_id, nombre, tipo_estancia, "", "", "", "", "", ""),
+            (visita_id, nombre, tipo_estancia, "", "", "", "", "", "", unidad_id),
         )
 
     for i in range(1, parsear_entero_positivo(dormitorios) + 1):
@@ -506,11 +1286,23 @@ def crear_estancias_base(cur, visita_id: int, tipo_inmueble: str, dormitorios, b
                 acabado_pavimento,
                 acabado_paramento,
                 acabado_techo,
-                observaciones
+                observaciones,
+                unidad_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (visita_id, f"Dormitorio {i}", "Dormitorio", "", "", "", "", "", ""),
+            (
+                visita_id,
+                f"Dormitorio {i}",
+                "Dormitorio",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                unidad_id,
+            ),
         )
 
     for i in range(1, parsear_entero_positivo(banos) + 1):
@@ -525,15 +1317,30 @@ def crear_estancias_base(cur, visita_id: int, tipo_inmueble: str, dormitorios, b
                 acabado_pavimento,
                 acabado_paramento,
                 acabado_techo,
-                observaciones
+                observaciones,
+                unidad_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (visita_id, f"Baño {i}", "Baño", "", "", "", "", "", ""),
+            (visita_id, f"Baño {i}", "Baño", "", "", "", "", "", "", unidad_id),
         )
 
 
 def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: int) -> bool:
+    visita_actual = cur.execute(
+        """
+        SELECT ambito_visita, unidad_id
+        FROM visitas
+        WHERE id=?
+        """,
+        (nueva_visita_id,),
+    ).fetchone()
+    ambito_visita = limpiar_texto(visita_actual["ambito_visita"]) if visita_actual else ""
+    unidad_id_actual = visita_actual["unidad_id"] if visita_actual else None
+
+    if ambito_visita and ambito_visita != "unidad":
+        return False
+
     existentes = cur.execute(
         "SELECT COUNT(*) AS total FROM estancias WHERE visita_id=?",
         (nueva_visita_id,),
@@ -542,21 +1349,40 @@ def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: i
     if existentes and existentes["total"] > 0:
         return False
 
-    ultima_visita = cur.execute(
-        """
-        SELECT id
-        FROM visitas
-        WHERE expediente_id = ? AND id <> ?
-          AND EXISTS (
-              SELECT 1
-              FROM estancias
-              WHERE visita_id = visitas.id
-          )
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (expediente_id, nueva_visita_id),
-    ).fetchone()
+    ultima_visita = None
+    if unidad_id_actual:
+        ultima_visita = cur.execute(
+            """
+            SELECT id
+            FROM visitas
+            WHERE expediente_id = ? AND id <> ? AND unidad_id = ?
+              AND EXISTS (
+                  SELECT 1
+                  FROM estancias
+                  WHERE visita_id = visitas.id
+              )
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (expediente_id, nueva_visita_id, unidad_id_actual),
+        ).fetchone()
+
+    if not ultima_visita:
+        ultima_visita = cur.execute(
+            """
+            SELECT id
+            FROM visitas
+            WHERE expediente_id = ? AND id <> ?
+              AND EXISTS (
+                  SELECT 1
+                  FROM estancias
+                  WHERE visita_id = visitas.id
+              )
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (expediente_id, nueva_visita_id),
+        ).fetchone()
 
     if not ultima_visita:
         return False
@@ -571,7 +1397,8 @@ def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: i
             acabado_pavimento,
             acabado_paramento,
             acabado_techo,
-            observaciones
+            observaciones,
+            unidad_id
         FROM estancias
         WHERE visita_id = ?
         ORDER BY id ASC
@@ -594,9 +1421,10 @@ def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: i
                 acabado_pavimento,
                 acabado_paramento,
                 acabado_techo,
-                observaciones
+                observaciones,
+                unidad_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 nueva_visita_id,
@@ -608,6 +1436,7 @@ def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: i
                 estancia["acabado_paramento"],
                 estancia["acabado_techo"],
                 estancia["observaciones"],
+                unidad_id_actual or estancia["unidad_id"],
             ),
         )
 
@@ -615,6 +1444,11 @@ def copiar_estancias_visita_anterior(cur, expediente_id: int, nueva_visita_id: i
 
 
 def eliminar_expediente_completo(cur, expediente_id: int):
+    expediente = cur.execute(
+        "SELECT imagen_catastro FROM expedientes WHERE id=?",
+        (expediente_id,),
+    ).fetchone()
+
     visitas = cur.execute(
         "SELECT id FROM visitas WHERE expediente_id=?",
         (expediente_id,),
@@ -631,12 +1465,100 @@ def eliminar_expediente_completo(cur, expediente_id: int):
             """,
             visita_ids,
         ).fetchall()
+        fotos_exteriores = cur.execute(
+            f"""
+            SELECT foto
+            FROM registros_patologias_exteriores
+            WHERE visita_id IN ({placeholders}) AND foto IS NOT NULL AND foto <> ''
+            """,
+            visita_ids,
+        ).fetchall()
+        imagenes_mapa = cur.execute(
+            f"""
+            SELECT imagen_base
+            FROM mapas_patologia
+            WHERE visita_id IN ({placeholders}) AND imagen_base IS NOT NULL AND imagen_base <> ''
+            """,
+            visita_ids,
+        ).fetchall()
+        fotos_cuadrantes = cur.execute(
+            f"""
+            SELECT qmp.foto_detalle
+            FROM cuadrantes_mapa_patologia qmp
+            JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+            WHERE mp.visita_id IN ({placeholders})
+              AND qmp.foto_detalle IS NOT NULL
+              AND qmp.foto_detalle <> ''
+            """,
+            visita_ids,
+        ).fetchall()
 
         for foto in fotos:
             borrar_foto_si_existe(foto["foto"])
+        for foto in fotos_exteriores:
+            borrar_foto_si_existe(foto["foto"])
+        for imagen in imagenes_mapa:
+            borrar_foto_si_existe(imagen["imagen_base"])
+        for foto in fotos_cuadrantes:
+            borrar_foto_si_existe(foto["foto_detalle"])
 
         cur.execute(
             f"DELETE FROM climatologia_visitas WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM inspeccion_general_visita WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM inspeccion_exterior WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM inspeccion_elementos_comunes WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM inspeccion_estancias WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM habitabilidad_general_visita WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM habitabilidad_exterior WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM habitabilidad_estancias WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM valoracion_visita WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM comparables_valoracion WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"""
+            DELETE FROM cuadrantes_mapa_patologia
+            WHERE mapa_id IN (
+                SELECT id
+                FROM mapas_patologia
+                WHERE visita_id IN ({placeholders})
+            )
+            """,
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM mapas_patologia WHERE visita_id IN ({placeholders})",
+            visita_ids,
+        )
+        cur.execute(
+            f"DELETE FROM registros_patologias_exteriores WHERE visita_id IN ({placeholders})",
             visita_ids,
         )
         cur.execute(
@@ -652,7 +1574,13 @@ def eliminar_expediente_completo(cur, expediente_id: int):
             visita_ids,
         )
 
+    cur.execute("DELETE FROM unidades_expediente WHERE expediente_id=?", (expediente_id,))
+    cur.execute("DELETE FROM niveles_edificio WHERE expediente_id=?", (expediente_id,))
+
     cur.execute("DELETE FROM expedientes WHERE id=?", (expediente_id,))
+
+    if expediente and expediente["imagen_catastro"]:
+        borrar_foto_si_existe(expediente["imagen_catastro"])
 
 
 def get_informe_path(nombre_archivo: str) -> Path:
@@ -783,6 +1711,246 @@ def get_owned_expediente(cur, expediente_id: int, user_id: int):
     ).fetchone()
 
 
+def get_owned_nivel(cur, nivel_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT n.*, e.owner_user_id
+        FROM niveles_edificio n
+        JOIN expedientes e ON n.expediente_id = e.id
+        WHERE n.id=? AND e.owner_user_id=?
+        """,
+        (nivel_id, user_id),
+    ).fetchone()
+
+
+def get_owned_unidad(cur, unidad_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT u.*, e.owner_user_id
+        FROM unidades_expediente u
+        JOIN expedientes e ON u.expediente_id = e.id
+        WHERE u.id=? AND e.owner_user_id=?
+        """,
+        (unidad_id, user_id),
+    ).fetchone()
+
+
+def cargar_estructura_multiunidad(cur, expediente_id: int):
+    niveles = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT *
+            FROM niveles_edificio
+            WHERE expediente_id=?
+            ORDER BY CASE WHEN orden_nivel IS NULL THEN 1 ELSE 0 END, orden_nivel ASC, id ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+    ]
+
+    unidades = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT
+                u.*,
+                n.nombre_nivel,
+                p.identificador AS unidad_principal_identificador
+            FROM unidades_expediente u
+            LEFT JOIN niveles_edificio n ON u.nivel_id = n.id
+            LEFT JOIN unidades_expediente p ON u.unidad_principal_id = p.id
+            WHERE u.expediente_id=?
+            ORDER BY
+                CASE WHEN u.nivel_id IS NULL THEN 1 ELSE 0 END,
+                COALESCE(n.orden_nivel, 999999),
+                COALESCE(n.nombre_nivel, ''),
+                u.id ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+    ]
+
+    for nivel in niveles:
+        nivel["principales"] = []
+        nivel["comunes"] = []
+        nivel["exteriores"] = []
+        nivel["otras"] = []
+        nivel["tipo_nivel_label"] = etiquetar_opcion(
+            nivel.get("tipo_nivel", ""), TIPO_NIVEL_LABELS
+        )
+
+    niveles_por_id = {nivel["id"]: nivel for nivel in niveles}
+    principales_por_id = {}
+    sin_nivel = {"principales": [], "comunes": [], "exteriores": [], "otras": []}
+    anejos_sueltos = []
+
+    for unidad in unidades:
+        unidad["tipo_unidad_label"] = etiquetar_opcion(
+            unidad.get("tipo_unidad", ""), TIPO_UNIDAD_LABELS
+        )
+        unidad["vinculo_unidad_label"] = etiquetar_opcion(
+            unidad.get("vinculo_unidad", ""), VINCULO_UNIDAD_LABELS
+        )
+        unidad["tipo_anejo_label"] = etiquetar_opcion(
+            unidad.get("tipo_anejo", ""), TIPO_ANEJO_LABELS
+        )
+        unidad["anejos"] = []
+        unidad["es_anejo"] = (
+            limpiar_texto(unidad.get("vinculo_unidad")) == "anejo"
+            or int(unidad.get("es_principal") or 0) == 0
+        )
+        if not unidad["es_anejo"] and limpiar_texto(unidad.get("vinculo_unidad")) in {
+            "",
+            "principal",
+        }:
+            principales_por_id[unidad["id"]] = unidad
+
+    for unidad in unidades:
+        if unidad["es_anejo"]:
+            principal = principales_por_id.get(unidad.get("unidad_principal_id"))
+            if principal:
+                principal["anejos"].append(unidad)
+            else:
+                anejos_sueltos.append(unidad)
+            continue
+
+        contenedor = niveles_por_id.get(unidad.get("nivel_id"), sin_nivel)
+        vinculo = limpiar_texto(unidad.get("vinculo_unidad"))
+        tipo_unidad = limpiar_texto(unidad.get("tipo_unidad"))
+
+        if vinculo == "comun" or tipo_unidad == "zona_comun":
+            contenedor["comunes"].append(unidad)
+        elif vinculo == "exterior" or tipo_unidad == "exterior":
+            contenedor["exteriores"].append(unidad)
+        elif vinculo in {"", "principal"} or int(unidad.get("es_principal") or 0) == 1:
+            contenedor["principales"].append(unidad)
+        else:
+            contenedor["otras"].append(unidad)
+
+    unidades_principales = [
+        unidad
+        for unidad in unidades
+        if not unidad["es_anejo"]
+        and limpiar_texto(unidad.get("vinculo_unidad")) in {"", "principal"}
+    ]
+
+    return {
+        "niveles": niveles,
+        "unidades": unidades,
+        "sin_nivel": sin_nivel,
+        "anejos_sueltos": anejos_sueltos,
+        "unidades_principales": unidades_principales,
+    }
+
+
+def cargar_opciones_visita_multiunidad(cur, expediente_id: int):
+    estructura = cargar_estructura_multiunidad(cur, expediente_id)
+    unidades = estructura["unidades"]
+    return {
+        "niveles": estructura["niveles"],
+        "unidades": unidades,
+        "unidades_generales": [
+            unidad
+            for unidad in unidades
+            if limpiar_texto(unidad.get("tipo_unidad")) not in {"zona_comun", "exterior"}
+        ],
+        "unidades_comunes": [
+            unidad
+            for unidad in unidades
+            if limpiar_texto(unidad.get("tipo_unidad")) == "zona_comun"
+            or limpiar_texto(unidad.get("vinculo_unidad")) == "comun"
+        ],
+        "unidades_exteriores": [
+            unidad
+            for unidad in unidades
+            if limpiar_texto(unidad.get("tipo_unidad")) == "exterior"
+            or limpiar_texto(unidad.get("vinculo_unidad")) == "exterior"
+        ],
+    }
+
+
+def resolver_objeto_visita_label(
+    ambito_visita: str,
+    nivel_id,
+    unidad_id,
+    opciones_visita_multiunidad: dict,
+):
+    ambito = limpiar_texto(ambito_visita) or "edificio_completo"
+    nivel_id_txt = str(nivel_id or "")
+    unidad_id_txt = str(unidad_id or "")
+
+    if ambito == "nivel" and nivel_id_txt:
+        for nivel in opciones_visita_multiunidad["niveles"]:
+            if str(nivel["id"]) == nivel_id_txt:
+                return f"Nivel: {nivel['nombre_nivel']}"
+    if ambito in {"unidad", "zona_comun", "exterior"} and unidad_id_txt:
+        for unidad in opciones_visita_multiunidad["unidades"]:
+            if str(unidad["id"]) == unidad_id_txt:
+                etiqueta = {
+                    "unidad": "Unidad",
+                    "zona_comun": "Zona común",
+                    "exterior": "Exterior",
+                }.get(ambito, "Unidad")
+                return f"{etiqueta}: {unidad['identificador']}"
+    return etiquetar_opcion(ambito, AMBITO_VISITA_LABELS)
+
+
+def validar_asociacion_visita(
+    cur,
+    expediente_id: int,
+    user_id: int,
+    ambito_visita: str,
+    nivel_id,
+    unidad_id,
+):
+    ambito_limpio = limpiar_texto(ambito_visita) or "edificio_completo"
+    nivel_id_int = parse_optional_int(nivel_id)
+    unidad_id_int = parse_optional_int(unidad_id)
+
+    if ambito_limpio == "nivel":
+        if not nivel_id_int:
+            raise ValueError("Debes seleccionar un nivel para este ámbito de visita.")
+        nivel = get_owned_nivel(cur, nivel_id_int, user_id)
+        if not nivel or nivel["expediente_id"] != expediente_id:
+            raise ValueError("El nivel seleccionado no es válido para este expediente.")
+        unidad_id_int = None
+    elif ambito_limpio in {"unidad", "zona_comun", "exterior"}:
+        if not unidad_id_int:
+            raise ValueError("Debes seleccionar una unidad para este ámbito de visita.")
+        unidad = get_owned_unidad(cur, unidad_id_int, user_id)
+        if not unidad or unidad["expediente_id"] != expediente_id:
+            raise ValueError("La unidad seleccionada no es válida para este expediente.")
+        tipo_unidad = limpiar_texto(unidad["tipo_unidad"])
+        vinculo_unidad = limpiar_texto(unidad["vinculo_unidad"])
+        if ambito_limpio == "zona_comun" and not (
+            tipo_unidad == "zona_comun" or vinculo_unidad == "comun"
+        ):
+            raise ValueError("La unidad seleccionada no corresponde a una zona común.")
+        if ambito_limpio == "exterior" and not (
+            tipo_unidad == "exterior" or vinculo_unidad == "exterior"
+        ):
+            raise ValueError("La unidad seleccionada no corresponde a un exterior.")
+        nivel_id_int = None
+    else:
+        nivel_id_int = None
+        unidad_id_int = None
+
+    return ambito_limpio, nivel_id_int, unidad_id_int
+
+
+def redirect_detalle_expediente(expediente_id: int, mensaje: str = "", error: str = ""):
+    url = f"/detalle-expediente/{expediente_id}"
+    params = []
+    if mensaje:
+        params.append(f"mensaje={quote_plus(mensaje)}")
+    if error:
+        params.append(f"error={quote_plus(error)}")
+    if params:
+        url = f"{url}?{'&'.join(params)}"
+    return RedirectResponse(url=url, status_code=303)
+
+
 def get_owned_visita(cur, visita_id: int, user_id: int):
     return cur.execute(
         """
@@ -790,24 +1958,74 @@ def get_owned_visita(cur, visita_id: int, user_id: int):
                e.numero_expediente,
                e.direccion,
                e.owner_user_id,
+               e.tipo_informe,
+               e.ambito_patologias,
                e.tipo_inmueble,
                e.dormitorios_unidad,
-               e.banos_unidad
+               e.banos_unidad,
+               n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita,
+               u.tipo_unidad AS tipo_unidad_visita
         FROM visitas v
         JOIN expedientes e ON v.expediente_id = e.id
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
         WHERE v.id=? AND e.owner_user_id=?
         """,
         (visita_id, user_id),
     ).fetchone()
 
 
+def describir_objeto_visita(visita) -> str:
+    if not visita:
+        return ""
+
+    ambito = limpiar_texto(visita["ambito_visita"])
+    if ambito == "nivel" and limpiar_texto(visita["nombre_nivel_visita"]):
+        return f"Nivel: {visita['nombre_nivel_visita']}"
+    if ambito == "zona_comun" and limpiar_texto(visita["identificador_unidad_visita"]):
+        return f"Zona común: {visita['identificador_unidad_visita']}"
+    if ambito == "exterior" and limpiar_texto(visita["identificador_unidad_visita"]):
+        return f"Exterior: {visita['identificador_unidad_visita']}"
+    if limpiar_texto(visita["identificador_unidad_visita"]):
+        return f"Unidad: {visita['identificador_unidad_visita']}"
+    return etiquetar_opcion(ambito, AMBITO_VISITA_LABELS)
+
+
+def validar_estancia_para_visita(cur, visita, estancia_id: int):
+    estancia = cur.execute(
+        """
+        SELECT id, visita_id, unidad_id
+        FROM estancias
+        WHERE id=? AND visita_id=?
+        """,
+        (estancia_id, visita["id"]),
+    ).fetchone()
+    require_row(estancia, "Estancia no encontrada")
+
+    visita_unidad_id = visita["unidad_id"]
+    estancia_unidad_id = estancia["unidad_id"]
+
+    if visita_unidad_id and estancia_unidad_id and visita_unidad_id != estancia_unidad_id:
+        raise HTTPException(
+            status_code=400,
+            detail="La estancia seleccionada no es coherente con la unidad de la visita.",
+        )
+
+    return estancia
+
+
 def get_owned_estancia(cur, estancia_id: int, user_id: int):
     return cur.execute(
         """
-        SELECT es.*, v.expediente_id
+        SELECT es.*, v.expediente_id, v.unidad_id AS visita_unidad_id,
+               v.ambito_visita, n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita
         FROM estancias es
         JOIN visitas v ON es.visita_id = v.id
         JOIN expedientes e ON v.expediente_id = e.id
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
         WHERE es.id=? AND e.owner_user_id=?
         """,
         (estancia_id, user_id),
@@ -817,14 +2035,258 @@ def get_owned_estancia(cur, estancia_id: int, user_id: int):
 def get_owned_registro(cur, registro_id: int, user_id: int):
     return cur.execute(
         """
-        SELECT rp.*, v.expediente_id
+        SELECT rp.*, v.expediente_id, v.ambito_visita,
+               n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita
         FROM registros_patologias rp
         JOIN visitas v ON rp.visita_id = v.id
         JOIN expedientes e ON v.expediente_id = e.id
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
         WHERE rp.id=? AND e.owner_user_id=?
         """,
         (registro_id, user_id),
     ).fetchone()
+
+
+def get_owned_registro_exterior(cur, registro_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT rpe.*, v.expediente_id, v.ambito_visita,
+               n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita
+        FROM registros_patologias_exteriores rpe
+        JOIN visitas v ON rpe.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
+        WHERE rpe.id=? AND e.owner_user_id=?
+        """,
+        (registro_id, user_id),
+    ).fetchone()
+
+
+def get_owned_comparable_valoracion(cur, comparable_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT cv.*, v.expediente_id
+        FROM comparables_valoracion cv
+        JOIN visitas v ON cv.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        WHERE cv.id=? AND e.owner_user_id=?
+        """,
+        (comparable_id, user_id),
+    ).fetchone()
+
+
+def get_owned_mapa_patologia(cur, mapa_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT mp.*, v.expediente_id, v.ambito_visita,
+               n.nombre_nivel AS nombre_nivel_visita,
+               u.identificador AS identificador_unidad_visita
+        FROM mapas_patologia mp
+        JOIN visitas v ON mp.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
+        WHERE mp.id=? AND e.owner_user_id=?
+        """,
+        (mapa_id, user_id),
+    ).fetchone()
+
+
+def get_owned_cuadrante_mapa_patologia(cur, cuadrante_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT qmp.*, mp.visita_id, mp.ambito_mapa, v.expediente_id, v.ambito_visita,
+               mp.titulo AS mapa_titulo
+        FROM cuadrantes_mapa_patologia qmp
+        JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+        JOIN visitas v ON mp.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        WHERE qmp.id=? AND e.owner_user_id=?
+        """,
+        (cuadrante_id, user_id),
+    ).fetchone()
+
+
+def indice_a_letras(indice: int) -> str:
+    letras = ""
+    valor = indice + 1
+    while valor > 0:
+        valor, resto = divmod(valor - 1, 26)
+        letras = chr(65 + resto) + letras
+    return letras
+
+
+def generar_codigo_cuadrante(fila_idx: int, columna_idx: int) -> str:
+    return f"{indice_a_letras(fila_idx)}{columna_idx + 1}"
+
+
+def generar_cuadrantes_mapa(cur, mapa_id: int, filas: int, columnas: int):
+    for fila_idx in range(filas):
+        for columna_idx in range(columnas):
+            cur.execute(
+                """
+                INSERT INTO cuadrantes_mapa_patologia (mapa_id, codigo_cuadrante)
+                VALUES (?, ?)
+                """,
+                (mapa_id, generar_codigo_cuadrante(fila_idx, columna_idx)),
+            )
+
+
+def obtener_registros_patologia_vinculables(cur, visita_id: int):
+    opciones = []
+    candidatos_por_id: dict[int, list[dict]] = {}
+
+    registros_interiores = cur.execute(
+        """
+        SELECT rp.id, rp.patologia, rp.localizacion_dano, es.nombre AS estancia_nombre
+        FROM registros_patologias rp
+        JOIN estancias es ON rp.estancia_id = es.id
+        WHERE rp.visita_id=?
+        ORDER BY rp.id DESC
+        """,
+        (visita_id,),
+    ).fetchall()
+    for registro in registros_interiores:
+        label = f"Interior · {registro['estancia_nombre']} · {registro['patologia']}"
+        if limpiar_texto(registro["localizacion_dano"]):
+            label += f" · {registro['localizacion_dano']}"
+        opcion = {
+            "value": f"interior:{registro['id']}",
+            "tipo": "interior",
+            "id": registro["id"],
+            "label": label,
+            "patologia": registro["patologia"],
+        }
+        opciones.append(opcion)
+        candidatos_por_id.setdefault(registro["id"], []).append(opcion)
+
+    registros_exteriores = cur.execute(
+        """
+        SELECT id, patologia, zona_exterior, localizacion_dano_exterior
+        FROM registros_patologias_exteriores
+        WHERE visita_id=?
+        ORDER BY id DESC
+        """,
+        (visita_id,),
+    ).fetchall()
+    for registro in registros_exteriores:
+        label = f"Exterior · {registro['zona_exterior'] or 'Zona'} · {registro['patologia']}"
+        if limpiar_texto(registro["localizacion_dano_exterior"]):
+            label += f" · {registro['localizacion_dano_exterior']}"
+        opcion = {
+            "value": f"exterior:{registro['id']}",
+            "tipo": "exterior",
+            "id": registro["id"],
+            "label": label,
+            "patologia": registro["patologia"],
+        }
+        opciones.append(opcion)
+        candidatos_por_id.setdefault(registro["id"], []).append(opcion)
+
+    return opciones, candidatos_por_id
+
+
+def resolver_patologia_vinculada(
+    candidatos_por_id: dict[int, list[dict]],
+    patologia_id,
+    patologia_detectada: str = "",
+):
+    if not patologia_id:
+        return None
+
+    candidatos = candidatos_por_id.get(patologia_id, [])
+    if not candidatos:
+        return None
+    if len(candidatos) == 1:
+        return candidatos[0]
+
+    texto = limpiar_texto(patologia_detectada).lower()
+    if texto:
+        for candidato in candidatos:
+            if limpiar_texto(candidato["patologia"]).lower() == texto:
+                return candidato
+
+    return candidatos[0]
+
+
+def mapa_patologia_es_exterior(visita, mapa=None) -> bool:
+    ambito_mapa = limpiar_texto((mapa or {}).get("ambito_mapa"))
+    ambito_visita = limpiar_texto(visita.get("ambito_visita"))
+    ambito_referencia = ambito_mapa or ambito_visita
+    return ambito_referencia in {"exterior", "zona_comun"}
+
+
+def preparar_mapas_patologia(cur, visita_id: int):
+    mapas = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT *
+            FROM mapas_patologia
+            WHERE visita_id=?
+            ORDER BY id DESC
+            """,
+            (visita_id,),
+        ).fetchall()
+    ]
+    _, candidatos_por_id = obtener_registros_patologia_vinculables(cur, visita_id)
+
+    for mapa in mapas:
+        mapa["ambito_mapa_label"] = etiquetar_opcion(
+            mapa.get("ambito_mapa", ""), AMBITO_MAPA_LABELS
+        )
+        mapa["imagen_base_url"] = (
+            f"/uploads/{mapa['imagen_base']}" if mapa.get("imagen_base") else ""
+        )
+        cuadrantes = [
+            dict(row)
+            for row in cur.execute(
+                """
+                SELECT *
+                FROM cuadrantes_mapa_patologia
+                WHERE mapa_id=?
+                ORDER BY id ASC
+                """,
+                (mapa["id"],),
+            ).fetchall()
+        ]
+        mapa["cuadrantes"] = cuadrantes
+        mapa["total_cuadrantes_con_incidencia"] = sum(
+            1
+            for cuadrante in cuadrantes
+            if limpiar_texto(cuadrante.get("patologia_detectada"))
+        )
+        mapa["total_cuadrantes_vinculados"] = sum(
+            1 for cuadrante in cuadrantes if cuadrante.get("patologia_id")
+        )
+        for cuadrante in cuadrantes:
+            patologia_vinculada = resolver_patologia_vinculada(
+                candidatos_por_id,
+                cuadrante.get("patologia_id"),
+                cuadrante.get("patologia_detectada", ""),
+            )
+            cuadrante["patologia_vinculada"] = patologia_vinculada
+            cuadrante["patologia_vinculada_label"] = (
+                patologia_vinculada["label"] if patologia_vinculada else ""
+            )
+            cuadrante["patologia_ref_actual"] = (
+                patologia_vinculada["value"] if patologia_vinculada else ""
+            )
+            cuadrante["tiene_patologia_vinculada"] = bool(patologia_vinculada)
+            cuadrante["gravedad_label"] = etiquetar_opcion(
+                cuadrante.get("gravedad", ""), GRAVEDAD_CUADRANTE_LABELS
+            )
+            cuadrante["foto_detalle_url"] = (
+                f"/uploads/{cuadrante['foto_detalle']}"
+                if cuadrante.get("foto_detalle")
+                else ""
+            )
+
+    return mapas
 
 
 @app.middleware("http")
@@ -1062,6 +2524,50 @@ async def buscar_direcciones_endpoint(
         return JSONResponse(content=[])
 
 
+@app.get("/api/catastro")
+async def api_catastro(
+    request: Request,
+    referencia_catastral: str = Query(""),
+):
+    get_current_user(request)
+
+    try:
+        datos_catastro = await consultar_catastro_por_referencia(referencia_catastral)
+        imagen_catastro = guardar_imagen_catastro_si_existe(
+            datos_catastro.pop("imagen_bytes", None),
+            datos_catastro.pop("imagen_extension", None),
+        )
+        aviso = datos_catastro.pop("aviso", "")
+
+        return JSONResponse(
+            {
+                "ok": True,
+                "datos": {
+                    **datos_catastro,
+                    "imagen_catastro": imagen_catastro,
+                    "imagen_catastro_url": (
+                        f"/uploads/{imagen_catastro}" if imagen_catastro else ""
+                    ),
+                },
+                "aviso": aviso,
+            }
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            {"ok": False, "error": str(exc)},
+            status_code=200,
+        )
+    except Exception as exc:
+        logger.error("[ERROR catastro] %s", exc)
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "No se pudo consultar Catastro. Puedes seguir rellenando el expediente manualmente.",
+            },
+            status_code=200,
+        )
+
+
 @app.get("/biblioteca-patologias", response_class=HTMLResponse)
 def biblioteca_patologias(request: Request):
     get_current_user(request)
@@ -1278,7 +2784,17 @@ def nuevo_expediente(request: Request):
 @app.post("/guardar-expediente")
 def guardar_expediente(
     request: Request,
+    tipo_informe: str = Form("patologias"),
+    destinatario: str = Form("particular"),
+    ambito_patologias: str = Form("interior"),
+    descripcion_dano: str = Form(""),
+    causa_probable: str = Form(""),
+    pruebas_indicios: str = Form(""),
+    evolucion_preexistencia: str = Form(""),
+    propuesta_reparacion: str = Form(""),
+    urgencia_gravedad: str = Form(""),
     cliente: str = Form(...),
+    referencia_catastral: str = Form(""),
     direccion: str = Form(...),
     codigo_postal: str = Form(""),
     ciudad: str = Form(""),
@@ -1301,6 +2817,14 @@ def guardar_expediente(
     reformado: str = Form("No"),
     fecha_reforma: str = Form(""),
     observaciones_reforma: str = Form(""),
+    procedimiento_judicial: str = Form(""),
+    juzgado: str = Form(""),
+    auto_judicial: str = Form(""),
+    parte_solicitante: str = Form(""),
+    objeto_pericia: str = Form(""),
+    alcance_limitaciones: str = Form(""),
+    metodologia_pericial: str = Form(""),
+    imagen_catastro: str = Form(""),
 ):
     current_user = get_current_user(request)
     expediente_id = None
@@ -1331,7 +2855,17 @@ def guardar_expediente(
                 """
                 INSERT INTO expedientes (
                     numero_expediente,
+                    tipo_informe,
+                    destinatario,
+                    ambito_patologias,
+                    descripcion_dano,
+                    causa_probable,
+                    pruebas_indicios,
+                    evolucion_preexistencia,
+                    propuesta_reparacion,
+                    urgencia_gravedad,
                     cliente,
+                    referencia_catastral,
                     direccion,
                     codigo_postal,
                     ciudad,
@@ -1354,13 +2888,31 @@ def guardar_expediente(
                     reformado,
                     fecha_reforma,
                     observaciones_reforma,
+                    procedimiento_judicial,
+                    juzgado,
+                    auto_judicial,
+                    parte_solicitante,
+                    objeto_pericia,
+                    alcance_limitaciones,
+                    metodologia_pericial,
+                    imagen_catastro,
                     owner_user_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     numero_expediente,
+                    tipo_informe,
+                    destinatario,
+                    ambito_patologias,
+                    descripcion_dano,
+                    causa_probable,
+                    pruebas_indicios,
+                    evolucion_preexistencia,
+                    propuesta_reparacion,
+                    urgencia_gravedad,
                     cliente,
+                    referencia_catastral,
                     direccion,
                     codigo_postal,
                     ciudad,
@@ -1383,6 +2935,14 @@ def guardar_expediente(
                     reformado,
                     fecha_reforma,
                     observaciones_reforma,
+                    procedimiento_judicial,
+                    juzgado,
+                    auto_judicial,
+                    parte_solicitante,
+                    objeto_pericia,
+                    alcance_limitaciones,
+                    metodologia_pericial,
+                    imagen_catastro,
                     current_user["id"],
                 ),
             )
@@ -1437,6 +2997,282 @@ def detalle_expediente(request: Request, expediente_id: int):
         (expediente_id,),
     ).fetchall()
 
+    tipo_informe = limpiar_texto(expediente["tipo_informe"])
+    estructura_multiunidad = cargar_estructura_multiunidad(cur, expediente_id)
+    visitas_data = []
+    resumen_tipo = {}
+
+    for visita in visitas:
+        visita_data = dict(visita)
+        visita_data["ambito_visita_label"] = etiquetar_opcion(
+            visita_data.get("ambito_visita", ""), AMBITO_VISITA_LABELS
+        )
+        visita_data["nombre_nivel_visita"] = ""
+        visita_data["identificador_unidad_visita"] = ""
+        if visita_data.get("nivel_id"):
+            nivel_row = cur.execute(
+                "SELECT nombre_nivel FROM niveles_edificio WHERE id=?",
+                (visita_data["nivel_id"],),
+            ).fetchone()
+            visita_data["nombre_nivel_visita"] = (
+                limpiar_texto(nivel_row["nombre_nivel"]) if nivel_row else ""
+            )
+        if visita_data.get("unidad_id"):
+            unidad_row = cur.execute(
+                "SELECT identificador FROM unidades_expediente WHERE id=?",
+                (visita_data["unidad_id"],),
+            ).fetchone()
+            visita_data["identificador_unidad_visita"] = (
+                limpiar_texto(unidad_row["identificador"]) if unidad_row else ""
+            )
+        if tipo_informe == "patologias":
+            visita_data["total_patologias_exteriores"] = cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM registros_patologias_exteriores
+                WHERE visita_id = ?
+                """,
+                (visita["id"],),
+            ).fetchone()[0]
+            visita_data["total_mapas_patologia"] = cur.execute(
+                "SELECT COUNT(*) FROM mapas_patologia WHERE visita_id=?",
+                (visita["id"],),
+            ).fetchone()[0]
+            visita_data["total_cuadrantes_con_incidencia"] = cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM cuadrantes_mapa_patologia qmp
+                JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+                WHERE mp.visita_id = ?
+                  AND TRIM(IFNULL(qmp.patologia_detectada, '')) <> ''
+                """,
+                (visita["id"],),
+            ).fetchone()[0]
+            visita_data["total_cuadrantes_vinculados"] = cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM cuadrantes_mapa_patologia qmp
+                JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+                WHERE mp.visita_id = ?
+                  AND qmp.patologia_id IS NOT NULL
+                """,
+                (visita["id"],),
+            ).fetchone()[0]
+        elif tipo_informe == "inspeccion":
+            visita_data["tiene_inspeccion_general"] = bool(
+                cur.execute(
+                    "SELECT 1 FROM inspeccion_general_visita WHERE visita_id=? LIMIT 1",
+                    (visita["id"],),
+                ).fetchone()
+            )
+            visita_data["total_estancias_inspeccion"] = cur.execute(
+                "SELECT COUNT(*) FROM inspeccion_estancias WHERE visita_id=?",
+                (visita["id"],),
+            ).fetchone()[0]
+        elif tipo_informe == "habitabilidad":
+            visita_data["tiene_habitabilidad_general"] = bool(
+                cur.execute(
+                    "SELECT 1 FROM habitabilidad_general_visita WHERE visita_id=? LIMIT 1",
+                    (visita["id"],),
+                ).fetchone()
+            )
+            visita_data["total_estancias_habitabilidad"] = cur.execute(
+                "SELECT COUNT(*) FROM habitabilidad_estancias WHERE visita_id=?",
+                (visita["id"],),
+            ).fetchone()[0]
+            conclusion_row = cur.execute(
+                """
+                SELECT conclusion_habitabilidad
+                FROM habitabilidad_general_visita
+                WHERE visita_id=?
+                LIMIT 1
+                """,
+                (visita["id"],),
+            ).fetchone()
+            visita_data["conclusion_habitabilidad"] = (
+                limpiar_texto(conclusion_row["conclusion_habitabilidad"])
+                if conclusion_row
+                else ""
+            )
+            visita_data["conclusion_habitabilidad_label"] = etiquetar_opcion(
+                visita_data["conclusion_habitabilidad"],
+                {
+                    "apto": "Apto",
+                    "apto_con_deficiencias": "Apto con deficiencias",
+                    "no_apto": "No apto",
+                },
+            )
+        elif tipo_informe == "valoracion":
+            visita_data["tiene_valoracion"] = bool(
+                cur.execute(
+                    "SELECT 1 FROM valoracion_visita WHERE visita_id=? LIMIT 1",
+                    (visita["id"],),
+                ).fetchone()
+            )
+            visita_data["total_comparables"] = cur.execute(
+                "SELECT COUNT(*) FROM comparables_valoracion WHERE visita_id=?",
+                (visita["id"],),
+            ).fetchone()[0]
+            valoracion_row = cur.execute(
+                """
+                SELECT valor_tasacion_final
+                FROM valoracion_visita
+                WHERE visita_id=?
+                LIMIT 1
+                """,
+                (visita["id"],),
+            ).fetchone()
+            visita_data["valor_tasacion_final"] = (
+                limpiar_texto(valoracion_row["valor_tasacion_final"])
+                if valoracion_row
+                else ""
+            )
+        visitas_data.append(visita_data)
+
+    if tipo_informe == "patologias":
+        resumen_tipo = {
+            "total_interiores": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM registros_patologias rp
+                JOIN visitas v ON rp.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "total_exteriores": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM registros_patologias_exteriores rpe
+                JOIN visitas v ON rpe.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+        }
+    elif tipo_informe == "inspeccion":
+        resumen_tipo = {
+            "visitas_con_checklist": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM inspeccion_general_visita ig
+                JOIN visitas v ON ig.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "estancias_inspeccionadas": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM inspeccion_estancias ie
+                JOIN visitas v ON ie.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "visitas_con_exterior": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM inspeccion_exterior ie
+                JOIN visitas v ON ie.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "visitas_con_comunes": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM inspeccion_elementos_comunes ic
+                JOIN visitas v ON ic.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+        }
+    elif tipo_informe == "habitabilidad":
+        ultima_habitabilidad = cur.execute(
+            """
+            SELECT hg.conclusion_habitabilidad
+            FROM habitabilidad_general_visita hg
+            JOIN visitas v ON hg.visita_id = v.id
+            WHERE v.expediente_id = ?
+            ORDER BY v.id DESC
+            LIMIT 1
+            """,
+            (expediente_id,),
+        ).fetchone()
+        resumen_tipo = {
+            "visitas_con_habitabilidad": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM habitabilidad_general_visita hg
+                JOIN visitas v ON hg.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "estancias_evaluadas": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM habitabilidad_estancias he
+                JOIN visitas v ON he.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "visitas_con_exterior": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM habitabilidad_exterior he
+                JOIN visitas v ON he.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "ultima_conclusion": (
+                limpiar_texto(ultima_habitabilidad["conclusion_habitabilidad"])
+                if ultima_habitabilidad
+                else ""
+            ),
+        }
+    elif tipo_informe == "valoracion":
+        ultima_valoracion = cur.execute(
+            """
+            SELECT vv.valor_tasacion_final
+            FROM valoracion_visita vv
+            JOIN visitas v ON vv.visita_id = v.id
+            WHERE v.expediente_id = ?
+            ORDER BY v.id DESC
+            LIMIT 1
+            """,
+            (expediente_id,),
+        ).fetchone()
+        resumen_tipo = {
+            "visitas_con_valoracion": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM valoracion_visita vv
+                JOIN visitas v ON vv.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "comparables": cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM comparables_valoracion cv
+                JOIN visitas v ON cv.visita_id = v.id
+                WHERE v.expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchone()[0],
+            "valor_tasacion_final": (
+                limpiar_texto(ultima_valoracion["valor_tasacion_final"])
+                if ultima_valoracion
+                else ""
+            ),
+        }
+
     conn.close()
 
     expediente_data = dict(expediente)
@@ -1444,13 +3280,65 @@ def detalle_expediente(request: Request, expediente_id: int):
         expediente_data.get("plantas_bajo_rasante"),
         expediente_data.get("plantas_sobre_baja"),
     )
+    expediente_data["tipo_informe_label"] = etiquetar_opcion(
+        expediente_data.get("tipo_informe", ""),
+        TIPO_INFORME_LABELS,
+    )
+    expediente_data["destinatario_label"] = etiquetar_opcion(
+        expediente_data.get("destinatario", ""),
+        DESTINATARIO_LABELS,
+    )
+    expediente_data["ambito_patologias_label"] = etiquetar_opcion(
+        expediente_data.get("ambito_patologias", ""),
+        AMBITO_PATOLOGIAS_LABELS,
+    )
+    expediente_data["es_judicial"] = (
+        limpiar_texto(expediente_data.get("destinatario")) == "judicial"
+    )
+    expediente_data["es_informe_patologias"] = (
+        limpiar_texto(expediente_data.get("tipo_informe")) == "patologias"
+    )
+    expediente_data["es_informe_inspeccion"] = (
+        limpiar_texto(expediente_data.get("tipo_informe")) == "inspeccion"
+    )
+    expediente_data["es_informe_habitabilidad"] = (
+        limpiar_texto(expediente_data.get("tipo_informe")) == "habitabilidad"
+    )
+    expediente_data["es_informe_valoracion"] = (
+        limpiar_texto(expediente_data.get("tipo_informe")) == "valoracion"
+    )
+    expediente_data["imagen_catastro_url"] = (
+        f"/uploads/{expediente_data['imagen_catastro']}"
+        if expediente_data.get("imagen_catastro")
+        else ""
+    )
+    expediente_data["ultima_conclusion_habitabilidad_label"] = etiquetar_opcion(
+        resumen_tipo.get("ultima_conclusion", ""),
+        {
+            "apto": "Apto",
+            "apto_con_deficiencias": "Apto con deficiencias",
+            "no_apto": "No apto",
+        },
+    )
 
     return render_template(
         request,
         "detalle_expediente.html",
         {
             "expediente": expediente_data,
-            "visitas": visitas,
+            "visitas": visitas_data,
+            "resumen_tipo": resumen_tipo,
+            "niveles_edificio": estructura_multiunidad["niveles"],
+            "unidades_expediente": estructura_multiunidad["unidades"],
+            "unidades_sin_nivel": estructura_multiunidad["sin_nivel"],
+            "anejos_sueltos": estructura_multiunidad["anejos_sueltos"],
+            "unidades_principales_form": estructura_multiunidad["unidades_principales"],
+            "tipo_nivel_options": TIPO_NIVEL_OPTIONS,
+            "tipo_unidad_options": TIPO_UNIDAD_OPTIONS,
+            "vinculo_unidad_options": VINCULO_UNIDAD_OPTIONS,
+            "tipo_anejo_options": TIPO_ANEJO_OPTIONS,
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
         },
     )
 
@@ -1482,7 +3370,17 @@ def actualizar_expediente(
     request: Request,
     expediente_id: int,
     numero_expediente: str = Form(...),
+    tipo_informe: str = Form("patologias"),
+    destinatario: str = Form("particular"),
+    ambito_patologias: str = Form("interior"),
+    descripcion_dano: str = Form(""),
+    causa_probable: str = Form(""),
+    pruebas_indicios: str = Form(""),
+    evolucion_preexistencia: str = Form(""),
+    propuesta_reparacion: str = Form(""),
+    urgencia_gravedad: str = Form(""),
     cliente: str = Form(...),
+    referencia_catastral: str = Form(""),
     direccion: str = Form(...),
     codigo_postal: str = Form(""),
     ciudad: str = Form(""),
@@ -1505,6 +3403,14 @@ def actualizar_expediente(
     reformado: str = Form("No"),
     fecha_reforma: str = Form(""),
     observaciones_reforma: str = Form(""),
+    procedimiento_judicial: str = Form(""),
+    juzgado: str = Form(""),
+    auto_judicial: str = Form(""),
+    parte_solicitante: str = Form(""),
+    objeto_pericia: str = Form(""),
+    alcance_limitaciones: str = Form(""),
+    metodologia_pericial: str = Form(""),
+    imagen_catastro: str = Form(""),
 ):
     current_user = get_current_user(request)
     conn = get_connection()
@@ -1528,7 +3434,17 @@ def actualizar_expediente(
         expediente_form = {
             "id": expediente_id,
             "numero_expediente": numero_expediente,
+            "tipo_informe": tipo_informe,
+            "destinatario": destinatario,
+            "ambito_patologias": ambito_patologias,
+            "descripcion_dano": descripcion_dano,
+            "causa_probable": causa_probable,
+            "pruebas_indicios": pruebas_indicios,
+            "evolucion_preexistencia": evolucion_preexistencia,
+            "propuesta_reparacion": propuesta_reparacion,
+            "urgencia_gravedad": urgencia_gravedad,
             "cliente": cliente,
+            "referencia_catastral": referencia_catastral,
             "direccion": direccion,
             "codigo_postal": codigo_postal,
             "ciudad": ciudad,
@@ -1551,6 +3467,14 @@ def actualizar_expediente(
             "reformado": reformado,
             "fecha_reforma": fecha_reforma,
             "observaciones_reforma": observaciones_reforma,
+            "procedimiento_judicial": procedimiento_judicial,
+            "juzgado": juzgado,
+            "auto_judicial": auto_judicial,
+            "parte_solicitante": parte_solicitante,
+            "objeto_pericia": objeto_pericia,
+            "alcance_limitaciones": alcance_limitaciones,
+            "metodologia_pericial": metodologia_pericial,
+            "imagen_catastro": imagen_catastro,
         }
         return render_template(
             request,
@@ -1566,7 +3490,17 @@ def actualizar_expediente(
 
     valores = {
         "numero_expediente": numero_expediente,
+        "tipo_informe": tipo_informe,
+        "destinatario": destinatario,
+        "ambito_patologias": ambito_patologias,
+        "descripcion_dano": descripcion_dano,
+        "causa_probable": causa_probable,
+        "pruebas_indicios": pruebas_indicios,
+        "evolucion_preexistencia": evolucion_preexistencia,
+        "propuesta_reparacion": propuesta_reparacion,
+        "urgencia_gravedad": urgencia_gravedad,
         "cliente": cliente,
+        "referencia_catastral": referencia_catastral,
         "direccion": direccion,
         "codigo_postal": codigo_postal,
         "ciudad": ciudad,
@@ -1589,6 +3523,14 @@ def actualizar_expediente(
         "reformado": reformado,
         "fecha_reforma": fecha_reforma,
         "observaciones_reforma": observaciones_reforma,
+        "procedimiento_judicial": procedimiento_judicial,
+        "juzgado": juzgado,
+        "auto_judicial": auto_judicial,
+        "parte_solicitante": parte_solicitante,
+        "objeto_pericia": objeto_pericia,
+        "alcance_limitaciones": alcance_limitaciones,
+        "metodologia_pericial": metodologia_pericial,
+        "imagen_catastro": imagen_catastro,
     }
 
     campos_actualizables = [campo for campo in valores.keys() if campo in columnas]
@@ -1609,11 +3551,465 @@ def actualizar_expediente(
         raise HTTPException(status_code=404, detail="Expediente no encontrado")
 
     conn.commit()
+    imagen_catastro_anterior = limpiar_texto(expediente_existente["imagen_catastro"])
+    imagen_catastro_nueva = limpiar_texto(imagen_catastro)
     conn.close()
+
+    if (
+        imagen_catastro_anterior
+        and imagen_catastro_anterior != imagen_catastro_nueva
+    ):
+        borrar_foto_si_existe(imagen_catastro_anterior)
 
     return RedirectResponse(
         url=f"/detalle-expediente/{expediente_id}",
         status_code=303,
+    )
+
+
+@app.post("/guardar-nivel-expediente/{expediente_id}")
+def guardar_nivel_expediente(
+    request: Request,
+    expediente_id: int,
+    nombre_nivel: str = Form(...),
+    orden_nivel: str = Form(""),
+    tipo_nivel: str = Form(""),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+    require_row(expediente, "Expediente no encontrado")
+
+    nombre_nivel = limpiar_texto(nombre_nivel)
+    if not nombre_nivel:
+        conn.close()
+        return redirect_detalle_expediente(
+            expediente_id, error="El nombre del nivel es obligatorio."
+        )
+
+    cur.execute(
+        """
+        INSERT INTO niveles_edificio (
+            expediente_id, nombre_nivel, orden_nivel, tipo_nivel, observaciones
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            expediente_id,
+            nombre_nivel,
+            parse_optional_int(orden_nivel),
+            limpiar_texto(tipo_nivel),
+            limpiar_texto(observaciones),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect_detalle_expediente(expediente_id, mensaje="Nivel guardado.")
+
+
+@app.get("/editar-nivel-expediente/{nivel_id}", response_class=HTMLResponse)
+def editar_nivel_expediente(request: Request, nivel_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    nivel = get_owned_nivel(cur, nivel_id, current_user["id"])
+    require_row(nivel, "Nivel no encontrado")
+    nivel_data = dict(nivel)
+
+    conn.close()
+    return render_template(
+        request,
+        "editar_nivel_expediente.html",
+        {
+            "nivel": nivel_data,
+            "tipo_nivel_options": TIPO_NIVEL_OPTIONS,
+        },
+    )
+
+
+@app.post("/actualizar-nivel-expediente/{nivel_id}")
+def actualizar_nivel_expediente(
+    request: Request,
+    nivel_id: int,
+    nombre_nivel: str = Form(...),
+    orden_nivel: str = Form(""),
+    tipo_nivel: str = Form(""),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    nivel = get_owned_nivel(cur, nivel_id, current_user["id"])
+    require_row(nivel, "Nivel no encontrado")
+
+    nombre_nivel = limpiar_texto(nombre_nivel)
+    if not nombre_nivel:
+        conn.close()
+        return render_template(
+            request,
+            "editar_nivel_expediente.html",
+            {
+                "error": "El nombre del nivel es obligatorio.",
+                "nivel": {
+                    "id": nivel_id,
+                    "expediente_id": nivel["expediente_id"],
+                    "nombre_nivel": nombre_nivel,
+                    "orden_nivel": orden_nivel,
+                    "tipo_nivel": tipo_nivel,
+                    "observaciones": observaciones,
+                },
+                "tipo_nivel_options": TIPO_NIVEL_OPTIONS,
+            },
+        )
+
+    cur.execute(
+        """
+        UPDATE niveles_edificio
+        SET nombre_nivel=?, orden_nivel=?, tipo_nivel=?, observaciones=?
+        WHERE id=?
+        """,
+        (
+            nombre_nivel,
+            parse_optional_int(orden_nivel),
+            limpiar_texto(tipo_nivel),
+            limpiar_texto(observaciones),
+            nivel_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect_detalle_expediente(
+        nivel["expediente_id"], mensaje="Nivel actualizado."
+    )
+
+
+@app.post("/borrar-nivel-expediente/{nivel_id}")
+def borrar_nivel_expediente(request: Request, nivel_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    nivel = get_owned_nivel(cur, nivel_id, current_user["id"])
+    require_row(nivel, "Nivel no encontrado")
+
+    cur.execute("UPDATE unidades_expediente SET nivel_id=NULL WHERE nivel_id=?", (nivel_id,))
+    cur.execute("DELETE FROM niveles_edificio WHERE id=?", (nivel_id,))
+    conn.commit()
+    conn.close()
+    return redirect_detalle_expediente(
+        nivel["expediente_id"], mensaje="Nivel eliminado."
+    )
+
+
+@app.post("/guardar-unidad-expediente/{expediente_id}")
+def guardar_unidad_expediente(
+    request: Request,
+    expediente_id: int,
+    nivel_id: str = Form(""),
+    identificador: str = Form(...),
+    tipo_unidad: str = Form("vivienda"),
+    uso: str = Form(""),
+    superficie: str = Form(""),
+    referencia_catastral_unidad: str = Form(""),
+    vinculo_unidad: str = Form("principal"),
+    unidad_principal_id: str = Form(""),
+    tipo_anejo: str = Form(""),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+    require_row(expediente, "Expediente no encontrado")
+
+    identificador = limpiar_texto(identificador)
+    if not identificador:
+        conn.close()
+        return redirect_detalle_expediente(
+            expediente_id, error="El identificador de la unidad es obligatorio."
+        )
+
+    nivel_id_int = parse_optional_int(nivel_id)
+    if nivel_id_int:
+        nivel = get_owned_nivel(cur, nivel_id_int, current_user["id"])
+        if not nivel or nivel["expediente_id"] != expediente_id:
+            conn.close()
+            return redirect_detalle_expediente(
+                expediente_id, error="El nivel seleccionado no es válido."
+            )
+
+    vinculo_limpio = limpiar_texto(vinculo_unidad) or "principal"
+    principal_id_int = parse_optional_int(unidad_principal_id)
+    tipo_anejo_limpio = limpiar_texto(tipo_anejo)
+    es_principal = 0 if vinculo_limpio == "anejo" else 1
+
+    if vinculo_limpio == "anejo":
+        principal = (
+            get_owned_unidad(cur, principal_id_int, current_user["id"])
+            if principal_id_int
+            else None
+        )
+        if (
+            not principal
+            or principal["expediente_id"] != expediente_id
+            or limpiar_texto(principal["vinculo_unidad"]) not in {"", "principal"}
+            or int(principal["es_principal"] or 0) == 0
+        ):
+            conn.close()
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Debes seleccionar una unidad principal válida para el anejo.",
+            )
+    else:
+        principal_id_int = None
+        tipo_anejo_limpio = ""
+
+    cur.execute(
+        """
+        INSERT INTO unidades_expediente (
+            expediente_id,
+            nivel_id,
+            identificador,
+            tipo_unidad,
+            uso,
+            superficie,
+            referencia_catastral_unidad,
+            es_principal,
+            unidad_principal_id,
+            tipo_anejo,
+            vinculo_unidad,
+            observaciones
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            expediente_id,
+            nivel_id_int,
+            identificador,
+            limpiar_texto(tipo_unidad),
+            limpiar_texto(uso),
+            limpiar_texto(superficie),
+            limpiar_texto(referencia_catastral_unidad),
+            es_principal,
+            principal_id_int,
+            tipo_anejo_limpio,
+            vinculo_limpio,
+            limpiar_texto(observaciones),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect_detalle_expediente(expediente_id, mensaje="Unidad guardada.")
+
+
+@app.get("/editar-unidad-expediente/{unidad_id}", response_class=HTMLResponse)
+def editar_unidad_expediente(request: Request, unidad_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    unidad = get_owned_unidad(cur, unidad_id, current_user["id"])
+    require_row(unidad, "Unidad no encontrada")
+    estructura = cargar_estructura_multiunidad(cur, unidad["expediente_id"])
+    niveles = estructura["niveles"]
+    unidades_principales = [
+        item for item in estructura["unidades_principales"] if item["id"] != unidad_id
+    ]
+
+    conn.close()
+    return render_template(
+        request,
+        "editar_unidad_expediente.html",
+        {
+            "unidad": dict(unidad),
+            "niveles_edificio": niveles,
+            "unidades_principales_form": unidades_principales,
+            "tipo_unidad_options": TIPO_UNIDAD_OPTIONS,
+            "vinculo_unidad_options": VINCULO_UNIDAD_OPTIONS,
+            "tipo_anejo_options": TIPO_ANEJO_OPTIONS,
+        },
+    )
+
+
+@app.post("/actualizar-unidad-expediente/{unidad_id}")
+def actualizar_unidad_expediente(
+    request: Request,
+    unidad_id: int,
+    nivel_id: str = Form(""),
+    identificador: str = Form(...),
+    tipo_unidad: str = Form("vivienda"),
+    uso: str = Form(""),
+    superficie: str = Form(""),
+    referencia_catastral_unidad: str = Form(""),
+    vinculo_unidad: str = Form("principal"),
+    unidad_principal_id: str = Form(""),
+    tipo_anejo: str = Form(""),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    unidad = get_owned_unidad(cur, unidad_id, current_user["id"])
+    require_row(unidad, "Unidad no encontrada")
+
+    expediente_id = unidad["expediente_id"]
+    identificador = limpiar_texto(identificador)
+    nivel_id_int = parse_optional_int(nivel_id)
+    principal_id_int = parse_optional_int(unidad_principal_id)
+    vinculo_limpio = limpiar_texto(vinculo_unidad) or "principal"
+    tipo_anejo_limpio = limpiar_texto(tipo_anejo)
+
+    if not identificador:
+        estructura = cargar_estructura_multiunidad(cur, expediente_id)
+        conn.close()
+        return render_template(
+            request,
+            "editar_unidad_expediente.html",
+            {
+                "error": "El identificador de la unidad es obligatorio.",
+                "unidad": {
+                    "id": unidad_id,
+                    "expediente_id": expediente_id,
+                    "nivel_id": nivel_id_int,
+                    "identificador": identificador,
+                    "tipo_unidad": tipo_unidad,
+                    "uso": uso,
+                    "superficie": superficie,
+                    "referencia_catastral_unidad": referencia_catastral_unidad,
+                    "vinculo_unidad": vinculo_limpio,
+                    "unidad_principal_id": principal_id_int,
+                    "tipo_anejo": tipo_anejo_limpio,
+                    "observaciones": observaciones,
+                },
+                "niveles_edificio": estructura["niveles"],
+                "unidades_principales_form": [
+                    item
+                    for item in estructura["unidades_principales"]
+                    if item["id"] != unidad_id
+                ],
+                "tipo_unidad_options": TIPO_UNIDAD_OPTIONS,
+                "vinculo_unidad_options": VINCULO_UNIDAD_OPTIONS,
+                "tipo_anejo_options": TIPO_ANEJO_OPTIONS,
+            },
+        )
+
+    if nivel_id_int:
+        nivel = get_owned_nivel(cur, nivel_id_int, current_user["id"])
+        if not nivel or nivel["expediente_id"] != expediente_id:
+            conn.close()
+            return redirect_detalle_expediente(
+                expediente_id, error="El nivel seleccionado no es válido."
+            )
+
+    anejos_existentes = cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM unidades_expediente
+        WHERE unidad_principal_id=?
+        """,
+        (unidad_id,),
+    ).fetchone()[0]
+    es_principal = 0 if vinculo_limpio == "anejo" else 1
+    if anejos_existentes and vinculo_limpio != "principal":
+        conn.close()
+        return redirect_detalle_expediente(
+            expediente_id,
+            error="No se puede cambiar el vínculo de una unidad principal que tiene anejos asociados.",
+        )
+    if vinculo_limpio == "anejo":
+        principal = (
+            get_owned_unidad(cur, principal_id_int, current_user["id"])
+            if principal_id_int
+            else None
+        )
+        if (
+            not principal
+            or principal["expediente_id"] != expediente_id
+            or principal["id"] == unidad_id
+            or limpiar_texto(principal["vinculo_unidad"]) not in {"", "principal"}
+            or int(principal["es_principal"] or 0) == 0
+        ):
+            conn.close()
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Debes seleccionar una unidad principal válida para el anejo.",
+            )
+    else:
+        principal_id_int = None
+        tipo_anejo_limpio = ""
+
+    cur.execute(
+        """
+        UPDATE unidades_expediente
+        SET nivel_id=?,
+            identificador=?,
+            tipo_unidad=?,
+            uso=?,
+            superficie=?,
+            referencia_catastral_unidad=?,
+            es_principal=?,
+            unidad_principal_id=?,
+            tipo_anejo=?,
+            vinculo_unidad=?,
+            observaciones=?
+        WHERE id=?
+        """,
+        (
+            nivel_id_int,
+            identificador,
+            limpiar_texto(tipo_unidad),
+            limpiar_texto(uso),
+            limpiar_texto(superficie),
+            limpiar_texto(referencia_catastral_unidad),
+            es_principal,
+            principal_id_int,
+            tipo_anejo_limpio,
+            vinculo_limpio,
+            limpiar_texto(observaciones),
+            unidad_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect_detalle_expediente(expediente_id, mensaje="Unidad actualizada.")
+
+
+@app.post("/borrar-unidad-expediente/{unidad_id}")
+def borrar_unidad_expediente(request: Request, unidad_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    unidad = get_owned_unidad(cur, unidad_id, current_user["id"])
+    require_row(unidad, "Unidad no encontrada")
+
+    anejos = cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM unidades_expediente
+        WHERE unidad_principal_id=?
+        """,
+        (unidad_id,),
+    ).fetchone()[0]
+    if anejos:
+        conn.close()
+        return redirect_detalle_expediente(
+            unidad["expediente_id"],
+            error="No se puede borrar una unidad principal con anejos asociados.",
+        )
+
+    cur.execute("DELETE FROM unidades_expediente WHERE id=?", (unidad_id,))
+    conn.commit()
+    conn.close()
+    return redirect_detalle_expediente(
+        unidad["expediente_id"], mensaje="Unidad eliminada."
     )
 
 
@@ -1641,6 +4037,21 @@ def nueva_visita(
     visita = None
     clima = None
     clima_detalle = []
+    estancias = []
+    inspeccion = {
+        "general": {},
+        "exterior": {},
+        "comunes": {},
+        "estancias": [],
+    }
+    habitabilidad = {
+        "general": {},
+        "exterior": {},
+        "estancias": [],
+    }
+    valoracion = {}
+    comparables_valoracion = []
+    opciones_visita_multiunidad = cargar_opciones_visita_multiunidad(cur, expediente_id)
     if visita_id:
         visita = get_owned_visita(cur, visita_id, current_user["id"])
         require_row(visita, "Visita no encontrada")
@@ -1648,6 +4059,25 @@ def nueva_visita(
             conn.close()
             raise HTTPException(status_code=404, detail="Visita no encontrada")
         clima, clima_detalle = obtener_climatologia_guardada(cur, visita_id)
+        estancias = cur.execute(
+            "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
+            (visita_id,),
+        ).fetchall()
+        if limpiar_texto(expediente["tipo_informe"]) == "inspeccion":
+            inspeccion = cargar_datos_inspeccion_visita(cur, visita_id, estancias)
+        if limpiar_texto(expediente["tipo_informe"]) == "habitabilidad":
+            habitabilidad = cargar_datos_habitabilidad_visita(cur, visita_id, estancias)
+        if limpiar_texto(expediente["tipo_informe"]) == "valoracion":
+            valoracion = cargar_datos_valoracion_visita(cur, visita_id)
+            comparables_valoracion = cur.execute(
+                """
+                SELECT *
+                FROM comparables_valoracion
+                WHERE visita_id=?
+                ORDER BY id DESC
+                """,
+                (visita_id,),
+            ).fetchall()
 
     conn.close()
 
@@ -1661,6 +4091,11 @@ def nueva_visita(
             or current_user["username"]
         ),
         "observaciones_visita": visita["observaciones_visita"] if visita else "",
+        "ambito_visita": (
+            limpiar_texto(visita["ambito_visita"]) if visita else "edificio_completo"
+        ),
+        "nivel_id": str(visita["nivel_id"] or "") if visita else "",
+        "unidad_id": str(visita["unidad_id"] or "") if visita else "",
     }
 
     return render_template(
@@ -1673,18 +4108,67 @@ def nueva_visita(
             "clima": clima,
             "clima_detalle": clima_detalle,
             "clima_error": clima_error,
+            "es_informe_inspeccion": limpiar_texto(expediente["tipo_informe"]) == "inspeccion",
+            "es_informe_habitabilidad": limpiar_texto(expediente["tipo_informe"]) == "habitabilidad",
+            "es_informe_valoracion": limpiar_texto(expediente["tipo_informe"]) == "valoracion",
+            "estados_inspeccion": ESTADO_INSPECCION_OPTIONS,
+            "inspeccion_general_groups": INSPECCION_GENERAL_GROUPS,
+            "inspeccion_exterior_items": INSPECCION_EXTERIOR_ITEMS,
+            "inspeccion_elementos_comunes_items": INSPECCION_ELEMENTOS_COMUNES_ITEMS,
+            "inspeccion": inspeccion,
+            "estados_habitabilidad": ESTADO_HABITABILIDAD_OPTIONS,
+            "conclusiones_habitabilidad": CONCLUSION_HABITABILIDAD_OPTIONS,
+            "habitabilidad_general_items": HABITABILIDAD_GENERAL_ITEMS,
+            "habitabilidad_estancia_items": HABITABILIDAD_ESTANCIA_ITEMS,
+            "habitabilidad_exterior_items": HABITABILIDAD_EXTERIOR_ITEMS,
+            "habitabilidad": habitabilidad,
+            "valoracion_encargo_items": VALORACION_ENCARGO_ITEMS,
+            "valoracion_documentacion_items": VALORACION_DOCUMENTACION_ITEMS,
+            "valoracion_datos_generales_items": VALORACION_DATOS_GENERALES_ITEMS,
+            "valoracion_superficies_items": VALORACION_SUPERFICIES_ITEMS,
+            "valoracion_situacion_legal_items": VALORACION_SITUACION_LEGAL_ITEMS,
+            "valoracion_entorno_items": VALORACION_ENTORNO_ITEMS,
+            "valoracion_edificio_items": VALORACION_EDIFICIO_ITEMS,
+            "valoracion_inmueble_items": VALORACION_INMUEBLE_ITEMS,
+            "valoracion_constructivo_items": VALORACION_CONSTRUCTIVO_ITEMS,
+            "valoracion_estado_items": VALORACION_ESTADO_ITEMS,
+            "valoracion_fechas_items": VALORACION_FECHAS_ITEMS,
+            "valoracion_metodo_items": VALORACION_METODO_ITEMS,
+            "valoracion_resultado_items": VALORACION_RESULTADO_ITEMS,
+            "valoracion": valoracion,
+            "comparables_valoracion_items": COMPARABLE_VALORACION_ITEMS,
+            "comparables_valoracion": comparables_valoracion,
+            "comparable_form": comparable_valoracion_form_vacio(),
+            "objeto_visita_label": (
+                describir_objeto_visita(visita)
+                if visita
+                else resolver_objeto_visita_label(
+                    visita_form["ambito_visita"],
+                    visita_form["nivel_id"],
+                    visita_form["unidad_id"],
+                    opciones_visita_multiunidad,
+                )
+            ),
+            "ambito_visita_options": AMBITO_VISITA_OPTIONS,
+            "niveles_visita_options": opciones_visita_multiunidad["niveles"],
+            "unidades_visita_options": opciones_visita_multiunidad["unidades_generales"],
+            "zonas_comunes_visita_options": opciones_visita_multiunidad["unidades_comunes"],
+            "exteriores_visita_options": opciones_visita_multiunidad["unidades_exteriores"],
         },
     )
 
 
 @app.post("/guardar-visita/{expediente_id}")
-def guardar_visita(
+async def guardar_visita(
     request: Request,
     expediente_id: int,
     visita_id: int | None = Form(None),
     fecha: str = Form(...),
     tecnico: str = Form(...),
     observaciones_visita: str = Form(""),
+    ambito_visita: str = Form("edificio_completo"),
+    nivel_id: str = Form(""),
+    unidad_id: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -1697,6 +4181,113 @@ def guardar_visita(
     fecha_limpia = limpiar_texto(fecha) or datetime.now().strftime("%Y-%m-%d")
     tecnico_limpio = limpiar_texto(tecnico) or current_user["username"]
     observaciones_limpias = observaciones_visita or ""
+    try:
+        ambito_visita_limpio, nivel_id_int, unidad_id_int = validar_asociacion_visita(
+            cur,
+            expediente_id,
+            current_user["id"],
+            ambito_visita,
+            nivel_id,
+            unidad_id,
+        )
+    except ValueError as exc:
+        opciones_visita_multiunidad = cargar_opciones_visita_multiunidad(cur, expediente_id)
+        visita = None
+        clima = None
+        clima_detalle = []
+        estancias = []
+        inspeccion = {"general": {}, "exterior": {}, "comunes": {}, "estancias": []}
+        habitabilidad = {"general": {}, "exterior": {}, "estancias": []}
+        valoracion = {}
+        comparables_valoracion = []
+        if visita_id:
+            visita = get_owned_visita(cur, visita_id, current_user["id"])
+            require_row(visita, "Visita no encontrada")
+            clima, clima_detalle = obtener_climatologia_guardada(cur, visita_id)
+            estancias = cur.execute(
+                "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
+                (visita_id,),
+            ).fetchall()
+            tipo_informe = limpiar_texto(expediente["tipo_informe"])
+            if tipo_informe == "inspeccion":
+                inspeccion = cargar_datos_inspeccion_visita(cur, visita_id, estancias)
+            if tipo_informe == "habitabilidad":
+                habitabilidad = cargar_datos_habitabilidad_visita(cur, visita_id, estancias)
+            if tipo_informe == "valoracion":
+                valoracion = cargar_datos_valoracion_visita(cur, visita_id)
+                comparables_valoracion = cur.execute(
+                    """
+                    SELECT *
+                    FROM comparables_valoracion
+                    WHERE visita_id=?
+                    ORDER BY id DESC
+                    """,
+                    (visita_id,),
+                ).fetchall()
+        conn.close()
+        return render_template(
+            request,
+            "nueva_visita.html",
+            {
+                "error": str(exc),
+                "expediente": expediente,
+                "visita": visita,
+                "visita_form": {
+                    "id": visita_id or "",
+                    "fecha": fecha_limpia,
+                    "tecnico": tecnico_limpio,
+                    "observaciones_visita": observaciones_limpias,
+                    "ambito_visita": limpiar_texto(ambito_visita) or "edificio_completo",
+                    "nivel_id": nivel_id,
+                    "unidad_id": unidad_id,
+                },
+                "clima": clima,
+                "clima_detalle": clima_detalle,
+                "clima_error": "",
+                "es_informe_inspeccion": limpiar_texto(expediente["tipo_informe"]) == "inspeccion",
+                "es_informe_habitabilidad": limpiar_texto(expediente["tipo_informe"]) == "habitabilidad",
+                "es_informe_valoracion": limpiar_texto(expediente["tipo_informe"]) == "valoracion",
+                "estados_inspeccion": ESTADO_INSPECCION_OPTIONS,
+                "inspeccion_general_groups": INSPECCION_GENERAL_GROUPS,
+                "inspeccion_exterior_items": INSPECCION_EXTERIOR_ITEMS,
+                "inspeccion_elementos_comunes_items": INSPECCION_ELEMENTOS_COMUNES_ITEMS,
+                "inspeccion": inspeccion,
+                "estados_habitabilidad": ESTADO_HABITABILIDAD_OPTIONS,
+                "conclusiones_habitabilidad": CONCLUSION_HABITABILIDAD_OPTIONS,
+                "habitabilidad_general_items": HABITABILIDAD_GENERAL_ITEMS,
+                "habitabilidad_estancia_items": HABITABILIDAD_ESTANCIA_ITEMS,
+                "habitabilidad_exterior_items": HABITABILIDAD_EXTERIOR_ITEMS,
+                "habitabilidad": habitabilidad,
+                "valoracion_encargo_items": VALORACION_ENCARGO_ITEMS,
+                "valoracion_documentacion_items": VALORACION_DOCUMENTACION_ITEMS,
+                "valoracion_datos_generales_items": VALORACION_DATOS_GENERALES_ITEMS,
+                "valoracion_superficies_items": VALORACION_SUPERFICIES_ITEMS,
+                "valoracion_situacion_legal_items": VALORACION_SITUACION_LEGAL_ITEMS,
+                "valoracion_entorno_items": VALORACION_ENTORNO_ITEMS,
+                "valoracion_edificio_items": VALORACION_EDIFICIO_ITEMS,
+                "valoracion_inmueble_items": VALORACION_INMUEBLE_ITEMS,
+                "valoracion_constructivo_items": VALORACION_CONSTRUCTIVO_ITEMS,
+                "valoracion_estado_items": VALORACION_ESTADO_ITEMS,
+                "valoracion_fechas_items": VALORACION_FECHAS_ITEMS,
+                "valoracion_metodo_items": VALORACION_METODO_ITEMS,
+                "valoracion_resultado_items": VALORACION_RESULTADO_ITEMS,
+                "valoracion": valoracion,
+                "comparables_valoracion_items": COMPARABLE_VALORACION_ITEMS,
+                "comparables_valoracion": comparables_valoracion,
+                "comparable_form": comparable_valoracion_form_vacio(),
+                "objeto_visita_label": resolver_objeto_visita_label(
+                    limpiar_texto(ambito_visita) or "edificio_completo",
+                    nivel_id,
+                    unidad_id,
+                    opciones_visita_multiunidad,
+                ),
+                "ambito_visita_options": AMBITO_VISITA_OPTIONS,
+                "niveles_visita_options": opciones_visita_multiunidad["niveles"],
+                "unidades_visita_options": opciones_visita_multiunidad["unidades_generales"],
+                "zonas_comunes_visita_options": opciones_visita_multiunidad["unidades_comunes"],
+                "exteriores_visita_options": opciones_visita_multiunidad["unidades_exteriores"],
+            },
+        )
 
     if visita_id:
         visita = get_owned_visita(cur, visita_id, current_user["id"])
@@ -1707,10 +4298,18 @@ def guardar_visita(
         cur.execute(
             """
             UPDATE visitas
-            SET fecha=?, tecnico=?, observaciones_visita=?
+            SET fecha=?, tecnico=?, observaciones_visita=?, ambito_visita=?, nivel_id=?, unidad_id=?
             WHERE id=?
             """,
-            (fecha_limpia, tecnico_limpio, observaciones_limpias, visita_id),
+            (
+                fecha_limpia,
+                tecnico_limpio,
+                observaciones_limpias,
+                ambito_visita_limpio,
+                nivel_id_int,
+                unidad_id_int,
+                visita_id,
+            ),
         )
     else:
         visita_id, _ = crear_visita_si_no_existe(
@@ -1720,10 +4319,33 @@ def guardar_visita(
             fecha_limpia,
             tecnico_limpio,
             observaciones_limpias,
+            ambito_visita_limpio,
+            nivel_id_int,
+            unidad_id_int,
         )
+
+    tipo_informe = limpiar_texto(expediente["tipo_informe"])
+    if tipo_informe in {"inspeccion", "habitabilidad", "valoracion"}:
+        form = await request.form()
+        estancias = cur.execute(
+            "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
+            (visita_id,),
+        ).fetchall()
+        if tipo_informe == "inspeccion":
+            await guardar_datos_inspeccion_desde_form(cur, visita_id, estancias, form)
+        elif tipo_informe == "habitabilidad":
+            await guardar_datos_habitabilidad_desde_form(cur, visita_id, estancias, form)
+        else:
+            await guardar_datos_valoracion_desde_form(cur, visita_id, form)
 
     conn.commit()
     conn.close()
+
+    if tipo_informe in {"inspeccion", "habitabilidad", "valoracion"}:
+        return RedirectResponse(
+            url=f"/nueva-visita/{expediente_id}?visita_id={visita_id}",
+            status_code=303,
+        )
 
     return RedirectResponse(
         url=f"/definir-estancias/{visita_id}",
@@ -1740,23 +4362,52 @@ def editar_visita(request: Request, visita_id: int):
 
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
+    opciones_visita_multiunidad = cargar_opciones_visita_multiunidad(
+        cur, visita["expediente_id"]
+    )
 
     conn.close()
+
+    if limpiar_texto(visita["tipo_informe"]) in {"inspeccion", "habitabilidad", "valoracion"}:
+        return RedirectResponse(
+            url=f"/nueva-visita/{visita['expediente_id']}?visita_id={visita_id}",
+            status_code=303,
+        )
 
     return render_template(
         request,
         "editar_visita.html",
-        {"visita": visita},
+        {
+            "visita": visita,
+            "ambito_visita_options": AMBITO_VISITA_OPTIONS,
+            "niveles_visita_options": opciones_visita_multiunidad["niveles"],
+            "unidades_visita_options": opciones_visita_multiunidad["unidades_generales"],
+            "zonas_comunes_visita_options": opciones_visita_multiunidad["unidades_comunes"],
+            "exteriores_visita_options": opciones_visita_multiunidad["unidades_exteriores"],
+        },
     )
 
 
-@app.post("/actualizar-visita/{visita_id}")
-def actualizar_visita(
+@app.post("/guardar-comparable-valoracion")
+def guardar_comparable_valoracion(
     request: Request,
-    visita_id: int,
-    fecha: str = Form(...),
-    tecnico: str = Form(...),
-    observaciones_visita: str = Form(""),
+    visita_id: int = Form(...),
+    direccion_testigo: str = Form(""),
+    fuente_testigo: str = Form(""),
+    fecha_testigo: str = Form(""),
+    precio_oferta: str = Form(""),
+    valor_unitario: str = Form(""),
+    superficie_construida: str = Form(""),
+    superficie_util: str = Form(""),
+    tipologia: str = Form(""),
+    planta: str = Form(""),
+    dormitorios: str = Form(""),
+    banos: str = Form(""),
+    estado_conservacion: str = Form(""),
+    antiguedad: str = Form(""),
+    calidad_constructiva: str = Form(""),
+    visitado: str = Form(""),
+    observaciones: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -1768,11 +4419,227 @@ def actualizar_visita(
 
     cur.execute(
         """
-        UPDATE visitas
-        SET fecha=?, tecnico=?, observaciones_visita=?
+        INSERT INTO comparables_valoracion (
+            visita_id, direccion_testigo, fuente_testigo, fecha_testigo,
+            precio_oferta, valor_unitario, superficie_construida, superficie_util,
+            tipologia, planta, dormitorios, banos, estado_conservacion,
+            antiguedad, calidad_constructiva, visitado, observaciones
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            visita_id,
+            direccion_testigo,
+            fuente_testigo,
+            fecha_testigo,
+            precio_oferta,
+            valor_unitario,
+            superficie_construida,
+            superficie_util,
+            tipologia,
+            planta,
+            dormitorios,
+            banos,
+            estado_conservacion,
+            antiguedad,
+            calidad_constructiva,
+            visitado,
+            observaciones,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/nueva-visita/{visita['expediente_id']}?visita_id={visita_id}",
+        status_code=303,
+    )
+
+
+@app.get("/editar-comparable-valoracion/{comparable_id}", response_class=HTMLResponse)
+def editar_comparable_valoracion(request: Request, comparable_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    comparable = get_owned_comparable_valoracion(cur, comparable_id, current_user["id"])
+    require_row(comparable, "Comparable no encontrado")
+
+    conn.close()
+
+    return render_template(
+        request,
+        "editar_comparable_valoracion.html",
+        {
+            "comparable": comparable,
+            "comparables_valoracion_items": COMPARABLE_VALORACION_ITEMS,
+        },
+    )
+
+
+@app.post("/actualizar-comparable-valoracion/{comparable_id}")
+def actualizar_comparable_valoracion(
+    request: Request,
+    comparable_id: int,
+    direccion_testigo: str = Form(""),
+    fuente_testigo: str = Form(""),
+    fecha_testigo: str = Form(""),
+    precio_oferta: str = Form(""),
+    valor_unitario: str = Form(""),
+    superficie_construida: str = Form(""),
+    superficie_util: str = Form(""),
+    tipologia: str = Form(""),
+    planta: str = Form(""),
+    dormitorios: str = Form(""),
+    banos: str = Form(""),
+    estado_conservacion: str = Form(""),
+    antiguedad: str = Form(""),
+    calidad_constructiva: str = Form(""),
+    visitado: str = Form(""),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    comparable = get_owned_comparable_valoracion(cur, comparable_id, current_user["id"])
+    require_row(comparable, "Comparable no encontrado")
+
+    cur.execute(
+        """
+        UPDATE comparables_valoracion
+        SET direccion_testigo=?, fuente_testigo=?, fecha_testigo=?, precio_oferta=?,
+            valor_unitario=?, superficie_construida=?, superficie_util=?, tipologia=?,
+            planta=?, dormitorios=?, banos=?, estado_conservacion=?, antiguedad=?,
+            calidad_constructiva=?, visitado=?, observaciones=?
         WHERE id=?
         """,
-        (fecha, tecnico, observaciones_visita, visita_id),
+        (
+            direccion_testigo,
+            fuente_testigo,
+            fecha_testigo,
+            precio_oferta,
+            valor_unitario,
+            superficie_construida,
+            superficie_util,
+            tipologia,
+            planta,
+            dormitorios,
+            banos,
+            estado_conservacion,
+            antiguedad,
+            calidad_constructiva,
+            visitado,
+            observaciones,
+            comparable_id,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/nueva-visita/{comparable['expediente_id']}?visita_id={comparable['visita_id']}",
+        status_code=303,
+    )
+
+
+@app.post("/borrar-comparable-valoracion/{comparable_id}")
+def borrar_comparable_valoracion(request: Request, comparable_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    comparable = get_owned_comparable_valoracion(cur, comparable_id, current_user["id"])
+    require_row(comparable, "Comparable no encontrado")
+
+    cur.execute("DELETE FROM comparables_valoracion WHERE id=?", (comparable_id,))
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/nueva-visita/{comparable['expediente_id']}?visita_id={comparable['visita_id']}",
+        status_code=303,
+    )
+
+
+@app.post("/actualizar-visita/{visita_id}")
+def actualizar_visita(
+    request: Request,
+    visita_id: int,
+    fecha: str = Form(...),
+    tecnico: str = Form(...),
+    observaciones_visita: str = Form(""),
+    ambito_visita: str = Form("edificio_completo"),
+    nivel_id: str = Form(""),
+    unidad_id: str = Form(""),
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    visita = get_owned_visita(cur, visita_id, current_user["id"])
+    require_row(visita, "Visita no encontrada")
+    try:
+        ambito_visita_limpio, nivel_id_int, unidad_id_int = validar_asociacion_visita(
+            cur,
+            visita["expediente_id"],
+            current_user["id"],
+            ambito_visita,
+            nivel_id,
+            unidad_id,
+        )
+    except ValueError as exc:
+        opciones_visita_multiunidad = cargar_opciones_visita_multiunidad(
+            cur, visita["expediente_id"]
+        )
+        visita_data = dict(visita)
+        visita_data.update(
+            {
+                "fecha": fecha,
+                "tecnico": tecnico,
+                "observaciones_visita": observaciones_visita,
+                "ambito_visita": limpiar_texto(ambito_visita) or "edificio_completo",
+                "nivel_id": parse_optional_int(nivel_id),
+                "unidad_id": parse_optional_int(unidad_id),
+            }
+        )
+        conn.close()
+        return render_template(
+            request,
+            "editar_visita.html",
+            {
+                "error": str(exc),
+                "visita": visita_data,
+                "ambito_visita_options": AMBITO_VISITA_OPTIONS,
+                "niveles_visita_options": opciones_visita_multiunidad["niveles"],
+                "unidades_visita_options": opciones_visita_multiunidad["unidades_generales"],
+                "zonas_comunes_visita_options": opciones_visita_multiunidad["unidades_comunes"],
+                "exteriores_visita_options": opciones_visita_multiunidad["unidades_exteriores"],
+            },
+        )
+
+    cur.execute(
+        """
+        UPDATE visitas
+        SET fecha=?, tecnico=?, observaciones_visita=?, ambito_visita=?, nivel_id=?, unidad_id=?
+        WHERE id=?
+        """,
+        (
+            fecha,
+            tecnico,
+            observaciones_visita,
+            ambito_visita_limpio,
+            nivel_id_int,
+            unidad_id_int,
+            visita_id,
+        ),
     )
 
     conn.commit()
@@ -1821,6 +4688,7 @@ def definir_estancias(request: Request, visita_id: int):
             "estancias": estancias,
             "dormitorios_sugeridos": dormitorios_sugeridos,
             "banos_sugeridos": banos_sugeridos,
+            "objeto_visita_label": describir_objeto_visita(visita),
         },
     )
 
@@ -1843,6 +4711,7 @@ def generar_estancias_base(
 
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
+    unidad_id_estancia = visita["unidad_id"] if visita["unidad_id"] else None
 
     existentes = cur.execute(
         """
@@ -1868,11 +4737,12 @@ def generar_estancias_base(
                     acabado_pavimento,
                     acabado_paramento,
                     acabado_techo,
-                    observaciones
+                    observaciones,
+                    unidad_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Salón", "Salón", "", "", "", "", "", ""),
+                (visita_id, "Salón", "Salón", "", "", "", "", "", "", unidad_id_estancia),
             )
 
         if incluir_cocina == "si":
@@ -1887,11 +4757,12 @@ def generar_estancias_base(
                     acabado_pavimento,
                     acabado_paramento,
                     acabado_techo,
-                    observaciones
+                    observaciones,
+                    unidad_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Cocina", "Cocina", "", "", "", "", "", ""),
+                (visita_id, "Cocina", "Cocina", "", "", "", "", "", "", unidad_id_estancia),
             )
 
         if incluir_pasillo == "si":
@@ -1906,11 +4777,12 @@ def generar_estancias_base(
                     acabado_pavimento,
                     acabado_paramento,
                     acabado_techo,
-                    observaciones
+                    observaciones,
+                    unidad_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Pasillo", "Pasillo", "", "", "", "", "", ""),
+                (visita_id, "Pasillo", "Pasillo", "", "", "", "", "", "", unidad_id_estancia),
             )
 
         if incluir_terraza == "si":
@@ -1925,11 +4797,12 @@ def generar_estancias_base(
                     acabado_pavimento,
                     acabado_paramento,
                     acabado_techo,
-                    observaciones
+                    observaciones,
+                    unidad_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, "Terraza", "Terraza", "", "", "", "", "", ""),
+                (visita_id, "Terraza", "Terraza", "", "", "", "", "", "", unidad_id_estancia),
             )
 
         for i in range(1, num_dormitorios + 1):
@@ -1944,11 +4817,23 @@ def generar_estancias_base(
                     acabado_pavimento,
                     acabado_paramento,
                     acabado_techo,
-                    observaciones
+                    observaciones,
+                    unidad_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, f"Dormitorio {i}", "Dormitorio", "", "", "", "", "", ""),
+                (
+                    visita_id,
+                    f"Dormitorio {i}",
+                    "Dormitorio",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    unidad_id_estancia,
+                ),
             )
 
         for i in range(1, num_banos + 1):
@@ -1963,11 +4848,23 @@ def generar_estancias_base(
                     acabado_pavimento,
                     acabado_paramento,
                     acabado_techo,
-                    observaciones
+                    observaciones,
+                    unidad_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (visita_id, f"Baño {i}", "Baño", "", "", "", "", "", ""),
+                (
+                    visita_id,
+                    f"Baño {i}",
+                    "Baño",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    unidad_id_estancia,
+                ),
             )
 
     conn.commit()
@@ -1999,6 +4896,13 @@ def guardar_estancia(
 
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
+    unidad_id_estancia = None
+    if visita["unidad_id"]:
+        unidad = get_owned_unidad(cur, visita["unidad_id"], current_user["id"])
+        if not unidad or unidad["expediente_id"] != visita["expediente_id"]:
+            conn.close()
+            raise HTTPException(status_code=400, detail="La unidad asociada a la visita no es válida.")
+        unidad_id_estancia = visita["unidad_id"]
 
     cur.execute(
         """
@@ -2012,9 +4916,10 @@ def guardar_estancia(
             acabado_pavimento,
             acabado_paramento,
             acabado_techo,
-            observaciones
+            observaciones,
+            unidad_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             visita_id,
@@ -2026,6 +4931,7 @@ def guardar_estancia(
             limpiar_texto(acabado_paramento),
             limpiar_texto(acabado_techo),
             observaciones,
+            unidad_id_estancia,
         ),
     )
     nueva_estancia_id = cur.lastrowid
@@ -2421,12 +5327,24 @@ def registrar_patologias(request: Request, visita_id: int):
         """,
         (visita_id,),
     ).fetchall()
+    registros_exteriores = cur.execute(
+        """
+        SELECT *
+        FROM registros_patologias_exteriores
+        WHERE visita_id=?
+        ORDER BY id DESC
+        """,
+        (visita_id,),
+    ).fetchall()
 
     clima, clima_detalle = obtener_climatologia_guardada(cur, visita_id)
 
     patologias = cur.execute(
         "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
     ).fetchall()
+    mapas_patologia = preparar_mapas_patologia(cur, visita_id)
+
+    objeto_visita_label = describir_objeto_visita(visita)
 
     conn.close()
 
@@ -2437,10 +5355,549 @@ def registrar_patologias(request: Request, visita_id: int):
             "visita": visita,
             "estancias": estancias,
             "registros": registros,
+            "registros_exteriores": registros_exteriores,
             "clima": clima,
             "clima_detalle": clima_detalle,
             "patologias": patologias,
+            "objeto_visita_label": objeto_visita_label,
+            "mapas_patologia": mapas_patologia,
+            "ambito_mapa_options": AMBITO_MAPA_OPTIONS,
+            "gravedad_cuadrante_labels": GRAVEDAD_CUADRANTE_LABELS,
         },
+    )
+
+
+@app.post("/guardar-mapa-patologia")
+def guardar_mapa_patologia(
+    request: Request,
+    visita_id: int = Form(...),
+    titulo: str = Form(...),
+    descripcion: str = Form(""),
+    ambito_mapa: str = Form(""),
+    filas: int = Form(4),
+    columnas: int = Form(4),
+    imagen_base: UploadFile | None = File(None),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    visita = get_owned_visita(cur, visita_id, current_user["id"])
+    require_row(visita, "Visita no encontrada")
+
+    titulo_limpio = limpiar_texto(titulo)
+    if not titulo_limpio:
+        conn.close()
+        raise HTTPException(status_code=400, detail="El título del mapa es obligatorio")
+    filas_seguras = max(int(filas or 0), 1)
+    columnas_seguras = max(int(columnas or 0), 1)
+    nombre_imagen = guardar_upload_si_existe(imagen_base)
+
+    cur.execute(
+        """
+        INSERT INTO mapas_patologia (
+            visita_id, titulo, descripcion, ambito_mapa, filas, columnas, imagen_base, observaciones
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            visita_id,
+            titulo_limpio,
+            limpiar_texto(descripcion),
+            limpiar_texto(ambito_mapa) or limpiar_texto(visita["ambito_visita"]),
+            filas_seguras,
+            columnas_seguras,
+            nombre_imagen,
+            limpiar_texto(observaciones),
+        ),
+    )
+    mapa_id = cur.lastrowid
+    generar_cuadrantes_mapa(cur, mapa_id, filas_seguras, columnas_seguras)
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url=f"/registrar-patologias/{visita_id}", status_code=303)
+
+
+@app.get("/editar-mapa-patologia/{mapa_id}", response_class=HTMLResponse)
+def editar_mapa_patologia(request: Request, mapa_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    mapa = get_owned_mapa_patologia(cur, mapa_id, current_user["id"])
+    require_row(mapa, "Mapa no encontrado")
+    cuadrantes = cur.execute(
+        """
+        SELECT *
+        FROM cuadrantes_mapa_patologia
+        WHERE mapa_id=?
+        ORDER BY id ASC
+        """,
+        (mapa_id,),
+    ).fetchall()
+    objeto_visita_label = describir_objeto_visita(mapa)
+    conn.close()
+
+    return render_template(
+        request,
+        "editar_mapa_patologia.html",
+        {
+            "mapa": mapa,
+            "cuadrantes": cuadrantes,
+            "ambito_mapa_options": AMBITO_MAPA_OPTIONS,
+            "objeto_visita_label": objeto_visita_label,
+        },
+    )
+
+
+@app.post("/actualizar-mapa-patologia/{mapa_id}")
+def actualizar_mapa_patologia(
+    request: Request,
+    mapa_id: int,
+    titulo: str = Form(...),
+    descripcion: str = Form(""),
+    ambito_mapa: str = Form(""),
+    filas: int = Form(4),
+    columnas: int = Form(4),
+    observaciones: str = Form(""),
+    eliminar_imagen_base_actual: str = Form("no"),
+    imagen_base: UploadFile | None = File(None),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    mapa = get_owned_mapa_patologia(cur, mapa_id, current_user["id"])
+    require_row(mapa, "Mapa no encontrado")
+
+    titulo_limpio = limpiar_texto(titulo)
+    if not titulo_limpio:
+        conn.close()
+        return render_template(
+            request,
+            "editar_mapa_patologia.html",
+            {
+                "error": "El título del mapa es obligatorio.",
+                "mapa": {
+                    **dict(mapa),
+                    "titulo": titulo_limpio,
+                    "descripcion": descripcion,
+                    "ambito_mapa": ambito_mapa,
+                    "filas": filas,
+                    "columnas": columnas,
+                    "observaciones": observaciones,
+                },
+                "cuadrantes": cur.execute(
+                    "SELECT * FROM cuadrantes_mapa_patologia WHERE mapa_id=? ORDER BY id ASC",
+                    (mapa_id,),
+                ).fetchall(),
+                "ambito_mapa_options": AMBITO_MAPA_OPTIONS,
+                "objeto_visita_label": describir_objeto_visita(mapa),
+            },
+            status_code=400,
+        )
+    filas_seguras = max(int(filas or 0), 1)
+    columnas_seguras = max(int(columnas or 0), 1)
+    imagen_base_actual = mapa["imagen_base"]
+
+    total_cuadrantes_contenido = cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM cuadrantes_mapa_patologia
+        WHERE mapa_id=?
+          AND (
+              TRIM(IFNULL(descripcion, '')) <> ''
+              OR TRIM(IFNULL(patologia_detectada, '')) <> ''
+              OR TRIM(IFNULL(gravedad, '')) <> ''
+              OR TRIM(IFNULL(foto_detalle, '')) <> ''
+              OR TRIM(IFNULL(observaciones, '')) <> ''
+          )
+        """,
+        (mapa_id,),
+    ).fetchone()[0]
+
+    if (filas_seguras != mapa["filas"] or columnas_seguras != mapa["columnas"]) and total_cuadrantes_contenido:
+        conn.close()
+        return render_template(
+            request,
+            "editar_mapa_patologia.html",
+            {
+                "error": "No se pueden cambiar filas o columnas cuando ya hay cuadrantes con contenido.",
+                "mapa": {
+                    **dict(mapa),
+                    "titulo": titulo_limpio,
+                    "descripcion": descripcion,
+                    "ambito_mapa": ambito_mapa,
+                    "filas": filas_seguras,
+                    "columnas": columnas_seguras,
+                    "observaciones": observaciones,
+                },
+                "cuadrantes": cur.execute(
+                    "SELECT * FROM cuadrantes_mapa_patologia WHERE mapa_id=? ORDER BY id ASC",
+                    (mapa_id,),
+                ).fetchall(),
+                "ambito_mapa_options": AMBITO_MAPA_OPTIONS,
+                "objeto_visita_label": describir_objeto_visita(mapa),
+            },
+            status_code=400,
+        )
+
+    if eliminar_imagen_base_actual == "si" and imagen_base_actual:
+        borrar_foto_si_existe(imagen_base_actual)
+        imagen_base_actual = None
+
+    nueva_imagen = guardar_upload_si_existe(imagen_base)
+    if nueva_imagen:
+        if imagen_base_actual:
+            borrar_foto_si_existe(imagen_base_actual)
+        imagen_base_actual = nueva_imagen
+
+    cur.execute(
+        """
+        UPDATE mapas_patologia
+        SET titulo=?, descripcion=?, ambito_mapa=?, filas=?, columnas=?, imagen_base=?, observaciones=?
+        WHERE id=?
+        """,
+        (
+            titulo_limpio,
+            limpiar_texto(descripcion),
+            limpiar_texto(ambito_mapa),
+            filas_seguras,
+            columnas_seguras,
+            imagen_base_actual,
+            limpiar_texto(observaciones),
+            mapa_id,
+        ),
+    )
+
+    if filas_seguras != mapa["filas"] or columnas_seguras != mapa["columnas"]:
+        cur.execute("DELETE FROM cuadrantes_mapa_patologia WHERE mapa_id=?", (mapa_id,))
+        generar_cuadrantes_mapa(cur, mapa_id, filas_seguras, columnas_seguras)
+
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/registrar-patologias/{mapa['visita_id']}",
+        status_code=303,
+    )
+
+
+@app.post("/borrar-mapa-patologia/{mapa_id}")
+def borrar_mapa_patologia(request: Request, mapa_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    mapa = get_owned_mapa_patologia(cur, mapa_id, current_user["id"])
+    require_row(mapa, "Mapa no encontrado")
+
+    if mapa["imagen_base"]:
+        borrar_foto_si_existe(mapa["imagen_base"])
+
+    fotos_cuadrantes = cur.execute(
+        """
+        SELECT foto_detalle
+        FROM cuadrantes_mapa_patologia
+        WHERE mapa_id=? AND foto_detalle IS NOT NULL AND foto_detalle <> ''
+        """,
+        (mapa_id,),
+    ).fetchall()
+    for foto in fotos_cuadrantes:
+        borrar_foto_si_existe(foto["foto_detalle"])
+
+    cur.execute("DELETE FROM cuadrantes_mapa_patologia WHERE mapa_id=?", (mapa_id,))
+    cur.execute("DELETE FROM mapas_patologia WHERE id=?", (mapa_id,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/registrar-patologias/{mapa['visita_id']}",
+        status_code=303,
+    )
+
+
+@app.get(
+    "/editar-cuadrante-mapa-patologia/{cuadrante_id}",
+    response_class=HTMLResponse,
+)
+def editar_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
+    require_row(cuadrante, "Cuadrante no encontrado")
+    mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
+    require_row(mapa, "Mapa no encontrado")
+    patologias_vinculables, candidatos_por_id = obtener_registros_patologia_vinculables(
+        cur, mapa["visita_id"]
+    )
+    patologia_vinculada = resolver_patologia_vinculada(
+        candidatos_por_id,
+        cuadrante["patologia_id"],
+        cuadrante["patologia_detectada"],
+    )
+    objeto_visita_label = describir_objeto_visita(mapa)
+    conn.close()
+
+    return render_template(
+        request,
+        "editar_cuadrante_mapa_patologia.html",
+        {
+            "cuadrante": cuadrante,
+            "mapa": mapa,
+            "gravedad_cuadrante_options": GRAVEDAD_CUADRANTE_OPTIONS,
+            "patologias_vinculables": patologias_vinculables,
+            "patologia_ref_actual": patologia_vinculada["value"] if patologia_vinculada else "",
+            "objeto_visita_label": objeto_visita_label,
+        },
+    )
+
+
+@app.post("/actualizar-cuadrante-mapa-patologia/{cuadrante_id}")
+def actualizar_cuadrante_mapa_patologia(
+    request: Request,
+    cuadrante_id: int,
+    descripcion: str = Form(""),
+    patologia_detectada: str = Form(""),
+    patologia_ref: str = Form(""),
+    gravedad: str = Form(""),
+    observaciones: str = Form(""),
+    eliminar_foto_detalle_actual: str = Form("no"),
+    foto_detalle: UploadFile | None = File(None),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
+    require_row(cuadrante, "Cuadrante no encontrado")
+    mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
+    require_row(mapa, "Mapa no encontrado")
+    nombre_foto = cuadrante["foto_detalle"]
+
+    patologia_id = None
+    patologia_detectada_limpia = limpiar_texto(patologia_detectada)
+    patologia_ref_limpia = limpiar_texto(patologia_ref)
+    if patologia_ref_limpia:
+        _, candidatos_por_id = obtener_registros_patologia_vinculables(cur, mapa["visita_id"])
+        try:
+            _, patologia_id_texto = patologia_ref_limpia.split(":", 1)
+            patologia_id = int(patologia_id_texto)
+        except (ValueError, AttributeError):
+            conn.close()
+            raise HTTPException(status_code=400, detail="Patología vinculada no válida")
+        patologia_vinculada = resolver_patologia_vinculada(
+            candidatos_por_id,
+            patologia_id,
+            "",
+        )
+        if not patologia_vinculada or patologia_vinculada["value"] != patologia_ref_limpia:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Patología vinculada no válida")
+        if not patologia_detectada_limpia:
+            patologia_detectada_limpia = patologia_vinculada["patologia"]
+
+    if eliminar_foto_detalle_actual == "si" and nombre_foto:
+        borrar_foto_si_existe(nombre_foto)
+        nombre_foto = None
+
+    nueva_foto = guardar_upload_si_existe(foto_detalle)
+    if nueva_foto:
+        if nombre_foto:
+            borrar_foto_si_existe(nombre_foto)
+        nombre_foto = nueva_foto
+
+    cur.execute(
+        """
+        UPDATE cuadrantes_mapa_patologia
+        SET descripcion=?, patologia_detectada=?, patologia_id=?, gravedad=?, foto_detalle=?, observaciones=?
+        WHERE id=?
+        """,
+        (
+            limpiar_texto(descripcion),
+            patologia_detectada_limpia,
+            patologia_id,
+            limpiar_texto(gravedad),
+            nombre_foto,
+            limpiar_texto(observaciones),
+            cuadrante_id,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/registrar-patologias/{cuadrante['visita_id']}",
+        status_code=303,
+    )
+
+
+@app.get(
+    "/crear-patologia-desde-cuadrante/{cuadrante_id}",
+    response_class=HTMLResponse,
+)
+def crear_patologia_desde_cuadrante(request: Request, cuadrante_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
+    require_row(cuadrante, "Cuadrante no encontrado")
+    mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
+    require_row(mapa, "Mapa no encontrado")
+    visita = get_owned_visita(cur, mapa["visita_id"], current_user["id"])
+    require_row(visita, "Visita no encontrada")
+    es_exterior = mapa_patologia_es_exterior(visita, mapa)
+    estancias = []
+    if not es_exterior:
+        estancias = cur.execute(
+            "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
+            (visita["id"],),
+        ).fetchall()
+    patologias = cur.execute(
+        "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
+    ).fetchall()
+    objeto_visita_label = describir_objeto_visita(visita)
+    conn.close()
+
+    return render_template(
+        request,
+        "crear_patologia_desde_cuadrante.html",
+        {
+            "cuadrante": cuadrante,
+            "mapa": mapa,
+            "visita": visita,
+            "estancias": estancias,
+            "patologias": patologias,
+            "objeto_visita_label": objeto_visita_label,
+            "modo_patologia": "exterior" if es_exterior else "interior",
+        },
+    )
+
+
+@app.post("/crear-patologia-desde-cuadrante/{cuadrante_id}")
+def guardar_patologia_desde_cuadrante(
+    request: Request,
+    cuadrante_id: int,
+    estancia_id: int | None = Form(None),
+    elemento: str = Form(""),
+    localizacion_dano: str = Form(""),
+    zona_exterior: str = Form(""),
+    elemento_exterior: str = Form(""),
+    localizacion_dano_exterior: str = Form(""),
+    patologia: str = Form(...),
+    observaciones: str = Form(""),
+    foto: UploadFile | None = File(None),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
+    require_row(cuadrante, "Cuadrante no encontrado")
+    mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
+    require_row(mapa, "Mapa no encontrado")
+    visita = get_owned_visita(cur, mapa["visita_id"], current_user["id"])
+    require_row(visita, "Visita no encontrada")
+
+    nombre_foto = guardar_upload_si_existe(foto)
+    es_exterior = mapa_patologia_es_exterior(visita, mapa)
+    patologia_limpia = limpiar_texto(patologia)
+    observaciones_base = limpiar_texto(cuadrante["descripcion"])
+    observaciones_limpias = limpiar_texto(observaciones)
+    if observaciones_base and observaciones_limpias:
+        observaciones_limpias = f"{observaciones_base}\n{observaciones_limpias}"
+    elif observaciones_base and not observaciones_limpias:
+        observaciones_limpias = observaciones_base
+
+    if es_exterior:
+        cur.execute(
+            """
+            INSERT INTO registros_patologias_exteriores (
+                visita_id,
+                zona_exterior,
+                elemento_exterior,
+                localizacion_dano_exterior,
+                patologia,
+                observaciones,
+                foto
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                visita["id"],
+                limpiar_texto(zona_exterior),
+                limpiar_texto(elemento_exterior),
+                limpiar_texto(localizacion_dano_exterior) or cuadrante["codigo_cuadrante"],
+                patologia_limpia,
+                observaciones_limpias,
+                nombre_foto,
+            ),
+        )
+        nuevo_registro_id = cur.lastrowid
+    else:
+        if not estancia_id:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Debes seleccionar una estancia")
+        validar_estancia_para_visita(cur, visita, estancia_id)
+        cur.execute(
+            """
+            INSERT INTO registros_patologias
+            (visita_id, estancia_id, elemento, localizacion_dano, patologia, observaciones, foto)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                visita["id"],
+                estancia_id,
+                limpiar_texto(elemento),
+                limpiar_texto(localizacion_dano) or cuadrante["codigo_cuadrante"],
+                patologia_limpia,
+                observaciones_limpias,
+                nombre_foto,
+            ),
+        )
+        nuevo_registro_id = cur.lastrowid
+
+    cur.execute(
+        """
+        UPDATE cuadrantes_mapa_patologia
+        SET patologia_id=?, patologia_detectada=?
+        WHERE id=?
+        """,
+        (nuevo_registro_id, patologia_limpia, cuadrante_id),
+    )
+
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/editar-cuadrante-mapa-patologia/{cuadrante_id}",
+        status_code=303,
+    )
+
+
+@app.post("/borrar-cuadrante-mapa-patologia/{cuadrante_id}")
+def borrar_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
+    require_row(cuadrante, "Cuadrante no encontrado")
+
+    if cuadrante["foto_detalle"]:
+        borrar_foto_si_existe(cuadrante["foto_detalle"])
+
+    cur.execute(
+        "DELETE FROM cuadrantes_mapa_patologia WHERE id=?",
+        (cuadrante_id,),
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/registrar-patologias/{cuadrante['visita_id']}",
+        status_code=303,
     )
 
 
@@ -2450,6 +5907,7 @@ def guardar_registro(
     visita_id: int = Form(...),
     estancia_id: int = Form(...),
     elemento: str = Form(...),
+    localizacion_dano: str = Form(""),
     patologia: str = Form(...),
     observaciones: str = Form(""),
     foto: UploadFile | None = File(None),
@@ -2462,11 +5920,7 @@ def guardar_registro(
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
 
-    estancia = cur.execute(
-        "SELECT id FROM estancias WHERE id=? AND visita_id=?",
-        (estancia_id, visita_id),
-    ).fetchone()
-    require_row(estancia, "Estancia no encontrada")
+    validar_estancia_para_visita(cur, visita, estancia_id)
 
     nombre_foto = None
 
@@ -2481,10 +5935,18 @@ def guardar_registro(
     cur.execute(
         """
         INSERT INTO registros_patologias
-        (visita_id, estancia_id, elemento, patologia, observaciones, foto)
-        VALUES (?, ?, ?, ?, ?, ?)
+        (visita_id, estancia_id, elemento, localizacion_dano, patologia, observaciones, foto)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (visita_id, estancia_id, elemento, patologia, observaciones, nombre_foto),
+        (
+            visita_id,
+            estancia_id,
+            elemento,
+            localizacion_dano,
+            patologia,
+            observaciones,
+            nombre_foto,
+        ),
     )
 
     conn.commit()
@@ -2515,6 +5977,8 @@ def editar_registro(request: Request, registro_id: int):
         "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
     ).fetchall()
 
+    objeto_visita_label = describir_objeto_visita(registro)
+
     conn.close()
 
     return render_template(
@@ -2524,6 +5988,7 @@ def editar_registro(request: Request, registro_id: int):
             "registro": registro,
             "estancias": estancias,
             "patologias": patologias,
+            "objeto_visita_label": objeto_visita_label,
         },
     )
 
@@ -2534,6 +5999,7 @@ def actualizar_registro(
     registro_id: int,
     estancia_id: int = Form(...),
     elemento: str = Form(...),
+    localizacion_dano: str = Form(""),
     patologia: str = Form(...),
     observaciones: str = Form(""),
     eliminar_foto_actual: str = Form("no"),
@@ -2550,11 +6016,9 @@ def actualizar_registro(
     visita_id = registro["visita_id"]
     nombre_foto = registro["foto"]
 
-    estancia = cur.execute(
-        "SELECT id FROM estancias WHERE id=? AND visita_id=?",
-        (estancia_id, visita_id),
-    ).fetchone()
-    require_row(estancia, "Estancia no encontrada")
+    visita = get_owned_visita(cur, visita_id, current_user["id"])
+    require_row(visita, "Visita no encontrada")
+    validar_estancia_para_visita(cur, visita, estancia_id)
 
     if eliminar_foto_actual == "si" and nombre_foto:
         borrar_foto_si_existe(nombre_foto)
@@ -2574,10 +6038,190 @@ def actualizar_registro(
     cur.execute(
         """
         UPDATE registros_patologias
-        SET estancia_id=?, elemento=?, patologia=?, observaciones=?, foto=?
+        SET estancia_id=?, elemento=?, localizacion_dano=?, patologia=?, observaciones=?, foto=?
         WHERE id=?
         """,
-        (estancia_id, elemento, patologia, observaciones, nombre_foto, registro_id),
+        (
+            estancia_id,
+            elemento,
+            localizacion_dano,
+            patologia,
+            observaciones,
+            nombre_foto,
+            registro_id,
+        ),
+    )
+    cur.execute(
+        """
+        UPDATE cuadrantes_mapa_patologia
+        SET patologia_detectada=?
+        WHERE patologia_id=?
+          AND mapa_id IN (SELECT id FROM mapas_patologia WHERE visita_id=?)
+        """,
+        (patologia, registro_id, visita_id),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/registrar-patologias/{visita_id}",
+        status_code=303,
+    )
+
+
+@app.post("/guardar-registro-exterior")
+def guardar_registro_exterior(
+    request: Request,
+    visita_id: int = Form(...),
+    zona_exterior: str = Form(""),
+    elemento_exterior: str = Form(""),
+    localizacion_dano_exterior: str = Form(""),
+    patologia: str = Form(...),
+    observaciones: str = Form(""),
+    foto: UploadFile | None = File(None),
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    visita = get_owned_visita(cur, visita_id, current_user["id"])
+    require_row(visita, "Visita no encontrada")
+
+    nombre_foto = None
+    if foto and foto.filename:
+        extension = os.path.splitext(foto.filename)[1].lower()
+        nombre_foto = f"{uuid4().hex}{extension}"
+        ruta_destino = UPLOAD_PATH / nombre_foto
+
+        with ruta_destino.open("wb") as buffer:
+            shutil.copyfileobj(foto.file, buffer)
+
+    cur.execute(
+        """
+        INSERT INTO registros_patologias_exteriores (
+            visita_id,
+            zona_exterior,
+            elemento_exterior,
+            localizacion_dano_exterior,
+            patologia,
+            observaciones,
+            foto
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            visita_id,
+            zona_exterior,
+            elemento_exterior,
+            localizacion_dano_exterior,
+            patologia,
+            observaciones,
+            nombre_foto,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/registrar-patologias/{visita_id}",
+        status_code=303,
+    )
+
+
+@app.get("/editar-registro-exterior/{registro_id}", response_class=HTMLResponse)
+def editar_registro_exterior(request: Request, registro_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    registro = get_owned_registro_exterior(cur, registro_id, current_user["id"])
+    require_row(registro, "Registro exterior no encontrado")
+
+    patologias = cur.execute(
+        "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
+    ).fetchall()
+
+    objeto_visita_label = describir_objeto_visita(registro)
+
+    conn.close()
+
+    return render_template(
+        request,
+        "editar_registro_exterior.html",
+        {
+            "registro": registro,
+            "patologias": patologias,
+            "objeto_visita_label": objeto_visita_label,
+        },
+    )
+
+
+@app.post("/actualizar-registro-exterior/{registro_id}")
+def actualizar_registro_exterior(
+    request: Request,
+    registro_id: int,
+    zona_exterior: str = Form(""),
+    elemento_exterior: str = Form(""),
+    localizacion_dano_exterior: str = Form(""),
+    patologia: str = Form(...),
+    observaciones: str = Form(""),
+    eliminar_foto_actual: str = Form("no"),
+    foto: UploadFile | None = File(None),
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    registro = get_owned_registro_exterior(cur, registro_id, current_user["id"])
+    require_row(registro, "Registro exterior no encontrado")
+
+    visita_id = registro["visita_id"]
+    nombre_foto = registro["foto"]
+
+    if eliminar_foto_actual == "si" and nombre_foto:
+        borrar_foto_si_existe(nombre_foto)
+        nombre_foto = None
+
+    if foto and foto.filename:
+        if nombre_foto:
+            borrar_foto_si_existe(nombre_foto)
+
+        extension = os.path.splitext(foto.filename)[1].lower()
+        nombre_foto = f"{uuid4().hex}{extension}"
+        ruta_destino = UPLOAD_PATH / nombre_foto
+
+        with ruta_destino.open("wb") as buffer:
+            shutil.copyfileobj(foto.file, buffer)
+
+    cur.execute(
+        """
+        UPDATE registros_patologias_exteriores
+        SET zona_exterior=?, elemento_exterior=?, localizacion_dano_exterior=?, patologia=?, observaciones=?, foto=?
+        WHERE id=?
+        """,
+        (
+            zona_exterior,
+            elemento_exterior,
+            localizacion_dano_exterior,
+            patologia,
+            observaciones,
+            nombre_foto,
+            registro_id,
+        ),
+    )
+    cur.execute(
+        """
+        UPDATE cuadrantes_mapa_patologia
+        SET patologia_detectada=?
+        WHERE patologia_id=?
+          AND mapa_id IN (SELECT id FROM mapas_patologia WHERE visita_id=?)
+        """,
+        (patologia, registro_id, visita_id),
     )
 
     conn.commit()
@@ -2602,7 +6246,60 @@ def borrar_registro(request: Request, registro_id: int):
     if registro["foto"]:
         borrar_foto_si_existe(registro["foto"])
 
+    cur.execute(
+        """
+        UPDATE cuadrantes_mapa_patologia
+        SET patologia_id=NULL
+        WHERE patologia_id=?
+          AND mapa_id IN (SELECT id FROM mapas_patologia WHERE visita_id=?)
+          AND (
+              TRIM(IFNULL(patologia_detectada, '')) = ''
+              OR TRIM(IFNULL(patologia_detectada, '')) = ?
+          )
+        """,
+        (registro_id, registro["visita_id"], registro["patologia"]),
+    )
     cur.execute("DELETE FROM registros_patologias WHERE id=?", (registro_id,))
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/registrar-patologias/{registro['visita_id']}",
+        status_code=303,
+    )
+
+
+@app.post("/borrar-registro-exterior/{registro_id}")
+def borrar_registro_exterior(request: Request, registro_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    registro = get_owned_registro_exterior(cur, registro_id, current_user["id"])
+    require_row(registro, "Registro exterior no encontrado")
+
+    if registro["foto"]:
+        borrar_foto_si_existe(registro["foto"])
+
+    cur.execute(
+        """
+        UPDATE cuadrantes_mapa_patologia
+        SET patologia_id=NULL
+        WHERE patologia_id=?
+          AND mapa_id IN (SELECT id FROM mapas_patologia WHERE visita_id=?)
+          AND (
+              TRIM(IFNULL(patologia_detectada, '')) = ''
+              OR TRIM(IFNULL(patologia_detectada, '')) = ?
+          )
+        """,
+        (registro_id, registro["visita_id"], registro["patologia"]),
+    )
+    cur.execute(
+        "DELETE FROM registros_patologias_exteriores WHERE id=?",
+        (registro_id,),
+    )
 
     conn.commit()
     conn.close()

@@ -28,6 +28,9 @@
 
         <div class="actions">
             <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+            {% if visita_form.id %}
+            <a class="boton secundario" href="/definir-estancias/{{ visita_form.id }}">Ver estancias</a>
+            {% endif %}
         </div>
 
         <div class="card">
@@ -44,6 +47,12 @@
             <p class="error" id="clima-error-text">{{ clima_error or '' }}</p>
         </div>
 
+        {% if error %}
+        <div class="card">
+            <p class="error">{{ error }}</p>
+        </div>
+        {% endif %}
+
         <div class="card">
             <form id="visita-form" method="post" action="/guardar-visita/{{ expediente.id }}">
                 <input type="hidden" name="visita_id" value="{{ visita_form.id }}">
@@ -57,6 +66,56 @@
 
                 <label for="tecnico">Técnico</label>
                 <input type="text" id="tecnico" name="tecnico" value="{{ visita_form.tecnico }}" required>
+
+                <div class="section-divider"></div>
+
+                <h2>Ámbito de la visita</h2>
+                <label for="ambito_visita">Ámbito</label>
+                <select id="ambito_visita" name="ambito_visita">
+                    {% for valor, etiqueta in ambito_visita_options %}
+                    <option value="{{ valor }}" {% if (visita_form.ambito_visita or 'edificio_completo') == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <div id="bloque_nivel_visita" {% if visita_form.ambito_visita != 'nivel' %}hidden{% endif %}>
+                    <label for="nivel_id_visita">Nivel / planta</label>
+                    <select id="nivel_id_visita" name="nivel_id">
+                        <option value="">Selecciona un nivel</option>
+                        {% for nivel in niveles_visita_options %}
+                        <option value="{{ nivel.id }}" {% if visita_form.nivel_id|string == nivel.id|string %}selected{% endif %}>{{ nivel.nombre_nivel }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="bloque_unidad_visita" {% if visita_form.ambito_visita != 'unidad' %}hidden{% endif %}>
+                    <label for="unidad_id_visita">Unidad</label>
+                    <select id="unidad_id_visita" name="unidad_id">
+                        <option value="">Selecciona una unidad</option>
+                        {% for unidad in unidades_visita_options %}
+                        <option value="{{ unidad.id }}" {% if visita_form.unidad_id|string == unidad.id|string %}selected{% endif %}>{{ unidad.identificador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="bloque_zona_comun_visita" {% if visita_form.ambito_visita != 'zona_comun' %}hidden{% endif %}>
+                    <label for="unidad_id_zona_comun_visita">Zona común</label>
+                    <select id="unidad_id_zona_comun_visita" name="unidad_id_zona_comun">
+                        <option value="">Selecciona una zona común</option>
+                        {% for unidad in zonas_comunes_visita_options %}
+                        <option value="{{ unidad.id }}" {% if visita_form.unidad_id|string == unidad.id|string %}selected{% endif %}>{{ unidad.identificador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="bloque_exterior_visita" {% if visita_form.ambito_visita != 'exterior' %}hidden{% endif %}>
+                    <label for="unidad_id_exterior_visita">Exterior</label>
+                    <select id="unidad_id_exterior_visita" name="unidad_id_exterior">
+                        <option value="">Selecciona un exterior</option>
+                        {% for unidad in exteriores_visita_options %}
+                        <option value="{{ unidad.id }}" {% if visita_form.unidad_id|string == unidad.id|string %}selected{% endif %}>{{ unidad.identificador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
                 <div class="section-divider"></div>
 
@@ -83,6 +142,343 @@
                         {% endif %}
                     </div>
                 </div>
+
+                {% if es_informe_inspeccion %}
+                <div class="section-divider"></div>
+                <h2>Inspección del inmueble</h2>
+                {% if objeto_visita_label %}
+                <p class="helper-text">{{ objeto_visita_label }}</p>
+                {% endif %}
+
+                {% if not visita_form.id %}
+                <p class="helper-text">Guarda primero la visita para cargar las estancias reales y completar el checklist de inspección.</p>
+                {% else %}
+                <div class="card inner-card">
+                    <h3>Checklist general</h3>
+                    {% for titulo, items in inspeccion_general_groups %}
+                    <h4>{{ titulo }}</h4>
+                    {% for campo, etiqueta in items %}
+                    <label for="insp_general__{{ campo }}">{{ etiqueta }}</label>
+                    <select id="insp_general__{{ campo }}" name="insp_general__{{ campo }}">
+                        {% for valor, label in estados_inspeccion %}
+                        <option value="{{ valor }}" {% if (inspeccion.general.get(campo) or 'no_inspeccionado') == valor %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endfor %}
+                    {% endfor %}
+
+                    <label for="insp_general__observaciones_generales_inspeccion">Observaciones generales de inspección</label>
+                    <textarea id="insp_general__observaciones_generales_inspeccion"
+                        name="insp_general__observaciones_generales_inspeccion">{{ inspeccion.general.get('observaciones_generales_inspeccion', '') }}</textarea>
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Checklist por estancia</h3>
+                    {% if visita_form.ambito_visita and visita_form.ambito_visita != 'unidad' %}
+                    <p class="helper-text">Este bloque solo aplica si existen estancias reales asociadas a esta visita. En ámbitos como edificio completo, nivel, zona común o exterior no se fuerzan estancias interiores.</p>
+                    {% endif %}
+                    {% if inspeccion.estancias %}
+                    {% for bloque in inspeccion.estancias %}
+                    <div class="card inner-card">
+                        <p><strong>Estancia:</strong> {{ bloque.estancia.nombre }}</p>
+                        <p><strong>Tipo:</strong> {{ bloque.estancia.tipo_estancia }}</p>
+                        <p><strong>Pavimento:</strong> {{ bloque.estancia.acabado_pavimento or '-' }}</p>
+                        <p><strong>Paramento:</strong> {{ bloque.estancia.acabado_paramento or '-' }}</p>
+                        <p><strong>Techo:</strong> {{ bloque.estancia.acabado_techo or '-' }}</p>
+
+                        {% for campo, etiqueta in bloque.campos %}
+                        <label for="insp_estancia_{{ bloque.estancia.id }}__{{ campo }}">{{ etiqueta }}</label>
+                        <select id="insp_estancia_{{ bloque.estancia.id }}__{{ campo }}"
+                            name="insp_estancia_{{ bloque.estancia.id }}__{{ campo }}">
+                            {% for valor, label in estados_inspeccion %}
+                            <option value="{{ valor }}" {% if (bloque.datos.get(campo) or 'no_inspeccionado') == valor %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% endfor %}
+
+                        <label for="insp_estancia_{{ bloque.estancia.id }}__observaciones_estancia_inspeccion">Observaciones de inspección</label>
+                        <textarea id="insp_estancia_{{ bloque.estancia.id }}__observaciones_estancia_inspeccion"
+                            name="insp_estancia_{{ bloque.estancia.id }}__observaciones_estancia_inspeccion">{{ bloque.datos.get('observaciones_estancia_inspeccion', '') }}</textarea>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="empty">No hay estancias disponibles todavía en esta visita.</p>
+                    {% endif %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Inspección exterior</h3>
+                    {% for campo, etiqueta in inspeccion_exterior_items %}
+                    <label for="insp_exterior__{{ campo }}">{{ etiqueta }}</label>
+                    <select id="insp_exterior__{{ campo }}" name="insp_exterior__{{ campo }}">
+                        {% for valor, label in estados_inspeccion %}
+                        <option value="{{ valor }}" {% if (inspeccion.exterior.get(campo) or 'no_inspeccionado') == valor %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endfor %}
+
+                    <label for="insp_exterior__observaciones_exteriores">Observaciones exteriores</label>
+                    <textarea id="insp_exterior__observaciones_exteriores"
+                        name="insp_exterior__observaciones_exteriores">{{ inspeccion.exterior.get('observaciones_exteriores', '') }}</textarea>
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Elementos comunes</h3>
+                    {% for campo, etiqueta in inspeccion_elementos_comunes_items %}
+                    <label for="insp_comunes__{{ campo }}">{{ etiqueta }}</label>
+                    <select id="insp_comunes__{{ campo }}" name="insp_comunes__{{ campo }}">
+                        {% for valor, label in estados_inspeccion %}
+                        <option value="{{ valor }}" {% if (inspeccion.comunes.get(campo) or 'no_inspeccionado') == valor %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endfor %}
+
+                    <label for="insp_comunes__observaciones_elementos_comunes">Observaciones de elementos comunes</label>
+                    <textarea id="insp_comunes__observaciones_elementos_comunes"
+                        name="insp_comunes__observaciones_elementos_comunes">{{ inspeccion.comunes.get('observaciones_elementos_comunes', '') }}</textarea>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if es_informe_habitabilidad %}
+                <div class="section-divider"></div>
+                <h2>Habitabilidad</h2>
+                {% if objeto_visita_label %}
+                <p class="helper-text">{{ objeto_visita_label }}</p>
+                {% endif %}
+
+                {% if not visita_form.id %}
+                <p class="helper-text">Guarda primero la visita para cargar las estancias reales y completar la evaluación de habitabilidad.</p>
+                {% else %}
+                <div class="card inner-card">
+                    <h3>Checklist general</h3>
+                    {% for campo, etiqueta in habitabilidad_general_items %}
+                    <label for="hab_general__{{ campo }}">{{ etiqueta }}</label>
+                    <select id="hab_general__{{ campo }}" name="hab_general__{{ campo }}">
+                        {% for valor, label in estados_habitabilidad %}
+                        <option value="{{ valor }}" {% if (habitabilidad.general.get(campo) or 'no_inspeccionado') == valor %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endfor %}
+
+                    <label for="hab_general__conclusion_habitabilidad">Conclusión global</label>
+                    <select id="hab_general__conclusion_habitabilidad" name="hab_general__conclusion_habitabilidad" required>
+                        <option value="" {% if not habitabilidad.general.get('conclusion_habitabilidad') %}selected{% endif %}>Selecciona una opción</option>
+                        {% for valor, label in conclusiones_habitabilidad %}
+                        <option value="{{ valor }}" {% if habitabilidad.general.get('conclusion_habitabilidad') == valor %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="hab_general__observaciones_generales_habitabilidad">Observaciones generales de habitabilidad</label>
+                    <textarea id="hab_general__observaciones_generales_habitabilidad"
+                        name="hab_general__observaciones_generales_habitabilidad">{{ habitabilidad.general.get('observaciones_generales_habitabilidad', '') }}</textarea>
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Checklist por estancia</h3>
+                    {% if visita_form.ambito_visita and visita_form.ambito_visita != 'unidad' %}
+                    <p class="helper-text">Este bloque solo aplica si existen estancias reales asociadas a esta visita. En ámbitos como edificio completo, nivel, zona común o exterior no se fuerzan estancias interiores.</p>
+                    {% endif %}
+                    {% if habitabilidad.estancias %}
+                    {% for bloque in habitabilidad.estancias %}
+                    <div class="card inner-card">
+                        <p><strong>Estancia:</strong> {{ bloque.estancia.nombre }}</p>
+                        <p><strong>Tipo:</strong> {{ bloque.estancia.tipo_estancia }}</p>
+                        <p><strong>Pavimento:</strong> {{ bloque.estancia.acabado_pavimento or '-' }}</p>
+                        <p><strong>Paramento:</strong> {{ bloque.estancia.acabado_paramento or '-' }}</p>
+                        <p><strong>Techo:</strong> {{ bloque.estancia.acabado_techo or '-' }}</p>
+
+                        {% for campo, etiqueta in bloque.campos %}
+                        <label for="hab_estancia_{{ bloque.estancia.id }}__{{ campo }}">{{ etiqueta }}</label>
+                        <select id="hab_estancia_{{ bloque.estancia.id }}__{{ campo }}"
+                            name="hab_estancia_{{ bloque.estancia.id }}__{{ campo }}">
+                            {% for valor, label in estados_habitabilidad %}
+                            <option value="{{ valor }}" {% if (bloque.datos.get(campo) or 'no_inspeccionado') == valor %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% endfor %}
+
+                        <label for="hab_estancia_{{ bloque.estancia.id }}__observaciones_estancia_habitabilidad">Observaciones de habitabilidad</label>
+                        <textarea id="hab_estancia_{{ bloque.estancia.id }}__observaciones_estancia_habitabilidad"
+                            name="hab_estancia_{{ bloque.estancia.id }}__observaciones_estancia_habitabilidad">{{ bloque.datos.get('observaciones_estancia_habitabilidad', '') }}</textarea>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="empty">No hay estancias disponibles todavía en esta visita.</p>
+                    {% endif %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Exterior</h3>
+                    {% if objeto_visita_label %}
+                    <p class="helper-text">{{ objeto_visita_label }}</p>
+                    {% endif %}
+                    {% for campo, etiqueta in habitabilidad_exterior_items %}
+                    <label for="hab_exterior__{{ campo }}">{{ etiqueta }}</label>
+                    <select id="hab_exterior__{{ campo }}" name="hab_exterior__{{ campo }}">
+                        {% for valor, label in estados_habitabilidad %}
+                        <option value="{{ valor }}" {% if (habitabilidad.exterior.get(campo) or 'no_inspeccionado') == valor %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endfor %}
+
+                    <label for="hab_exterior__observaciones_exterior_habitabilidad">Observaciones exteriores</label>
+                    <textarea id="hab_exterior__observaciones_exterior_habitabilidad"
+                        name="hab_exterior__observaciones_exterior_habitabilidad">{{ habitabilidad.exterior.get('observaciones_exterior_habitabilidad', '') }}</textarea>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if es_informe_valoracion %}
+                <div class="section-divider"></div>
+                <h2>Valoración inmobiliaria</h2>
+                {% if objeto_visita_label %}
+                <p class="helper-text">{{ objeto_visita_label }}</p>
+                {% endif %}
+
+                {% if not visita_form.id %}
+                <p class="helper-text">Guarda primero la visita para completar los datos de valoración inmobiliaria.</p>
+                {% else %}
+                <div class="card inner-card">
+                    <h3>Encargo</h3>
+                    {% for campo, etiqueta in valoracion_encargo_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Documentación</h3>
+                    {% for campo, etiqueta in valoracion_documentacion_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Datos generales de valoración</h3>
+                    {% for campo, etiqueta in valoracion_datos_generales_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Superficies</h3>
+                    {% for campo, etiqueta in valoracion_superficies_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Situación legal</h3>
+                    {% for campo, etiqueta in valoracion_situacion_legal_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Entorno</h3>
+                    {% for campo, etiqueta in valoracion_entorno_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Edificio</h3>
+                    {% for campo, etiqueta in valoracion_edificio_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Inmueble</h3>
+                    {% for campo, etiqueta in valoracion_inmueble_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Constructivo</h3>
+                    {% for campo, etiqueta in valoracion_constructivo_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Estado</h3>
+                    {% for campo, etiqueta in valoracion_estado_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Fechas</h3>
+                    {% for campo, etiqueta in valoracion_fechas_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Método / mercado</h3>
+                    {% for campo, etiqueta in valoracion_metodo_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Resultado / limitaciones</h3>
+                    {% for campo, etiqueta in valoracion_resultado_items %}
+                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                    {% endfor %}
+                </div>
+
+                <div class="card inner-card">
+                    <h3>Comparables / testigos</h3>
+                    {% if objeto_visita_label %}
+                    <p class="helper-text">{{ objeto_visita_label }}</p>
+                    {% endif %}
+                    {% for campo, etiqueta in comparables_valoracion_items %}
+                    <label for="comparable__{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="comparable__{{ campo }}" name="{{ campo }}">{{ comparable_form.get(campo, '') }}</textarea>
+                    {% endfor %}
+                    <div class="actions">
+                        <button class="boton" type="submit" formaction="/guardar-comparable-valoracion" formmethod="post">Añadir comparable</button>
+                    </div>
+
+                    {% if comparables_valoracion %}
+                    {% for comparable in comparables_valoracion %}
+                    <div class="card inner-card">
+                        <p><strong>Dirección:</strong> {{ comparable.direccion_testigo or '-' }}</p>
+                        <p><strong>Fuente:</strong> {{ comparable.fuente_testigo or '-' }}</p>
+                        <p><strong>Precio oferta:</strong> {{ comparable.precio_oferta or '-' }}</p>
+                        <p><strong>Valor unitario:</strong> {{ comparable.valor_unitario or '-' }}</p>
+                        <p><strong>Superficie construida:</strong> {{ comparable.superficie_construida or '-' }}</p>
+                        <p><strong>Tipología:</strong> {{ comparable.tipologia or '-' }}</p>
+                        <p><strong>Estado:</strong> {{ comparable.estado_conservacion or '-' }}</p>
+                        <p><strong>Observaciones:</strong> {{ comparable.observaciones or '-' }}</p>
+                        <div class="actions">
+                            <a class="boton secundario" href="/editar-comparable-valoracion/{{ comparable.id }}">Editar</a>
+                            <button class="boton secundario" type="submit" formaction="/borrar-comparable-valoracion/{{ comparable.id }}" formmethod="post">Borrar</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="empty">No hay comparables guardados todavía en esta visita.</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
 
                 <label for="observaciones_visita">Observaciones de la visita</label>
                 <textarea id="observaciones_visita" name="observaciones_visita">{{ visita_form.observaciones_visita or '' }}</textarea>
@@ -144,9 +540,58 @@
         const climaResumenDiario = document.getElementById("clima-resumen-diario");
         const climaErrorCard = document.getElementById("clima-error-card");
         const climaErrorText = document.getElementById("clima-error-text");
+        const ambitoVisitaInput = document.getElementById("ambito_visita");
+        const bloqueNivelVisita = document.getElementById("bloque_nivel_visita");
+        const bloqueUnidadVisita = document.getElementById("bloque_unidad_visita");
+        const bloqueZonaComunVisita = document.getElementById("bloque_zona_comun_visita");
+        const bloqueExteriorVisita = document.getElementById("bloque_exterior_visita");
+        const nivelIdVisita = document.getElementById("nivel_id_visita");
+        const unidadIdVisita = document.getElementById("unidad_id_visita");
+        const unidadIdZonaComunVisita = document.getElementById("unidad_id_zona_comun_visita");
+        const unidadIdExteriorVisita = document.getElementById("unidad_id_exterior_visita");
         const fallbackDireccion = {{ expediente.direccion | tojson }};
         const expedienteId = {{ expediente.id }};
         let climaEnCurso = false;
+
+        function actualizarAmbitoVisita() {
+            if (!ambitoVisitaInput) {
+                return;
+            }
+            const ambito = ambitoVisitaInput.value;
+            bloqueNivelVisita.hidden = ambito !== "nivel";
+            bloqueUnidadVisita.hidden = ambito !== "unidad";
+            bloqueZonaComunVisita.hidden = ambito !== "zona_comun";
+            bloqueExteriorVisita.hidden = ambito !== "exterior";
+
+            if (ambito !== "nivel" && nivelIdVisita) {
+                nivelIdVisita.value = "";
+            }
+            if (ambito !== "unidad" && unidadIdVisita) {
+                unidadIdVisita.value = "";
+            }
+            if (ambito !== "zona_comun" && unidadIdZonaComunVisita) {
+                unidadIdZonaComunVisita.value = "";
+            }
+            if (ambito !== "exterior" && unidadIdExteriorVisita) {
+                unidadIdExteriorVisita.value = "";
+            }
+        }
+
+        function sincronizarUnidadAmbitoAntesDeEnviar() {
+            if (!ambitoVisitaInput) {
+                return;
+            }
+            const ambito = ambitoVisitaInput.value;
+            if (unidadIdVisita) {
+                unidadIdVisita.name = ambito === "unidad" ? "unidad_id" : "unidad_id_descartado";
+            }
+            if (unidadIdZonaComunVisita) {
+                unidadIdZonaComunVisita.name = ambito === "zona_comun" ? "unidad_id" : "unidad_id_zona_comun";
+            }
+            if (unidadIdExteriorVisita) {
+                unidadIdExteriorVisita.name = ambito === "exterior" ? "unidad_id" : "unidad_id_exterior";
+            }
+        }
 
         function limpiarCoordenadas() {
             latitudInput.value = "";
@@ -198,6 +643,15 @@
                 `;
                 climaResumenDiario.appendChild(item);
             });
+        }
+
+        if (ambitoVisitaInput) {
+            ambitoVisitaInput.addEventListener("change", actualizarAmbitoVisita);
+            actualizarAmbitoVisita();
+        }
+
+        if (visitaForm) {
+            visitaForm.addEventListener("submit", sincronizarUnidadAmbitoAntesDeEnviar);
         }
 
         climaButton.addEventListener("click", async () => {

@@ -30,6 +30,9 @@
             <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
             <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
             <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
+            {% if objeto_visita_label %}
+            <p><strong>Objeto de la visita:</strong> {{ objeto_visita_label }}</p>
+            {% endif %}
         </div>
 
         <div class="actions">
@@ -75,6 +78,9 @@
         <div class="card">
             <h2>Añadir estancia</h2>
             <p class="subtitle">Las estancias de esta visita se han copiado de la visita anterior más reciente o, si no existían, se han generado desde las características de la unidad.</p>
+            {% if visita.ambito_visita and visita.ambito_visita != 'unidad' %}
+            <p class="helper-text">En visitas asociadas a {{ objeto_visita_label or 'este ámbito' }}, las estancias interiores no se generan automáticamente por defecto, pero puedes añadirlas manualmente si las necesitas.</p>
+            {% endif %}
 
             <form method="post" action="/guardar-estancia">
                 <input type="hidden" name="visita_id" value="{{ visita.id }}">
