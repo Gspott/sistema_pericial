@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
-    <title>Editar registro</title>
+    <title>Editar registro exterior</title>
 </head>
 
 <body>
@@ -24,7 +24,7 @@
             <a class="boton secundario" href="/logout">Cerrar sesión</a>
         </div>
 
-        <h1>Editar patología</h1>
+        <h1>Editar patología exterior</h1>
 
         <div class="actions">
             <a class="boton secundario" href="/registrar-patologias/{{ registro.visita_id }}">Volver a patologías</a>
@@ -37,34 +37,39 @@
         {% endif %}
 
         <div class="card">
-            <form method="post" action="/actualizar-registro/{{ registro.id }}" enctype="multipart/form-data">
-                <label for="estancia_id">Estancia</label>
-                <select id="estancia_id" name="estancia_id" required>
-                    {% for estancia in estancias %}
-                    <option value="{{ estancia.id }}" {% if estancia.id==registro.estancia_id %}selected{% endif %}>
-                        {{ estancia.nombre }}{% if estancia.planta %} ({{ estancia.planta }}){% endif %}
-                    </option>
-                    {% endfor %}
+            <form method="post" action="/actualizar-registro-exterior/{{ registro.id }}" enctype="multipart/form-data">
+                <label for="zona_exterior">Zona exterior</label>
+                <select id="zona_exterior" name="zona_exterior" required>
+                    <option value="fachada" {% if registro.zona_exterior=="fachada" %}selected{% endif %}>Fachada</option>
+                    <option value="cubierta" {% if registro.zona_exterior=="cubierta" %}selected{% endif %}>Cubierta</option>
+                    <option value="medianera" {% if registro.zona_exterior=="medianera" %}selected{% endif %}>Medianera</option>
+                    <option value="patio" {% if registro.zona_exterior=="patio" %}selected{% endif %}>Patio</option>
+                    <option value="terraza" {% if registro.zona_exterior=="terraza" %}selected{% endif %}>Terraza</option>
+                    <option value="exterior_general" {% if registro.zona_exterior=="exterior_general" %}selected{% endif %}>Exterior general</option>
                 </select>
 
-                <label for="elemento">Elemento afectado</label>
-                <select id="elemento" name="elemento" required>
-                    {% if registro.elemento not in ['pavimento', 'paramento', 'techo'] %}
-                    <option value="{{ registro.elemento }}" selected>{{ registro.elemento }}</option>
-                    {% endif %}
-                    <option value="pavimento" {% if registro.elemento=="pavimento" %}selected{% endif %}>pavimento</option>
-                    <option value="paramento" {% if registro.elemento=="paramento" %}selected{% endif %}>paramento</option>
-                    <option value="techo" {% if registro.elemento=="techo" %}selected{% endif %}>techo</option>
+                <label for="elemento_exterior">Elemento exterior</label>
+                <select id="elemento_exterior" name="elemento_exterior" required>
+                    <option value="revestimiento" {% if registro.elemento_exterior=="revestimiento" %}selected{% endif %}>Revestimiento</option>
+                    <option value="cerramiento" {% if registro.elemento_exterior=="cerramiento" %}selected{% endif %}>Cerramiento</option>
+                    <option value="cornisa" {% if registro.elemento_exterior=="cornisa" %}selected{% endif %}>Cornisa</option>
+                    <option value="alero" {% if registro.elemento_exterior=="alero" %}selected{% endif %}>Alero</option>
+                    <option value="peto" {% if registro.elemento_exterior=="peto" %}selected{% endif %}>Peto</option>
+                    <option value="impermeabilizacion" {% if registro.elemento_exterior=="impermeabilizacion" %}selected{% endif %}>Impermeabilizacion</option>
+                    <option value="carpinteria_exterior" {% if registro.elemento_exterior=="carpinteria_exterior" %}selected{% endif %}>Carpinteria exterior</option>
+                    <option value="barandilla" {% if registro.elemento_exterior=="barandilla" %}selected{% endif %}>Barandilla</option>
+                    <option value="bajante" {% if registro.elemento_exterior=="bajante" %}selected{% endif %}>Bajante</option>
+                    <option value="canalon" {% if registro.elemento_exterior=="canalon" %}selected{% endif %}>Canalon</option>
+                    <option value="forjado" {% if registro.elemento_exterior=="forjado" %}selected{% endif %}>Forjado</option>
+                    <option value="otro" {% if registro.elemento_exterior=="otro" %}selected{% endif %}>Otro</option>
                 </select>
 
-                <label for="localizacion_dano">Localización del daño</label>
-                <select id="localizacion_dano" name="localizacion_dano" required>
-                    {% if registro.localizacion_dano and registro.localizacion_dano not in ['pavimento', 'paramento', 'techo'] %}
-                    <option value="{{ registro.localizacion_dano }}" selected>{{ registro.localizacion_dano }}</option>
-                    {% endif %}
-                    <option value="pavimento" {% if registro.localizacion_dano=="pavimento" %}selected{% endif %}>pavimento</option>
-                    <option value="paramento" {% if registro.localizacion_dano=="paramento" %}selected{% endif %}>paramento</option>
-                    <option value="techo" {% if registro.localizacion_dano=="techo" or not registro.localizacion_dano %}selected{% endif %}>techo</option>
+                <label for="localizacion_dano_exterior">Localización del daño exterior</label>
+                <select id="localizacion_dano_exterior" name="localizacion_dano_exterior" required>
+                    <option value="horizontal" {% if registro.localizacion_dano_exterior=="horizontal" %}selected{% endif %}>Horizontal</option>
+                    <option value="vertical" {% if registro.localizacion_dano_exterior=="vertical" %}selected{% endif %}>Vertical</option>
+                    <option value="encuentro" {% if registro.localizacion_dano_exterior=="encuentro" %}selected{% endif %}>Encuentro</option>
+                    <option value="puntual" {% if registro.localizacion_dano_exterior=="puntual" %}selected{% endif %}>Puntual</option>
                 </select>
 
                 <label for="patologia">Patología</label>
@@ -83,7 +88,7 @@
                 {% if registro.foto %}
                 <div class="card inner-card">
                     <p><strong>Foto actual:</strong></p>
-                    <img src="/uploads/{{ registro.foto }}" alt="Foto del registro">
+                    <img src="/uploads/{{ registro.foto }}" alt="Foto del registro exterior">
                     <label for="eliminar_foto_actual">Eliminar foto actual</label>
                     <select id="eliminar_foto_actual" name="eliminar_foto_actual">
                         <option value="no" selected>No</option>

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=6">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
     <title>Editar expediente</title>
@@ -36,12 +36,95 @@
             <p class="error">{{ error }}</p>
             {% endif %}
             <form method="post" action="/actualizar-expediente/{{ expediente.id }}">
+                <input type="hidden" id="imagen_catastro" name="imagen_catastro"
+                    value="{{ expediente.imagen_catastro or '' }}">
+
                 <label for="numero_expediente">Número de expediente</label>
                 <input type="text" id="numero_expediente" name="numero_expediente"
                     value="{{ expediente.numero_expediente }}" required>
 
+                <label for="tipo_informe">Tipo de informe</label>
+                <select id="tipo_informe" name="tipo_informe">
+                    <option value="patologias" {% if expediente.tipo_informe=="patologias" or not expediente.tipo_informe %}selected{% endif %}>Patologías</option>
+                    <option value="inspeccion" {% if expediente.tipo_informe=="inspeccion" %}selected{% endif %}>Inspección del inmueble</option>
+                    <option value="valoracion" {% if expediente.tipo_informe=="valoracion" %}selected{% endif %}>Valoración inmobiliaria</option>
+                    <option value="habitabilidad" {% if expediente.tipo_informe=="habitabilidad" %}selected{% endif %}>Habitabilidad</option>
+                </select>
+
+                <label for="destinatario">Destinatario</label>
+                <select id="destinatario" name="destinatario">
+                    <option value="particular" {% if expediente.destinatario=="particular" or not expediente.destinatario %}selected{% endif %}>Cliente particular / empresa</option>
+                    <option value="judicial" {% if expediente.destinatario=="judicial" %}selected{% endif %}>Encargo judicial</option>
+                </select>
+
+                <div id="bloque_judicial" {% if expediente.destinatario!="judicial" %}hidden{% endif %}>
+                    <label for="procedimiento_judicial">Procedimiento judicial</label>
+                    <input type="text" id="procedimiento_judicial" name="procedimiento_judicial"
+                        value="{{ expediente.procedimiento_judicial or '' }}">
+
+                    <label for="juzgado">Juzgado</label>
+                    <input type="text" id="juzgado" name="juzgado" value="{{ expediente.juzgado or '' }}">
+
+                    <label for="auto_judicial">Auto judicial</label>
+                    <input type="text" id="auto_judicial" name="auto_judicial"
+                        value="{{ expediente.auto_judicial or '' }}">
+
+                    <label for="parte_solicitante">Parte solicitante</label>
+                    <input type="text" id="parte_solicitante" name="parte_solicitante"
+                        value="{{ expediente.parte_solicitante or '' }}">
+
+                    <label for="objeto_pericia">Objeto de la pericia</label>
+                    <textarea id="objeto_pericia" name="objeto_pericia">{{ expediente.objeto_pericia or '' }}</textarea>
+
+                    <label for="alcance_limitaciones">Alcance y limitaciones</label>
+                    <textarea id="alcance_limitaciones"
+                        name="alcance_limitaciones">{{ expediente.alcance_limitaciones or '' }}</textarea>
+
+                    <label for="metodologia_pericial">Metodología pericial</label>
+                    <textarea id="metodologia_pericial"
+                        name="metodologia_pericial">{{ expediente.metodologia_pericial or '' }}</textarea>
+                </div>
+
+                <div id="bloque_patologias" {% if expediente.tipo_informe!="patologias" and expediente.tipo_informe %}hidden{% endif %}>
+                    <h2>Datos específicos del informe</h2>
+
+                    <label for="ambito_patologias">Ámbito de patologías</label>
+                    <select id="ambito_patologias" name="ambito_patologias">
+                        <option value="interior" {% if expediente.ambito_patologias=="interior" or not expediente.ambito_patologias %}selected{% endif %}>Interior</option>
+                        <option value="exterior" {% if expediente.ambito_patologias=="exterior" %}selected{% endif %}>Exterior</option>
+                        <option value="interior_exterior" {% if expediente.ambito_patologias=="interior_exterior" %}selected{% endif %}>Interior y exterior</option>
+                    </select>
+
+                    <label for="descripcion_dano">Descripción del daño</label>
+                    <textarea id="descripcion_dano" name="descripcion_dano">{{ expediente.descripcion_dano or '' }}</textarea>
+
+                    <label for="causa_probable">Causa probable</label>
+                    <textarea id="causa_probable" name="causa_probable">{{ expediente.causa_probable or '' }}</textarea>
+
+                    <label for="pruebas_indicios">Pruebas e indicios</label>
+                    <textarea id="pruebas_indicios" name="pruebas_indicios">{{ expediente.pruebas_indicios or '' }}</textarea>
+
+                    <label for="evolucion_preexistencia">Evolución / preexistencia</label>
+                    <textarea id="evolucion_preexistencia"
+                        name="evolucion_preexistencia">{{ expediente.evolucion_preexistencia or '' }}</textarea>
+
+                    <label for="propuesta_reparacion">Propuesta de reparación</label>
+                    <textarea id="propuesta_reparacion"
+                        name="propuesta_reparacion">{{ expediente.propuesta_reparacion or '' }}</textarea>
+
+                    <label for="urgencia_gravedad">Urgencia / gravedad</label>
+                    <textarea id="urgencia_gravedad"
+                        name="urgencia_gravedad">{{ expediente.urgencia_gravedad or '' }}</textarea>
+                </div>
+
                 <label for="cliente">Cliente</label>
                 <input type="text" id="cliente" name="cliente" value="{{ expediente.cliente }}" required>
+
+                <label for="referencia_catastral">Referencia catastral</label>
+                <input type="text" id="referencia_catastral" name="referencia_catastral"
+                    value="{{ expediente.referencia_catastral or '' }}" autocomplete="off">
+                <button class="boton secundario" type="button" id="boton_catastro">Autocompletar desde Catastro</button>
+                <p id="catastro_estado" class="helper-text"></p>
 
                 <label for="direccion">Dirección</label>
                 <input type="text" id="direccion" name="direccion" value="{{ expediente.direccion }}" autocomplete="off"
@@ -170,6 +253,13 @@
                 <div class="actions">
                     <button class="boton" type="submit">Guardar cambios</button>
                 </div>
+
+                <div class="card inner-card" id="catastro_preview" {% if not expediente.imagen_catastro %}hidden{% endif %}>
+                    <h2>Imagen catastral</h2>
+                    <img id="catastro_preview_image"
+                        src="{% if expediente.imagen_catastro %}/uploads/{{ expediente.imagen_catastro }}{% endif %}"
+                        alt="Imagen catastral">
+                </div>
             </form>
         </div>
     </div>
@@ -180,6 +270,19 @@
         const ciudadInput = document.getElementById("ciudad");
         const provinciaInput = document.getElementById("provincia");
         const sugerenciasBox = document.getElementById("direccion_sugerencias");
+        const referenciaInput = document.getElementById("referencia_catastral");
+        const botonCatastro = document.getElementById("boton_catastro");
+        const catastroEstado = document.getElementById("catastro_estado");
+        const tipoInformeInput = document.getElementById("tipo_informe");
+        const destinatarioInput = document.getElementById("destinatario");
+        const bloqueJudicial = document.getElementById("bloque_judicial");
+        const bloquePatologias = document.getElementById("bloque_patologias");
+        const usoInput = document.getElementById("uso_inmueble");
+        const anioInput = document.getElementById("anio_construccion");
+        const superficieConstruidaInput = document.getElementById("superficie_construida");
+        const imagenCatastroInput = document.getElementById("imagen_catastro");
+        const catastroPreview = document.getElementById("catastro_preview");
+        const catastroPreviewImage = document.getElementById("catastro_preview_image");
         let sugerenciasCache = [];
         let sugerenciasTimeout = null;
 
@@ -195,6 +298,80 @@
             ciudadInput.value = item.ciudad || "";
             provinciaInput.value = item.provincia || "";
             limpiarSugerencias();
+        }
+
+        function setMensajeCatastro(texto, esError = false) {
+            catastroEstado.textContent = texto || "";
+            catastroEstado.className = esError ? "error" : "helper-text";
+        }
+
+        function actualizarPreviewCatastro(url) {
+            if (!url) {
+                catastroPreview.hidden = true;
+                catastroPreviewImage.src = "";
+                return;
+            }
+
+            catastroPreviewImage.src = url;
+            catastroPreview.hidden = false;
+        }
+
+        function aplicarDatosCatastro(datos) {
+            referenciaInput.value = datos.referencia_catastral || referenciaInput.value;
+
+            if (datos.direccion) {
+                direccionInput.value = datos.direccion;
+            }
+            if (datos.codigo_postal) {
+                codigoPostalInput.value = datos.codigo_postal;
+            }
+            if (datos.ciudad) {
+                ciudadInput.value = datos.ciudad;
+            }
+            if (datos.provincia) {
+                provinciaInput.value = datos.provincia;
+            }
+            if (datos.superficie_construida) {
+                superficieConstruidaInput.value = datos.superficie_construida;
+            }
+            if (datos.uso_inmueble) {
+                usoInput.value = datos.uso_inmueble;
+            }
+            if (datos.anio_construccion) {
+                anioInput.value = datos.anio_construccion;
+            }
+
+            imagenCatastroInput.value = datos.imagen_catastro || "";
+            actualizarPreviewCatastro(datos.imagen_catastro_url || "");
+        }
+
+        async function autocompletarDesdeCatastro() {
+            const referencia = referenciaInput.value.trim();
+
+            if (!referencia) {
+                setMensajeCatastro("Introduce una referencia catastral.", true);
+                return;
+            }
+
+            botonCatastro.disabled = true;
+            setMensajeCatastro("Consultando Catastro...");
+
+            try {
+                const response = await fetch(`/api/catastro?referencia_catastral=${encodeURIComponent(referencia)}`);
+                const data = await response.json().catch(() => null);
+
+                if (!response.ok || !data || !data.ok) {
+                    setMensajeCatastro((data && data.error) || "No se pudo consultar Catastro.", true);
+                    return;
+                }
+
+                aplicarDatosCatastro(data.datos || {});
+                setMensajeCatastro(data.aviso || "Datos catastrales cargados.");
+            } catch (error) {
+                setMensajeCatastro("No se pudo consultar Catastro. Puedes seguir rellenando el expediente manualmente.", true);
+            } finally {
+                botonCatastro.disabled = false;
+            }
         }
 
         async function rellenarDatosDireccion() {
@@ -289,6 +466,17 @@
             await rellenarDatosDireccion();
         }
 
+        function actualizarBloqueJudicial() {
+            bloqueJudicial.hidden = destinatarioInput.value !== "judicial";
+        }
+
+        function actualizarBloquePatologias() {
+            bloquePatologias.hidden = tipoInformeInput.value !== "patologias";
+        }
+
+        botonCatastro.addEventListener("click", autocompletarDesdeCatastro);
+        tipoInformeInput.addEventListener("change", actualizarBloquePatologias);
+        destinatarioInput.addEventListener("change", actualizarBloqueJudicial);
         direccionInput.addEventListener("input", () => {
             clearTimeout(sugerenciasTimeout);
             sugerenciasTimeout = setTimeout(cargarSugerencias, 300);
@@ -299,6 +487,8 @@
                 resolverDireccionManual();
             }, 150);
         });
+        actualizarBloqueJudicial();
+        actualizarBloquePatologias();
     </script>
 
     <nav class="top-nav" aria-label="Navegación principal">

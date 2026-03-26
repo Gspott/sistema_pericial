@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
+    <script src="/static/pwa.js?v=4" defer></script>
+
+    <title>Editar unidad</title>
+</head>
+
+<body>
+    <div class="page with-top-nav">
+        <div class="topbar">
+            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
+            <a class="boton secundario" href="/logout">Cerrar sesión</a>
+        </div>
+
+        <h1>Editar unidad</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/detalle-expediente/{{ unidad.expediente_id }}">Volver al expediente</a>
+            <a class="boton secundario" href="/expedientes">Ver expedientes</a>
+        </div>
+
+        <div class="card">
+            {% if error %}
+            <p class="error">{{ error }}</p>
+            {% endif %}
+
+            <form method="post" action="/actualizar-unidad-expediente/{{ unidad.id }}">
+                <label for="nivel_id">Nivel</label>
+                <select id="nivel_id" name="nivel_id">
+                    <option value="">Sin nivel asignado</option>
+                    {% for nivel in niveles_edificio %}
+                    <option value="{{ nivel.id }}" {% if unidad.nivel_id==nivel.id %}selected{% endif %}>{{ nivel.nombre_nivel }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="identificador">Identificador</label>
+                <input id="identificador" name="identificador" type="text" value="{{ unidad.identificador or '' }}" required>
+
+                <label for="tipo_unidad">Tipo de unidad</label>
+                <select id="tipo_unidad" name="tipo_unidad">
+                    {% for valor, etiqueta in tipo_unidad_options %}
+                    <option value="{{ valor }}" {% if unidad.tipo_unidad==valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="vinculo_unidad">Vínculo de la unidad</label>
+                <select id="vinculo_unidad" name="vinculo_unidad">
+                    {% for valor, etiqueta in vinculo_unidad_options %}
+                    <option value="{{ valor }}" {% if unidad.vinculo_unidad==valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <div id="bloque_anejo" {% if unidad.vinculo_unidad!='anejo' %}hidden{% endif %}>
+                    <label for="unidad_principal_id">Unidad principal asociada</label>
+                    <select id="unidad_principal_id" name="unidad_principal_id">
+                        <option value="">Selecciona una unidad principal</option>
+                        {% for item in unidades_principales_form %}
+                        <option value="{{ item.id }}" {% if unidad.unidad_principal_id==item.id %}selected{% endif %}>{{ item.identificador }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="tipo_anejo">Tipo de anejo</label>
+                    <select id="tipo_anejo" name="tipo_anejo">
+                        <option value="">Selecciona una opción</option>
+                        {% for valor, etiqueta in tipo_anejo_options %}
+                        <option value="{{ valor }}" {% if unidad.tipo_anejo==valor %}selected{% endif %}>{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <label for="uso">Uso</label>
+                <input id="uso" name="uso" type="text" value="{{ unidad.uso or '' }}">
+
+                <label for="superficie">Superficie</label>
+                <input id="superficie" name="superficie" type="text" value="{{ unidad.superficie or '' }}">
+
+                <label for="referencia_catastral_unidad">Referencia catastral de la unidad</label>
+                <input id="referencia_catastral_unidad" name="referencia_catastral_unidad" type="text"
+                    value="{{ unidad.referencia_catastral_unidad or '' }}">
+
+                <label for="observaciones">Observaciones</label>
+                <textarea id="observaciones" name="observaciones" rows="3">{{ unidad.observaciones or '' }}</textarea>
+
+                <button class="boton" type="submit">Guardar cambios</button>
+            </form>
+        </div>
+    </div>
+
+    <nav class="top-nav" aria-label="Navegación principal">
+        <a class="top-nav-item" href="/">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 10.5 12 3l9 7.5"></path>
+                <path d="M5 9.5V21h14V9.5"></path>
+            </svg>
+            <span class="top-nav-label">Inicio</span>
+        </a>
+        <a class="top-nav-item active" href="/expedientes">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path>
+            </svg>
+            <span class="top-nav-label">Expedientes</span>
+        </a>
+        <a class="top-nav-item center" href="/nuevo-expediente" aria-label="Nuevo expediente">
+            <span class="top-nav-plus">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14"></path>
+                    <path d="M5 12h14"></path>
+                </svg>
+            </span>
+            <span class="top-nav-label">Nuevo</span>
+        </a>
+        <a class="top-nav-item" href="/biblioteca-patologias">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5.5 4.5h10A2.5 2.5 0 0 1 18 7v12H7a2 2 0 0 0-2 2"></path>
+                <path d="M5.5 4.5A2.5 2.5 0 0 0 3 7v12.5A1.5 1.5 0 0 0 4.5 21H18"></path>
+            </svg>
+            <span class="top-nav-label">Biblioteca</span>
+        </a>
+        <a class="top-nav-item" href="/logout">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 19a7.5 7.5 0 1 0-7 0"></path>
+                <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+            </svg>
+            <span class="top-nav-label">Perfil</span>
+        </a>
+    </nav>
+
+    <script>
+        const vinculoUnidadInput = document.getElementById("vinculo_unidad");
+        const bloqueAnejo = document.getElementById("bloque_anejo");
+
+        function actualizarBloqueAnejo() {
+            if (!vinculoUnidadInput || !bloqueAnejo) {
+                return;
+            }
+            bloqueAnejo.hidden = vinculoUnidadInput.value !== "anejo";
+        }
+
+        if (vinculoUnidadInput) {
+            vinculoUnidadInput.addEventListener("change", actualizarBloqueAnejo);
+            actualizarBloqueAnejo();
+        }
+    </script>
+</body>
+
+</html>

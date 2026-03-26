@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
+    <script src="/static/pwa.js?v=4" defer></script>
+
+    <title>Editar mapa de patologías</title>
+</head>
+
+<body>
+    <div class="page with-top-nav">
+        <div class="topbar">
+            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
+            <a class="boton secundario" href="/logout">Cerrar sesión</a>
+        </div>
+
+        <h1>Editar mapa de patologías</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/registrar-patologias/{{ mapa.visita_id }}">Volver a patologías</a>
+        </div>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+
+        <div class="card">
+            <p><strong>Título actual:</strong> {{ mapa.titulo }}</p>
+            {% if objeto_visita_label %}
+            <p><strong>Objeto de la visita:</strong> {{ objeto_visita_label }}</p>
+            {% endif %}
+            <p><strong>Cuadrícula:</strong> {{ mapa.filas }} x {{ mapa.columnas }}</p>
+        </div>
+
+        <div class="card">
+            <form method="post" action="/actualizar-mapa-patologia/{{ mapa.id }}" enctype="multipart/form-data">
+                <label for="titulo">Título</label>
+                <input id="titulo" name="titulo" type="text" value="{{ mapa.titulo }}" required>
+
+                <label for="descripcion">Descripción</label>
+                <textarea id="descripcion" name="descripcion">{{ mapa.descripcion or '' }}</textarea>
+
+                <label for="ambito_mapa">Ámbito del mapa</label>
+                <select id="ambito_mapa" name="ambito_mapa">
+                    <option value="">Sin especificar</option>
+                    {% for valor, etiqueta in ambito_mapa_options %}
+                    <option value="{{ valor }}" {% if mapa.ambito_mapa==valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="filas">Filas</label>
+                <input id="filas" name="filas" type="number" min="1" value="{{ mapa.filas }}" required>
+
+                <label for="columnas">Columnas</label>
+                <input id="columnas" name="columnas" type="number" min="1" value="{{ mapa.columnas }}" required>
+
+                {% if mapa.imagen_base %}
+                <div class="card inner-card">
+                    <p><strong>Imagen base actual:</strong></p>
+                    <img src="/uploads/{{ mapa.imagen_base }}" alt="Imagen base del mapa {{ mapa.titulo }}">
+                    <label for="eliminar_imagen_base_actual">Eliminar imagen base actual</label>
+                    <select id="eliminar_imagen_base_actual" name="eliminar_imagen_base_actual">
+                        <option value="no" selected>No</option>
+                        <option value="si">Sí</option>
+                    </select>
+                </div>
+                {% else %}
+                <input type="hidden" name="eliminar_imagen_base_actual" value="no">
+                {% endif %}
+
+                <label for="imagen_base">Nueva imagen base</label>
+                <input id="imagen_base" name="imagen_base" type="file" accept="image/*">
+
+                <label for="observaciones">Observaciones</label>
+                <textarea id="observaciones" name="observaciones">{{ mapa.observaciones or '' }}</textarea>
+
+                <div class="actions">
+                    <button class="boton" type="submit">Guardar cambios</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Cuadrantes</h2>
+            {% if cuadrantes %}
+            {% for cuadrante in cuadrantes %}
+            <div class="actions">
+                <span>{{ cuadrante.codigo_cuadrante }}{% if cuadrante.patologia_detectada %} · {{ cuadrante.patologia_detectada }}{% endif %}</span>
+                <a class="boton secundario" href="/editar-cuadrante-mapa-patologia/{{ cuadrante.id }}">Editar</a>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="empty">No hay cuadrantes generados para este mapa.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <nav class="top-nav" aria-label="Navegación principal">
+        <a class="top-nav-item" href="/">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 10.5 12 3l9 7.5"></path>
+                <path d="M5 9.5V21h14V9.5"></path>
+            </svg>
+            <span class="top-nav-label">Inicio</span>
+        </a>
+        <a class="top-nav-item active" href="/expedientes">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path>
+            </svg>
+            <span class="top-nav-label">Expedientes</span>
+        </a>
+        <a class="top-nav-item center" href="/nuevo-expediente" aria-label="Nuevo expediente">
+            <span class="top-nav-plus">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14"></path>
+                    <path d="M5 12h14"></path>
+                </svg>
+            </span>
+            <span class="top-nav-label">Nuevo</span>
+        </a>
+        <a class="top-nav-item" href="/biblioteca-patologias">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5.5 4.5h10A2.5 2.5 0 0 1 18 7v12H7a2 2 0 0 0-2 2"></path>
+                <path d="M5.5 4.5A2.5 2.5 0 0 0 3 7v12.5A1.5 1.5 0 0 0 4.5 21H18"></path>
+            </svg>
+            <span class="top-nav-label">Biblioteca</span>
+        </a>
+        <a class="top-nav-item" href="/logout">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 19a7.5 7.5 0 1 0-7 0"></path>
+                <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+            </svg>
+            <span class="top-nav-label">Perfil</span>
+        </a>
+    </nav>
+</body>
+
+</html>

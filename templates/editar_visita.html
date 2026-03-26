@@ -37,12 +37,63 @@
         </div>
 
         <div class="card">
+            {% if error %}
+            <p class="error">{{ error }}</p>
+            {% endif %}
             <form method="post" action="/actualizar-visita/{{ visita.id }}">
                 <label for="fecha">Fecha</label>
                 <input type="date" id="fecha" name="fecha" value="{{ visita.fecha }}" required>
 
                 <label for="tecnico">Técnico</label>
                 <input type="text" id="tecnico" name="tecnico" value="{{ visita.tecnico }}" required>
+
+                <h2>Ámbito de la visita</h2>
+                <label for="ambito_visita">Ámbito</label>
+                <select id="ambito_visita" name="ambito_visita">
+                    {% for valor, etiqueta in ambito_visita_options %}
+                    <option value="{{ valor }}" {% if (visita.ambito_visita or 'edificio_completo') == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <div id="bloque_nivel_visita" {% if visita.ambito_visita != 'nivel' %}hidden{% endif %}>
+                    <label for="nivel_id_visita">Nivel / planta</label>
+                    <select id="nivel_id_visita" name="nivel_id">
+                        <option value="">Selecciona un nivel</option>
+                        {% for nivel in niveles_visita_options %}
+                        <option value="{{ nivel.id }}" {% if visita.nivel_id|string == nivel.id|string %}selected{% endif %}>{{ nivel.nombre_nivel }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="bloque_unidad_visita" {% if visita.ambito_visita != 'unidad' %}hidden{% endif %}>
+                    <label for="unidad_id_visita">Unidad</label>
+                    <select id="unidad_id_visita" name="unidad_id">
+                        <option value="">Selecciona una unidad</option>
+                        {% for unidad in unidades_visita_options %}
+                        <option value="{{ unidad.id }}" {% if visita.unidad_id|string == unidad.id|string %}selected{% endif %}>{{ unidad.identificador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="bloque_zona_comun_visita" {% if visita.ambito_visita != 'zona_comun' %}hidden{% endif %}>
+                    <label for="unidad_id_zona_comun_visita">Zona común</label>
+                    <select id="unidad_id_zona_comun_visita" name="unidad_id_zona_comun">
+                        <option value="">Selecciona una zona común</option>
+                        {% for unidad in zonas_comunes_visita_options %}
+                        <option value="{{ unidad.id }}" {% if visita.unidad_id|string == unidad.id|string %}selected{% endif %}>{{ unidad.identificador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="bloque_exterior_visita" {% if visita.ambito_visita != 'exterior' %}hidden{% endif %}>
+                    <label for="unidad_id_exterior_visita">Exterior</label>
+                    <select id="unidad_id_exterior_visita" name="unidad_id_exterior">
+                        <option value="">Selecciona un exterior</option>
+                        {% for unidad in exteriores_visita_options %}
+                        <option value="{{ unidad.id }}" {% if visita.unidad_id|string == unidad.id|string %}selected{% endif %}>{{ unidad.identificador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
                 <label for="observaciones_visita">Observaciones de la visita</label>
                 <textarea id="observaciones_visita" name="observaciones_visita">{{ visita.observaciones_visita or '' }}</textarea>
@@ -90,6 +141,56 @@
             <span class="top-nav-label">Perfil</span>
         </a>
     </nav>
+    <script>
+        const ambitoVisitaInput = document.getElementById("ambito_visita");
+        const bloqueNivelVisita = document.getElementById("bloque_nivel_visita");
+        const bloqueUnidadVisita = document.getElementById("bloque_unidad_visita");
+        const bloqueZonaComunVisita = document.getElementById("bloque_zona_comun_visita");
+        const bloqueExteriorVisita = document.getElementById("bloque_exterior_visita");
+        const nivelIdVisita = document.getElementById("nivel_id_visita");
+        const unidadIdVisita = document.getElementById("unidad_id_visita");
+        const unidadIdZonaComunVisita = document.getElementById("unidad_id_zona_comun_visita");
+        const unidadIdExteriorVisita = document.getElementById("unidad_id_exterior_visita");
+
+        function actualizarAmbitoVisita() {
+            const ambito = ambitoVisitaInput.value;
+            bloqueNivelVisita.hidden = ambito !== "nivel";
+            bloqueUnidadVisita.hidden = ambito !== "unidad";
+            bloqueZonaComunVisita.hidden = ambito !== "zona_comun";
+            bloqueExteriorVisita.hidden = ambito !== "exterior";
+
+            if (ambito !== "nivel" && nivelIdVisita) {
+                nivelIdVisita.value = "";
+            }
+            if (ambito !== "unidad" && unidadIdVisita) {
+                unidadIdVisita.value = "";
+            }
+            if (ambito !== "zona_comun" && unidadIdZonaComunVisita) {
+                unidadIdZonaComunVisita.value = "";
+            }
+            if (ambito !== "exterior" && unidadIdExteriorVisita) {
+                unidadIdExteriorVisita.value = "";
+            }
+        }
+
+        function sincronizarUnidadAmbitoAntesDeEnviar(event) {
+            const form = event.currentTarget;
+            const ambito = ambitoVisitaInput.value;
+            unidadIdVisita.name = ambito === "unidad" ? "unidad_id" : "unidad_id_descartado";
+            unidadIdZonaComunVisita.name = ambito === "zona_comun" ? "unidad_id" : "unidad_id_zona_comun";
+            unidadIdExteriorVisita.name = ambito === "exterior" ? "unidad_id" : "unidad_id_exterior";
+        }
+
+        if (ambitoVisitaInput) {
+            ambitoVisitaInput.addEventListener("change", actualizarAmbitoVisita);
+            actualizarAmbitoVisita();
+        }
+
+        const formulario = document.querySelector("form");
+        if (formulario) {
+            formulario.addEventListener("submit", sincronizarUnidadAmbitoAntesDeEnviar);
+        }
+    </script>
 </body>
 
 </html>

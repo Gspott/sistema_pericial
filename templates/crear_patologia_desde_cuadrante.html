@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=7">
+    <script src="/static/pwa.js?v=4" defer></script>
+
+    <title>Crear patología desde cuadrante</title>
+</head>
+
+<body>
+    <div class="page with-top-nav">
+        <div class="topbar">
+            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
+            <a class="boton secundario" href="/logout">Cerrar sesión</a>
+        </div>
+
+        <h1>Crear patología desde cuadrante {{ cuadrante.codigo_cuadrante }}</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/editar-cuadrante-mapa-patologia/{{ cuadrante.id }}">Volver al cuadrante</a>
+            <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Volver a patologías</a>
+        </div>
+
+        <div class="card">
+            <p><strong>Mapa:</strong> {{ mapa.titulo }}</p>
+            {% if objeto_visita_label %}
+            <p><strong>Objeto de la visita:</strong> {{ objeto_visita_label }}</p>
+            {% endif %}
+            <p><strong>Modo:</strong> {{ 'Patología exterior' if modo_patologia == 'exterior' else 'Patología interior' }}</p>
+            <p><strong>Cuadrante:</strong> {{ cuadrante.codigo_cuadrante }}</p>
+            <p><strong>Descripción base:</strong> {{ cuadrante.descripcion or '-' }}</p>
+        </div>
+
+        <div class="card">
+            <form method="post" action="/crear-patologia-desde-cuadrante/{{ cuadrante.id }}" enctype="multipart/form-data">
+                {% if modo_patologia == 'interior' %}
+                {% if estancias %}
+                <label for="estancia_id">Estancia</label>
+                <select id="estancia_id" name="estancia_id" required>
+                    <option value="">Seleccionar...</option>
+                    {% for estancia in estancias %}
+                    <option value="{{ estancia.id }}">{{ estancia.nombre }}{% if estancia.planta %} ({{ estancia.planta }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="elemento">Elemento afectado</label>
+                <select id="elemento" name="elemento" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="pavimento">pavimento</option>
+                    <option value="paramento">paramento</option>
+                    <option value="techo">techo</option>
+                </select>
+
+                <label for="localizacion_dano">Localización del daño</label>
+                <input id="localizacion_dano" name="localizacion_dano" type="text" value="{{ cuadrante.codigo_cuadrante }}">
+                {% else %}
+                <p class="empty">No hay estancias disponibles para crear una patología interior desde este cuadrante.</p>
+                {% endif %}
+                {% else %}
+                <label for="zona_exterior">Zona exterior</label>
+                <select id="zona_exterior" name="zona_exterior" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="fachada">Fachada</option>
+                    <option value="cubierta">Cubierta</option>
+                    <option value="medianera">Medianera</option>
+                    <option value="patio">Patio</option>
+                    <option value="terraza">Terraza</option>
+                    <option value="exterior_general">Exterior general</option>
+                </select>
+
+                <label for="elemento_exterior">Elemento exterior</label>
+                <select id="elemento_exterior" name="elemento_exterior" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="revestimiento">Revestimiento</option>
+                    <option value="cerramiento">Cerramiento</option>
+                    <option value="cornisa">Cornisa</option>
+                    <option value="alero">Alero</option>
+                    <option value="peto">Peto</option>
+                    <option value="impermeabilizacion">Impermeabilizacion</option>
+                    <option value="carpinteria_exterior">Carpinteria exterior</option>
+                    <option value="barandilla">Barandilla</option>
+                    <option value="bajante">Bajante</option>
+                    <option value="canalon">Canalon</option>
+                    <option value="forjado">Forjado</option>
+                    <option value="otro">Otro</option>
+                </select>
+
+                <label for="localizacion_dano_exterior">Localización del daño exterior</label>
+                <input id="localizacion_dano_exterior" name="localizacion_dano_exterior" type="text" value="{{ cuadrante.codigo_cuadrante }}">
+                {% endif %}
+
+                <label for="patologia">Patología</label>
+                <select id="patologia" name="patologia" required>
+                    <option value="">Seleccionar...</option>
+                    {% for item in patologias %}
+                    <option value="{{ item.nombre }}">{{ item.nombre }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="observaciones">Observaciones</label>
+                <textarea id="observaciones" name="observaciones">{{ cuadrante.descripcion or '' }}</textarea>
+
+                <label for="foto">Foto</label>
+                <input id="foto" name="foto" type="file" accept="image/*">
+
+                <div class="actions">
+                    <button class="boton" type="submit" {% if modo_patologia == 'interior' and not estancias %}disabled{% endif %}>Crear y vincular</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <nav class="top-nav" aria-label="Navegación principal">
+        <a class="top-nav-item" href="/">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 10.5 12 3l9 7.5"></path>
+                <path d="M5 9.5V21h14V9.5"></path>
+            </svg>
+            <span class="top-nav-label">Inicio</span>
+        </a>
+        <a class="top-nav-item active" href="/expedientes">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path>
+            </svg>
+            <span class="top-nav-label">Expedientes</span>
+        </a>
+        <a class="top-nav-item center" href="/nuevo-expediente" aria-label="Nuevo expediente">
+            <span class="top-nav-plus">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14"></path>
+                    <path d="M5 12h14"></path>
+                </svg>
+            </span>
+            <span class="top-nav-label">Nuevo</span>
+        </a>
+        <a class="top-nav-item" href="/biblioteca-patologias">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5.5 4.5h10A2.5 2.5 0 0 1 18 7v12H7a2 2 0 0 0-2 2"></path>
+                <path d="M5.5 4.5A2.5 2.5 0 0 0 3 7v12.5A1.5 1.5 0 0 0 4.5 21H18"></path>
+            </svg>
+            <span class="top-nav-label">Biblioteca</span>
+        </a>
+        <a class="top-nav-item" href="/logout">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 19a7.5 7.5 0 1 0-7 0"></path>
+                <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+            </svg>
+            <span class="top-nav-label">Perfil</span>
+        </a>
+    </nav>
+</body>
+
+</html>

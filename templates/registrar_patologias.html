@@ -37,6 +37,9 @@
             <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
             <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
             <p><strong>Observaciones:</strong> {{ visita.observaciones_visita or '-' }}</p>
+            {% if objeto_visita_label %}
+            <p><strong>Objeto de la visita:</strong> {{ objeto_visita_label }}</p>
+            {% endif %}
         </div>
 
         {% if clima %}
@@ -60,8 +63,12 @@
         </div>
         {% endif %}
 
+        {% if visita.ambito_patologias != 'exterior' %}
         <div class="card">
-            <h2>Nuevo registro</h2>
+            <h2>Patologías interiores</h2>
+            {% if objeto_visita_label %}
+            <p class="helper-text">{{ objeto_visita_label }}</p>
+            {% endif %}
 
             {% if estancias %}
             <form method="post" action="/guardar-registro" enctype="multipart/form-data">
@@ -79,6 +86,14 @@
 
                 <label for="elemento">Elemento afectado</label>
                 <select id="elemento" name="elemento" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="pavimento">pavimento</option>
+                    <option value="paramento">paramento</option>
+                    <option value="techo">techo</option>
+                </select>
+
+                <label for="localizacion_dano">Localización del daño</label>
+                <select id="localizacion_dano" name="localizacion_dano" required>
                     <option value="">Seleccionar...</option>
                     <option value="pavimento">pavimento</option>
                     <option value="paramento">paramento</option>
@@ -105,9 +120,172 @@
             <p class="empty">Primero debes crear al menos una estancia para poder registrar patologías.</p>
             {% endif %}
         </div>
+        {% endif %}
+
+        {% if visita.ambito_patologias == 'exterior' or visita.ambito_patologias == 'interior_exterior' %}
+        <div class="card">
+            <h2>Patologías exteriores</h2>
+            {% if objeto_visita_label %}
+            <p class="helper-text">{{ objeto_visita_label }}</p>
+            {% endif %}
+
+            <form method="post" action="/guardar-registro-exterior" enctype="multipart/form-data">
+                <input type="hidden" name="visita_id" value="{{ visita.id }}">
+
+                <label for="zona_exterior">Zona exterior</label>
+                <select id="zona_exterior" name="zona_exterior" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="fachada">Fachada</option>
+                    <option value="cubierta">Cubierta</option>
+                    <option value="medianera">Medianera</option>
+                    <option value="patio">Patio</option>
+                    <option value="terraza">Terraza</option>
+                    <option value="exterior_general">Exterior general</option>
+                </select>
+
+                <label for="elemento_exterior">Elemento exterior</label>
+                <select id="elemento_exterior" name="elemento_exterior" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="revestimiento">Revestimiento</option>
+                    <option value="cerramiento">Cerramiento</option>
+                    <option value="cornisa">Cornisa</option>
+                    <option value="alero">Alero</option>
+                    <option value="peto">Peto</option>
+                    <option value="impermeabilizacion">Impermeabilizacion</option>
+                    <option value="carpinteria_exterior">Carpinteria exterior</option>
+                    <option value="barandilla">Barandilla</option>
+                    <option value="bajante">Bajante</option>
+                    <option value="canalon">Canalon</option>
+                    <option value="forjado">Forjado</option>
+                    <option value="otro">Otro</option>
+                </select>
+
+                <label for="localizacion_dano_exterior">Localización del daño exterior</label>
+                <select id="localizacion_dano_exterior" name="localizacion_dano_exterior" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="horizontal">Horizontal</option>
+                    <option value="vertical">Vertical</option>
+                    <option value="encuentro">Encuentro</option>
+                    <option value="puntual">Puntual</option>
+                </select>
+
+                <label for="patologia_exterior">Patología</label>
+                <select id="patologia_exterior" name="patologia" required>
+                    <option value="">Seleccionar...</option>
+                    {% for item in patologias %}
+                    <option value="{{ item.nombre }}">{{ item.nombre }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="observaciones_exterior">Observaciones</label>
+                <textarea id="observaciones_exterior" name="observaciones"></textarea>
+
+                <label for="foto_exterior">Foto</label>
+                <input type="file" id="foto_exterior" name="foto" accept="image/*">
+
+                <button class="boton" type="submit">Guardar registro exterior</button>
+            </form>
+        </div>
+        {% endif %}
 
         <div class="card">
-            <h2>Registros guardados</h2>
+            <h2>Mapas / cuadrantes</h2>
+            {% if objeto_visita_label %}
+            <p class="helper-text">{{ objeto_visita_label }}</p>
+            {% endif %}
+
+            <form method="post" action="/guardar-mapa-patologia" enctype="multipart/form-data">
+                <input type="hidden" name="visita_id" value="{{ visita.id }}">
+
+                <label for="titulo_mapa">Título</label>
+                <input id="titulo_mapa" name="titulo" type="text" required>
+
+                <label for="descripcion_mapa">Descripción</label>
+                <textarea id="descripcion_mapa" name="descripcion"></textarea>
+
+                <label for="ambito_mapa">Ámbito del mapa</label>
+                <select id="ambito_mapa" name="ambito_mapa">
+                    <option value="">Usar ámbito de la visita</option>
+                    {% for valor, etiqueta in ambito_mapa_options %}
+                    <option value="{{ valor }}">{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="filas_mapa">Filas</label>
+                <input id="filas_mapa" name="filas" type="number" min="1" value="4" required>
+
+                <label for="columnas_mapa">Columnas</label>
+                <input id="columnas_mapa" name="columnas" type="number" min="1" value="4" required>
+
+                <label for="imagen_base_mapa">Imagen base</label>
+                <input id="imagen_base_mapa" name="imagen_base" type="file" accept="image/*">
+
+                <label for="observaciones_mapa">Observaciones</label>
+                <textarea id="observaciones_mapa" name="observaciones"></textarea>
+
+                <button class="boton" type="submit">Crear mapa</button>
+            </form>
+
+            {% if mapas_patologia %}
+            {% for mapa in mapas_patologia %}
+            <div class="card inner-card">
+                <p><strong>Título:</strong> {{ mapa.titulo }}</p>
+                <p><strong>Ámbito:</strong> {{ mapa.ambito_mapa_label or '-' }}</p>
+                <p><strong>Cuadrícula:</strong> {{ mapa.filas }} x {{ mapa.columnas }}</p>
+                <p><strong>Cuadrantes con incidencia:</strong> {{ mapa.total_cuadrantes_con_incidencia }}</p>
+                <p><strong>Cuadrantes vinculados:</strong> {{ mapa.total_cuadrantes_vinculados }}</p>
+                <p><strong>Descripción:</strong> {{ mapa.descripcion or '-' }}</p>
+                <p><strong>Observaciones:</strong> {{ mapa.observaciones or '-' }}</p>
+
+                {% if mapa.imagen_base_url %}
+                <img src="{{ mapa.imagen_base_url }}" alt="Imagen base del mapa {{ mapa.titulo }}">
+                {% endif %}
+
+                <div class="actions">
+                    <a class="boton secundario" href="/editar-mapa-patologia/{{ mapa.id }}">Editar mapa</a>
+                    <form method="post" action="/borrar-mapa-patologia/{{ mapa.id }}"
+                        onsubmit="return confirm('¿Seguro que quieres borrar este mapa y todos sus cuadrantes?');">
+                        <button class="boton secundario" type="submit">Borrar mapa</button>
+                    </form>
+                </div>
+
+                {% if mapa.cuadrantes %}
+                <div class="card inner-card">
+                    <h3>Cuadrantes</h3>
+                    {% for cuadrante in mapa.cuadrantes %}
+                    <div class="card inner-card">
+                        <p><strong>Código:</strong> {{ cuadrante.codigo_cuadrante }}</p>
+                        <p><strong>Estado del vínculo:</strong> {{ '✅ Vinculado' if cuadrante.tiene_patologia_vinculada else '❌ No vinculado' }}</p>
+                        {% if cuadrante.patologia_vinculada_label %}
+                        <p><strong>Patología vinculada:</strong> {{ cuadrante.patologia_vinculada_label }}</p>
+                        {% endif %}
+                        <p><strong>Patología detectada:</strong> {{ cuadrante.patologia_detectada or '-' }}</p>
+                        <p><strong>Gravedad:</strong> {{ gravedad_cuadrante_labels.get(cuadrante.gravedad, cuadrante.gravedad or '-') }}</p>
+                        <p><strong>Descripción:</strong> {{ cuadrante.descripcion or '-' }}</p>
+                        <p><strong>Observaciones:</strong> {{ cuadrante.observaciones or '-' }}</p>
+                        {% if cuadrante.foto_detalle_url %}
+                        <img src="{{ cuadrante.foto_detalle_url }}" alt="Foto detalle del cuadrante {{ cuadrante.codigo_cuadrante }}">
+                        {% endif %}
+                        <div class="actions">
+                            <a class="boton secundario" href="/editar-cuadrante-mapa-patologia/{{ cuadrante.id }}">Editar cuadrante</a>
+                            {% if not cuadrante.tiene_patologia_vinculada %}
+                            <a class="boton" href="/crear-patologia-desde-cuadrante/{{ cuadrante.id }}">Crear patología</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="empty">No hay mapas creados para esta visita.</p>
+            {% endif %}
+        </div>
+
+        {% if visita.ambito_patologias != 'exterior' %}
+        <div class="card">
+            <h2>Registros interiores guardados</h2>
 
             {% if registros %}
             {% for registro in registros %}
@@ -118,6 +296,7 @@
                 <div class="card-content">
                     <p><strong>Estancia:</strong> {{ registro.estancia_nombre }}</p>
                     <p><strong>Elemento:</strong> {{ registro.elemento }}</p>
+                    <p><strong>Localización del daño:</strong> {{ registro.localizacion_dano or '-' }}</p>
                     <p><strong>Patología:</strong> {{ registro.patologia }}</p>
                     <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
 
@@ -137,6 +316,42 @@
             <p class="empty">Todavía no hay patologías registradas para esta visita.</p>
             {% endif %}
         </div>
+        {% endif %}
+
+        {% if visita.ambito_patologias == 'exterior' or visita.ambito_patologias == 'interior_exterior' %}
+        <div class="card">
+            <h2>Registros exteriores guardados</h2>
+
+            {% if registros_exteriores %}
+            {% for registro in registros_exteriores %}
+            <div class="card card-clickable">
+                <a class="card-link-cover" href="/editar-registro-exterior/{{ registro.id }}"
+                    aria-label="Editar patología exterior {{ registro.patologia }}"></a>
+
+                <div class="card-content">
+                    <p><strong>Zona exterior:</strong> {{ {'fachada':'Fachada','cubierta':'Cubierta','medianera':'Medianera','patio':'Patio','terraza':'Terraza','exterior_general':'Exterior general'}.get(registro.zona_exterior, registro.zona_exterior or '-') }}</p>
+                    <p><strong>Elemento exterior:</strong> {{ {'revestimiento':'Revestimiento','cerramiento':'Cerramiento','cornisa':'Cornisa','alero':'Alero','peto':'Peto','impermeabilizacion':'Impermeabilizacion','carpinteria_exterior':'Carpinteria exterior','barandilla':'Barandilla','bajante':'Bajante','canalon':'Canalon','forjado':'Forjado','otro':'Otro'}.get(registro.elemento_exterior, registro.elemento_exterior or '-') }}</p>
+                    <p><strong>Localización del daño exterior:</strong> {{ {'horizontal':'Horizontal','vertical':'Vertical','encuentro':'Encuentro','puntual':'Puntual'}.get(registro.localizacion_dano_exterior, registro.localizacion_dano_exterior or '-') }}</p>
+                    <p><strong>Patología:</strong> {{ registro.patologia }}</p>
+                    <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
+
+                    {% if registro.foto %}
+                    <img src="/uploads/{{ registro.foto }}" alt="Foto patología exterior">
+                    {% endif %}
+                </div>
+
+                <div class="card-actions">
+                    <form method="post" action="/borrar-registro-exterior/{{ registro.id }}">
+                        <button class="boton secundario" type="submit">Borrar</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="empty">Todavía no hay patologías exteriores registradas para esta visita.</p>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
 
     <nav class="top-nav" aria-label="Navegación principal">

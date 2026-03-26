@@ -37,8 +37,18 @@
             </form>
         </div>
 
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if mensaje %}
+        <p>{{ mensaje }}</p>
+        {% endif %}
+
         <div class="card">
+            <p><strong>Tipo de informe:</strong> {{ expediente.tipo_informe_label }}</p>
+            <p><strong>Destinatario:</strong> {{ expediente.destinatario_label }}</p>
             <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
+            <p><strong>Referencia catastral:</strong> {{ expediente.referencia_catastral or '-' }}</p>
             <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
             <p><strong>Tipo de inmueble:</strong> {{ expediente.tipo_inmueble or '-' }}</p>
             <p><strong>Orientación:</strong> {{ expediente.orientacion_inmueble or '-' }}</p>
@@ -47,6 +57,63 @@
             <p><strong>Uso:</strong> {{ expediente.uso_inmueble or '-' }}</p>
             <p><strong>Observaciones generales:</strong> {{ expediente.observaciones_generales or '-' }}</p>
         </div>
+
+        {% if expediente.es_judicial %}
+        <div class="card">
+            <h2>Datos judiciales</h2>
+            <p><strong>Procedimiento judicial:</strong> {{ expediente.procedimiento_judicial or '-' }}</p>
+            <p><strong>Juzgado:</strong> {{ expediente.juzgado or '-' }}</p>
+            <p><strong>Auto judicial:</strong> {{ expediente.auto_judicial or '-' }}</p>
+            <p><strong>Parte solicitante:</strong> {{ expediente.parte_solicitante or '-' }}</p>
+            <p><strong>Objeto de la pericia:</strong> {{ expediente.objeto_pericia or '-' }}</p>
+            <p><strong>Alcance y limitaciones:</strong> {{ expediente.alcance_limitaciones or '-' }}</p>
+            <p><strong>Metodología pericial:</strong> {{ expediente.metodologia_pericial or '-' }}</p>
+        </div>
+        {% endif %}
+
+        {% if expediente.es_informe_patologias %}
+        <div class="card">
+            <h2>Datos específicos del informe</h2>
+            <p><strong>Ámbito de patologías:</strong> {{ expediente.ambito_patologias_label }}</p>
+            <p><strong>Descripción del daño:</strong> {{ expediente.descripcion_dano or '-' }}</p>
+            <p><strong>Causa probable:</strong> {{ expediente.causa_probable or '-' }}</p>
+            <p><strong>Pruebas e indicios:</strong> {{ expediente.pruebas_indicios or '-' }}</p>
+            <p><strong>Evolución / preexistencia:</strong> {{ expediente.evolucion_preexistencia or '-' }}</p>
+            <p><strong>Propuesta de reparación:</strong> {{ expediente.propuesta_reparacion or '-' }}</p>
+            <p><strong>Urgencia / gravedad:</strong> {{ expediente.urgencia_gravedad or '-' }}</p>
+            <p><strong>Patologías interiores registradas:</strong> {{ resumen_tipo.total_interiores or 0 }}</p>
+            <p><strong>Patologías exteriores registradas:</strong> {{ resumen_tipo.total_exteriores or 0 }}</p>
+        </div>
+        {% endif %}
+
+        {% if expediente.es_informe_inspeccion %}
+        <div class="card">
+            <h2>Resumen de inspección</h2>
+            <p><strong>Visitas con checklist general:</strong> {{ resumen_tipo.visitas_con_checklist or 0 }}</p>
+            <p><strong>Estancias inspeccionadas:</strong> {{ resumen_tipo.estancias_inspeccionadas or 0 }}</p>
+            <p><strong>Visitas con exterior:</strong> {{ resumen_tipo.visitas_con_exterior or 0 }}</p>
+            <p><strong>Visitas con elementos comunes:</strong> {{ resumen_tipo.visitas_con_comunes or 0 }}</p>
+        </div>
+        {% endif %}
+
+        {% if expediente.es_informe_habitabilidad %}
+        <div class="card">
+            <h2>Resumen de habitabilidad</h2>
+            <p><strong>Visitas con evaluación:</strong> {{ resumen_tipo.visitas_con_habitabilidad or 0 }}</p>
+            <p><strong>Estancias evaluadas:</strong> {{ resumen_tipo.estancias_evaluadas or 0 }}</p>
+            <p><strong>Visitas con exterior:</strong> {{ resumen_tipo.visitas_con_exterior or 0 }}</p>
+            <p><strong>Última conclusión:</strong> {{ expediente.ultima_conclusion_habitabilidad_label or '-' }}</p>
+        </div>
+        {% endif %}
+
+        {% if expediente.es_informe_valoracion %}
+        <div class="card">
+            <h2>Resumen de valoración</h2>
+            <p><strong>Visitas con valoración:</strong> {{ resumen_tipo.visitas_con_valoracion or 0 }}</p>
+            <p><strong>Comparables registrados:</strong> {{ resumen_tipo.comparables or 0 }}</p>
+            <p><strong>Valor final más reciente:</strong> {{ resumen_tipo.valor_tasacion_final or '-' }}</p>
+        </div>
+        {% endif %}
 
         {% if expediente.observaciones_bloque %}
         <div class="card">
@@ -67,11 +134,240 @@
         </div>
 
         <div class="card">
+            <h2>Estructura del expediente</h2>
+            {% if niveles_edificio %}
+            {% for nivel in niveles_edificio %}
+            <div>
+                <p><strong>{{ nivel.nombre_nivel }}</strong>{% if nivel.tipo_nivel_label %} · {{ nivel.tipo_nivel_label }}{% endif %}{% if nivel.orden_nivel is not none %} · Orden {{ nivel.orden_nivel }}{% endif %}</p>
+                {% if nivel.principales %}
+                <ul>
+                    {% for unidad in nivel.principales %}
+                    <li>
+                        {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }})
+                        {% if unidad.uso %} · Uso: {{ unidad.uso }}{% endif %}
+                        {% if unidad.superficie %} · Sup.: {{ unidad.superficie }}{% endif %}
+                        {% if unidad.anejos %}
+                        <ul>
+                            {% for anejo in unidad.anejos %}
+                            <li>Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if nivel.comunes %}
+                <p><strong>Zonas comunes</strong></p>
+                <ul>
+                    {% for unidad in nivel.comunes %}
+                    <li>{{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if nivel.exteriores %}
+                <p><strong>Exteriores</strong></p>
+                <ul>
+                    {% for unidad in nivel.exteriores %}
+                    <li>{{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if nivel.otras %}
+                <ul>
+                    {% for unidad in nivel.otras %}
+                    <li>{{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if nivel.observaciones %}
+                <p><strong>Observaciones:</strong> {{ nivel.observaciones }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if unidades_sin_nivel.principales or unidades_sin_nivel.comunes or unidades_sin_nivel.exteriores or unidades_sin_nivel.otras or anejos_sueltos %}
+            <div>
+                <p><strong>Sin nivel asignado</strong></p>
+                {% if unidades_sin_nivel.principales %}
+                <ul>
+                    {% for unidad in unidades_sin_nivel.principales %}
+                    <li>
+                        {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }})
+                        {% if unidad.anejos %}
+                        <ul>
+                            {% for anejo in unidad.anejos %}
+                            <li>Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if unidades_sin_nivel.comunes %}
+                <p><strong>Zonas comunes</strong></p>
+                <ul>
+                    {% for unidad in unidades_sin_nivel.comunes %}
+                    <li>{{ unidad.identificador }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if unidades_sin_nivel.exteriores %}
+                <p><strong>Exteriores</strong></p>
+                <ul>
+                    {% for unidad in unidades_sin_nivel.exteriores %}
+                    <li>{{ unidad.identificador }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if anejos_sueltos %}
+                <p><strong>Anejos sin unidad principal asignada</strong></p>
+                <ul>
+                    {% for anejo in anejos_sueltos %}
+                    <li>{{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if not niveles_edificio and not unidades_expediente %}
+            <p class="empty">Todavía no se han definido niveles ni unidades en este expediente.</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Gestionar niveles</h2>
+            <form method="post" action="/guardar-nivel-expediente/{{ expediente.id }}">
+                <label for="nombre_nivel">Nombre del nivel</label>
+                <input id="nombre_nivel" name="nombre_nivel" type="text" required>
+
+                <label for="orden_nivel">Orden</label>
+                <input id="orden_nivel" name="orden_nivel" type="number" step="1">
+
+                <label for="tipo_nivel">Tipo de nivel</label>
+                <select id="tipo_nivel" name="tipo_nivel">
+                    <option value="">Selecciona una opción</option>
+                    {% for valor, etiqueta in tipo_nivel_options %}
+                    <option value="{{ valor }}">{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="observaciones_nivel">Observaciones</label>
+                <textarea id="observaciones_nivel" name="observaciones" rows="2"></textarea>
+
+                <button class="boton" type="submit">Añadir nivel</button>
+            </form>
+
+            {% if niveles_edificio %}
+            {% for nivel in niveles_edificio %}
+            <div class="actions">
+                <span>{{ nivel.nombre_nivel }}{% if nivel.tipo_nivel_label %} · {{ nivel.tipo_nivel_label }}{% endif %}</span>
+                <a class="boton secundario" href="/editar-nivel-expediente/{{ nivel.id }}">Editar</a>
+                <form method="post" action="/borrar-nivel-expediente/{{ nivel.id }}"
+                    onsubmit="return confirm('¿Seguro que quieres borrar este nivel? Las unidades quedarán sin nivel asignado.');">
+                    <button class="boton secundario" type="submit">Borrar</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Gestionar unidades</h2>
+            <form method="post" action="/guardar-unidad-expediente/{{ expediente.id }}">
+                <label for="nivel_id">Nivel</label>
+                <select id="nivel_id" name="nivel_id">
+                    <option value="">Sin nivel asignado</option>
+                    {% for nivel in niveles_edificio %}
+                    <option value="{{ nivel.id }}">{{ nivel.nombre_nivel }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="identificador_unidad">Identificador</label>
+                <input id="identificador_unidad" name="identificador" type="text" required>
+
+                <label for="tipo_unidad">Tipo de unidad</label>
+                <select id="tipo_unidad" name="tipo_unidad">
+                    {% for valor, etiqueta in tipo_unidad_options %}
+                    <option value="{{ valor }}">{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="vinculo_unidad">Vínculo de la unidad</label>
+                <select id="vinculo_unidad" name="vinculo_unidad">
+                    {% for valor, etiqueta in vinculo_unidad_options %}
+                    <option value="{{ valor }}">{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+
+                <div id="bloque_anejo_detalle" hidden>
+                    <label for="unidad_principal_id">Unidad principal asociada</label>
+                    <select id="unidad_principal_id" name="unidad_principal_id">
+                        <option value="">Selecciona una unidad principal</option>
+                        {% for unidad in unidades_principales_form %}
+                        <option value="{{ unidad.id }}">{{ unidad.identificador }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="tipo_anejo">Tipo de anejo</label>
+                    <select id="tipo_anejo" name="tipo_anejo">
+                        <option value="">Selecciona una opción</option>
+                        {% for valor, etiqueta in tipo_anejo_options %}
+                        <option value="{{ valor }}">{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <label for="uso_unidad">Uso</label>
+                <input id="uso_unidad" name="uso" type="text">
+
+                <label for="superficie_unidad_multi">Superficie</label>
+                <input id="superficie_unidad_multi" name="superficie" type="text">
+
+                <label for="referencia_catastral_unidad">Referencia catastral de la unidad</label>
+                <input id="referencia_catastral_unidad" name="referencia_catastral_unidad" type="text">
+
+                <label for="observaciones_unidad_multi">Observaciones</label>
+                <textarea id="observaciones_unidad_multi" name="observaciones" rows="3"></textarea>
+
+                <button class="boton" type="submit">Añadir unidad</button>
+            </form>
+
+            {% if unidades_expediente %}
+            {% for unidad in unidades_expediente %}
+            <div class="actions">
+                <span>
+                    {{ unidad.identificador }} · {{ unidad.tipo_unidad_label or unidad.tipo_unidad }}
+                    {% if unidad.nombre_nivel %} · {{ unidad.nombre_nivel }}{% endif %}
+                    {% if unidad.vinculo_unidad_label %} · {{ unidad.vinculo_unidad_label }}{% endif %}
+                    {% if unidad.unidad_principal_identificador %} · Principal: {{ unidad.unidad_principal_identificador }}{% endif %}
+                </span>
+                <a class="boton secundario" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                <form method="post" action="/borrar-unidad-expediente/{{ unidad.id }}"
+                    onsubmit="return confirm('¿Seguro que quieres borrar esta unidad?');">
+                    <button class="boton secundario" type="submit">Borrar</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <div class="card">
             <h2>Reforma</h2>
             <p><strong>Reformado:</strong> {{ expediente.reformado or 'No' }}</p>
             <p><strong>Fecha de reforma:</strong> {{ expediente.fecha_reforma or '-' }}</p>
             <p><strong>Observaciones de la reforma:</strong> {{ expediente.observaciones_reforma or '-' }}</p>
         </div>
+
+        {% if expediente.imagen_catastro_url %}
+        <div class="card">
+            <h2>Imagen catastral</h2>
+            <img src="{{ expediente.imagen_catastro_url }}" alt="Imagen catastral del expediente">
+        </div>
+        {% endif %}
 
         <h2>Visitas del expediente</h2>
 
@@ -81,13 +377,45 @@
             <p><strong>Fecha:</strong> {{ visita.fecha }}</p>
             <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
             <p><strong>Observaciones de visita:</strong> {{ visita.observaciones_visita or '-' }}</p>
+            <p><strong>Ámbito de la visita:</strong> {{ visita.ambito_visita_label or 'Edificio completo' }}</p>
+            {% if visita.nombre_nivel_visita %}
+            <p><strong>Planta:</strong> {{ visita.nombre_nivel_visita }}</p>
+            {% endif %}
+            {% if visita.identificador_unidad_visita %}
+            {% if visita.ambito_visita == 'zona_comun' %}
+            <p><strong>Zona común:</strong> {{ visita.identificador_unidad_visita }}</p>
+            {% elif visita.ambito_visita == 'exterior' %}
+            <p><strong>Exterior:</strong> {{ visita.identificador_unidad_visita }}</p>
+            {% else %}
+            <p><strong>Unidad:</strong> {{ visita.identificador_unidad_visita }}</p>
+            {% endif %}
+            {% endif %}
             <p><strong>Estancias:</strong> {{ visita.total_estancias }}</p>
-            <p><strong>Patologías registradas:</strong> {{ visita.total_patologias }}</p>
+            {% if expediente.es_informe_patologias %}
+            <p><strong>Patologías interiores:</strong> {{ visita.total_patologias }}</p>
+            <p><strong>Patologías exteriores:</strong> {{ visita.total_patologias_exteriores or 0 }}</p>
+            <p><strong>Mapas:</strong> {{ visita.total_mapas_patologia or 0 }}</p>
+            <p><strong>Cuadrantes con incidencia:</strong> {{ visita.total_cuadrantes_con_incidencia or 0 }}</p>
+            <p><strong>Cuadrantes vinculados:</strong> {{ visita.total_cuadrantes_vinculados or 0 }}</p>
+            {% elif expediente.es_informe_inspeccion %}
+            <p><strong>Checklist general:</strong> {{ 'Sí' if visita.tiene_inspeccion_general else 'No' }}</p>
+            <p><strong>Estancias inspeccionadas:</strong> {{ visita.total_estancias_inspeccion or 0 }}</p>
+            {% elif expediente.es_informe_habitabilidad %}
+            <p><strong>Evaluación general:</strong> {{ 'Sí' if visita.tiene_habitabilidad_general else 'No' }}</p>
+            <p><strong>Estancias evaluadas:</strong> {{ visita.total_estancias_habitabilidad or 0 }}</p>
+            <p><strong>Conclusión:</strong> {{ visita.conclusion_habitabilidad_label or '-' }}</p>
+            {% elif expediente.es_informe_valoracion %}
+            <p><strong>Ficha de valoración:</strong> {{ 'Sí' if visita.tiene_valoracion else 'No' }}</p>
+            <p><strong>Comparables:</strong> {{ visita.total_comparables or 0 }}</p>
+            <p><strong>Valor final:</strong> {{ visita.valor_tasacion_final or '-' }}</p>
+            {% endif %}
 
             <div class="actions">
                 <a class="boton secundario" href="/editar-visita/{{ visita.id }}">Editar visita</a>
                 <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
+                {% if expediente.es_informe_patologias %}
                 <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -136,6 +464,23 @@
             <span class="top-nav-label">Perfil</span>
         </a>
     </nav>
+
+    <script>
+        const vinculoUnidadInput = document.getElementById("vinculo_unidad");
+        const bloqueAnejoDetalle = document.getElementById("bloque_anejo_detalle");
+
+        function actualizarBloqueAnejoDetalle() {
+            if (!vinculoUnidadInput || !bloqueAnejoDetalle) {
+                return;
+            }
+            bloqueAnejoDetalle.hidden = vinculoUnidadInput.value !== "anejo";
+        }
+
+        if (vinculoUnidadInput) {
+            vinculoUnidadInput.addEventListener("change", actualizarBloqueAnejoDetalle);
+            actualizarBloqueAnejoDetalle();
+        }
+    </script>
 </body>
 
 </html>
