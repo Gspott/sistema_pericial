@@ -52,6 +52,7 @@ def migrar_expedientes_superficies(cur):
             observaciones_generales TEXT,
             planta_unidad TEXT,
             puerta_unidad TEXT,
+            analisis_unidades TEXT,
             superficie_construida TEXT,
             superficie_util TEXT,
             dormitorios_unidad TEXT,
@@ -150,6 +151,54 @@ def migrar_expedientes_superficies(cur):
     cur.execute("ALTER TABLE expedientes_new RENAME TO expedientes")
 
 
+def migrar_fotos_legadas(cur):
+    cur.execute(
+        """
+        INSERT INTO registro_patologia_fotos (registro_id, archivo)
+        SELECT rp.id, rp.foto
+        FROM registros_patologias rp
+        WHERE rp.foto IS NOT NULL
+          AND rp.foto <> ''
+          AND NOT EXISTS (
+              SELECT 1
+              FROM registro_patologia_fotos rpf
+              WHERE rpf.registro_id = rp.id
+                AND rpf.archivo = rp.foto
+          )
+        """
+    )
+    cur.execute(
+        """
+        INSERT INTO registro_patologia_exterior_fotos (registro_id, archivo)
+        SELECT rpe.id, rpe.foto
+        FROM registros_patologias_exteriores rpe
+        WHERE rpe.foto IS NOT NULL
+          AND rpe.foto <> ''
+          AND NOT EXISTS (
+              SELECT 1
+              FROM registro_patologia_exterior_fotos rpef
+              WHERE rpef.registro_id = rpe.id
+                AND rpef.archivo = rpe.foto
+          )
+        """
+    )
+    cur.execute(
+        """
+        INSERT INTO cuadrante_mapa_patologia_fotos (cuadrante_id, archivo)
+        SELECT qmp.id, qmp.foto_detalle
+        FROM cuadrantes_mapa_patologia qmp
+        WHERE qmp.foto_detalle IS NOT NULL
+          AND qmp.foto_detalle <> ''
+          AND NOT EXISTS (
+              SELECT 1
+              FROM cuadrante_mapa_patologia_fotos qmpf
+              WHERE qmpf.cuadrante_id = qmp.id
+                AND qmpf.archivo = qmp.foto_detalle
+          )
+        """
+    )
+
+
 def init_db():
     conn = get_connection()
     cur = conn.cursor()
@@ -195,6 +244,7 @@ def init_db():
             observaciones_generales TEXT,
             planta_unidad TEXT,
             puerta_unidad TEXT,
+            analisis_unidades TEXT,
             superficie_construida TEXT,
             superficie_util TEXT,
             dormitorios_unidad TEXT,
@@ -244,6 +294,7 @@ def init_db():
     asegurar_columna(cur, "expedientes", "evolucion_preexistencia", "TEXT")
     asegurar_columna(cur, "expedientes", "propuesta_reparacion", "TEXT")
     asegurar_columna(cur, "expedientes", "urgencia_gravedad", "TEXT")
+    asegurar_columna(cur, "expedientes", "analisis_unidades", "TEXT")
 
     cur.execute(
         """
@@ -286,6 +337,18 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS estancia_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estancia_id INTEGER NOT NULL,
+            archivo TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (estancia_id) REFERENCES estancias (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS registros_patologias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             visita_id INTEGER NOT NULL,
@@ -300,6 +363,8 @@ def init_db():
         """
     )
     asegurar_columna(cur, "registros_patologias", "localizacion_dano", "TEXT")
+    asegurar_columna(cur, "registros_patologias", "detalle_localizacion", "TEXT")
+    asegurar_columna(cur, "registros_patologias", "rol_patologia_observado", "TEXT")
 
     cur.execute(
         """
@@ -313,6 +378,29 @@ def init_db():
             observaciones TEXT,
             foto TEXT,
             FOREIGN KEY (visita_id) REFERENCES visitas (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS registro_patologia_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registro_id INTEGER NOT NULL,
+            archivo TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (registro_id) REFERENCES registros_patologias (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS registro_patologia_exterior_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registro_id INTEGER NOT NULL,
+            archivo TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (registro_id) REFERENCES registros_patologias_exteriores (id)
         )
         """
     )
@@ -638,6 +726,18 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS cuadrante_mapa_patologia_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cuadrante_id INTEGER NOT NULL,
+            archivo TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (cuadrante_id) REFERENCES cuadrantes_mapa_patologia (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS niveles_edificio (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             expediente_id INTEGER NOT NULL,
@@ -718,10 +818,20 @@ def init_db():
             nombre TEXT NOT NULL,
             descripcion TEXT,
             causa TEXT,
-            solucion TEXT
+            solucion TEXT,
+            categoria TEXT,
+            elemento_afectado TEXT,
+            mecanismo TEXT,
+            rol_patologia TEXT,
+            activo INTEGER DEFAULT 1
         )
         """
     )
+    asegurar_columna(cur, "biblioteca_patologias", "categoria", "TEXT")
+    asegurar_columna(cur, "biblioteca_patologias", "elemento_afectado", "TEXT")
+    asegurar_columna(cur, "biblioteca_patologias", "mecanismo", "TEXT")
+    asegurar_columna(cur, "biblioteca_patologias", "rol_patologia", "TEXT")
+    asegurar_columna(cur, "biblioteca_patologias", "activo", "INTEGER DEFAULT 1")
 
     cur.execute("SELECT COUNT(*) FROM biblioteca_patologias")
     count = cur.fetchone()[0]
@@ -777,6 +887,8 @@ def init_db():
                 ),
             ],
         )
+
+    migrar_fotos_legadas(cur)
 
     conn.commit()
     conn.close()

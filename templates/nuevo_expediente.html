@@ -14,6 +14,59 @@
     <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
+    <style>
+        .form-section {
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: #f8fafc;
+            overflow: hidden;
+        }
+
+        .form-section-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .form-section-toggle:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: -2px;
+        }
+
+        .form-section-title {
+            font-size: 1.05rem;
+        }
+
+        .form-section-arrow {
+            flex: 0 0 auto;
+            font-size: 1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .form-section.collapsed .form-section-arrow {
+            transform: rotate(-90deg);
+        }
+
+        .form-section-body {
+            padding: 0 16px 16px 16px;
+        }
+
+        .form-section.collapsed .form-section-body {
+            display: none;
+        }
+    </style>
+
     <title>Nuevo expediente</title>
 </head>
 
@@ -35,188 +88,226 @@
             <form method="post" action="/guardar-expediente">
                 <input type="hidden" id="imagen_catastro" name="imagen_catastro" value="">
 
-                <label for="numero_expediente">Número de expediente</label>
-                <input type="text" id="numero_expediente" value="{{ numero_expediente_sugerido }}" readonly>
+                <section class="form-section" data-collapsible data-collapse-id="informacion">
+                    <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                        <span class="form-section-title">Información</span>
+                        <span class="form-section-arrow" aria-hidden="true">▾</span>
+                    </button>
+                    <div class="form-section-body" data-collapsible-body>
+                        <label for="numero_expediente">Número de expediente</label>
+                        <input type="text" id="numero_expediente" value="{{ numero_expediente_sugerido }}" readonly>
 
-                <label for="tipo_informe">Tipo de informe</label>
-                <select id="tipo_informe" name="tipo_informe">
-                    <option value="patologias" selected>Patologías</option>
-                    <option value="inspeccion">Inspección del inmueble</option>
-                    <option value="valoracion">Valoración inmobiliaria</option>
-                    <option value="habitabilidad">Habitabilidad</option>
-                </select>
+                        <label for="tipo_informe">Tipo de informe</label>
+                        <select id="tipo_informe" name="tipo_informe">
+                            <option value="patologias" selected>Patologías</option>
+                            <option value="inspeccion">Inspección del inmueble</option>
+                            <option value="valoracion">Valoración inmobiliaria</option>
+                            <option value="habitabilidad">Habitabilidad</option>
+                        </select>
 
-                <label for="destinatario">Destinatario</label>
-                <select id="destinatario" name="destinatario">
-                    <option value="particular" selected>Cliente particular / empresa</option>
-                    <option value="judicial">Encargo judicial</option>
-                </select>
+                        <label for="destinatario">Destinatario</label>
+                        <select id="destinatario" name="destinatario">
+                            <option value="particular" selected>Cliente particular / empresa</option>
+                            <option value="judicial">Encargo judicial</option>
+                        </select>
 
-                <div id="bloque_judicial" hidden>
-                    <label for="procedimiento_judicial">Procedimiento judicial</label>
-                    <input type="text" id="procedimiento_judicial" name="procedimiento_judicial">
+                        <div id="bloque_judicial" hidden>
+                            <label for="procedimiento_judicial">Procedimiento judicial</label>
+                            <input type="text" id="procedimiento_judicial" name="procedimiento_judicial">
 
-                    <label for="juzgado">Juzgado</label>
-                    <input type="text" id="juzgado" name="juzgado">
+                            <label for="juzgado">Juzgado</label>
+                            <input type="text" id="juzgado" name="juzgado">
 
-                    <label for="auto_judicial">Auto judicial</label>
-                    <input type="text" id="auto_judicial" name="auto_judicial">
+                            <label for="auto_judicial">Auto judicial</label>
+                            <input type="text" id="auto_judicial" name="auto_judicial">
 
-                    <label for="parte_solicitante">Parte solicitante</label>
-                    <input type="text" id="parte_solicitante" name="parte_solicitante">
+                            <label for="parte_solicitante">Parte solicitante</label>
+                            <input type="text" id="parte_solicitante" name="parte_solicitante">
 
-                    <label for="objeto_pericia">Objeto de la pericia</label>
-                    <textarea id="objeto_pericia" name="objeto_pericia"></textarea>
+                            <label for="objeto_pericia">Objeto de la pericia</label>
+                            <textarea id="objeto_pericia" name="objeto_pericia"></textarea>
 
-                    <label for="alcance_limitaciones">Alcance y limitaciones</label>
-                    <textarea id="alcance_limitaciones" name="alcance_limitaciones"></textarea>
+                            <label for="alcance_limitaciones">Alcance y limitaciones</label>
+                            <textarea id="alcance_limitaciones" name="alcance_limitaciones"></textarea>
 
-                    <label for="metodologia_pericial">Metodología pericial</label>
-                    <textarea id="metodologia_pericial" name="metodologia_pericial"></textarea>
-                </div>
+                            <label for="metodologia_pericial">Metodología pericial</label>
+                            <textarea id="metodologia_pericial" name="metodologia_pericial"></textarea>
+                        </div>
 
-                <div id="bloque_patologias" hidden>
-                    <h2>Datos específicos del informe</h2>
+                        <label for="cliente">Cliente</label>
+                        <input type="text" id="cliente" name="cliente" required>
 
-                    <label for="ambito_patologias">Ámbito de patologías</label>
-                    <select id="ambito_patologias" name="ambito_patologias">
-                        <option value="interior" selected>Interior</option>
-                        <option value="exterior">Exterior</option>
-                        <option value="interior_exterior">Interior y exterior</option>
-                    </select>
+                        <label for="referencia_catastral">Referencia catastral</label>
+                        <input type="text" id="referencia_catastral" name="referencia_catastral" autocomplete="off">
+                        <button class="boton secundario" type="button" id="boton_catastro">Autocompletar desde Catastro</button>
+                        <p id="catastro_estado" class="helper-text"></p>
 
-                    <label for="descripcion_dano">Descripción del daño</label>
-                    <textarea id="descripcion_dano" name="descripcion_dano"></textarea>
+                        <label for="direccion">Dirección</label>
+                        <input type="text" id="direccion" name="direccion" autocomplete="off" required>
+                        <div id="direccion_sugerencias" class="address-suggestions"></div>
 
-                    <label for="causa_probable">Causa probable</label>
-                    <textarea id="causa_probable" name="causa_probable"></textarea>
+                        <label for="codigo_postal">Código postal</label>
+                        <input type="text" id="codigo_postal" name="codigo_postal">
 
-                    <label for="pruebas_indicios">Pruebas e indicios</label>
-                    <textarea id="pruebas_indicios" name="pruebas_indicios"></textarea>
+                        <label for="ciudad">Ciudad</label>
+                        <input type="text" id="ciudad" name="ciudad">
 
-                    <label for="evolucion_preexistencia">Evolución / preexistencia</label>
-                    <textarea id="evolucion_preexistencia" name="evolucion_preexistencia"></textarea>
+                        <label for="provincia">Provincia</label>
+                        <input type="text" id="provincia" name="provincia">
+                    </div>
+                </section>
 
-                    <label for="propuesta_reparacion">Propuesta de reparación</label>
-                    <textarea id="propuesta_reparacion" name="propuesta_reparacion"></textarea>
+                <section class="form-section" data-collapsible data-collapse-id="descripcion_edificio">
+                    <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                        <span class="form-section-title">Descripción edificio</span>
+                        <span class="form-section-arrow" aria-hidden="true">▾</span>
+                    </button>
+                    <div class="form-section-body" data-collapsible-body>
+                        <label for="tipo_inmueble">Tipo de inmueble</label>
+                        <select id="tipo_inmueble" name="tipo_inmueble">
+                            <option value="">Seleccionar...</option>
+                            <option value="Vivienda unifamiliar">Vivienda unifamiliar</option>
+                            <option value="Vivienda plurifamiliar">Vivienda plurifamiliar</option>
+                            <option value="Piso">Piso</option>
+                            <option value="Local">Local</option>
+                            <option value="Oficina">Oficina</option>
+                            <option value="Nave">Nave</option>
+                            <option value="Garaje">Garaje</option>
+                            <option value="Trastero">Trastero</option>
+                            <option value="Otro">Otro</option>
+                        </select>
 
-                    <label for="urgencia_gravedad">Urgencia / gravedad</label>
-                    <textarea id="urgencia_gravedad" name="urgencia_gravedad"></textarea>
-                </div>
+                        <label for="orientacion_inmueble">Orientación</label>
+                        <select id="orientacion_inmueble" name="orientacion_inmueble">
+                            <option value="">Seleccionar...</option>
+                            <option value="Norte">Norte</option>
+                            <option value="Sur">Sur</option>
+                            <option value="Este">Este</option>
+                            <option value="Oeste">Oeste</option>
+                            <option value="Noreste">Noreste</option>
+                            <option value="Noroeste">Noroeste</option>
+                            <option value="Sureste">Sureste</option>
+                            <option value="Suroeste">Suroeste</option>
+                        </select>
 
-                <label for="cliente">Cliente</label>
-                <input type="text" id="cliente" name="cliente" required>
+                        <label for="anio_construccion">Año de construcción</label>
+                        <select id="anio_construccion" name="anio_construccion">
+                            <option value="">Seleccionar...</option>
+                            {% for anio in anios_disponibles %}
+                            <option value="{{ anio }}">{{ anio }}</option>
+                            {% endfor %}
+                        </select>
 
-                <label for="referencia_catastral">Referencia catastral</label>
-                <input type="text" id="referencia_catastral" name="referencia_catastral" autocomplete="off">
-                <button class="boton secundario" type="button" id="boton_catastro">Autocompletar desde Catastro</button>
-                <p id="catastro_estado" class="helper-text"></p>
+                        <label for="plantas_bajo_rasante">Plantas bajo rasante</label>
+                        <input type="number" id="plantas_bajo_rasante" name="plantas_bajo_rasante" min="0" value="0">
 
-                <label for="direccion">Dirección</label>
-                <input type="text" id="direccion" name="direccion" autocomplete="off" required>
-                <div id="direccion_sugerencias" class="address-suggestions"></div>
+                        <label for="plantas_sobre_baja">Plantas sobre baja</label>
+                        <input type="number" id="plantas_sobre_baja" name="plantas_sobre_baja" min="0" value="0">
 
-                <label for="codigo_postal">Código postal</label>
-                <input type="text" id="codigo_postal" name="codigo_postal">
+                        <label for="uso_inmueble">Uso del inmueble</label>
+                        <input type="text" id="uso_inmueble" name="uso_inmueble">
 
-                <label for="ciudad">Ciudad</label>
-                <input type="text" id="ciudad" name="ciudad">
+                        <label for="observaciones_generales">Observaciones generales</label>
+                        <textarea id="observaciones_generales" name="observaciones_generales"></textarea>
+                    </div>
+                </section>
 
-                <label for="provincia">Provincia</label>
-                <input type="text" id="provincia" name="provincia">
+                <section id="seccion_patologias" class="form-section" data-collapsible data-collapse-id="datos_informe" hidden>
+                    <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                        <span class="form-section-title">Datos específicos del informe</span>
+                        <span class="form-section-arrow" aria-hidden="true">▾</span>
+                    </button>
+                    <div id="bloque_patologias" class="form-section-body" data-collapsible-body>
+                        <label for="ambito_patologias">Ámbito de patologías</label>
+                        <select id="ambito_patologias" name="ambito_patologias">
+                            <option value="interior" selected>Interior</option>
+                            <option value="exterior">Exterior</option>
+                            <option value="interior_exterior">Interior y exterior</option>
+                        </select>
 
-                <label for="tipo_inmueble">Tipo de inmueble</label>
-                <select id="tipo_inmueble" name="tipo_inmueble">
-                    <option value="">Seleccionar...</option>
-                    <option value="Vivienda unifamiliar">Vivienda unifamiliar</option>
-                    <option value="Piso">Piso</option>
-                    <option value="Local">Local</option>
-                    <option value="Oficina">Oficina</option>
-                    <option value="Nave">Nave</option>
-                    <option value="Garaje">Garaje</option>
-                    <option value="Trastero">Trastero</option>
-                    <option value="Otro">Otro</option>
-                </select>
+                        <label for="descripcion_dano">Descripción del daño</label>
+                        <textarea id="descripcion_dano" name="descripcion_dano"></textarea>
 
-                <label for="orientacion_inmueble">Orientación</label>
-                <select id="orientacion_inmueble" name="orientacion_inmueble">
-                    <option value="">Seleccionar...</option>
-                    <option value="Norte">Norte</option>
-                    <option value="Sur">Sur</option>
-                    <option value="Este">Este</option>
-                    <option value="Oeste">Oeste</option>
-                    <option value="Noreste">Noreste</option>
-                    <option value="Noroeste">Noroeste</option>
-                    <option value="Sureste">Sureste</option>
-                    <option value="Suroeste">Suroeste</option>
-                </select>
+                        <label for="causa_probable">Causa probable</label>
+                        <textarea id="causa_probable" name="causa_probable"></textarea>
 
-                <label for="anio_construccion">Año de construcción</label>
-                <select id="anio_construccion" name="anio_construccion">
-                    <option value="">Seleccionar...</option>
-                    {% for anio in anios_disponibles %}
-                    <option value="{{ anio }}">{{ anio }}</option>
-                    {% endfor %}
-                </select>
+                        <label for="pruebas_indicios">Pruebas e indicios</label>
+                        <textarea id="pruebas_indicios" name="pruebas_indicios"></textarea>
 
-                <label for="plantas_bajo_rasante">Plantas bajo rasante</label>
-                <input type="number" id="plantas_bajo_rasante" name="plantas_bajo_rasante" min="0" value="0">
+                        <label for="evolucion_preexistencia">Evolución / preexistencia</label>
+                        <textarea id="evolucion_preexistencia" name="evolucion_preexistencia"></textarea>
 
-                <label for="plantas_sobre_baja">Plantas sobre baja</label>
-                <input type="number" id="plantas_sobre_baja" name="plantas_sobre_baja" min="0" value="0">
+                        <label for="propuesta_reparacion">Propuesta de reparación</label>
+                        <textarea id="propuesta_reparacion" name="propuesta_reparacion"></textarea>
 
-                <label for="uso_inmueble">Uso del inmueble</label>
-                <input type="text" id="uso_inmueble" name="uso_inmueble">
+                        <label for="urgencia_gravedad">Urgencia / gravedad</label>
+                        <textarea id="urgencia_gravedad" name="urgencia_gravedad"></textarea>
+                    </div>
+                </section>
 
-                <label for="observaciones_generales">Observaciones generales</label>
-                <textarea id="observaciones_generales" name="observaciones_generales"></textarea>
+                <section class="form-section" data-collapsible data-collapse-id="descripcion_unidad">
+                    <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                        <span class="form-section-title">Descripción unidad</span>
+                        <span class="form-section-arrow" aria-hidden="true">▾</span>
+                    </button>
+                    <div class="form-section-body" data-collapsible-body>
+                        <label for="analisis_unidades">Análisis de unidad</label>
+                        <select id="analisis_unidades" name="analisis_unidades">
+                            <option value="una_unidad" selected>Una unidad</option>
+                            <option value="varias_unidades">Varias unidades</option>
+                        </select>
 
-                <div>
-                    <h2>Características de la unidad</h2>
+                        <div id="bloque_unidad_simple">
+                        <label for="planta_unidad">Planta de la unidad</label>
+                        <input type="text" id="planta_unidad" name="planta_unidad">
 
-                    <label for="planta_unidad">Planta de la unidad</label>
-                    <input type="text" id="planta_unidad" name="planta_unidad">
+                        <label for="puerta_unidad">Puerta / unidad</label>
+                        <input type="text" id="puerta_unidad" name="puerta_unidad">
 
-                    <label for="puerta_unidad">Puerta / unidad</label>
-                    <input type="text" id="puerta_unidad" name="puerta_unidad">
+                        <label for="superficie_construida">Superficie construida</label>
+                        <input type="text" id="superficie_construida" name="superficie_construida">
 
-                    <label for="superficie_construida">Superficie construida</label>
-                    <input type="text" id="superficie_construida" name="superficie_construida">
+                        <label for="superficie_util">Superficie útil</label>
+                        <input type="text" id="superficie_util" name="superficie_util">
 
-                    <label for="superficie_util">Superficie útil</label>
-                    <input type="text" id="superficie_util" name="superficie_util">
+                        <label for="dormitorios_unidad">Dormitorios de la unidad</label>
+                        <input type="text" id="dormitorios_unidad" name="dormitorios_unidad">
 
-                    <label for="dormitorios_unidad">Dormitorios de la unidad</label>
-                    <input type="text" id="dormitorios_unidad" name="dormitorios_unidad">
+                        <label for="banos_unidad">Baños de la unidad</label>
+                        <input type="text" id="banos_unidad" name="banos_unidad">
 
-                    <label for="banos_unidad">Baños de la unidad</label>
-                    <input type="text" id="banos_unidad" name="banos_unidad">
+                        <p class="unit-hint">Si el expediente tiene visitas previas, la nueva visita copiará esas estancias; si no, se generarán estancias base desde dormitorios y baños.</p>
 
-                    <p class="unit-hint">Si el expediente tiene visitas previas, la nueva visita copiará esas estancias; si no, se generarán estancias base desde dormitorios y baños.</p>
+                        <label for="observaciones_bloque">Observaciones del bloque</label>
+                        <textarea id="observaciones_bloque" name="observaciones_bloque"></textarea>
 
-                    <label for="observaciones_bloque">Observaciones del bloque</label>
-                    <textarea id="observaciones_bloque" name="observaciones_bloque"></textarea>
+                        <label for="observaciones_unidad">Observaciones de la unidad</label>
+                        <textarea id="observaciones_unidad" name="observaciones_unidad"></textarea>
 
-                    <label for="observaciones_unidad">Observaciones de la unidad</label>
-                    <textarea id="observaciones_unidad" name="observaciones_unidad"></textarea>
-                </div>
+                        <label for="reformado">¿Reformado?</label>
+                        <select id="reformado" name="reformado">
+                            <option value="No" selected>No</option>
+                            <option value="Sí">Sí</option>
+                        </select>
 
-                <label for="reformado">¿Reformado?</label>
-                <select id="reformado" name="reformado">
-                    <option value="No" selected>No</option>
-                    <option value="Sí">Sí</option>
-                </select>
+                        <label for="fecha_reforma">Fecha de reforma</label>
+                        <select id="fecha_reforma" name="fecha_reforma">
+                            <option value="">Sin reforma / no aplica</option>
+                            {% for anio in anios_disponibles %}
+                            <option value="{{ anio }}">{{ anio }}</option>
+                            {% endfor %}
+                        </select>
 
-                <label for="fecha_reforma">Fecha de reforma</label>
-                <select id="fecha_reforma" name="fecha_reforma">
-                    <option value="">Sin reforma / no aplica</option>
-                    {% for anio in anios_disponibles %}
-                    <option value="{{ anio }}">{{ anio }}</option>
-                    {% endfor %}
-                </select>
+                        <label for="observaciones_reforma">Observaciones de la reforma</label>
+                        <textarea id="observaciones_reforma" name="observaciones_reforma"></textarea>
+                        </div>
 
-                <label for="observaciones_reforma">Observaciones de la reforma</label>
-                <textarea id="observaciones_reforma" name="observaciones_reforma"></textarea>
+                        <div id="bloque_unidad_multiple" hidden>
+                            <p class="helper-text">Si vas a analizar varias unidades, utiliza la estructura real del expediente para definir niveles y unidades.</p>
+                            <p class="helper-text">Guarda primero el expediente y después podrás gestionar niveles y unidades desde su estructura, sin duplicar la información en este formulario.</p>
+                        </div>
+                    </div>
+                </section>
 
                 <button class="boton" type="submit">Guardar expediente</button>
 
@@ -241,12 +332,19 @@
         const destinatarioInput = document.getElementById("destinatario");
         const bloqueJudicial = document.getElementById("bloque_judicial");
         const bloquePatologias = document.getElementById("bloque_patologias");
+        const seccionPatologias = document.getElementById("seccion_patologias");
+        const analisisUnidadesInput = document.getElementById("analisis_unidades");
+        const bloqueUnidadSimple = document.getElementById("bloque_unidad_simple");
+        const bloqueUnidadMultiple = document.getElementById("bloque_unidad_multiple");
         const usoInput = document.getElementById("uso_inmueble");
         const anioInput = document.getElementById("anio_construccion");
         const superficieConstruidaInput = document.getElementById("superficie_construida");
         const imagenCatastroInput = document.getElementById("imagen_catastro");
         const catastroPreview = document.getElementById("catastro_preview");
         const catastroPreviewImage = document.getElementById("catastro_preview_image");
+        const seccionesColapsables = document.querySelectorAll("[data-collapsible]");
+        const collapsePageKey = "nuevo_expediente";
+        const collapseContextKey = "global";
         let sugerenciasCache = [];
         let sugerenciasTimeout = null;
 
@@ -435,12 +533,77 @@
         }
 
         function actualizarBloquePatologias() {
-            bloquePatologias.hidden = tipoInformeInput.value !== "patologias";
+            const visible = tipoInformeInput.value === "patologias";
+            seccionPatologias.hidden = !visible;
+            bloquePatologias.hidden = !visible;
+        }
+
+        function actualizarAnalisisUnidades() {
+            const variasUnidades = analisisUnidadesInput.value === "varias_unidades";
+            bloqueUnidadSimple.hidden = variasUnidades;
+            bloqueUnidadMultiple.hidden = !variasUnidades;
+        }
+
+        function obtenerClaveColapso(seccion) {
+            const collapseId = seccion.dataset.collapseId;
+            if (!collapseId) {
+                return "";
+            }
+            return `collapse:${collapsePageKey}:${collapseContextKey}:${collapseId}`;
+        }
+
+        function aplicarEstadoColapso(seccion, colapsada) {
+            const boton = seccion.querySelector("[data-collapsible-button]");
+            if (!boton) {
+                return;
+            }
+            seccion.classList.toggle("collapsed", colapsada);
+            boton.setAttribute("aria-expanded", String(!colapsada));
+        }
+
+        function aplicarEstadoColapsoGuardado(seccion) {
+            const clave = obtenerClaveColapso(seccion);
+            if (!clave) {
+                return;
+            }
+            const valor = window.localStorage.getItem(clave);
+            if (valor === null) {
+                return;
+            }
+            aplicarEstadoColapso(seccion, valor === "collapsed");
+        }
+
+        function guardarEstadoColapso(seccion, colapsada) {
+            const clave = obtenerClaveColapso(seccion);
+            if (!clave) {
+                return;
+            }
+            window.localStorage.setItem(clave, colapsada ? "collapsed" : "expanded");
+        }
+
+        function configurarSeccionesColapsables() {
+            seccionesColapsables.forEach((seccion) => {
+                const boton = seccion.querySelector("[data-collapsible-button]");
+                const cuerpo = seccion.querySelector("[data-collapsible-body]");
+
+                if (!boton || !cuerpo) {
+                    return;
+                }
+
+                aplicarEstadoColapsoGuardado(seccion);
+
+                boton.addEventListener("click", () => {
+                    const colapsada = seccion.classList.toggle("collapsed");
+                    boton.setAttribute("aria-expanded", String(!colapsada));
+                    guardarEstadoColapso(seccion, colapsada);
+                });
+            });
         }
 
         botonCatastro.addEventListener("click", autocompletarDesdeCatastro);
         tipoInformeInput.addEventListener("change", actualizarBloquePatologias);
         destinatarioInput.addEventListener("change", actualizarBloqueJudicial);
+        analisisUnidadesInput.addEventListener("change", actualizarAnalisisUnidades);
         direccionInput.addEventListener("input", () => {
             clearTimeout(sugerenciasTimeout);
             sugerenciasTimeout = setTimeout(cargarSugerencias, 300);
@@ -451,8 +614,11 @@
                 resolverDireccionManual();
             }, 150);
         });
+
+        configurarSeccionesColapsables();
         actualizarBloqueJudicial();
         actualizarBloquePatologias();
+        actualizarAnalisisUnidades();
     </script>
 
     <nav class="top-nav" aria-label="Navegación principal">

@@ -14,6 +14,183 @@
     <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
+    <style>
+        .form-section {
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: #f8fafc;
+            overflow: hidden;
+        }
+
+        .form-section-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .form-section-toggle:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: -2px;
+        }
+
+        .form-section-title {
+            font-size: 1.05rem;
+        }
+
+        .form-section-arrow {
+            flex: 0 0 auto;
+            font-size: 1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .form-section.collapsed .form-section-arrow {
+            transform: rotate(-90deg);
+        }
+
+        .form-section-body {
+            padding: 0 16px 16px 16px;
+        }
+
+        .form-section.collapsed .form-section-body {
+            display: none;
+        }
+
+        .expediente-tree {
+            display: grid;
+            gap: 12px;
+        }
+
+        .expediente-tree-level {
+            padding: 12px;
+        }
+
+        .expediente-tree-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .expediente-tree-row+.expediente-tree-row {
+            margin-top: 6px;
+        }
+
+        .expediente-tree-text {
+            min-width: 0;
+            flex: 1;
+            font-size: 0.95rem;
+            line-height: 1.35;
+        }
+
+        .expediente-tree-meta {
+            color: #475569;
+        }
+
+        .expediente-tree-edit {
+            flex: 0 0 auto;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--primary);
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .expediente-tree-edit:hover,
+        .expediente-tree-edit:focus-visible {
+            text-decoration: underline;
+        }
+
+        .expediente-tree-note {
+            margin: 8px 0 0 0;
+            font-size: 0.88rem;
+            color: #475569;
+        }
+
+        .expediente-tree-group {
+            margin-top: 10px;
+        }
+
+        .expediente-tree-group-title {
+            margin: 0 0 6px 0;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            text-transform: uppercase;
+            color: #475569;
+        }
+
+        .expediente-tree-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .expediente-tree-list-units {
+            margin-top: 10px;
+            padding-left: 12px;
+            border-left: 2px solid #cbd5e1;
+        }
+
+        .expediente-tree-list-anejos {
+            margin-top: 6px;
+            margin-left: 12px;
+            padding-left: 12px;
+            border-left: 1px solid #cbd5e1;
+        }
+
+        .expediente-tree-item+.expediente-tree-item {
+            margin-top: 6px;
+        }
+
+        .expediente-tree-item-anejo .expediente-tree-text {
+            font-size: 0.9rem;
+            color: #334155;
+        }
+
+        @media (max-width: 640px) {
+            .expediente-tree {
+                gap: 10px;
+            }
+
+            .expediente-tree-level {
+                padding: 10px;
+            }
+
+            .expediente-tree-text {
+                font-size: 0.9rem;
+            }
+
+            .expediente-tree-edit {
+                font-size: 0.78rem;
+            }
+
+            .expediente-tree-note {
+                font-size: 0.82rem;
+            }
+
+            .expediente-tree-list-units {
+                margin-top: 8px;
+                padding-left: 10px;
+            }
+
+            .expediente-tree-list-anejos {
+                margin-left: 10px;
+                padding-left: 10px;
+            }
+        }
+    </style>
+
     <title>Detalle expediente</title>
 </head>
 
@@ -44,386 +221,573 @@
         <p>{{ mensaje }}</p>
         {% endif %}
 
-        <div class="card">
-            <p><strong>Tipo de informe:</strong> {{ expediente.tipo_informe_label }}</p>
-            <p><strong>Destinatario:</strong> {{ expediente.destinatario_label }}</p>
-            <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
-            <p><strong>Referencia catastral:</strong> {{ expediente.referencia_catastral or '-' }}</p>
-            <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
-            <p><strong>Tipo de inmueble:</strong> {{ expediente.tipo_inmueble or '-' }}</p>
-            <p><strong>Orientación:</strong> {{ expediente.orientacion_inmueble or '-' }}</p>
-            <p><strong>Año de construcción:</strong> {{ expediente.anio_construccion or '-' }}</p>
-            <p><strong>Plantas:</strong> {{ expediente.descripcion_plantas }}</p>
-            <p><strong>Uso:</strong> {{ expediente.uso_inmueble or '-' }}</p>
-            <p><strong>Observaciones generales:</strong> {{ expediente.observaciones_generales or '-' }}</p>
-        </div>
+        <section class="form-section" data-collapsible data-collapse-id="datos_expediente">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Datos del expediente</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <p><strong>Tipo de informe:</strong> {{ expediente.tipo_informe_label }}</p>
+                <p><strong>Destinatario:</strong> {{ expediente.destinatario_label }}</p>
+                <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
+                <p><strong>Referencia catastral:</strong> {{ expediente.referencia_catastral or '-' }}</p>
+                <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+                <p><strong>Tipo de inmueble:</strong> {{ expediente.tipo_inmueble or '-' }}</p>
+                <p><strong>Orientación:</strong> {{ expediente.orientacion_inmueble or '-' }}</p>
+                <p><strong>Año de construcción:</strong> {{ expediente.anio_construccion or '-' }}</p>
+                <p><strong>Plantas:</strong> {{ expediente.descripcion_plantas }}</p>
+                <p><strong>Uso:</strong> {{ expediente.uso_inmueble or '-' }}</p>
+                <p><strong>Observaciones generales:</strong> {{ expediente.observaciones_generales or '-' }}</p>
 
-        {% if expediente.es_judicial %}
-        <div class="card">
-            <h2>Datos judiciales</h2>
-            <p><strong>Procedimiento judicial:</strong> {{ expediente.procedimiento_judicial or '-' }}</p>
-            <p><strong>Juzgado:</strong> {{ expediente.juzgado or '-' }}</p>
-            <p><strong>Auto judicial:</strong> {{ expediente.auto_judicial or '-' }}</p>
-            <p><strong>Parte solicitante:</strong> {{ expediente.parte_solicitante or '-' }}</p>
-            <p><strong>Objeto de la pericia:</strong> {{ expediente.objeto_pericia or '-' }}</p>
-            <p><strong>Alcance y limitaciones:</strong> {{ expediente.alcance_limitaciones or '-' }}</p>
-            <p><strong>Metodología pericial:</strong> {{ expediente.metodologia_pericial or '-' }}</p>
-        </div>
-        {% endif %}
-
-        {% if expediente.es_informe_patologias %}
-        <div class="card">
-            <h2>Datos específicos del informe</h2>
-            <p><strong>Ámbito de patologías:</strong> {{ expediente.ambito_patologias_label }}</p>
-            <p><strong>Descripción del daño:</strong> {{ expediente.descripcion_dano or '-' }}</p>
-            <p><strong>Causa probable:</strong> {{ expediente.causa_probable or '-' }}</p>
-            <p><strong>Pruebas e indicios:</strong> {{ expediente.pruebas_indicios or '-' }}</p>
-            <p><strong>Evolución / preexistencia:</strong> {{ expediente.evolucion_preexistencia or '-' }}</p>
-            <p><strong>Propuesta de reparación:</strong> {{ expediente.propuesta_reparacion or '-' }}</p>
-            <p><strong>Urgencia / gravedad:</strong> {{ expediente.urgencia_gravedad or '-' }}</p>
-            <p><strong>Patologías interiores registradas:</strong> {{ resumen_tipo.total_interiores or 0 }}</p>
-            <p><strong>Patologías exteriores registradas:</strong> {{ resumen_tipo.total_exteriores or 0 }}</p>
-        </div>
-        {% endif %}
-
-        {% if expediente.es_informe_inspeccion %}
-        <div class="card">
-            <h2>Resumen de inspección</h2>
-            <p><strong>Visitas con checklist general:</strong> {{ resumen_tipo.visitas_con_checklist or 0 }}</p>
-            <p><strong>Estancias inspeccionadas:</strong> {{ resumen_tipo.estancias_inspeccionadas or 0 }}</p>
-            <p><strong>Visitas con exterior:</strong> {{ resumen_tipo.visitas_con_exterior or 0 }}</p>
-            <p><strong>Visitas con elementos comunes:</strong> {{ resumen_tipo.visitas_con_comunes or 0 }}</p>
-        </div>
-        {% endif %}
-
-        {% if expediente.es_informe_habitabilidad %}
-        <div class="card">
-            <h2>Resumen de habitabilidad</h2>
-            <p><strong>Visitas con evaluación:</strong> {{ resumen_tipo.visitas_con_habitabilidad or 0 }}</p>
-            <p><strong>Estancias evaluadas:</strong> {{ resumen_tipo.estancias_evaluadas or 0 }}</p>
-            <p><strong>Visitas con exterior:</strong> {{ resumen_tipo.visitas_con_exterior or 0 }}</p>
-            <p><strong>Última conclusión:</strong> {{ expediente.ultima_conclusion_habitabilidad_label or '-' }}</p>
-        </div>
-        {% endif %}
-
-        {% if expediente.es_informe_valoracion %}
-        <div class="card">
-            <h2>Resumen de valoración</h2>
-            <p><strong>Visitas con valoración:</strong> {{ resumen_tipo.visitas_con_valoracion or 0 }}</p>
-            <p><strong>Comparables registrados:</strong> {{ resumen_tipo.comparables or 0 }}</p>
-            <p><strong>Valor final más reciente:</strong> {{ resumen_tipo.valor_tasacion_final or '-' }}</p>
-        </div>
-        {% endif %}
-
-        {% if expediente.observaciones_bloque %}
-        <div class="card">
-            <h2>Características del bloque</h2>
-            <p><strong>Observaciones del bloque:</strong> {{ expediente.observaciones_bloque or '-' }}</p>
-        </div>
-        {% endif %}
-
-        <div class="card">
-            <h2>Características de la unidad</h2>
-            <p><strong>Planta de la unidad:</strong> {{ expediente.planta_unidad or '-' }}</p>
-            <p><strong>Puerta / unidad:</strong> {{ expediente.puerta_unidad or '-' }}</p>
-            <p><strong>Superficie construida:</strong> {{ expediente.superficie_construida or '-' }}</p>
-            <p><strong>Superficie útil:</strong> {{ expediente.superficie_util or '-' }}</p>
-            <p><strong>Dormitorios:</strong> {{ expediente.dormitorios_unidad or '-' }}</p>
-            <p><strong>Baños:</strong> {{ expediente.banos_unidad or '-' }}</p>
-            <p><strong>Observaciones de la unidad:</strong> {{ expediente.observaciones_unidad or '-' }}</p>
-        </div>
-
-        <div class="card">
-            <h2>Estructura del expediente</h2>
-            {% if niveles_edificio %}
-            {% for nivel in niveles_edificio %}
-            <div>
-                <p><strong>{{ nivel.nombre_nivel }}</strong>{% if nivel.tipo_nivel_label %} · {{ nivel.tipo_nivel_label }}{% endif %}{% if nivel.orden_nivel is not none %} · Orden {{ nivel.orden_nivel }}{% endif %}</p>
-                {% if nivel.principales %}
-                <ul>
-                    {% for unidad in nivel.principales %}
-                    <li>
-                        {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }})
-                        {% if unidad.uso %} · Uso: {{ unidad.uso }}{% endif %}
-                        {% if unidad.superficie %} · Sup.: {{ unidad.superficie }}{% endif %}
-                        {% if unidad.anejos %}
-                        <ul>
-                            {% for anejo in unidad.anejos %}
-                            <li>Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}</li>
-                            {% endfor %}
-                        </ul>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
+                {% if expediente.es_judicial %}
+                <p><strong>Procedimiento judicial:</strong> {{ expediente.procedimiento_judicial or '-' }}</p>
+                <p><strong>Juzgado:</strong> {{ expediente.juzgado or '-' }}</p>
+                <p><strong>Auto judicial:</strong> {{ expediente.auto_judicial or '-' }}</p>
+                <p><strong>Parte solicitante:</strong> {{ expediente.parte_solicitante or '-' }}</p>
+                <p><strong>Objeto de la pericia:</strong> {{ expediente.objeto_pericia or '-' }}</p>
+                <p><strong>Alcance y limitaciones:</strong> {{ expediente.alcance_limitaciones or '-' }}</p>
+                <p><strong>Metodología pericial:</strong> {{ expediente.metodologia_pericial or '-' }}</p>
                 {% endif %}
-                {% if nivel.comunes %}
-                <p><strong>Zonas comunes</strong></p>
-                <ul>
-                    {% for unidad in nivel.comunes %}
-                    <li>{{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</li>
-                    {% endfor %}
-                </ul>
+
+                {% if expediente.es_informe_patologias %}
+                <p><strong>Ámbito de patologías:</strong> {{ expediente.ambito_patologias_label }}</p>
+                <p><strong>Descripción del daño:</strong> {{ expediente.descripcion_dano or '-' }}</p>
+                <p><strong>Causa probable:</strong> {{ expediente.causa_probable or '-' }}</p>
+                <p><strong>Pruebas e indicios:</strong> {{ expediente.pruebas_indicios or '-' }}</p>
+                <p><strong>Evolución / preexistencia:</strong> {{ expediente.evolucion_preexistencia or '-' }}</p>
+                <p><strong>Propuesta de reparación:</strong> {{ expediente.propuesta_reparacion or '-' }}</p>
+                <p><strong>Urgencia / gravedad:</strong> {{ expediente.urgencia_gravedad or '-' }}</p>
+                <p><strong>Patologías interiores registradas:</strong> {{ resumen_tipo.total_interiores or 0 }}</p>
+                <p><strong>Patologías exteriores registradas:</strong> {{ resumen_tipo.total_exteriores or 0 }}</p>
                 {% endif %}
-                {% if nivel.exteriores %}
-                <p><strong>Exteriores</strong></p>
-                <ul>
-                    {% for unidad in nivel.exteriores %}
-                    <li>{{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</li>
-                    {% endfor %}
-                </ul>
+
+                {% if expediente.es_informe_inspeccion %}
+                <p><strong>Visitas con checklist general:</strong> {{ resumen_tipo.visitas_con_checklist or 0 }}</p>
+                <p><strong>Estancias inspeccionadas:</strong> {{ resumen_tipo.estancias_inspeccionadas or 0 }}</p>
+                <p><strong>Visitas con exterior:</strong> {{ resumen_tipo.visitas_con_exterior or 0 }}</p>
+                <p><strong>Visitas con elementos comunes:</strong> {{ resumen_tipo.visitas_con_comunes or 0 }}</p>
                 {% endif %}
-                {% if nivel.otras %}
-                <ul>
-                    {% for unidad in nivel.otras %}
-                    <li>{{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</li>
-                    {% endfor %}
-                </ul>
+
+                {% if expediente.es_informe_habitabilidad %}
+                <p><strong>Visitas con evaluación:</strong> {{ resumen_tipo.visitas_con_habitabilidad or 0 }}</p>
+                <p><strong>Estancias evaluadas:</strong> {{ resumen_tipo.estancias_evaluadas or 0 }}</p>
+                <p><strong>Visitas con exterior:</strong> {{ resumen_tipo.visitas_con_exterior or 0 }}</p>
+                <p><strong>Última conclusión:</strong> {{ expediente.ultima_conclusion_habitabilidad_label or '-' }}</p>
                 {% endif %}
-                {% if nivel.observaciones %}
-                <p><strong>Observaciones:</strong> {{ nivel.observaciones }}</p>
+
+                {% if expediente.es_informe_valoracion %}
+                <p><strong>Visitas con valoración:</strong> {{ resumen_tipo.visitas_con_valoracion or 0 }}</p>
+                <p><strong>Comparables registrados:</strong> {{ resumen_tipo.comparables or 0 }}</p>
+                <p><strong>Valor final más reciente:</strong> {{ resumen_tipo.valor_tasacion_final or '-' }}</p>
                 {% endif %}
             </div>
-            {% endfor %}
-            {% endif %}
+        </section>
 
-            {% if unidades_sin_nivel.principales or unidades_sin_nivel.comunes or unidades_sin_nivel.exteriores or unidades_sin_nivel.otras or anejos_sueltos %}
-            <div>
-                <p><strong>Sin nivel asignado</strong></p>
-                {% if unidades_sin_nivel.principales %}
-                <ul>
-                    {% for unidad in unidades_sin_nivel.principales %}
-                    <li>
-                        {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }})
-                        {% if unidad.anejos %}
-                        <ul>
-                            {% for anejo in unidad.anejos %}
-                            <li>Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}</li>
-                            {% endfor %}
-                        </ul>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
-                {% if unidades_sin_nivel.comunes %}
-                <p><strong>Zonas comunes</strong></p>
-                <ul>
-                    {% for unidad in unidades_sin_nivel.comunes %}
-                    <li>{{ unidad.identificador }}</li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
-                {% if unidades_sin_nivel.exteriores %}
-                <p><strong>Exteriores</strong></p>
-                <ul>
-                    {% for unidad in unidades_sin_nivel.exteriores %}
-                    <li>{{ unidad.identificador }}</li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
-                {% if anejos_sueltos %}
-                <p><strong>Anejos sin unidad principal asignada</strong></p>
-                <ul>
-                    {% for anejo in anejos_sueltos %}
-                    <li>{{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}</li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
-            </div>
-            {% endif %}
-
-            {% if not niveles_edificio and not unidades_expediente %}
-            <p class="empty">Todavía no se han definido niveles ni unidades en este expediente.</p>
-            {% endif %}
-        </div>
-
-        <div class="card">
-            <h2>Gestionar niveles</h2>
-            <form method="post" action="/guardar-nivel-expediente/{{ expediente.id }}">
-                <label for="nombre_nivel">Nombre del nivel</label>
-                <input id="nombre_nivel" name="nombre_nivel" type="text" required>
-
-                <label for="orden_nivel">Orden</label>
-                <input id="orden_nivel" name="orden_nivel" type="number" step="1">
-
-                <label for="tipo_nivel">Tipo de nivel</label>
-                <select id="tipo_nivel" name="tipo_nivel">
-                    <option value="">Selecciona una opción</option>
-                    {% for valor, etiqueta in tipo_nivel_options %}
-                    <option value="{{ valor }}">{{ etiqueta }}</option>
-                    {% endfor %}
-                </select>
-
-                <label for="observaciones_nivel">Observaciones</label>
-                <textarea id="observaciones_nivel" name="observaciones" rows="2"></textarea>
-
-                <button class="boton" type="submit">Añadir nivel</button>
-            </form>
-
-            {% if niveles_edificio %}
-            {% for nivel in niveles_edificio %}
-            <div class="actions">
-                <span>{{ nivel.nombre_nivel }}{% if nivel.tipo_nivel_label %} · {{ nivel.tipo_nivel_label }}{% endif %}</span>
-                <a class="boton secundario" href="/editar-nivel-expediente/{{ nivel.id }}">Editar</a>
-                <form method="post" action="/borrar-nivel-expediente/{{ nivel.id }}"
-                    onsubmit="return confirm('¿Seguro que quieres borrar este nivel? Las unidades quedarán sin nivel asignado.');">
-                    <button class="boton secundario" type="submit">Borrar</button>
-                </form>
-            </div>
-            {% endfor %}
-            {% endif %}
-        </div>
-
-        <div class="card">
-            <h2>Gestionar unidades</h2>
-            <form method="post" action="/guardar-unidad-expediente/{{ expediente.id }}">
-                <label for="nivel_id">Nivel</label>
-                <select id="nivel_id" name="nivel_id">
-                    <option value="">Sin nivel asignado</option>
+        <section id="estructura-expediente" class="form-section" data-collapsible data-collapse-id="estructura_expediente">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Estructura del expediente</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <div class="expediente-tree">
+                    {% if niveles_edificio %}
                     {% for nivel in niveles_edificio %}
-                    <option value="{{ nivel.id }}">{{ nivel.nombre_nivel }}</option>
+                    <div class="card inner-card expediente-tree-level">
+                        <div class="expediente-tree-row">
+                            <div class="expediente-tree-text">
+                                <strong>{{ nivel.nombre_nivel }}</strong>
+                                <span class="expediente-tree-meta">
+                                    {% if nivel.tipo_nivel_label %} · {{ nivel.tipo_nivel_label }}{% endif %}{% if nivel.orden_nivel is not none %} · Orden {{ nivel.orden_nivel }}{% endif %}
+                                </span>
+                            </div>
+                            {% if nivel.id %}
+                            <a class="expediente-tree-edit" href="/editar-nivel-expediente/{{ nivel.id }}">Editar</a>
+                            {% endif %}
+                        </div>
+                        {% if nivel.observaciones %}
+                        <p class="expediente-tree-note"><strong>Observaciones:</strong> {{ nivel.observaciones }}</p>
+                        {% endif %}
+
+                        {% if nivel.principales %}
+                        <ul class="expediente-tree-list expediente-tree-list-units">
+                            {% for unidad in nivel.principales %}
+                            <li class="expediente-tree-item">
+                                <div class="expediente-tree-row">
+                                    <div class="expediente-tree-text">
+                                        {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }}){% if unidad.uso %} · Uso: {{ unidad.uso }}{% endif %}{% if unidad.superficie %} · Sup.: {{ unidad.superficie }}{% endif %}
+                                    </div>
+                                    {% if unidad.id %}
+                                    <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                    {% endif %}
+                                </div>
+                                {% if unidad.anejos %}
+                                <ul class="expediente-tree-list expediente-tree-list-anejos">
+                                    {% for anejo in unidad.anejos %}
+                                    <li class="expediente-tree-item expediente-tree-item-anejo">
+                                        <div class="expediente-tree-row">
+                                            <div class="expediente-tree-text">
+                                                Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}
+                                            </div>
+                                            {% if anejo.id %}
+                                            <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ anejo.id }}">Editar</a>
+                                            {% endif %}
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+
+                        {% if nivel.comunes %}
+                        <div class="expediente-tree-group">
+                            <p class="expediente-tree-group-title">Zonas comunes</p>
+                            <ul class="expediente-tree-list expediente-tree-list-units">
+                                {% for unidad in nivel.comunes %}
+                                <li class="expediente-tree-item">
+                                    <div class="expediente-tree-row">
+                                        <div class="expediente-tree-text">
+                                            {{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}
+                                        </div>
+                                        {% if unidad.id %}
+                                        <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if nivel.exteriores %}
+                        <div class="expediente-tree-group">
+                            <p class="expediente-tree-group-title">Exteriores</p>
+                            <ul class="expediente-tree-list expediente-tree-list-units">
+                                {% for unidad in nivel.exteriores %}
+                                <li class="expediente-tree-item">
+                                    <div class="expediente-tree-row">
+                                        <div class="expediente-tree-text">
+                                            {{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}
+                                        </div>
+                                        {% if unidad.id %}
+                                        <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if nivel.otras %}
+                        <ul class="expediente-tree-list expediente-tree-list-units">
+                            {% for unidad in nivel.otras %}
+                            <li class="expediente-tree-item">
+                                <div class="expediente-tree-row">
+                                    <div class="expediente-tree-text">
+                                        {{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}
+                                    </div>
+                                    {% if unidad.id %}
+                                    <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                    {% endif %}
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
                     {% endfor %}
-                </select>
+                    {% endif %}
 
-                <label for="identificador_unidad">Identificador</label>
-                <input id="identificador_unidad" name="identificador" type="text" required>
+                    {% if unidades_sin_nivel.principales or unidades_sin_nivel.comunes or unidades_sin_nivel.exteriores or unidades_sin_nivel.otras or anejos_sueltos %}
+                    <div class="card inner-card expediente-tree-level">
+                        <div class="expediente-tree-row">
+                            <div class="expediente-tree-text">
+                                <strong>Sin nivel asignado</strong>
+                            </div>
+                        </div>
 
-                <label for="tipo_unidad">Tipo de unidad</label>
-                <select id="tipo_unidad" name="tipo_unidad">
-                    {% for valor, etiqueta in tipo_unidad_options %}
-                    <option value="{{ valor }}">{{ etiqueta }}</option>
-                    {% endfor %}
-                </select>
+                        {% if unidades_sin_nivel.principales %}
+                        <ul class="expediente-tree-list expediente-tree-list-units">
+                            {% for unidad in unidades_sin_nivel.principales %}
+                            <li class="expediente-tree-item">
+                                <div class="expediente-tree-row">
+                                    <div class="expediente-tree-text">
+                                        {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }})
+                                    </div>
+                                    {% if unidad.id %}
+                                    <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                    {% endif %}
+                                </div>
+                                {% if unidad.anejos %}
+                                <ul class="expediente-tree-list expediente-tree-list-anejos">
+                                    {% for anejo in unidad.anejos %}
+                                    <li class="expediente-tree-item expediente-tree-item-anejo">
+                                        <div class="expediente-tree-row">
+                                            <div class="expediente-tree-text">
+                                                Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}
+                                            </div>
+                                            {% if anejo.id %}
+                                            <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ anejo.id }}">Editar</a>
+                                            {% endif %}
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
 
-                <label for="vinculo_unidad">Vínculo de la unidad</label>
-                <select id="vinculo_unidad" name="vinculo_unidad">
-                    {% for valor, etiqueta in vinculo_unidad_options %}
-                    <option value="{{ valor }}">{{ etiqueta }}</option>
-                    {% endfor %}
-                </select>
+                        {% if unidades_sin_nivel.comunes %}
+                        <div class="expediente-tree-group">
+                            <p class="expediente-tree-group-title">Zonas comunes</p>
+                            <ul class="expediente-tree-list expediente-tree-list-units">
+                                {% for unidad in unidades_sin_nivel.comunes %}
+                                <li class="expediente-tree-item">
+                                    <div class="expediente-tree-row">
+                                        <div class="expediente-tree-text">
+                                            {{ unidad.identificador }}
+                                        </div>
+                                        {% if unidad.id %}
+                                        <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
 
-                <div id="bloque_anejo_detalle" hidden>
-                    <label for="unidad_principal_id">Unidad principal asociada</label>
-                    <select id="unidad_principal_id" name="unidad_principal_id">
-                        <option value="">Selecciona una unidad principal</option>
-                        {% for unidad in unidades_principales_form %}
-                        <option value="{{ unidad.id }}">{{ unidad.identificador }}</option>
-                        {% endfor %}
-                    </select>
+                        {% if unidades_sin_nivel.exteriores %}
+                        <div class="expediente-tree-group">
+                            <p class="expediente-tree-group-title">Exteriores</p>
+                            <ul class="expediente-tree-list expediente-tree-list-units">
+                                {% for unidad in unidades_sin_nivel.exteriores %}
+                                <li class="expediente-tree-item">
+                                    <div class="expediente-tree-row">
+                                        <div class="expediente-tree-text">
+                                            {{ unidad.identificador }}
+                                        </div>
+                                        {% if unidad.id %}
+                                        <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
 
-                    <label for="tipo_anejo">Tipo de anejo</label>
-                    <select id="tipo_anejo" name="tipo_anejo">
+                        {% if unidades_sin_nivel.otras %}
+                        <ul class="expediente-tree-list expediente-tree-list-units">
+                            {% for unidad in unidades_sin_nivel.otras %}
+                            <li class="expediente-tree-item">
+                                <div class="expediente-tree-row">
+                                    <div class="expediente-tree-text">
+                                        {{ unidad.identificador }}
+                                    </div>
+                                    {% if unidad.id %}
+                                    <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                                    {% endif %}
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+
+                        {% if anejos_sueltos %}
+                        <div class="expediente-tree-group">
+                            <p class="expediente-tree-group-title">Anejos sin unidad principal asignada</p>
+                            <ul class="expediente-tree-list expediente-tree-list-units">
+                                {% for anejo in anejos_sueltos %}
+                                <li class="expediente-tree-item expediente-tree-item-anejo">
+                                    <div class="expediente-tree-row">
+                                        <div class="expediente-tree-text">
+                                            {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}
+                                        </div>
+                                        {% if anejo.id %}
+                                        <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ anejo.id }}">Editar</a>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if not niveles_edificio and not unidades_expediente %}
+                <p class="empty">Todavía no se han definido niveles ni unidades en este expediente.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section id="anadir-nivel-expediente" class="form-section" data-collapsible data-collapse-id="anadir_nivel">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Añadir nivel</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <form method="post" action="/guardar-nivel-expediente/{{ expediente.id }}">
+                    <label for="nombre_nivel">Nombre del nivel</label>
+                    <input id="nombre_nivel" name="nombre_nivel" type="text" required>
+
+                    <label for="orden_nivel">Orden</label>
+                    <input id="orden_nivel" name="orden_nivel" type="number" step="1">
+
+                    <label for="tipo_nivel">Tipo de nivel</label>
+                    <select id="tipo_nivel" name="tipo_nivel">
                         <option value="">Selecciona una opción</option>
-                        {% for valor, etiqueta in tipo_anejo_options %}
+                        {% for valor, etiqueta in tipo_nivel_options %}
                         <option value="{{ valor }}">{{ etiqueta }}</option>
                         {% endfor %}
                     </select>
-                </div>
 
-                <label for="uso_unidad">Uso</label>
-                <input id="uso_unidad" name="uso" type="text">
+                    <label for="observaciones_nivel">Observaciones</label>
+                    <textarea id="observaciones_nivel" name="observaciones" rows="2"></textarea>
 
-                <label for="superficie_unidad_multi">Superficie</label>
-                <input id="superficie_unidad_multi" name="superficie" type="text">
-
-                <label for="referencia_catastral_unidad">Referencia catastral de la unidad</label>
-                <input id="referencia_catastral_unidad" name="referencia_catastral_unidad" type="text">
-
-                <label for="observaciones_unidad_multi">Observaciones</label>
-                <textarea id="observaciones_unidad_multi" name="observaciones" rows="3"></textarea>
-
-                <button class="boton" type="submit">Añadir unidad</button>
-            </form>
-
-            {% if unidades_expediente %}
-            {% for unidad in unidades_expediente %}
-            <div class="actions">
-                <span>
-                    {{ unidad.identificador }} · {{ unidad.tipo_unidad_label or unidad.tipo_unidad }}
-                    {% if unidad.nombre_nivel %} · {{ unidad.nombre_nivel }}{% endif %}
-                    {% if unidad.vinculo_unidad_label %} · {{ unidad.vinculo_unidad_label }}{% endif %}
-                    {% if unidad.unidad_principal_identificador %} · Principal: {{ unidad.unidad_principal_identificador }}{% endif %}
-                </span>
-                <a class="boton secundario" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
-                <form method="post" action="/borrar-unidad-expediente/{{ unidad.id }}"
-                    onsubmit="return confirm('¿Seguro que quieres borrar esta unidad?');">
-                    <button class="boton secundario" type="submit">Borrar</button>
+                    <button class="boton" type="submit">Añadir nivel</button>
                 </form>
             </div>
-            {% endfor %}
-            {% endif %}
-        </div>
+        </section>
 
-        <div class="card">
-            <h2>Reforma</h2>
-            <p><strong>Reformado:</strong> {{ expediente.reformado or 'No' }}</p>
-            <p><strong>Fecha de reforma:</strong> {{ expediente.fecha_reforma or '-' }}</p>
-            <p><strong>Observaciones de la reforma:</strong> {{ expediente.observaciones_reforma or '-' }}</p>
-        </div>
+        <section id="anadir-unidad-expediente" class="form-section" data-collapsible data-collapse-id="anadir_unidad">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Añadir unidad</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <form method="post" action="/guardar-unidad-expediente/{{ expediente.id }}">
+                    <label for="nivel_id">Nivel</label>
+                    <select id="nivel_id" name="nivel_id">
+                        <option value="">Sin nivel asignado</option>
+                        {% for nivel in niveles_edificio %}
+                        <option value="{{ nivel.id }}">{{ nivel.nombre_nivel }}</option>
+                        {% endfor %}
+                    </select>
 
-        {% if expediente.imagen_catastro_url %}
-        <div class="card">
-            <h2>Imagen catastral</h2>
-            <img src="{{ expediente.imagen_catastro_url }}" alt="Imagen catastral del expediente">
-        </div>
-        {% endif %}
+                    <label for="identificador_unidad">Identificador</label>
+                    <input id="identificador_unidad" name="identificador" type="text" required>
 
-        <h2>Visitas del expediente</h2>
+                    <label for="tipo_unidad">Tipo de unidad</label>
+                    <select id="tipo_unidad" name="tipo_unidad">
+                        {% for valor, etiqueta in tipo_unidad_options %}
+                        <option value="{{ valor }}">{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
 
-        {% if visitas %}
-        {% for visita in visitas %}
-        <div class="card">
-            <p><strong>Fecha:</strong> {{ visita.fecha }}</p>
-            <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
-            <p><strong>Observaciones de visita:</strong> {{ visita.observaciones_visita or '-' }}</p>
-            <p><strong>Ámbito de la visita:</strong> {{ visita.ambito_visita_label or 'Edificio completo' }}</p>
-            {% if visita.nombre_nivel_visita %}
-            <p><strong>Planta:</strong> {{ visita.nombre_nivel_visita }}</p>
-            {% endif %}
-            {% if visita.identificador_unidad_visita %}
-            {% if visita.ambito_visita == 'zona_comun' %}
-            <p><strong>Zona común:</strong> {{ visita.identificador_unidad_visita }}</p>
-            {% elif visita.ambito_visita == 'exterior' %}
-            <p><strong>Exterior:</strong> {{ visita.identificador_unidad_visita }}</p>
-            {% else %}
-            <p><strong>Unidad:</strong> {{ visita.identificador_unidad_visita }}</p>
-            {% endif %}
-            {% endif %}
-            <p><strong>Estancias:</strong> {{ visita.total_estancias }}</p>
-            {% if expediente.es_informe_patologias %}
-            <p><strong>Patologías interiores:</strong> {{ visita.total_patologias }}</p>
-            <p><strong>Patologías exteriores:</strong> {{ visita.total_patologias_exteriores or 0 }}</p>
-            <p><strong>Mapas:</strong> {{ visita.total_mapas_patologia or 0 }}</p>
-            <p><strong>Cuadrantes con incidencia:</strong> {{ visita.total_cuadrantes_con_incidencia or 0 }}</p>
-            <p><strong>Cuadrantes vinculados:</strong> {{ visita.total_cuadrantes_vinculados or 0 }}</p>
-            {% elif expediente.es_informe_inspeccion %}
-            <p><strong>Checklist general:</strong> {{ 'Sí' if visita.tiene_inspeccion_general else 'No' }}</p>
-            <p><strong>Estancias inspeccionadas:</strong> {{ visita.total_estancias_inspeccion or 0 }}</p>
-            {% elif expediente.es_informe_habitabilidad %}
-            <p><strong>Evaluación general:</strong> {{ 'Sí' if visita.tiene_habitabilidad_general else 'No' }}</p>
-            <p><strong>Estancias evaluadas:</strong> {{ visita.total_estancias_habitabilidad or 0 }}</p>
-            <p><strong>Conclusión:</strong> {{ visita.conclusion_habitabilidad_label or '-' }}</p>
-            {% elif expediente.es_informe_valoracion %}
-            <p><strong>Ficha de valoración:</strong> {{ 'Sí' if visita.tiene_valoracion else 'No' }}</p>
-            <p><strong>Comparables:</strong> {{ visita.total_comparables or 0 }}</p>
-            <p><strong>Valor final:</strong> {{ visita.valor_tasacion_final or '-' }}</p>
-            {% endif %}
+                    <label for="vinculo_unidad">Vínculo de la unidad</label>
+                    <select id="vinculo_unidad" name="vinculo_unidad">
+                        {% for valor, etiqueta in vinculo_unidad_options %}
+                        <option value="{{ valor }}">{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
 
-            <div class="actions">
-                <a class="boton secundario" href="/editar-visita/{{ visita.id }}">Editar visita</a>
-                <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
-                {% if expediente.es_informe_patologias %}
-                <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>
+                    <div id="bloque_anejo_detalle" hidden>
+                        <label for="unidad_principal_id">Unidad principal asociada</label>
+                        <select id="unidad_principal_id" name="unidad_principal_id">
+                            <option value="">Selecciona una unidad principal</option>
+                            {% for unidad in unidades_principales_form %}
+                            <option value="{{ unidad.id }}">{{ unidad.identificador }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <label for="tipo_anejo">Tipo de anejo</label>
+                        <select id="tipo_anejo" name="tipo_anejo">
+                            <option value="">Selecciona una opción</option>
+                            {% for valor, etiqueta in tipo_anejo_options %}
+                            <option value="{{ valor }}">{{ etiqueta }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="uso_unidad">Uso</label>
+                    <input id="uso_unidad" name="uso" type="text">
+
+                    <label for="superficie_unidad_multi">Superficie</label>
+                    <input id="superficie_unidad_multi" name="superficie" type="text">
+
+                    <label for="referencia_catastral_unidad">Referencia catastral de la unidad</label>
+                    <input id="referencia_catastral_unidad" name="referencia_catastral_unidad" type="text">
+
+                    <label for="observaciones_unidad_multi">Observaciones</label>
+                    <textarea id="observaciones_unidad_multi" name="observaciones" rows="3"></textarea>
+
+                    <button class="boton" type="submit">Añadir unidad</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="form-section" data-collapsible data-collapse-id="niveles">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Niveles</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                {% if niveles_edificio %}
+                {% for nivel in niveles_edificio %}
+                <div class="actions">
+                    <span>{{ nivel.nombre_nivel }}{% if nivel.tipo_nivel_label %} · {{ nivel.tipo_nivel_label }}{% endif %}</span>
+                    <a class="boton secundario" href="/editar-nivel-expediente/{{ nivel.id }}">Editar</a>
+                    <form method="post" action="/borrar-nivel-expediente/{{ nivel.id }}"
+                        onsubmit="return confirm('¿Seguro que quieres borrar este nivel? Las unidades quedarán sin nivel asignado.');">
+                        <button class="boton secundario" type="submit">Borrar</button>
+                    </form>
+                </div>
+                {% endfor %}
                 {% endif %}
             </div>
-        </div>
-        {% endfor %}
-        {% else %}
-        <div class="card">
-            <p class="empty">No hay visitas creadas todavía para este expediente.</p>
-        </div>
+        </section>
+
+        <section class="form-section" data-collapsible data-collapse-id="unidades">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Unidades</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                {% if unidades_expediente %}
+                {% for unidad in unidades_expediente %}
+                <div class="actions">
+                    <span>
+                        {{ unidad.identificador }} · {{ unidad.tipo_unidad_label or unidad.tipo_unidad }}
+                        {% if unidad.nombre_nivel %} · {{ unidad.nombre_nivel }}{% endif %}
+                        {% if unidad.vinculo_unidad_label %} · {{ unidad.vinculo_unidad_label }}{% endif %}
+                        {% if unidad.unidad_principal_identificador %} · Principal: {{ unidad.unidad_principal_identificador }}{% endif %}
+                    </span>
+                    <a class="boton secundario" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
+                    <form method="post" action="/borrar-unidad-expediente/{{ unidad.id }}"
+                        onsubmit="return confirm('¿Seguro que quieres borrar esta unidad?');">
+                        <button class="boton secundario" type="submit">Borrar</button>
+                    </form>
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="form-section" data-collapsible data-collapse-id="visitas">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Visitas del expediente</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                {% if visitas %}
+                {% for visita in visitas %}
+                <div class="card inner-card">
+                    <p><strong>Fecha:</strong> {{ visita.fecha }}</p>
+                    <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
+                    <p><strong>Observaciones de visita:</strong> {{ visita.observaciones_visita or '-' }}</p>
+                    <p><strong>Ámbito de la visita:</strong> {{ visita.ambito_visita_label or 'Edificio completo' }}</p>
+                    {% if visita.nombre_nivel_visita %}
+                    <p><strong>Planta:</strong> {{ visita.nombre_nivel_visita }}</p>
+                    {% endif %}
+                    {% if visita.identificador_unidad_visita %}
+                    {% if visita.ambito_visita == 'zona_comun' %}
+                    <p><strong>Zona común:</strong> {{ visita.identificador_unidad_visita }}</p>
+                    {% elif visita.ambito_visita == 'exterior' %}
+                    <p><strong>Exterior:</strong> {{ visita.identificador_unidad_visita }}</p>
+                    {% else %}
+                    <p><strong>Unidad:</strong> {{ visita.identificador_unidad_visita }}</p>
+                    {% endif %}
+                    {% endif %}
+                    <p><strong>Estancias:</strong> {{ visita.total_estancias }}</p>
+                    {% if expediente.es_informe_patologias %}
+                    <p><strong>Patologías interiores:</strong> {{ visita.total_patologias }}</p>
+                    <p><strong>Patologías exteriores:</strong> {{ visita.total_patologias_exteriores or 0 }}</p>
+                    <p><strong>Mapas:</strong> {{ visita.total_mapas_patologia or 0 }}</p>
+                    <p><strong>Cuadrantes con incidencia:</strong> {{ visita.total_cuadrantes_con_incidencia or 0 }}</p>
+                    <p><strong>Cuadrantes vinculados:</strong> {{ visita.total_cuadrantes_vinculados or 0 }}</p>
+                    {% elif expediente.es_informe_inspeccion %}
+                    <p><strong>Checklist general:</strong> {{ 'Sí' if visita.tiene_inspeccion_general else 'No' }}</p>
+                    <p><strong>Estancias inspeccionadas:</strong> {{ visita.total_estancias_inspeccion or 0 }}</p>
+                    {% elif expediente.es_informe_habitabilidad %}
+                    <p><strong>Evaluación general:</strong> {{ 'Sí' if visita.tiene_habitabilidad_general else 'No' }}</p>
+                    <p><strong>Estancias evaluadas:</strong> {{ visita.total_estancias_habitabilidad or 0 }}</p>
+                    <p><strong>Conclusión:</strong> {{ visita.conclusion_habitabilidad_label or '-' }}</p>
+                    {% elif expediente.es_informe_valoracion %}
+                    <p><strong>Ficha de valoración:</strong> {{ 'Sí' if visita.tiene_valoracion else 'No' }}</p>
+                    <p><strong>Comparables:</strong> {{ visita.total_comparables or 0 }}</p>
+                    <p><strong>Valor final:</strong> {{ visita.valor_tasacion_final or '-' }}</p>
+                    {% endif %}
+
+                    <div class="actions">
+                        <a class="boton secundario" href="/editar-visita/{{ visita.id }}">Editar visita</a>
+                        <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
+                        {% if expediente.es_informe_patologias %}
+                        <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>
+                        {% endif %}
+                        <form method="post" action="/borrar-visita/{{ visita.id }}"
+                            onsubmit="return confirm('¿Seguro que quieres borrar esta visita y todos sus datos asociados?');">
+                            <button class="boton secundario" type="submit">Borrar visita</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="empty">No hay visitas creadas todavía para este expediente.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="form-section" data-collapsible data-collapse-id="caracteristicas_bloque">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Características del bloque</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <p><strong>Observaciones del bloque:</strong> {{ expediente.observaciones_bloque or '-' }}</p>
+            </div>
+        </section>
+
+        {% if expediente.analisis_unidades_resuelto != "varias_unidades" %}
+        <section class="form-section" data-collapsible data-collapse-id="caracteristicas_unidad">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Características de la unidad</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <p><strong>Planta de la unidad:</strong> {{ expediente.planta_unidad or '-' }}</p>
+                <p><strong>Puerta / unidad:</strong> {{ expediente.puerta_unidad or '-' }}</p>
+                <p><strong>Superficie construida:</strong> {{ expediente.superficie_construida or '-' }}</p>
+                <p><strong>Superficie útil:</strong> {{ expediente.superficie_util or '-' }}</p>
+                <p><strong>Dormitorios:</strong> {{ expediente.dormitorios_unidad or '-' }}</p>
+                <p><strong>Baños:</strong> {{ expediente.banos_unidad or '-' }}</p>
+                <p><strong>Observaciones de la unidad:</strong> {{ expediente.observaciones_unidad or '-' }}</p>
+            </div>
+        </section>
         {% endif %}
+
+        <section class="form-section" data-collapsible data-collapse-id="reforma">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Reforma</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <p><strong>Reformado:</strong> {{ expediente.reformado or 'No' }}</p>
+                <p><strong>Fecha de reforma:</strong> {{ expediente.fecha_reforma or '-' }}</p>
+                <p><strong>Observaciones de la reforma:</strong> {{ expediente.observaciones_reforma or '-' }}</p>
+            </div>
+        </section>
+
+        <section class="form-section" data-collapsible data-collapse-id="imagen_catastro">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Imagen catastral</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                {% if expediente.imagen_catastro_url %}
+                <img src="{{ expediente.imagen_catastro_url }}" alt="Imagen catastral del expediente">
+                {% else %}
+                <p class="empty">No hay imagen catastral disponible para este expediente.</p>
+                {% endif %}
+            </div>
+        </section>
     </div>
 
     <nav class="top-nav" aria-label="Navegación principal">
@@ -468,6 +832,9 @@
     <script>
         const vinculoUnidadInput = document.getElementById("vinculo_unidad");
         const bloqueAnejoDetalle = document.getElementById("bloque_anejo_detalle");
+        const seccionesColapsables = document.querySelectorAll("[data-collapsible]");
+        const collapsePageKey = "detalle_expediente";
+        const collapseContextKey = "expediente_{{ expediente.id }}";
 
         function actualizarBloqueAnejoDetalle() {
             if (!vinculoUnidadInput || !bloqueAnejoDetalle) {
@@ -476,10 +843,68 @@
             bloqueAnejoDetalle.hidden = vinculoUnidadInput.value !== "anejo";
         }
 
+        function obtenerClaveColapso(seccion) {
+            const collapseId = seccion.dataset.collapseId;
+            if (!collapseId) {
+                return "";
+            }
+            return `collapse:${collapsePageKey}:${collapseContextKey}:${collapseId}`;
+        }
+
+        function aplicarEstadoColapso(seccion, colapsada) {
+            const boton = seccion.querySelector("[data-collapsible-button]");
+            if (!boton) {
+                return;
+            }
+            seccion.classList.toggle("collapsed", colapsada);
+            boton.setAttribute("aria-expanded", String(!colapsada));
+        }
+
+        function aplicarEstadoColapsoGuardado(seccion) {
+            const clave = obtenerClaveColapso(seccion);
+            if (!clave) {
+                return;
+            }
+            const valor = window.localStorage.getItem(clave);
+            if (valor === null) {
+                return;
+            }
+            aplicarEstadoColapso(seccion, valor === "collapsed");
+        }
+
+        function guardarEstadoColapso(seccion, colapsada) {
+            const clave = obtenerClaveColapso(seccion);
+            if (!clave) {
+                return;
+            }
+            window.localStorage.setItem(clave, colapsada ? "collapsed" : "expanded");
+        }
+
+        function configurarSeccionesColapsables() {
+            seccionesColapsables.forEach((seccion) => {
+                const boton = seccion.querySelector("[data-collapsible-button]");
+                const cuerpo = seccion.querySelector("[data-collapsible-body]");
+
+                if (!boton || !cuerpo) {
+                    return;
+                }
+
+                aplicarEstadoColapsoGuardado(seccion);
+
+                boton.addEventListener("click", () => {
+                    const colapsada = seccion.classList.toggle("collapsed");
+                    boton.setAttribute("aria-expanded", String(!colapsada));
+                    guardarEstadoColapso(seccion, colapsada);
+                });
+            });
+        }
+
         if (vinculoUnidadInput) {
             vinculoUnidadInput.addEventListener("change", actualizarBloqueAnejoDetalle);
             actualizarBloqueAnejoDetalle();
         }
+
+        configurarSeccionesColapsables();
     </script>
 </body>
 

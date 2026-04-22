@@ -33,6 +33,15 @@
         {% if objeto_visita_label %}
         <div class="card">
             <p><strong>Objeto de la visita:</strong> {{ objeto_visita_label }}</p>
+            <p><strong>Estancia:</strong> {{ registro.estancia_nombre or '-' }}</p>
+            {% if registro.identificador_unidad_estancia or registro.nombre_nivel_estancia %}
+            <p>
+                <strong>Contexto:</strong>
+                {% if registro.identificador_unidad_estancia %}Unidad: {{ registro.identificador_unidad_estancia }}{% endif %}
+                {% if registro.identificador_unidad_estancia and registro.nombre_nivel_estancia %} · {% endif %}
+                {% if registro.nombre_nivel_estancia %}Nivel: {{ registro.nombre_nivel_estancia }}{% endif %}
+            </p>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -42,10 +51,36 @@
                 <select id="estancia_id" name="estancia_id" required>
                     {% for estancia in estancias %}
                     <option value="{{ estancia.id }}" {% if estancia.id==registro.estancia_id %}selected{% endif %}>
-                        {{ estancia.nombre }}{% if estancia.planta %} ({{ estancia.planta }}){% endif %}
+                        {{ estancia.nombre }}{% if estancia.identificador_unidad_estancia %} · {{ estancia.identificador_unidad_estancia }}{% endif %}{% if estancia.nombre_nivel_estancia %} · {{ estancia.nombre_nivel_estancia }}{% elif estancia.planta %} ({{ estancia.planta }}){% endif %}
                     </option>
                     {% endfor %}
                 </select>
+
+                <label for="patologia">Patología</label>
+                <select id="patologia" name="patologia" required>
+                    {% set patologia_actual = namespace(encontrada=false) %}
+                    {% for item in patologias %}
+                    {% if item.nombre == registro.patologia %}
+                    {% set patologia_actual.encontrada = true %}
+                    <option value="{{ item.nombre }}" data-elemento-afectado="{{ item.elemento_afectado or '' }}" data-rol-patologia="{{ item.rol_patologia or '' }}" selected>{{ item.nombre }}</option>
+                    {% else %}
+                    <option value="{{ item.nombre }}" data-elemento-afectado="{{ item.elemento_afectado or '' }}" data-rol-patologia="{{ item.rol_patologia or '' }}">{{ item.nombre }}</option>
+                    {% endif %}
+                    {% endfor %}
+                    {% if not patologia_actual.encontrada and registro.patologia %}
+                    <option value="{{ registro.patologia }}" data-elemento-afectado="" data-rol-patologia="" selected>{{ registro.patologia }}</option>
+                    {% endif %}
+                </select>
+
+                <div id="rol_patologia_observado_box" hidden>
+                    <label for="rol_patologia_observado">Rol en este caso</label>
+                    <select id="rol_patologia_observado" name="rol_patologia_observado">
+                        <option value="" {% if not registro.rol_patologia_observado %}selected{% endif %}>Sin definir</option>
+                        <option value="causa" {% if registro.rol_patologia_observado=="causa" %}selected{% endif %}>Causa</option>
+                        <option value="efecto" {% if registro.rol_patologia_observado=="efecto" %}selected{% endif %}>Efecto</option>
+                        <option value="mixta" {% if registro.rol_patologia_observado=="mixta" %}selected{% endif %}>Mixta</option>
+                    </select>
+                </div>
 
                 <label for="elemento">Elemento afectado</label>
                 <select id="elemento" name="elemento" required>
@@ -57,7 +92,7 @@
                     <option value="techo" {% if registro.elemento=="techo" %}selected{% endif %}>techo</option>
                 </select>
 
-                <label for="localizacion_dano">Localización del daño</label>
+                <label for="localizacion_dano">Localización observada</label>
                 <select id="localizacion_dano" name="localizacion_dano" required>
                     {% if registro.localizacion_dano and registro.localizacion_dano not in ['pavimento', 'paramento', 'techo'] %}
                     <option value="{{ registro.localizacion_dano }}" selected>{{ registro.localizacion_dano }}</option>
@@ -67,42 +102,87 @@
                     <option value="techo" {% if registro.localizacion_dano=="techo" or not registro.localizacion_dano %}selected{% endif %}>techo</option>
                 </select>
 
-                <label for="patologia">Patología</label>
-                <select id="patologia" name="patologia" required>
-                    <option value="{{ registro.patologia }}" selected>{{ registro.patologia }}</option>
-                    {% for item in patologias %}
-                    {% if item.nombre != registro.patologia %}
-                    <option value="{{ item.nombre }}">{{ item.nombre }}</option>
-                    {% endif %}
-                    {% endfor %}
-                </select>
+                <label for="detalle_localizacion">Detalle de localización observado</label>
+                <input type="text" id="detalle_localizacion" name="detalle_localizacion" value="{{ registro.detalle_localizacion or '' }}">
 
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ registro.observaciones or '' }}</textarea>
 
-                {% if registro.foto %}
-                <div class="card inner-card">
-                    <p><strong>Foto actual:</strong></p>
-                    <img src="/uploads/{{ registro.foto }}" alt="Foto del registro">
-                    <label for="eliminar_foto_actual">Eliminar foto actual</label>
-                    <select id="eliminar_foto_actual" name="eliminar_foto_actual">
-                        <option value="no" selected>No</option>
-                        <option value="si">Sí</option>
-                    </select>
-                </div>
-                {% else %}
-                <input type="hidden" name="eliminar_foto_actual" value="no">
-                {% endif %}
-
-                <label for="foto">Nueva foto</label>
-                <input type="file" id="foto" name="foto" accept="image/*">
+                <label for="fotos">Añadir fotos</label>
+                <input type="file" id="fotos" name="fotos" accept="image/*" multiple>
+                <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez. Puedes seguir añadiendo más fotos aquí sin perder las actuales.</p>
 
                 <div class="actions">
                     <button class="boton" type="submit">Guardar cambios</button>
                 </div>
             </form>
+
+            {% if registro.fotos %}
+            <div class="card inner-card">
+                <p><strong>Fotos actuales:</strong></p>
+                <p class="helper-text">Puedes añadir más fotos desde este formulario; las actuales se mantienen hasta que borres una de forma individual.</p>
+                {% for foto in registro.fotos %}
+                <img src="{{ foto.url }}" alt="Foto del registro">
+                {% if foto.id %}
+                <form method="post" action="/borrar-foto-registro/{{ foto.id }}">
+                    <button class="boton secundario" type="submit">Borrar esta foto</button>
+                </form>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
     </div>
+
+    <script>
+        const selectorPatologia = document.getElementById("patologia");
+        const selectorElemento = document.getElementById("elemento");
+        const selectorRolPatologiaObservado = document.getElementById("rol_patologia_observado");
+        const selectorRolPatologiaObservadoBox = document.getElementById("rol_patologia_observado_box");
+
+        function autocompletarElementoDesdePatologia() {
+            if (!selectorPatologia || !selectorElemento) {
+                return;
+            }
+            const opcionSeleccionada = selectorPatologia.options[selectorPatologia.selectedIndex];
+            if (!opcionSeleccionada) {
+                return;
+            }
+            const elementoAfectado = opcionSeleccionada.dataset.elementoAfectado || "";
+            if (!elementoAfectado) {
+                return;
+            }
+            const opcionExistente = Array.from(selectorElemento.options).find(
+                (option) => option.value === elementoAfectado
+            );
+            if (!opcionExistente) {
+                const nuevaOpcion = document.createElement("option");
+                nuevaOpcion.value = elementoAfectado;
+                nuevaOpcion.textContent = elementoAfectado;
+                selectorElemento.appendChild(nuevaOpcion);
+            }
+            selectorElemento.value = elementoAfectado;
+        }
+
+        function actualizarRolPatologiaObservado() {
+            if (!selectorPatologia || !selectorRolPatologiaObservado || !selectorRolPatologiaObservadoBox) {
+                return;
+            }
+            const opcionSeleccionada = selectorPatologia.options[selectorPatologia.selectedIndex];
+            const esMixta = !!opcionSeleccionada && ((opcionSeleccionada.dataset.rolPatologia || "") === "mixta" || (selectorRolPatologiaObservado && selectorRolPatologiaObservado.value));
+            selectorRolPatologiaObservadoBox.hidden = !esMixta;
+            if (!esMixta) {
+                selectorRolPatologiaObservado.value = "";
+            }
+        }
+
+        if (selectorPatologia && selectorElemento) {
+            selectorPatologia.addEventListener("change", autocompletarElementoDesdePatologia);
+            selectorPatologia.addEventListener("change", actualizarRolPatologiaObservado);
+        }
+
+        actualizarRolPatologiaObservado();
+    </script>
 
     <nav class="top-nav" aria-label="Navegación principal">
         <a class="top-nav-item" href="/">

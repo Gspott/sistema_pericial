@@ -63,22 +63,9 @@
                     {% endfor %}
                 </select>
 
-                {% if cuadrante.foto_detalle %}
-                <div class="card inner-card">
-                    <p><strong>Foto detalle actual:</strong></p>
-                    <img src="/uploads/{{ cuadrante.foto_detalle }}" alt="Foto detalle del cuadrante {{ cuadrante.codigo_cuadrante }}">
-                    <label for="eliminar_foto_detalle_actual">Eliminar foto detalle actual</label>
-                    <select id="eliminar_foto_detalle_actual" name="eliminar_foto_detalle_actual">
-                        <option value="no" selected>No</option>
-                        <option value="si">Sí</option>
-                    </select>
-                </div>
-                {% else %}
-                <input type="hidden" name="eliminar_foto_detalle_actual" value="no">
-                {% endif %}
-
-                <label for="foto_detalle">Nueva foto detalle</label>
-                <input id="foto_detalle" name="foto_detalle" type="file" accept="image/*">
+                <label for="fotos_detalle">Añadir fotos detalle</label>
+                <input id="fotos_detalle" name="fotos_detalle" type="file" accept="image/*" multiple>
+                <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez. Puedes seguir añadiendo más fotos aquí sin perder las actuales.</p>
 
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ cuadrante.observaciones or '' }}</textarea>
@@ -87,6 +74,21 @@
                     <button class="boton" type="submit">Guardar cambios</button>
                 </div>
             </form>
+
+            {% if cuadrante.fotos %}
+            <div class="card inner-card">
+                <p><strong>Fotos detalle actuales:</strong></p>
+                <p class="helper-text">Puedes añadir más fotos desde este formulario; las actuales se mantienen hasta que borres una de forma individual.</p>
+                {% for foto in cuadrante.fotos %}
+                <img src="{{ foto.url }}" alt="Foto detalle del cuadrante {{ cuadrante.codigo_cuadrante }}">
+                {% if foto.id %}
+                <form method="post" action="/borrar-foto-cuadrante-mapa-patologia/{{ foto.id }}">
+                    <button class="boton secundario" type="submit">Borrar esta foto</button>
+                </form>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
             <div class="actions">
                 <a class="boton" href="/crear-patologia-desde-cuadrante/{{ cuadrante.id }}">Crear patología desde este cuadrante</a>
                 <form method="post" action="/borrar-cuadrante-mapa-patologia/{{ cuadrante.id }}"

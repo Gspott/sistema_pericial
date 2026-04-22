@@ -809,8 +809,20 @@ def add_apartado_inspeccion_visita(doc: Document, numero_apartado: int, visitas,
 def agrupar_patologias_interiores(patologias):
     grupos = OrderedDict()
     for patologia in patologias:
-        nombre = limpiar_texto(patologia["estancia_nombre"]) or "Sin estancia"
-        grupos.setdefault(nombre, []).append(patologia)
+        nivel = limpiar_texto(patologia["nivel_nombre"])
+        unidad = limpiar_texto(patologia["unidad_identificador"])
+        estancia = limpiar_texto(patologia["estancia_nombre"]) or "Sin estancia"
+        clave = (nivel, unidad, estancia)
+        grupos.setdefault(
+            clave,
+            {
+                "nivel": nivel,
+                "unidad": unidad,
+                "estancia": estancia,
+                "items": [],
+            },
+        )
+        grupos[clave]["items"].append(patologia)
     return grupos
 
 
@@ -820,6 +832,258 @@ def agrupar_patologias_exteriores(registros):
         zona = limpiar_texto(registro["zona_exterior"]) or "Sin zona exterior"
         grupos.setdefault(zona, []).append(registro)
     return grupos
+
+
+def deduplicar_textos(valores) -> list[str]:
+    resultado = []
+    vistos = set()
+    for valor in valores:
+        texto = limpiar_texto(valor)
+        if not texto:
+            continue
+        clave = texto.lower()
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        resultado.append(texto)
+    return resultado
+
+
+def unir_lista_natural(valores) -> str:
+    items = deduplicar_textos(valores)
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} y {items[1]}"
+    return f"{', '.join(items[:-1])} y {items[-1]}"
+
+
+def obtener_rol_final_patologia(registro) -> str:
+    return limpiar_texto(
+        registro["rol_patologia_observado"] or registro["rol_patologia_biblioteca"]
+    ).lower()
+
+
+def construir_resumen_patologias(prefijo: str, registros) -> str:
+    causas = []
+    efectos = []
+    mixtas = []
+    observaciones = []
+
+    for registro in registros:
+        rol = obtener_rol_final_patologia(registro)
+        nombre_patologia = limpiar_texto(registro["patologia"])
+        if rol == "causa":
+            causas.append(nombre_patologia)
+        elif rol == "efecto":
+            efectos.append(nombre_patologia)
+        elif rol == "mixta":
+            mixtas.append(nombre_patologia)
+        obs = limpiar_texto(registro["observaciones"])
+        if obs:
+            observaciones.append(obs)
+
+    causas = deduplicar_textos(causas)
+    efectos = deduplicar_textos(efectos)
+    mixtas = deduplicar_textos(mixtas)
+    observaciones = deduplicar_textos(observaciones)
+
+    frases = []
+    efectos_principales = list(efectos)
+    if causas:
+        efectos_principales = deduplicar_textos(efectos_principales + mixtas)
+    descripcion_causas = (
+        f"se observan procesos patológicos consistentes en {unir_lista_natural(causas)}"
+        if len(causas) > 1
+        else f"se observa {unir_lista_natural(causas)}"
+    )
+
+    if causas and efectos_principales:
+        frases.append(
+            f"{prefijo} {descripcion_causas}, "
+            f"con efectos derivados consistentes en {unir_lista_natural(efectos_principales)}."
+        )
+    elif causas:
+        frases.append(f"{prefijo} {descripcion_causas}.")
+        if mixtas:
+            frases.append(f"Asimismo, se aprecian {unir_lista_natural(mixtas)}.")
+    elif efectos:
+        frases.append(
+            f"{prefijo} se observan daños consistentes en {unir_lista_natural(efectos)}, "
+            "sin poder determinar con certeza su origen."
+        )
+        if mixtas:
+            frases.append(f"Asimismo, se aprecian {unir_lista_natural(mixtas)}.")
+    elif mixtas:
+        frases.append(f"{prefijo} se observa {unir_lista_natural(mixtas)}.")
+
+    if observaciones:
+        frases.append(f"Asimismo, se aprecian {unir_lista_natural(observaciones)}.")
+
+    return " ".join(frases)
+
+
+def construir_titulo_grupo_interior(grupo) -> str:
+    partes = []
+    if grupo["nivel"]:
+        partes.append(f"Nivel: {grupo['nivel']}")
+    if grupo["unidad"]:
+        partes.append(f"Unidad: {grupo['unidad']}")
+    partes.append(f"Estancia: {grupo['estancia']}")
+    return " · ".join(partes)
+
+
+def detectar_incoherencias(registros) -> list[str]:
+    causas = 0
+    efectos = 0
+    mixtas_sin_definir = 0
+
+    for registro in registros:
+        rol_observado = limpiar_texto(registro["rol_patologia_observado"]).lower()
+        rol_final = obtener_rol_final_patologia(registro)
+        if rol_final == "causa":
+            causas += 1
+        elif rol_final == "efecto":
+            efectos += 1
+        elif rol_final == "mixta" and not rol_observado:
+            mixtas_sin_definir += 1
+
+    incoherencias = []
+    if efectos and not causas:
+        incoherencias.append(
+            "Se han identificado efectos sin una causa claramente asociada. Se recomienda revisar el origen del daño."
+        )
+    if causas and not efectos:
+        incoherencias.append(
+            "Se han identificado causas sin manifestaciones visibles asociadas en el momento de la inspección."
+        )
+    if mixtas_sin_definir:
+        incoherencias.append(
+            "Existen patologías de carácter mixto cuya función no ha sido especificada (causa o efecto)."
+        )
+    return incoherencias
+
+
+def construir_conclusion_tecnica_global(patologias_interiores, patologias_exteriores) -> str:
+    registros = list(patologias_interiores) + list(patologias_exteriores)
+    if not registros:
+        return "No constan patologías registradas en el expediente."
+
+    causas = []
+    efectos = []
+    mixtas = []
+    incoherencias = []
+
+    for registro in registros:
+        rol = obtener_rol_final_patologia(registro)
+        nombre_patologia = limpiar_texto(registro["patologia"])
+        if rol == "causa":
+            causas.append(nombre_patologia)
+        elif rol == "efecto":
+            efectos.append(nombre_patologia)
+        elif rol == "mixta":
+            mixtas.append(nombre_patologia)
+
+    causas = deduplicar_textos(causas)
+    efectos = deduplicar_textos(efectos)
+    mixtas = deduplicar_textos(mixtas)
+    incoherencias = deduplicar_textos(detectar_incoherencias(registros))
+
+    afecta_interior = bool(patologias_interiores)
+    afecta_exterior = bool(patologias_exteriores)
+    if afecta_interior and afecta_exterior:
+        alcance = "interior y exterior"
+    elif afecta_interior:
+        alcance = "interior"
+    elif afecta_exterior:
+        alcance = "exterior"
+    else:
+        alcance = ""
+
+    frases = []
+    causas_principales = deduplicar_textos(causas + mixtas)
+
+    if causas_principales:
+        frases.append(
+            f"Del análisis realizado se concluye que existen procesos patológicos asociados a {unir_lista_natural(causas_principales)}."
+        )
+        if efectos:
+            frases.append(
+                f"Estos han generado efectos consistentes en {unir_lista_natural(efectos)}, afectando a {alcance}."
+            )
+        else:
+            frases.append("Se han identificado causas sin manifestaciones visibles claras.")
+    elif efectos:
+        frases.append("Se han identificado daños sin una causa claramente definida.")
+
+    if incoherencias:
+        frases.append(
+            "Asimismo, se recomienda revisar determinadas situaciones detectadas durante el análisis."
+        )
+
+    return " ".join(frases)
+
+
+def construir_conclusion_pericial(patologias_interiores, patologias_exteriores) -> str:
+    registros = list(patologias_interiores) + list(patologias_exteriores)
+    if not registros:
+        return "No se observan daños significativos que permitan establecer una conclusión pericial."
+
+    incoherencias = detectar_incoherencias(registros)
+    causas = []
+    efectos = []
+
+    for registro in registros:
+        rol = obtener_rol_final_patologia(registro)
+        nombre_patologia = limpiar_texto(registro["patologia"])
+        if rol == "causa":
+            causas.append(nombre_patologia)
+        elif rol == "efecto":
+            efectos.append(nombre_patologia)
+
+    causas = deduplicar_textos(causas)
+    causa_dominante = causas[0] if causas else ""
+    efectos = deduplicar_textos(efectos)
+    hay_causas = bool(causas)
+    hay_efectos = bool(efectos)
+    hay_incoherencias = bool(incoherencias)
+
+    frases = []
+    if hay_causas and hay_efectos and not hay_incoherencias:
+        frases.append(
+            f"Del análisis realizado se desprende que los daños observados tienen su origen en procesos asociados a {causa_dominante}."
+        )
+        frases.append(
+            f"Las manifestaciones detectadas, consistentes en {unir_lista_natural(efectos)}, presentan coherencia con dicho origen."
+        )
+        frases.append(
+            "La distribución de las lesiones en el inmueble resulta compatible con el mecanismo descrito."
+        )
+    elif hay_incoherencias:
+        frases.append(
+            "No puede determinarse con certeza el origen de los daños observados a partir de la información disponible."
+        )
+    elif hay_efectos:
+        frases.append(
+            f"Los daños observados resultan compatibles con procesos asociados a {causa_dominante or 'diversos mecanismos patológicos'}."
+        )
+    elif hay_causas:
+        frases.append(
+            "Se identifican procesos patológicos sin manifestaciones visibles suficientemente definidas en el momento de la inspección."
+        )
+    else:
+        frases.append(
+            "No se observan daños significativos que permitan establecer una conclusión pericial."
+        )
+
+    if patologias_interiores and patologias_exteriores:
+        frases.append(
+            "Los daños afectan tanto a zonas interiores como exteriores del inmueble."
+        )
+
+    return " ".join(frases)
 
 
 def add_apartado_patologias_interiores(
@@ -833,9 +1097,23 @@ def add_apartado_patologias_interiores(
 
     grupos = agrupar_patologias_interiores(patologias)
     indice_estancia = 1
-    for estancia, items in grupos.items():
-        doc.add_heading(f"{numero_apartado}.{indice_estancia} {estancia}", level=2)
-        for indice_item, item in enumerate(items, start=1):
+    for grupo in grupos.values():
+        doc.add_heading(
+            f"{numero_apartado}.{indice_estancia} {construir_titulo_grupo_interior(grupo)}",
+            level=2,
+        )
+        resumen = construir_resumen_patologias(
+            f"En la estancia {grupo['estancia']}",
+            grupo["items"],
+        )
+        if resumen:
+            add_parrafo(doc, resumen)
+        incoherencias = detectar_incoherencias(grupo["items"])
+        if incoherencias:
+            add_parrafo(doc, "Observaciones técnicas:", bold=True)
+            for item in incoherencias:
+                add_parrafo(doc, f"- {item}")
+        for indice_item, item in enumerate(grupo["items"], start=1):
             doc.add_heading(
                 f"{numero_apartado}.{indice_estancia}.{indice_item} {valor_o_guion(item['patologia'])}",
                 level=3,
@@ -904,6 +1182,17 @@ def add_apartado_patologias_exteriores(
             f"{numero_apartado}.{indice_zona} {zonas.get(zona, zona)}",
             level=2,
         )
+        resumen = construir_resumen_patologias(
+            "En el exterior del inmueble",
+            items,
+        )
+        if resumen:
+            add_parrafo(doc, resumen)
+        incoherencias = detectar_incoherencias(items)
+        if incoherencias:
+            add_parrafo(doc, "Observaciones técnicas:", bold=True)
+            for item in incoherencias:
+                add_parrafo(doc, f"- {item}")
         for indice_item, item in enumerate(items, start=1):
             doc.add_heading(
                 f"{numero_apartado}.{indice_zona}.{indice_item} {valor_o_guion(item['patologia'])}",
@@ -1218,13 +1507,29 @@ def add_apartado_propuesta_reparacion(doc: Document, numero_apartado: int, exped
         add_parrafo(doc, "No consta propuesta de reparación registrada.")
 
 
-def add_apartado_conclusion_patologias(doc: Document, numero_apartado: int) -> None:
-    doc.add_heading(f"{numero_apartado}. Conclusiones", level=1)
+def add_apartado_conclusion_patologias(
+    doc: Document, numero_apartado: int, patologias_interiores, patologias_exteriores
+) -> None:
+    doc.add_heading(f"{numero_apartado}. Conclusiones técnicas", level=1)
     add_parrafo(
         doc,
-        "El presente informe recoge la información documental disponible del expediente, "
-        "las visitas realizadas y las patologías registradas, ordenadas por estancias interiores "
-        "y/o zonas exteriores según el ámbito definido para el encargo.",
+        construir_conclusion_tecnica_global(
+            patologias_interiores,
+            patologias_exteriores,
+        ),
+    )
+
+
+def add_apartado_conclusion_pericial(
+    doc: Document, numero_apartado: int, patologias_interiores, patologias_exteriores
+) -> None:
+    doc.add_heading(f"{numero_apartado}. Conclusiones periciales", level=1)
+    add_parrafo(
+        doc,
+        construir_conclusion_pericial(
+            patologias_interiores,
+            patologias_exteriores,
+        ),
     )
 
 
@@ -2070,11 +2375,19 @@ def generar_informe_patologias(cur, expediente, visitas, doc: Document) -> None:
         patologias_interiores.extend(
             cur.execute(
                 """
-                SELECT rp.*, e.nombre AS estancia_nombre
+                SELECT rp.*,
+                       e.nombre AS estancia_nombre,
+                       ue.identificador AS unidad_identificador,
+                       ne.nombre_nivel AS nivel_nombre,
+                       bp.rol_patologia AS rol_patologia_biblioteca
                 FROM registros_patologias rp
                 INNER JOIN estancias e ON rp.estancia_id = e.id
+                LEFT JOIN unidades_expediente ue ON e.unidad_id = ue.id
+                LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+                LEFT JOIN biblioteca_patologias bp
+                       ON lower(trim(bp.nombre)) = lower(trim(rp.patologia))
                 WHERE rp.visita_id = ?
-                ORDER BY e.nombre ASC, rp.id ASC
+                ORDER BY ne.nombre_nivel ASC, ue.identificador ASC, e.nombre ASC, rp.id ASC
                 """,
                 (visita["id"],),
             ).fetchall()
@@ -2082,10 +2395,12 @@ def generar_informe_patologias(cur, expediente, visitas, doc: Document) -> None:
         patologias_exteriores.extend(
             cur.execute(
                 """
-                SELECT *
-                FROM registros_patologias_exteriores
-                WHERE visita_id = ?
-                ORDER BY zona_exterior ASC, id ASC
+                SELECT rpe.*, bp.rol_patologia AS rol_patologia_biblioteca
+                FROM registros_patologias_exteriores rpe
+                LEFT JOIN biblioteca_patologias bp
+                       ON lower(trim(bp.nombre)) = lower(trim(rpe.patologia))
+                WHERE rpe.visita_id = ?
+                ORDER BY rpe.zona_exterior ASC, rpe.id ASC
                 """,
                 (visita["id"],),
             ).fetchall()
@@ -2120,7 +2435,19 @@ def generar_informe_patologias(cur, expediente, visitas, doc: Document) -> None:
     numero_apartado += 1
     add_apartado_propuesta_reparacion(doc, numero_apartado, expediente)
     numero_apartado += 1
-    add_apartado_conclusion_patologias(doc, numero_apartado)
+    add_apartado_conclusion_patologias(
+        doc,
+        numero_apartado,
+        patologias_interiores,
+        patologias_exteriores,
+    )
+    numero_apartado += 1
+    add_apartado_conclusion_pericial(
+        doc,
+        numero_apartado,
+        patologias_interiores,
+        patologias_exteriores,
+    )
 
 
 def generar_informe_inspeccion(cur, expediente, visitas, doc: Document) -> None:

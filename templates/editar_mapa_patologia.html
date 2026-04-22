@@ -14,6 +14,42 @@
     <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
+    <style>
+        .mapa-cuadrantes {
+            position: relative;
+            width: 100%;
+        }
+
+        .mapa-cuadrantes img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .mapa-cuadrantes-grid {
+            position: absolute;
+            inset: 0;
+            display: grid;
+        }
+
+        .mapa-cuadrantes-link {
+            display: block;
+            min-width: 0;
+            min-height: 0;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: transparent;
+            transition: background-color 0.18s ease, box-shadow 0.18s ease;
+            -webkit-tap-highlight-color: rgba(15, 23, 42, 0.18);
+        }
+
+        .mapa-cuadrantes-link:hover,
+        .mapa-cuadrantes-link:focus-visible {
+            background: rgba(15, 23, 42, 0.14);
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9);
+            outline: none;
+        }
+    </style>
+
     <title>Editar mapa de patologías</title>
 </head>
 
@@ -67,7 +103,18 @@
                 {% if mapa.imagen_base %}
                 <div class="card inner-card">
                     <p><strong>Imagen base actual:</strong></p>
-                    <img src="/uploads/{{ mapa.imagen_base }}" alt="Imagen base del mapa {{ mapa.titulo }}">
+                    <div class="mapa-cuadrantes">
+                        <img src="{{ mapa.imagen_mapa_url or mapa.imagen_base_url }}" alt="Imagen base del mapa {{ mapa.titulo }}">
+                        {% if cuadrantes %}
+                        <div class="mapa-cuadrantes-grid"
+                            style="grid-template-columns: repeat({{ mapa.columnas }}, minmax(0, 1fr)); grid-template-rows: repeat({{ mapa.filas }}, minmax(0, 1fr));">
+                            {% for cuadrante in cuadrantes %}
+                            <a class="mapa-cuadrantes-link" href="/editar-cuadrante-mapa-patologia/{{ cuadrante.id }}"
+                                aria-label="Editar cuadrante {{ cuadrante.codigo_cuadrante }}"></a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
                     <label for="eliminar_imagen_base_actual">Eliminar imagen base actual</label>
                     <select id="eliminar_imagen_base_actual" name="eliminar_imagen_base_actual">
                         <option value="no" selected>No</option>

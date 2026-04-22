@@ -85,27 +85,29 @@
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ registro.observaciones or '' }}</textarea>
 
-                {% if registro.foto %}
-                <div class="card inner-card">
-                    <p><strong>Foto actual:</strong></p>
-                    <img src="/uploads/{{ registro.foto }}" alt="Foto del registro exterior">
-                    <label for="eliminar_foto_actual">Eliminar foto actual</label>
-                    <select id="eliminar_foto_actual" name="eliminar_foto_actual">
-                        <option value="no" selected>No</option>
-                        <option value="si">Sí</option>
-                    </select>
-                </div>
-                {% else %}
-                <input type="hidden" name="eliminar_foto_actual" value="no">
-                {% endif %}
-
-                <label for="foto">Nueva foto</label>
-                <input type="file" id="foto" name="foto" accept="image/*">
+                <label for="fotos">Añadir fotos</label>
+                <input type="file" id="fotos" name="fotos" accept="image/*" multiple>
+                <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez. Puedes seguir añadiendo más fotos aquí sin perder las actuales.</p>
 
                 <div class="actions">
                     <button class="boton" type="submit">Guardar cambios</button>
                 </div>
             </form>
+
+            {% if registro.fotos %}
+            <div class="card inner-card">
+                <p><strong>Fotos actuales:</strong></p>
+                <p class="helper-text">Puedes añadir más fotos desde este formulario; las actuales se mantienen hasta que borres una de forma individual.</p>
+                {% for foto in registro.fotos %}
+                <img src="{{ foto.url }}" alt="Foto del registro exterior">
+                {% if foto.id %}
+                <form method="post" action="/borrar-foto-registro-exterior/{{ foto.id }}">
+                    <button class="boton secundario" type="submit">Borrar esta foto</button>
+                </form>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
     </div>
 

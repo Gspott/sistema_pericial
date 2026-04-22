@@ -1,0 +1,16 @@
+<div class="card">
+    <a href="/detalle-expediente/{{ expediente.id }}"
+        style="display: block; color: inherit; text-decoration: none;">
+        <div class="expediente-resumen">
+            <div class="expediente-resumen-main">
+                <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+                <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+                <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
+                <p><strong>Tipo de inmueble:</strong> {{ expediente.tipo_inmueble or '-' }}</p>
+            </div>
+            <div class="expediente-tipo">
+                <span class="expediente-tipo-badge {% if expediente.tipo_informe == 'patologias' %}expediente-tipo-patologias{% elif expediente.tipo_informe == 'inspeccion' %}expediente-tipo-inspeccion{% elif expediente.tipo_informe == 'habitabilidad' %}expediente-tipo-habitabilidad{% elif expediente.tipo_informe == 'valoracion' %}expediente-tipo-valoracion{% else %}expediente-tipo-default{% endif %}">{{ expediente.tipo_informe_label or expediente.tipo_informe or '-' }}</span>
+            </div>
+        </div>
+    </a>
+</div>

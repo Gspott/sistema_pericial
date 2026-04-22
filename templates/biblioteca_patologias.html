@@ -14,6 +14,21 @@
     <link rel="stylesheet" href="/static/mobile.css?v=6">
     <script src="/static/pwa.js?v=4" defer></script>
 
+    <style>
+        .clasificacion-interna {
+            margin-top: 16px;
+        }
+
+        .clasificacion-interna summary {
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .clasificacion-interna .helper-text {
+            margin-top: 8px;
+        }
+    </style>
+
     <title>Biblioteca de patologías</title>
 </head>
 
@@ -47,6 +62,42 @@
                 <label for="solucion">Solución</label>
                 <textarea id="solucion" name="solucion">{{ patologia_edicion.solucion if patologia_edicion else '' }}</textarea>
 
+                <details class="clasificacion-interna" {% if patologia_edicion and (patologia_edicion.categoria or patologia_edicion.elemento_afectado or patologia_edicion.mecanismo or patologia_edicion.rol_patologia) %}open{% endif %}>
+                    <summary>Clasificación interna</summary>
+                    <p class="helper-text">Bloque auxiliar para clasificar la patología sin alterar la descripción principal.</p>
+
+                    <label for="categoria">Categoría</label>
+                    <select id="categoria" name="categoria">
+                        {% for value, label in categoria_options %}
+                        <option value="{{ value }}" {% if patologia_edicion and patologia_edicion.categoria == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="elemento_afectado">Elemento afectado</label>
+                    <select id="elemento_afectado" name="elemento_afectado">
+                        {% for value, label in elemento_afectado_options %}
+                        <option value="{{ value }}" {% if patologia_edicion and patologia_edicion.elemento_afectado == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                        <option value="estructura_hormigon" {% if patologia_edicion and patologia_edicion.elemento_afectado == 'estructura_hormigon' %}selected{% endif %}>Estructura de hormigón</option>
+                    </select>
+
+                    <label for="mecanismo">Mecanismo</label>
+                    <select id="mecanismo" name="mecanismo">
+                        {% for value, label in mecanismo_options %}
+                        <option value="{{ value }}" {% if patologia_edicion and patologia_edicion.mecanismo == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                        <option value="fisuracion" {% if patologia_edicion and patologia_edicion.mecanismo == 'fisuracion' %}selected{% endif %}>Fisuración</option>
+                    </select>
+
+                    <label for="rol_patologia">Rol de la patología</label>
+                    <select id="rol_patologia" name="rol_patologia">
+                        <option value="" {% if not patologia_edicion or not patologia_edicion.rol_patologia %}selected{% endif %}>Sin definir</option>
+                        <option value="causa" {% if patologia_edicion and patologia_edicion.rol_patologia == 'causa' %}selected{% endif %}>Causa</option>
+                        <option value="efecto" {% if patologia_edicion and patologia_edicion.rol_patologia == 'efecto' %}selected{% endif %}>Efecto</option>
+                        <option value="mixta" {% if patologia_edicion and patologia_edicion.rol_patologia == 'mixta' %}selected{% endif %}>Mixta</option>
+                    </select>
+                </details>
+
                 <div class="actions">
                     <button class="boton" type="submit">{% if patologia_edicion %}Guardar cambios{% else %}Añadir patología{% endif %}</button>
                     {% if patologia_edicion %}
@@ -63,12 +114,19 @@
             {% for patologia in patologias %}
             <div class="card">
                 <p><strong>Nombre:</strong> {{ patologia.nombre }}</p>
+                {% if patologia.categoria %}
+                <p><strong>Categoría:</strong> {{ categoria_labels.get(patologia.categoria, patologia.categoria) }}</p>
+                {% endif %}
                 <p><strong>Descripción:</strong> {{ patologia.descripcion or '-' }}</p>
                 <p><strong>Causa:</strong> {{ patologia.causa or '-' }}</p>
                 <p><strong>Solución:</strong> {{ patologia.solucion or '-' }}</p>
 
                 <div class="actions">
                     <a class="boton secundario" href="/biblioteca-patologias/{{ patologia.id }}/editar">Editar</a>
+                    <form method="post" action="/borrar-patologia/{{ patologia.id }}"
+                        onsubmit="return confirm('¿Seguro que quieres eliminar esta patología? Esta acción no la eliminará de registros existentes.')">
+                        <button class="boton secundario" type="submit">Eliminar</button>
+                    </form>
                 </div>
             </div>
             {% endfor %}

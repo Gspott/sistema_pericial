@@ -1,0 +1,96 @@
+<style>
+    .expediente-resumen {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: nowrap;
+    }
+
+    .expediente-resumen-main {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .expediente-resumen-main p {
+        margin: 0 0 6px 0;
+    }
+
+    .expediente-resumen-main p:last-child {
+        margin-bottom: 0;
+    }
+
+    .expediente-tipo {
+        flex: 0 0 132px;
+        width: 132px;
+        min-width: 132px;
+        text-align: right;
+        font-size: 0.9rem;
+        color: #475569;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .expediente-tipo-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #334155;
+        font-size: 0.82rem;
+        font-weight: 600;
+        line-height: 1.2;
+        text-align: center;
+        min-height: 28px;
+        width: 100%;
+    }
+
+    .expediente-tipo-patologias {
+        background: #dbeafe;
+        color: #1e3a8a;
+    }
+
+    .expediente-tipo-inspeccion {
+        background: #ffedd5;
+        color: #9a3412;
+    }
+
+    .expediente-tipo-habitabilidad {
+        background: #ede9fe;
+        color: #5b21b6;
+    }
+
+    .expediente-tipo-valoracion {
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .expediente-tipo-default {
+        background: #cffafe;
+        color: #155e75;
+    }
+
+    @media (max-width: 640px) {
+        .expediente-resumen {
+            gap: 10px;
+        }
+
+        .expediente-resumen-main {
+            flex: 1 1 0;
+        }
+
+        .expediente-tipo {
+            flex: 0 0 116px;
+            width: 116px;
+            min-width: 116px;
+            text-align: right;
+        }
+
+        .expediente-tipo-badge {
+            font-size: 0.76rem;
+            padding: 4px 8px;
+        }
+    }
+</style>

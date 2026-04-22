@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=6">
     <script src="/static/pwa.js?v=4" defer></script>
+    {% include "partials/_expediente_card_styles.html" %}
 
     <title>Sistema pericial</title>
 </head>
@@ -43,17 +44,7 @@
 
         {% if expedientes %}
         {% for expediente in expedientes %}
-        <div class="card">
-            <a href="/detalle-expediente/{{ expediente.id }}"
-                style="display: block; color: inherit; text-decoration: none;">
-                <div>
-                    <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
-                    <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
-                    <p><strong>Cliente:</strong> {{ expediente.cliente }}</p>
-                    <p><strong>Tipo de inmueble:</strong> {{ expediente.tipo_inmueble or '-' }}</p>
-                </div>
-            </a>
-        </div>
+        {% include "partials/_expediente_card.html" %}
         {% endfor %}
         {% else %}
         <div class="card">

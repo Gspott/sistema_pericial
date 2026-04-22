@@ -27,11 +27,16 @@
         <h1>Editar estancia</h1>
 
         <div class="actions">
-            <a class="boton secundario" href="/definir-estancias/{{ estancia.visita_id }}">Volver a estancias</a>
+            <a class="boton secundario" href="/definir-estancias/{{ estancia.visita_id }}{% if unidad_id_contexto %}?unidad_id={{ unidad_id_contexto }}{% endif %}">Volver a estancias</a>
         </div>
 
         <div class="card">
-            <form method="post" action="/actualizar-estancia/{{ estancia.id }}">
+            <form method="post" action="/actualizar-estancia/{{ estancia.id }}" enctype="multipart/form-data">
+                <input type="hidden" name="unidad_id_contexto" value="{{ unidad_id_contexto or '' }}">
+                {% if estancia.identificador_unidad_estancia or estancia.nombre_nivel_estancia %}
+                <p><strong>Unidad:</strong> {{ estancia.identificador_unidad_estancia or '-' }}</p>
+                <p><strong>Nivel:</strong> {{ estancia.nombre_nivel_estancia or estancia.nombre_nivel_visita or '-' }}</p>
+                {% endif %}
                 <label for="nombre">Nombre de la estancia</label>
                 <input type="text" id="nombre" name="nombre" value="{{ estancia.nombre }}" required>
 
@@ -83,6 +88,10 @@
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ estancia.observaciones or '' }}</textarea>
 
+                <label for="fotos">Añadir fotos</label>
+                <input type="file" id="fotos" name="fotos" accept="image/*" multiple>
+                <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez. Puedes seguir añadiendo más fotos aquí sin perder las actuales.</p>
+
                 <label for="siguiente">Después de guardar</label>
                 <select id="siguiente" name="siguiente">
                     <option value="estancias">Volver a estancias</option>
@@ -93,6 +102,22 @@
                     <button class="boton" type="submit">Guardar cambios</button>
                 </div>
             </form>
+
+            {% if estancia.fotos %}
+            <div class="card inner-card">
+                <p><strong>Fotos actuales:</strong></p>
+                <p class="helper-text">Puedes añadir más fotos desde este formulario; las actuales se mantienen hasta que borres una de forma individual.</p>
+                {% for foto in estancia.fotos %}
+                <img src="{{ foto.url }}" alt="Foto de la estancia {{ estancia.nombre }}">
+                {% if foto.id %}
+                <form method="post" action="/borrar-foto-estancia/{{ foto.id }}">
+                    <input type="hidden" name="unidad_id_contexto" value="{{ unidad_id_contexto or '' }}">
+                    <button class="boton secundario" type="submit">Borrar esta foto</button>
+                </form>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
     </div>
 

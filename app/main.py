@@ -4,11 +4,14 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import sqlite3
+import unicodedata
 from urllib.parse import quote_plus
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,6 +19,19 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+except ImportError:  # pragma: no cover - fallback defensivo si falta Pillow
+    Image = None
+    ImageDraw = None
+    ImageFont = None
+    ImageOps = None
+    UnidentifiedImageError = None
+
+try:  # pragma: no cover - soporte opcional para HEIC/HEIF
+    from pillow_heif import register_heif_opener
+except ImportError:  # pragma: no cover - dependencia opcional
+    register_heif_opener = None
 
 from app.config import (
     APP_HOST,
@@ -55,6 +71,9 @@ app.state.app_host = APP_HOST
 app.state.app_port = APP_PORT
 
 logger = logging.getLogger(__name__)
+
+if Image is not None and register_heif_opener is not None:  # pragma: no branch
+    register_heif_opener()
 
 PUBLIC_PATHS = {
     "/login",
@@ -113,6 +132,52 @@ LOCALIZACION_EXTERIOR_LABELS = {
     "encuentro": "Encuentro",
     "puntual": "Puntual",
 }
+BIBLIOTECA_CATEGORIA_OPTIONS = [
+    ("", "Sin clasificar"),
+    ("humedades", "Humedades"),
+    ("acabados", "Acabados"),
+    ("pavimentos", "Pavimentos"),
+    ("carpinterias", "Carpinterías"),
+    ("fachada", "Fachada"),
+    ("estructura", "Estructura"),
+    ("instalaciones", "Instalaciones"),
+    ("biologicas", "Biológicas"),
+    ("roturas", "Roturas"),
+    ("desprendimientos", "Desprendimientos"),
+]
+BIBLIOTECA_CATEGORIA_LABELS = dict(BIBLIOTECA_CATEGORIA_OPTIONS)
+BIBLIOTECA_ELEMENTO_AFECTADO_OPTIONS = [
+    ("", "Sin definir"),
+    ("cubierta", "Cubierta"),
+    ("techo", "Techo"),
+    ("falso_techo", "Falso techo"),
+    ("paramento_vertical", "Paramento vertical"),
+    ("pavimento", "Pavimento"),
+    ("forjado", "Forjado"),
+    ("fachada", "Fachada"),
+    ("cornisa", "Cornisa"),
+    ("carpinteria", "Carpintería"),
+    ("ventana", "Ventana"),
+    ("puerta", "Puerta"),
+    ("revestimiento_interior", "Revestimiento interior"),
+    ("instalacion_electrica", "Instalación eléctrica"),
+]
+BIBLIOTECA_ELEMENTO_AFECTADO_LABELS = dict(BIBLIOTECA_ELEMENTO_AFECTADO_OPTIONS)
+BIBLIOTECA_MECANISMO_OPTIONS = [
+    ("", "Sin definir"),
+    ("infiltracion", "Infiltración"),
+    ("condensacion", "Condensación"),
+    ("capilaridad", "Capilaridad"),
+    ("impacto", "Impacto"),
+    ("desprendimiento", "Desprendimiento"),
+    ("deformacion", "Deformación"),
+    ("corrosion", "Corrosión"),
+    ("perdida_adherencia", "Pérdida de adherencia"),
+    ("saturacion", "Saturación"),
+    ("colonizacion_biologica", "Colonización biológica"),
+    ("rotura", "Rotura"),
+]
+BIBLIOTECA_MECANISMO_LABELS = dict(BIBLIOTECA_MECANISMO_OPTIONS)
 AMBITO_MAPA_OPTIONS = [
     ("edificio_completo", "Edificio completo"),
     ("nivel", "Nivel"),
@@ -426,6 +491,20 @@ AMBITO_VISITA_OPTIONS = [
     ("exterior", "Exterior"),
 ]
 AMBITO_VISITA_LABELS = dict(AMBITO_VISITA_OPTIONS)
+IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".heic",
+    ".heif",
+    ".webp",
+    ".bmp",
+    ".tif",
+    ".tiff",
+}
+MAX_IMAGE_DIMENSION = 1600
+MAX_THUMB_DIMENSION = 400
+JPEG_QUALITY = 80
 
 
 def get_connection():
@@ -434,11 +513,100 @@ def get_connection():
     return conn
 
 
+def es_archivo_imagen(nombre_archivo: str | None, content_type: str | None = None) -> bool:
+    extension = os.path.splitext(nombre_archivo or "")[1].lower()
+    if extension in IMAGE_EXTENSIONS:
+        return True
+    return bool(content_type and content_type.lower().startswith("image/"))
+
+
+def construir_ruta_thumbnail(ruta_imagen: str | Path) -> Path:
+    ruta = Path(ruta_imagen)
+    return ruta.with_name(f"{ruta.stem}_thumb.jpg")
+
+
+def _normalizar_imagen_para_jpeg(imagen: Image.Image) -> Image.Image:
+    if imagen.mode in ("RGBA", "LA"):
+        fondo = Image.new("RGB", imagen.size, (255, 255, 255))
+        alpha = imagen.getchannel("A")
+        fondo.paste(imagen.convert("RGBA"), mask=alpha)
+        return fondo
+    if imagen.mode == "P":
+        imagen = imagen.convert("RGBA")
+        fondo = Image.new("RGB", imagen.size, (255, 255, 255))
+        alpha = imagen.getchannel("A")
+        fondo.paste(imagen, mask=alpha)
+        return fondo
+    if imagen.mode != "RGB":
+        return imagen.convert("RGB")
+    return imagen
+
+
+def _guardar_jpeg_sin_metadatos(imagen: Image.Image, ruta_destino: Path) -> None:
+    ruta_destino.parent.mkdir(parents=True, exist_ok=True)
+    imagen.save(
+        ruta_destino,
+        format="JPEG",
+        quality=JPEG_QUALITY,
+        optimize=True,
+        progressive=True,
+    )
+
+
+def _procesar_imagen_a_rutas(
+    ruta_origen: str | Path,
+    ruta_destino: str | Path,
+    ruta_thumb: str | Path | None = None,
+) -> dict:
+    if Image is None or ImageOps is None:
+        raise RuntimeError("Pillow no está disponible para procesar imágenes.")
+
+    ruta_origen = Path(ruta_origen)
+    ruta_destino = Path(ruta_destino)
+    ruta_thumb_path = Path(ruta_thumb) if ruta_thumb else construir_ruta_thumbnail(ruta_destino)
+
+    if ruta_destino.stem.endswith("_thumb"):
+        raise ValueError("No se deben reprocesar thumbnails.")
+
+    with Image.open(ruta_origen) as imagen_original:
+        imagen_original.load()
+        imagen = ImageOps.exif_transpose(imagen_original)
+        imagen = _normalizar_imagen_para_jpeg(imagen)
+
+        if max(imagen.size) > MAX_IMAGE_DIMENSION:
+            imagen.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.Resampling.LANCZOS)
+
+        width, height = imagen.size
+        _guardar_jpeg_sin_metadatos(imagen, ruta_destino)
+
+        thumb = imagen.copy()
+        if max(thumb.size) > MAX_THUMB_DIMENSION:
+            thumb.thumbnail((MAX_THUMB_DIMENSION, MAX_THUMB_DIMENSION), Image.Resampling.LANCZOS)
+        _guardar_jpeg_sin_metadatos(thumb, ruta_thumb_path)
+
+    return {
+        "ruta_original": str(ruta_destino),
+        "ruta_thumb": str(ruta_thumb_path),
+        "width": width,
+        "height": height,
+    }
+
+
+def procesar_imagen(ruta_imagen: str) -> dict:
+    ruta = Path(ruta_imagen)
+    if ruta.stem.endswith("_thumb"):
+        raise ValueError("No se deben reprocesar thumbnails.")
+    return _procesar_imagen_a_rutas(ruta, ruta)
+
+
 def borrar_foto_si_existe(nombre_foto):
     if nombre_foto:
         ruta = UPLOAD_PATH / nombre_foto
         if ruta.exists():
             ruta.unlink()
+        ruta_thumb = construir_ruta_thumbnail(ruta)
+        if ruta_thumb.exists():
+            ruta_thumb.unlink()
 
 
 def guardar_upload_si_existe(archivo: UploadFile | None):
@@ -446,13 +614,358 @@ def guardar_upload_si_existe(archivo: UploadFile | None):
         return None
 
     extension = os.path.splitext(archivo.filename)[1].lower()
-    nombre_archivo = f"{uuid4().hex}{extension}"
+    es_imagen = es_archivo_imagen(archivo.filename, archivo.content_type)
+    extension_salida = ".jpg" if es_imagen else extension
+    nombre_archivo = f"{uuid4().hex}{extension_salida}"
     ruta_destino = UPLOAD_PATH / nombre_archivo
 
-    with ruta_destino.open("wb") as buffer:
-        shutil.copyfileobj(archivo.file, buffer)
+    if not es_imagen:
+        with ruta_destino.open("wb") as buffer:
+            shutil.copyfileobj(archivo.file, buffer)
+        return nombre_archivo
+
+    extension_temporal = extension or ".tmp"
+    ruta_temporal = UPLOAD_PATH / f"{uuid4().hex}{extension_temporal}"
+
+    try:
+        with ruta_temporal.open("wb") as buffer:
+            shutil.copyfileobj(archivo.file, buffer)
+        procesar_imagen_temporal = _procesar_imagen_a_rutas(ruta_temporal, ruta_destino)
+        logger.debug("Imagen procesada: %s", procesar_imagen_temporal)
+    except Exception as exc:
+        logger.warning("No se pudo procesar la imagen %s: %s", archivo.filename, exc)
+        if ruta_destino.exists():
+            ruta_destino.unlink()
+        extension_respaldo = extension or ".bin"
+        nombre_archivo = f"{uuid4().hex}{extension_respaldo}"
+        ruta_destino = UPLOAD_PATH / nombre_archivo
+        with ruta_destino.open("wb") as buffer:
+            with ruta_temporal.open("rb") as temporal:
+                shutil.copyfileobj(temporal, buffer)
+    finally:
+        if ruta_temporal.exists():
+            ruta_temporal.unlink()
 
     return nombre_archivo
+
+
+def guardar_uploads_si_existen(archivos: list[UploadFile] | None) -> list[str]:
+    nombres: list[str] = []
+    for archivo in archivos or []:
+        nombre = guardar_upload_si_existe(archivo)
+        if nombre:
+            nombres.append(nombre)
+    return nombres
+
+
+def normalizar_fragmento_nombre_archivo(
+    texto: str | None,
+    fallback: str = "foto",
+    max_len: int = 24,
+) -> str:
+    texto_limpio = limpiar_texto(texto or "")
+    if not texto_limpio:
+        return fallback
+
+    texto_ascii = (
+        unicodedata.normalize("NFKD", texto_limpio)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .lower()
+    )
+    texto_seguro = re.sub(r"[^a-z0-9]+", "_", texto_ascii).strip("_")
+    if not texto_seguro:
+        return fallback
+    return texto_seguro[:max_len].strip("_") or fallback
+
+
+def construir_nombre_archivo_contextual(
+    extension: str,
+    *fragmentos: str | None,
+) -> str:
+    partes = [
+        normalizar_fragmento_nombre_archivo(fragmento)
+        for fragmento in fragmentos
+        if limpiar_texto(fragmento or "")
+    ]
+    if not partes:
+        partes = ["foto"]
+    extension_limpia = extension.lower() or ".jpg"
+    return f"{'_'.join(partes[:5])}_{uuid4().hex[:8]}{extension_limpia}"
+
+
+def guardar_upload_contextual(archivo: UploadFile | None, *fragmentos: str | None):
+    if not archivo or not archivo.filename:
+        return None
+
+    extension = os.path.splitext(archivo.filename)[1].lower()
+    es_imagen = es_archivo_imagen(archivo.filename, archivo.content_type)
+    extension_salida = ".jpg" if es_imagen else extension
+    nombre_archivo = construir_nombre_archivo_contextual(extension_salida, *fragmentos)
+    ruta_destino = UPLOAD_PATH / nombre_archivo
+
+    if not es_imagen:
+        with ruta_destino.open("wb") as buffer:
+            shutil.copyfileobj(archivo.file, buffer)
+        return nombre_archivo
+
+    extension_temporal = extension or ".tmp"
+    ruta_temporal = UPLOAD_PATH / f"{uuid4().hex}{extension_temporal}"
+
+    try:
+        with ruta_temporal.open("wb") as buffer:
+            shutil.copyfileobj(archivo.file, buffer)
+        procesar_imagen_temporal = _procesar_imagen_a_rutas(ruta_temporal, ruta_destino)
+        logger.debug("Imagen procesada: %s", procesar_imagen_temporal)
+    except Exception as exc:
+        logger.warning("No se pudo procesar la imagen %s: %s", archivo.filename, exc)
+        if ruta_destino.exists():
+            ruta_destino.unlink()
+        extension_respaldo = extension or ".bin"
+        nombre_archivo = construir_nombre_archivo_contextual(extension_respaldo, *fragmentos)
+        ruta_destino = UPLOAD_PATH / nombre_archivo
+        with ruta_destino.open("wb") as buffer:
+            with ruta_temporal.open("rb") as temporal:
+                shutil.copyfileobj(temporal, buffer)
+    finally:
+        if ruta_temporal.exists():
+            ruta_temporal.unlink()
+
+    return nombre_archivo
+
+
+def guardar_uploads_contextuales(
+    archivos: list[UploadFile] | None,
+    *fragmentos: str | None,
+) -> list[str]:
+    nombres: list[str] = []
+    for indice, archivo in enumerate(archivos or [], start=1):
+        nombre = guardar_upload_contextual(
+            archivo,
+            *fragmentos,
+            f"{indice:02d}",
+        )
+        if nombre:
+            nombres.append(nombre)
+    return nombres
+
+
+def obtener_fotos_relacionadas(cur, tabla: str, fk_columna: str, parent_id: int) -> list[dict]:
+    return [
+        dict(row)
+        for row in cur.execute(
+            f"""
+            SELECT id, archivo, created_at
+            FROM {tabla}
+            WHERE {fk_columna}=?
+            ORDER BY id ASC
+            """,
+            (parent_id,),
+        ).fetchall()
+    ]
+
+
+def insertar_fotos_relacionadas(
+    cur,
+    tabla: str,
+    fk_columna: str,
+    parent_id: int,
+    nombres_archivos: list[str],
+):
+    for nombre in nombres_archivos:
+        cur.execute(
+            f"INSERT INTO {tabla} ({fk_columna}, archivo) VALUES (?, ?)",
+            (parent_id, nombre),
+        )
+
+
+def borrar_fotos_relacionadas(cur, tabla: str, fk_columna: str, parent_id: int):
+    fotos = obtener_fotos_relacionadas(cur, tabla, fk_columna, parent_id)
+    for foto in fotos:
+        borrar_foto_si_existe(foto["archivo"])
+    cur.execute(f"DELETE FROM {tabla} WHERE {fk_columna}=?", (parent_id,))
+
+
+def sincronizar_foto_principal(
+    cur,
+    tabla_principal: str,
+    id_columna: str,
+    foto_columna: str,
+    parent_id: int,
+    tabla_fotos: str,
+    fk_columna: str,
+):
+    primera = cur.execute(
+        f"""
+        SELECT archivo
+        FROM {tabla_fotos}
+        WHERE {fk_columna}=?
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        (parent_id,),
+    ).fetchone()
+    cur.execute(
+        f"UPDATE {tabla_principal} SET {foto_columna}=? WHERE {id_columna}=?",
+        (primera["archivo"] if primera else None, parent_id),
+    )
+
+
+def enriquecer_registro_con_fotos(
+    cur,
+    registro,
+    tabla_fotos: str,
+    fk_columna: str,
+    foto_legacy_columna: str,
+):
+    registro_dict = dict(registro)
+    fotos = obtener_fotos_relacionadas(cur, tabla_fotos, fk_columna, registro_dict["id"])
+    if not fotos and registro_dict.get(foto_legacy_columna):
+        fotos = [{"id": None, "archivo": registro_dict.get(foto_legacy_columna), "created_at": None}]
+    for foto in fotos:
+        foto["url"] = f"/uploads/{foto['archivo']}"
+    registro_dict["fotos"] = fotos
+    registro_dict["foto_url"] = fotos[0]["url"] if fotos else ""
+    return registro_dict
+
+
+def obtener_nombre_imagen_mapa_anotada(nombre_imagen_base: str | None) -> str:
+    if not nombre_imagen_base:
+        return ""
+    return f"{Path(nombre_imagen_base).stem}_mapa_anotado.png"
+
+
+def borrar_imagen_anotada_mapa_si_existe(nombre_imagen_base: str | None):
+    nombre_anotado = obtener_nombre_imagen_mapa_anotada(nombre_imagen_base)
+    if nombre_anotado:
+        borrar_foto_si_existe(nombre_anotado)
+
+
+def cargar_fuente_mapa_patologia(tamano: int):
+    if ImageFont is None:
+        return None
+
+    for fuente in (
+        "DejaVuSans-Bold.ttf",
+        "Arial Bold.ttf",
+        "Arial.ttf",
+        "LiberationSans-Bold.ttf",
+    ):
+        try:
+            return ImageFont.truetype(fuente, tamano)
+        except OSError:
+            continue
+
+    return ImageFont.load_default()
+
+
+def generar_imagen_anotada_mapa_patologia(
+    nombre_imagen_base: str | None,
+    filas: int,
+    columnas: int,
+) -> str:
+    if (
+        not nombre_imagen_base
+        or Image is None
+        or ImageDraw is None
+        or ImageFont is None
+    ):
+        return ""
+
+    ruta_base = UPLOAD_PATH / nombre_imagen_base
+    if not ruta_base.exists():
+        return ""
+
+    nombre_anotado = obtener_nombre_imagen_mapa_anotada(nombre_imagen_base)
+    ruta_anotada = UPLOAD_PATH / nombre_anotado
+
+    try:
+        filas_seguras = max(int(filas or 0), 1)
+        columnas_seguras = max(int(columnas or 0), 1)
+
+        with Image.open(ruta_base) as imagen_original:
+            imagen = imagen_original.convert("RGBA")
+
+        ancho, alto = imagen.size
+        celda_ancho = ancho / columnas_seguras
+        celda_alto = alto / filas_seguras
+        referencia = min(ancho, alto)
+        trazo_base = max(1, int(referencia / 400))
+        trazo_borde = trazo_base + 2
+        tamano_fuente = max(16, min(120, int(min(celda_ancho, celda_alto) * 0.18)))
+        padding_x = max(8, int(tamano_fuente * 0.45))
+        padding_y = max(6, int(tamano_fuente * 0.28))
+        margen = max(8, int(tamano_fuente * 0.5))
+        trazo_texto = max(2, int(tamano_fuente * 0.12))
+
+        dibujo = ImageDraw.Draw(imagen, "RGBA")
+        fuente = cargar_fuente_mapa_patologia(tamano_fuente)
+
+        for fila in range(1, filas_seguras):
+            y = int(round(fila * celda_alto))
+            dibujo.line([(0, y), (ancho, y)], fill=(0, 0, 0, 180), width=trazo_borde)
+            dibujo.line([(0, y), (ancho, y)], fill=(255, 255, 255, 235), width=trazo_base)
+
+        for columna in range(1, columnas_seguras):
+            x = int(round(columna * celda_ancho))
+            dibujo.line([(x, 0), (x, alto)], fill=(0, 0, 0, 180), width=trazo_borde)
+            dibujo.line([(x, 0), (x, alto)], fill=(255, 255, 255, 235), width=trazo_base)
+
+        for fila in range(filas_seguras):
+            for columna in range(columnas_seguras):
+                etiqueta = generar_codigo_cuadrante(fila, columna)
+                caja = dibujo.textbbox(
+                    (0, 0),
+                    etiqueta,
+                    font=fuente,
+                    stroke_width=trazo_texto,
+                )
+                texto_ancho = caja[2] - caja[0]
+                texto_alto = caja[3] - caja[1]
+                x = int(columna * celda_ancho) + margen
+                y = int(fila * celda_alto) + margen
+                fondo = (
+                    x,
+                    y,
+                    x + texto_ancho + (padding_x * 2),
+                    y + texto_alto + (padding_y * 2),
+                )
+                dibujo.rounded_rectangle(
+                    fondo,
+                    radius=max(4, int(tamano_fuente * 0.2)),
+                    fill=(0, 0, 0, 148),
+                )
+                dibujo.text(
+                    (x + padding_x, y + padding_y),
+                    etiqueta,
+                    font=fuente,
+                    fill=(255, 255, 255, 255),
+                    stroke_width=trazo_texto,
+                    stroke_fill=(0, 0, 0, 220),
+                )
+
+        imagen.convert("RGB").save(ruta_anotada, format="PNG")
+        return nombre_anotado
+    except Exception:
+        logger.exception(
+            "No se pudo generar la imagen anotada del mapa %s",
+            nombre_imagen_base,
+        )
+        return ""
+
+
+def construir_imagen_mapa_url(nombre_imagen_base: str | None) -> str:
+    if not nombre_imagen_base:
+        return ""
+
+    nombre_anotado = obtener_nombre_imagen_mapa_anotada(nombre_imagen_base)
+    if nombre_anotado and (UPLOAD_PATH / nombre_anotado).exists():
+        return f"/uploads/{nombre_anotado}"
+
+    if (UPLOAD_PATH / nombre_imagen_base).exists():
+        return f"/uploads/{nombre_imagen_base}"
+
+    return ""
 
 
 def guardar_imagen_catastro_si_existe(contenido: bytes | None, extension: str | None):
@@ -1473,6 +1986,33 @@ def eliminar_expediente_completo(cur, expediente_id: int):
             """,
             visita_ids,
         ).fetchall()
+        fotos_registro_multi = cur.execute(
+            f"""
+            SELECT rpf.archivo
+            FROM registro_patologia_fotos rpf
+            JOIN registros_patologias rp ON rpf.registro_id = rp.id
+            WHERE rp.visita_id IN ({placeholders})
+            """,
+            visita_ids,
+        ).fetchall()
+        fotos_estancias_multi = cur.execute(
+            f"""
+            SELECT ef.archivo
+            FROM estancia_fotos ef
+            JOIN estancias es ON ef.estancia_id = es.id
+            WHERE es.visita_id IN ({placeholders})
+            """,
+            visita_ids,
+        ).fetchall()
+        fotos_exteriores_multi = cur.execute(
+            f"""
+            SELECT rpef.archivo
+            FROM registro_patologia_exterior_fotos rpef
+            JOIN registros_patologias_exteriores rpe ON rpef.registro_id = rpe.id
+            WHERE rpe.visita_id IN ({placeholders})
+            """,
+            visita_ids,
+        ).fetchall()
         imagenes_mapa = cur.execute(
             f"""
             SELECT imagen_base
@@ -1492,16 +2032,79 @@ def eliminar_expediente_completo(cur, expediente_id: int):
             """,
             visita_ids,
         ).fetchall()
+        fotos_cuadrantes_multi = cur.execute(
+            f"""
+            SELECT qmpf.archivo
+            FROM cuadrante_mapa_patologia_fotos qmpf
+            JOIN cuadrantes_mapa_patologia qmp ON qmpf.cuadrante_id = qmp.id
+            JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+            WHERE mp.visita_id IN ({placeholders})
+            """,
+            visita_ids,
+        ).fetchall()
 
         for foto in fotos:
             borrar_foto_si_existe(foto["foto"])
         for foto in fotos_exteriores:
             borrar_foto_si_existe(foto["foto"])
+        for foto in fotos_registro_multi:
+            borrar_foto_si_existe(foto["archivo"])
+        for foto in fotos_estancias_multi:
+            borrar_foto_si_existe(foto["archivo"])
+        for foto in fotos_exteriores_multi:
+            borrar_foto_si_existe(foto["archivo"])
         for imagen in imagenes_mapa:
             borrar_foto_si_existe(imagen["imagen_base"])
         for foto in fotos_cuadrantes:
             borrar_foto_si_existe(foto["foto_detalle"])
+        for foto in fotos_cuadrantes_multi:
+            borrar_foto_si_existe(foto["archivo"])
 
+        cur.execute(
+            f"""
+            DELETE FROM cuadrante_mapa_patologia_fotos
+            WHERE cuadrante_id IN (
+                SELECT qmp.id
+                FROM cuadrantes_mapa_patologia qmp
+                JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+                WHERE mp.visita_id IN ({placeholders})
+            )
+            """,
+            visita_ids,
+        )
+        cur.execute(
+            f"""
+            DELETE FROM registro_patologia_exterior_fotos
+            WHERE registro_id IN (
+                SELECT id
+                FROM registros_patologias_exteriores
+                WHERE visita_id IN ({placeholders})
+            )
+            """,
+            visita_ids,
+        )
+        cur.execute(
+            f"""
+            DELETE FROM registro_patologia_fotos
+            WHERE registro_id IN (
+                SELECT id
+                FROM registros_patologias
+                WHERE visita_id IN ({placeholders})
+            )
+            """,
+            visita_ids,
+        )
+        cur.execute(
+            f"""
+            DELETE FROM estancia_fotos
+            WHERE estancia_id IN (
+                SELECT id
+                FROM estancias
+                WHERE visita_id IN ({placeholders})
+            )
+            """,
+            visita_ids,
+        )
         cur.execute(
             f"DELETE FROM climatologia_visitas WHERE visita_id IN ({placeholders})",
             visita_ids,
@@ -1581,6 +2184,173 @@ def eliminar_expediente_completo(cur, expediente_id: int):
 
     if expediente and expediente["imagen_catastro"]:
         borrar_foto_si_existe(expediente["imagen_catastro"])
+
+
+def eliminar_visita_completa(cur, visita_id: int):
+    fotos = cur.execute(
+        """
+        SELECT foto
+        FROM registros_patologias
+        WHERE visita_id=? AND foto IS NOT NULL AND foto <> ''
+        """,
+        (visita_id,),
+    ).fetchall()
+    fotos_exteriores = cur.execute(
+        """
+        SELECT foto
+        FROM registros_patologias_exteriores
+        WHERE visita_id=? AND foto IS NOT NULL AND foto <> ''
+        """,
+        (visita_id,),
+    ).fetchall()
+    fotos_registro_multi = cur.execute(
+        """
+        SELECT rpf.archivo
+        FROM registro_patologia_fotos rpf
+        JOIN registros_patologias rp ON rpf.registro_id = rp.id
+        WHERE rp.visita_id=?
+        """,
+        (visita_id,),
+    ).fetchall()
+    fotos_estancias_multi = cur.execute(
+        """
+        SELECT ef.archivo
+        FROM estancia_fotos ef
+        JOIN estancias es ON ef.estancia_id = es.id
+        WHERE es.visita_id=?
+        """,
+        (visita_id,),
+    ).fetchall()
+    fotos_exteriores_multi = cur.execute(
+        """
+        SELECT rpef.archivo
+        FROM registro_patologia_exterior_fotos rpef
+        JOIN registros_patologias_exteriores rpe ON rpef.registro_id = rpe.id
+        WHERE rpe.visita_id=?
+        """,
+        (visita_id,),
+    ).fetchall()
+    imagenes_mapa = cur.execute(
+        """
+        SELECT imagen_base
+        FROM mapas_patologia
+        WHERE visita_id=? AND imagen_base IS NOT NULL AND imagen_base <> ''
+        """,
+        (visita_id,),
+    ).fetchall()
+    fotos_cuadrantes = cur.execute(
+        """
+        SELECT qmp.foto_detalle
+        FROM cuadrantes_mapa_patologia qmp
+        JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+        WHERE mp.visita_id=?
+          AND qmp.foto_detalle IS NOT NULL
+          AND qmp.foto_detalle <> ''
+        """,
+        (visita_id,),
+    ).fetchall()
+    fotos_cuadrantes_multi = cur.execute(
+        """
+        SELECT qmpf.archivo
+        FROM cuadrante_mapa_patologia_fotos qmpf
+        JOIN cuadrantes_mapa_patologia qmp ON qmpf.cuadrante_id = qmp.id
+        JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+        WHERE mp.visita_id=?
+        """,
+        (visita_id,),
+    ).fetchall()
+
+    for foto in fotos:
+        borrar_foto_si_existe(foto["foto"])
+    for foto in fotos_exteriores:
+        borrar_foto_si_existe(foto["foto"])
+    for foto in fotos_registro_multi:
+        borrar_foto_si_existe(foto["archivo"])
+    for foto in fotos_estancias_multi:
+        borrar_foto_si_existe(foto["archivo"])
+    for foto in fotos_exteriores_multi:
+        borrar_foto_si_existe(foto["archivo"])
+    for imagen in imagenes_mapa:
+        borrar_foto_si_existe(imagen["imagen_base"])
+    for foto in fotos_cuadrantes:
+        borrar_foto_si_existe(foto["foto_detalle"])
+    for foto in fotos_cuadrantes_multi:
+        borrar_foto_si_existe(foto["archivo"])
+
+    cur.execute(
+        """
+        DELETE FROM cuadrante_mapa_patologia_fotos
+        WHERE cuadrante_id IN (
+            SELECT qmp.id
+            FROM cuadrantes_mapa_patologia qmp
+            JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+            WHERE mp.visita_id=?
+        )
+        """,
+        (visita_id,),
+    )
+    cur.execute(
+        """
+        DELETE FROM registro_patologia_exterior_fotos
+        WHERE registro_id IN (
+            SELECT id
+            FROM registros_patologias_exteriores
+            WHERE visita_id=?
+        )
+        """,
+        (visita_id,),
+    )
+    cur.execute(
+        """
+        DELETE FROM registro_patologia_fotos
+        WHERE registro_id IN (
+            SELECT id
+            FROM registros_patologias
+            WHERE visita_id=?
+        )
+        """,
+        (visita_id,),
+    )
+    cur.execute(
+        """
+        DELETE FROM estancia_fotos
+        WHERE estancia_id IN (
+            SELECT id
+            FROM estancias
+            WHERE visita_id=?
+        )
+        """,
+        (visita_id,),
+    )
+    cur.execute("DELETE FROM climatologia_visitas WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM inspeccion_general_visita WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM inspeccion_exterior WHERE visita_id=?", (visita_id,))
+    cur.execute(
+        "DELETE FROM inspeccion_elementos_comunes WHERE visita_id=?",
+        (visita_id,),
+    )
+    cur.execute("DELETE FROM inspeccion_estancias WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM habitabilidad_general_visita WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM habitabilidad_exterior WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM habitabilidad_estancias WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM valoracion_visita WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM comparables_valoracion WHERE visita_id=?", (visita_id,))
+    cur.execute(
+        """
+        DELETE FROM cuadrantes_mapa_patologia
+        WHERE mapa_id IN (
+            SELECT id
+            FROM mapas_patologia
+            WHERE visita_id=?
+        )
+        """,
+        (visita_id,),
+    )
+    cur.execute("DELETE FROM mapas_patologia WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM registros_patologias_exteriores WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM registros_patologias WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM estancias WHERE visita_id=?", (visita_id,))
+    cur.execute("DELETE FROM visitas WHERE id=?", (visita_id,))
 
 
 def get_informe_path(nombre_archivo: str) -> Path:
@@ -1992,6 +2762,72 @@ def describir_objeto_visita(visita) -> str:
     return etiquetar_opcion(ambito, AMBITO_VISITA_LABELS)
 
 
+def calcular_estancia_rellena(estancia: dict) -> bool:
+    return all(
+        [
+            limpiar_texto(estancia.get("nombre")),
+            limpiar_texto(estancia.get("tipo_estancia")),
+            limpiar_texto(estancia.get("ventilacion")),
+            limpiar_texto(estancia.get("planta")),
+            limpiar_texto(estancia.get("acabado_pavimento")),
+            limpiar_texto(estancia.get("acabado_paramento")),
+            limpiar_texto(estancia.get("acabado_techo")),
+            bool(estancia.get("foto_principal_url")),
+        ]
+    )
+
+
+def preparar_navegacion_estancias_multiunidad(
+    estructura_multiunidad: dict,
+    estancias: list[dict],
+    visita_id: int,
+    unidad_id_seleccionada: int | None = None,
+):
+    resumen_por_unidad: dict[int, dict[str, int]] = {}
+    sin_unidad = {"total": 0, "pendientes": 0}
+
+    for estancia in estancias:
+        unidad_estancia_id = estancia.get("unidad_id")
+        if unidad_estancia_id:
+            destino = resumen_por_unidad.setdefault(
+                unidad_estancia_id, {"total": 0, "pendientes": 0}
+            )
+        else:
+            destino = sin_unidad
+        destino["total"] += 1
+        if not estancia.get("esta_rellena"):
+            destino["pendientes"] += 1
+
+    def enriquecer_unidad(unidad: dict):
+        stats = resumen_por_unidad.get(unidad["id"], {"total": 0, "pendientes": 0})
+        unidad["total_estancias"] = stats["total"]
+        unidad["pendientes_estancias"] = stats["pendientes"]
+        unidad["tiene_estancias"] = stats["total"] > 0
+        unidad["seleccionada"] = unidad["id"] == unidad_id_seleccionada
+        unidad["gestion_url"] = f"/definir-estancias/{visita_id}?unidad_id={unidad['id']}"
+        if unidad["tiene_estancias"]:
+            unidad["gestion_url"] += "#estancias-registradas"
+        for anejo in unidad.get("anejos", []):
+            enriquecer_unidad(anejo)
+
+    for nivel in estructura_multiunidad["niveles"]:
+        for grupo in ("principales", "otras"):
+            for unidad in nivel.get(grupo, []):
+                enriquecer_unidad(unidad)
+
+    for grupo in ("principales", "otras"):
+        for unidad in estructura_multiunidad["sin_nivel"].get(grupo, []):
+            enriquecer_unidad(unidad)
+
+    for anejo in estructura_multiunidad.get("anejos_sueltos", []):
+        enriquecer_unidad(anejo)
+
+    return {
+        "estructura": estructura_multiunidad,
+        "sin_unidad": sin_unidad,
+    }
+
+
 def validar_estancia_para_visita(cur, visita, estancia_id: int):
     estancia = cur.execute(
         """
@@ -2020,12 +2856,16 @@ def get_owned_estancia(cur, estancia_id: int, user_id: int):
         """
         SELECT es.*, v.expediente_id, v.unidad_id AS visita_unidad_id,
                v.ambito_visita, n.nombre_nivel AS nombre_nivel_visita,
-               u.identificador AS identificador_unidad_visita
+               u.identificador AS identificador_unidad_visita,
+               ue.identificador AS identificador_unidad_estancia,
+               ne.nombre_nivel AS nombre_nivel_estancia
         FROM estancias es
         JOIN visitas v ON es.visita_id = v.id
         JOIN expedientes e ON v.expediente_id = e.id
         LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
         LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
+        LEFT JOIN unidades_expediente ue ON es.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
         WHERE es.id=? AND e.owner_user_id=?
         """,
         (estancia_id, user_id),
@@ -2037,10 +2877,16 @@ def get_owned_registro(cur, registro_id: int, user_id: int):
         """
         SELECT rp.*, v.expediente_id, v.ambito_visita,
                n.nombre_nivel AS nombre_nivel_visita,
-               u.identificador AS identificador_unidad_visita
+               u.identificador AS identificador_unidad_visita,
+               es.nombre AS estancia_nombre,
+               ue.identificador AS identificador_unidad_estancia,
+               ne.nombre_nivel AS nombre_nivel_estancia
         FROM registros_patologias rp
         JOIN visitas v ON rp.visita_id = v.id
         JOIN expedientes e ON v.expediente_id = e.id
+        LEFT JOIN estancias es ON rp.estancia_id = es.id
+        LEFT JOIN unidades_expediente ue ON es.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
         LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
         LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
         WHERE rp.id=? AND e.owner_user_id=?
@@ -2242,6 +3088,7 @@ def preparar_mapas_patologia(cur, visita_id: int):
         mapa["imagen_base_url"] = (
             f"/uploads/{mapa['imagen_base']}" if mapa.get("imagen_base") else ""
         )
+        mapa["imagen_mapa_url"] = construir_imagen_mapa_url(mapa.get("imagen_base"))
         cuadrantes = [
             dict(row)
             for row in cur.execute(
@@ -2280,11 +3127,18 @@ def preparar_mapas_patologia(cur, visita_id: int):
             cuadrante["gravedad_label"] = etiquetar_opcion(
                 cuadrante.get("gravedad", ""), GRAVEDAD_CUADRANTE_LABELS
             )
-            cuadrante["foto_detalle_url"] = (
-                f"/uploads/{cuadrante['foto_detalle']}"
-                if cuadrante.get("foto_detalle")
-                else ""
+            fotos = obtener_fotos_relacionadas(
+                cur,
+                "cuadrante_mapa_patologia_fotos",
+                "cuadrante_id",
+                cuadrante["id"],
             )
+            if not fotos and cuadrante.get("foto_detalle"):
+                fotos = [{"id": None, "archivo": cuadrante["foto_detalle"], "created_at": None}]
+            for foto in fotos:
+                foto["url"] = f"/uploads/{foto['archivo']}"
+            cuadrante["fotos"] = fotos
+            cuadrante["foto_detalle_url"] = fotos[0]["url"] if fotos else ""
 
     return mapas
 
@@ -2575,14 +3429,20 @@ def biblioteca_patologias(request: Request):
     conn = get_connection()
     cur = conn.cursor()
     patologias = cur.execute(
-        "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
+        "SELECT * FROM biblioteca_patologias WHERE COALESCE(activo, 1) = 1 ORDER BY nombre ASC"
     ).fetchall()
     conn.close()
 
     return render_template(
         request,
         "biblioteca_patologias.html",
-        {"patologias": patologias},
+        {
+            "patologias": patologias,
+            "categoria_options": BIBLIOTECA_CATEGORIA_OPTIONS,
+            "categoria_labels": BIBLIOTECA_CATEGORIA_LABELS,
+            "elemento_afectado_options": BIBLIOTECA_ELEMENTO_AFECTADO_OPTIONS,
+            "mecanismo_options": BIBLIOTECA_MECANISMO_OPTIONS,
+        },
     )
 
 
@@ -2593,6 +3453,10 @@ def guardar_patologia_biblioteca(
     descripcion: str = Form(""),
     causa: str = Form(""),
     solucion: str = Form(""),
+    categoria: str = Form(""),
+    elemento_afectado: str = Form(""),
+    mecanismo: str = Form(""),
+    rol_patologia: str = Form(""),
 ):
     get_current_user(request)
 
@@ -2600,10 +3464,21 @@ def guardar_patologia_biblioteca(
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO biblioteca_patologias (nombre, descripcion, causa, solucion)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO biblioteca_patologias (
+            nombre, descripcion, causa, solucion, categoria, elemento_afectado, mecanismo, rol_patologia
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (nombre, descripcion, causa, solucion),
+        (
+            nombre,
+            descripcion,
+            causa,
+            solucion,
+            categoria,
+            elemento_afectado,
+            mecanismo,
+            rol_patologia,
+        ),
     )
     conn.commit()
     conn.close()
@@ -2618,13 +3493,13 @@ def editar_patologia_biblioteca(request: Request, patologia_id: int):
     conn = get_connection()
     cur = conn.cursor()
     patologia = cur.execute(
-        "SELECT * FROM biblioteca_patologias WHERE id=?",
+        "SELECT * FROM biblioteca_patologias WHERE id=? AND COALESCE(activo, 1) = 1",
         (patologia_id,),
     ).fetchone()
     require_row(patologia, "Patología no encontrada")
 
     patologias = cur.execute(
-        "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
+        "SELECT * FROM biblioteca_patologias WHERE COALESCE(activo, 1) = 1 ORDER BY nombre ASC"
     ).fetchall()
     conn.close()
 
@@ -2634,6 +3509,10 @@ def editar_patologia_biblioteca(request: Request, patologia_id: int):
         {
             "patologias": patologias,
             "patologia_edicion": patologia,
+            "categoria_options": BIBLIOTECA_CATEGORIA_OPTIONS,
+            "categoria_labels": BIBLIOTECA_CATEGORIA_LABELS,
+            "elemento_afectado_options": BIBLIOTECA_ELEMENTO_AFECTADO_OPTIONS,
+            "mecanismo_options": BIBLIOTECA_MECANISMO_OPTIONS,
         },
     )
 
@@ -2646,6 +3525,10 @@ def actualizar_patologia_biblioteca(
     descripcion: str = Form(""),
     causa: str = Form(""),
     solucion: str = Form(""),
+    categoria: str = Form(""),
+    elemento_afectado: str = Form(""),
+    mecanismo: str = Form(""),
+    rol_patologia: str = Form(""),
 ):
     get_current_user(request)
 
@@ -2654,14 +3537,47 @@ def actualizar_patologia_biblioteca(
     updated = cur.execute(
         """
         UPDATE biblioteca_patologias
-        SET nombre=?, descripcion=?, causa=?, solucion=?
+        SET nombre=?, descripcion=?, causa=?, solucion=?, categoria=?, elemento_afectado=?, mecanismo=?, rol_patologia=?
         WHERE id=?
         """,
-        (nombre, descripcion, causa, solucion, patologia_id),
+        (
+            nombre,
+            descripcion,
+            causa,
+            solucion,
+            categoria,
+            elemento_afectado,
+            mecanismo,
+            rol_patologia,
+            patologia_id,
+        ),
     )
     if updated.rowcount == 0:
         conn.close()
         raise HTTPException(status_code=404, detail="Patología no encontrada")
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url="/biblioteca-patologias", status_code=303)
+
+
+@app.post("/borrar-patologia/{patologia_id}")
+def borrar_patologia_biblioteca(request: Request, patologia_id: int):
+    get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    patologia = cur.execute(
+        "SELECT id FROM biblioteca_patologias WHERE id=? AND COALESCE(activo, 1) = 1",
+        (patologia_id,),
+    ).fetchone()
+    require_row(patologia, "Patología no encontrada")
+
+    cur.execute(
+        "UPDATE biblioteca_patologias SET activo = 0 WHERE id=?",
+        (patologia_id,),
+    )
     conn.commit()
     conn.close()
 
@@ -2808,6 +3724,7 @@ def guardar_expediente(
     observaciones_generales: str = Form(""),
     planta_unidad: str = Form(""),
     puerta_unidad: str = Form(""),
+    analisis_unidades: str = Form("una_unidad"),
     superficie_construida: str = Form(""),
     superficie_util: str = Form(""),
     dormitorios_unidad: str = Form(""),
@@ -2879,6 +3796,7 @@ def guardar_expediente(
                     observaciones_generales,
                     planta_unidad,
                     puerta_unidad,
+                    analisis_unidades,
                     superficie_construida,
                     superficie_util,
                     dormitorios_unidad,
@@ -2898,7 +3816,7 @@ def guardar_expediente(
                     imagen_catastro,
                     owner_user_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     numero_expediente,
@@ -2926,6 +3844,7 @@ def guardar_expediente(
                     observaciones_generales,
                     planta_unidad,
                     puerta_unidad,
+                    analisis_unidades,
                     superficie_construida,
                     superficie_util,
                     dormitorios_unidad,
@@ -3312,6 +4231,13 @@ def detalle_expediente(request: Request, expediente_id: int):
         if expediente_data.get("imagen_catastro")
         else ""
     )
+    expediente_data["analisis_unidades_resuelto"] = limpiar_texto(
+        expediente_data.get("analisis_unidades")
+    ) or (
+        "varias_unidades"
+        if estructura_multiunidad["niveles"] or estructura_multiunidad["unidades"]
+        else "una_unidad"
+    )
     expediente_data["ultima_conclusion_habitabilidad_label"] = etiquetar_opcion(
         resumen_tipo.get("ultima_conclusion", ""),
         {
@@ -3352,6 +4278,15 @@ def editar_expediente(request: Request, expediente_id: int):
 
     expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
     require_row(expediente, "Expediente no encontrado")
+    estructura_multiunidad = cargar_estructura_multiunidad(cur, expediente_id)
+    expediente_data = dict(expediente)
+    expediente_data["analisis_unidades_resuelto"] = limpiar_texto(
+        expediente_data.get("analisis_unidades")
+    ) or (
+        "varias_unidades"
+        if estructura_multiunidad["niveles"] or estructura_multiunidad["unidades"]
+        else "una_unidad"
+    )
 
     conn.close()
 
@@ -3359,8 +4294,10 @@ def editar_expediente(request: Request, expediente_id: int):
         request,
         "editar_expediente.html",
         {
-            "expediente": expediente,
+            "expediente": expediente_data,
             "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+            "niveles_edificio": estructura_multiunidad["niveles"],
+            "unidades_expediente": estructura_multiunidad["unidades"],
         },
     )
 
@@ -3394,6 +4331,7 @@ def actualizar_expediente(
     observaciones_generales: str = Form(""),
     planta_unidad: str = Form(""),
     puerta_unidad: str = Form(""),
+    analisis_unidades: str = Form("una_unidad"),
     superficie_construida: str = Form(""),
     superficie_util: str = Form(""),
     dormitorios_unidad: str = Form(""),
@@ -3411,6 +4349,7 @@ def actualizar_expediente(
     alcance_limitaciones: str = Form(""),
     metodologia_pericial: str = Form(""),
     imagen_catastro: str = Form(""),
+    imagen_catastro_nueva: UploadFile | None = File(None),
 ):
     current_user = get_current_user(request)
     conn = get_connection()
@@ -3430,6 +4369,7 @@ def actualizar_expediente(
     ).fetchone()
 
     if duplicado:
+        estructura_multiunidad = cargar_estructura_multiunidad(cur, expediente_id)
         conn.close()
         expediente_form = {
             "id": expediente_id,
@@ -3458,6 +4398,12 @@ def actualizar_expediente(
             "observaciones_generales": observaciones_generales,
             "planta_unidad": planta_unidad,
             "puerta_unidad": puerta_unidad,
+            "analisis_unidades": analisis_unidades,
+            "analisis_unidades_resuelto": limpiar_texto(analisis_unidades) or (
+                "varias_unidades"
+                if estructura_multiunidad["niveles"] or estructura_multiunidad["unidades"]
+                else "una_unidad"
+            ),
             "superficie_construida": superficie_construida,
             "superficie_util": superficie_util,
             "dormitorios_unidad": dormitorios_unidad,
@@ -3483,8 +4429,14 @@ def actualizar_expediente(
                 "error": "Ya existe otro expediente con ese número.",
                 "expediente": expediente_form,
                 "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+                "niveles_edificio": estructura_multiunidad["niveles"],
+                "unidades_expediente": estructura_multiunidad["unidades"],
             },
         )
+
+    nueva_imagen_catastro = guardar_upload_si_existe(imagen_catastro_nueva)
+    if nueva_imagen_catastro:
+        imagen_catastro = nueva_imagen_catastro
 
     columnas = get_table_columns("expedientes")
 
@@ -3514,6 +4466,7 @@ def actualizar_expediente(
         "observaciones_generales": observaciones_generales,
         "planta_unidad": planta_unidad,
         "puerta_unidad": puerta_unidad,
+        "analisis_unidades": analisis_unidades,
         "superficie_construida": superficie_construida,
         "superficie_util": superficie_util,
         "dormitorios_unidad": dormitorios_unidad,
@@ -4657,7 +5610,11 @@ def actualizar_visita(
 
 
 @app.get("/definir-estancias/{visita_id}", response_class=HTMLResponse)
-def definir_estancias(request: Request, visita_id: int):
+def definir_estancias(
+    request: Request,
+    visita_id: int,
+    unidad_id: int | None = Query(None),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -4665,11 +5622,75 @@ def definir_estancias(request: Request, visita_id: int):
 
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
+    es_edificio_completo = limpiar_texto(visita["ambito_visita"]) == "edificio_completo"
+    unidad_seleccionada = None
+    estructura_multiunidad = None
+    navegacion_multiunidad = None
 
-    estancias = cur.execute(
-        "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
+    if es_edificio_completo:
+        estructura_multiunidad = cargar_estructura_multiunidad(cur, visita["expediente_id"])
+        if unidad_id is not None:
+            unidad_bd = get_owned_unidad(cur, unidad_id, current_user["id"])
+            if not unidad_bd or unidad_bd["expediente_id"] != visita["expediente_id"]:
+                conn.close()
+                raise HTTPException(status_code=404, detail="Unidad no encontrada")
+            unidad_seleccionada = next(
+                (
+                    unidad
+                    for unidad in estructura_multiunidad["unidades"]
+                    if unidad["id"] == unidad_bd["id"]
+                ),
+                dict(unidad_bd),
+            )
+
+    estancias_rows = cur.execute(
+        """
+        SELECT es.*,
+               ue.identificador AS unidad_identificador,
+               ne.nombre_nivel AS nivel_nombre
+        FROM estancias es
+        LEFT JOIN unidades_expediente ue ON es.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+        WHERE es.visita_id=?
+        ORDER BY es.id ASC
+        """,
         (visita_id,),
     ).fetchall()
+
+    estancias = []
+    for estancia_row in estancias_rows:
+        estancia = dict(estancia_row)
+        fotos = obtener_fotos_relacionadas(cur, "estancia_fotos", "estancia_id", estancia["id"])
+        for foto in fotos:
+            foto["url"] = f"/uploads/{foto['archivo']}"
+        estancia["foto_principal_url"] = fotos[0]["url"] if fotos else ""
+        estancia["esta_rellena"] = calcular_estancia_rellena(estancia)
+        estancias.append(estancia)
+
+    if es_edificio_completo:
+        navegacion_multiunidad = preparar_navegacion_estancias_multiunidad(
+            estructura_multiunidad,
+            estancias,
+            visita_id,
+            unidad_seleccionada["id"] if unidad_seleccionada else None,
+        )
+
+    estancias_visibles = estancias
+    estancias_sin_unidad = []
+    if es_edificio_completo and unidad_seleccionada:
+        estancias_visibles = [
+            estancia
+            for estancia in estancias
+            if estancia.get("unidad_id") == unidad_seleccionada["id"]
+        ]
+    elif es_edificio_completo:
+        estancias_visibles = []
+        estancias_sin_unidad = [
+            estancia for estancia in estancias if not estancia.get("unidad_id")
+        ]
+
+    estancias_visibles.sort(key=lambda estancia: (estancia["esta_rellena"], estancia["id"]))
+    estancias_sin_unidad.sort(key=lambda estancia: (estancia["esta_rellena"], estancia["id"]))
 
     conn.close()
 
@@ -4685,10 +5706,14 @@ def definir_estancias(request: Request, visita_id: int):
         "definir_estancias.html",
         {
             "visita": visita,
-            "estancias": estancias,
+            "estancias": estancias_visibles,
+            "estancias_sin_unidad": estancias_sin_unidad,
             "dormitorios_sugeridos": dormitorios_sugeridos,
             "banos_sugeridos": banos_sugeridos,
             "objeto_visita_label": describir_objeto_visita(visita),
+            "mostrar_navegacion_multiunidad": es_edificio_completo,
+            "navegacion_multiunidad": navegacion_multiunidad,
+            "unidad_seleccionada": unidad_seleccionada,
         },
     )
 
@@ -4703,6 +5728,7 @@ def generar_estancias_base(
     incluir_cocina: str = Form("no"),
     incluir_pasillo: str = Form("no"),
     incluir_terraza: str = Form("no"),
+    unidad_id_objetivo: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -4712,15 +5738,33 @@ def generar_estancias_base(
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
     unidad_id_estancia = visita["unidad_id"] if visita["unidad_id"] else None
+    unidad_id_objetivo_int = parse_optional_int(unidad_id_objetivo)
+    if unidad_id_objetivo_int:
+        unidad = get_owned_unidad(cur, unidad_id_objetivo_int, current_user["id"])
+        if not unidad or unidad["expediente_id"] != visita["expediente_id"]:
+            conn.close()
+            raise HTTPException(status_code=400, detail="La unidad seleccionada no es válida.")
+        unidad_id_estancia = unidad_id_objetivo_int
+    es_edificio_completo = limpiar_texto(visita["ambito_visita"]) == "edificio_completo"
 
-    existentes = cur.execute(
-        """
-        SELECT COUNT(*) AS total
-        FROM estancias
-        WHERE visita_id = ?
-        """,
-        (visita_id,),
-    ).fetchone()
+    if es_edificio_completo and unidad_id_estancia:
+        existentes = cur.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM estancias
+            WHERE visita_id = ? AND unidad_id = ?
+            """,
+            (visita_id, unidad_id_estancia),
+        ).fetchone()
+    else:
+        existentes = cur.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM estancias
+            WHERE visita_id = ?
+            """,
+            (visita_id,),
+        ).fetchone()
 
     total_existentes = existentes["total"] if existentes else 0
 
@@ -4871,7 +5915,11 @@ def generar_estancias_base(
     conn.close()
 
     return RedirectResponse(
-        url=f"/definir-estancias/{visita_id}",
+        url=(
+            f"/definir-estancias/{visita_id}?unidad_id={unidad_id_estancia}"
+            if es_edificio_completo and unidad_id_estancia
+            else f"/definir-estancias/{visita_id}"
+        ),
         status_code=303,
     )
 
@@ -4888,6 +5936,7 @@ def guardar_estancia(
     acabado_paramento: str = Form(""),
     acabado_techo: str = Form(""),
     observaciones: str = Form(""),
+    unidad_id_objetivo: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -4897,12 +5946,14 @@ def guardar_estancia(
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
     unidad_id_estancia = None
-    if visita["unidad_id"]:
-        unidad = get_owned_unidad(cur, visita["unidad_id"], current_user["id"])
+    unidad_id_objetivo_int = parse_optional_int(unidad_id_objetivo)
+    unidad_referencia_id = unidad_id_objetivo_int or visita["unidad_id"]
+    if unidad_referencia_id:
+        unidad = get_owned_unidad(cur, unidad_referencia_id, current_user["id"])
         if not unidad or unidad["expediente_id"] != visita["expediente_id"]:
             conn.close()
             raise HTTPException(status_code=400, detail="La unidad asociada a la visita no es válida.")
-        unidad_id_estancia = visita["unidad_id"]
+        unidad_id_estancia = unidad_referencia_id
 
     cur.execute(
         """
@@ -4956,13 +6007,21 @@ def guardar_estancia(
     conn.close()
 
     return RedirectResponse(
-        url=f"/definir-estancias/{visita_id}",
+        url=(
+            f"/definir-estancias/{visita_id}?unidad_id={unidad_id_estancia}"
+            if limpiar_texto(visita["ambito_visita"]) == "edificio_completo" and unidad_id_estancia
+            else f"/definir-estancias/{visita_id}"
+        ),
         status_code=303,
     )
 
 
 @app.get("/editar-estancia/{estancia_id}", response_class=HTMLResponse)
-def editar_estancia(request: Request, estancia_id: int):
+def editar_estancia(
+    request: Request,
+    estancia_id: int,
+    unidad_id_contexto: int | None = Query(None),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -4970,13 +6029,21 @@ def editar_estancia(request: Request, estancia_id: int):
 
     estancia = get_owned_estancia(cur, estancia_id, current_user["id"])
     require_row(estancia, "Estancia no encontrada")
+    estancia = dict(estancia)
+    fotos = obtener_fotos_relacionadas(cur, "estancia_fotos", "estancia_id", estancia_id)
+    for foto in fotos:
+        foto["url"] = f"/uploads/{foto['archivo']}"
+    estancia["fotos"] = fotos
 
     conn.close()
 
     return render_template(
         request,
         "editar_estancia.html",
-        {"estancia": estancia},
+        {
+            "estancia": estancia,
+            "unidad_id_contexto": unidad_id_contexto,
+        },
     )
 
 
@@ -4992,7 +6059,9 @@ def actualizar_estancia(
     acabado_paramento: str = Form(""),
     acabado_techo: str = Form(""),
     observaciones: str = Form(""),
+    fotos: list[UploadFile] = File([]),
     siguiente: str = Form("estancias"),
+    unidad_id_contexto: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -5003,6 +6072,8 @@ def actualizar_estancia(
     require_row(estancia, "Estancia no encontrada")
 
     visita_id = estancia["visita_id"]
+    visita = get_owned_visita(cur, visita_id, current_user["id"])
+    require_row(visita, "Visita no encontrada")
     acabados_anteriores = {
         "acabado_pavimento": estancia["acabado_pavimento"],
         "acabado_paramento": estancia["acabado_paramento"],
@@ -5013,6 +6084,19 @@ def actualizar_estancia(
         "acabado_paramento": acabado_paramento,
         "acabado_techo": acabado_techo,
     }
+    nombres_fotos = guardar_uploads_contextuales(
+        fotos,
+        visita["numero_expediente"],
+        nombre,
+    )
+    if nombres_fotos:
+        insertar_fotos_relacionadas(
+            cur,
+            "estancia_fotos",
+            "estancia_id",
+            estancia_id,
+            nombres_fotos,
+        )
 
     cur.execute(
         """
@@ -5045,6 +6129,8 @@ def actualizar_estancia(
     conn.commit()
     conn.close()
 
+    unidad_id_contexto_int = parse_optional_int(unidad_id_contexto)
+
     if siguiente == "patologias":
         return RedirectResponse(
             url=f"/registrar-patologias/{visita_id}",
@@ -5052,13 +6138,22 @@ def actualizar_estancia(
         )
 
     return RedirectResponse(
-        url=f"/definir-estancias/{visita_id}",
+        url=(
+            f"/definir-estancias/{visita_id}?unidad_id={unidad_id_contexto_int}"
+            if unidad_id_contexto_int
+            and limpiar_texto(visita["ambito_visita"]) == "edificio_completo"
+            else f"/definir-estancias/{visita_id}"
+        ),
         status_code=303,
     )
 
 
 @app.post("/borrar-estancia/{estancia_id}")
-def borrar_estancia(request: Request, estancia_id: int):
+def borrar_estancia(
+    request: Request,
+    estancia_id: int,
+    unidad_id_contexto: str = Form(""),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -5068,14 +6163,59 @@ def borrar_estancia(request: Request, estancia_id: int):
     require_row(estancia, "Estancia no encontrada")
 
     visita_id = estancia["visita_id"]
+    unidad_id_contexto_int = parse_optional_int(unidad_id_contexto)
 
+    borrar_fotos_relacionadas(cur, "estancia_fotos", "estancia_id", estancia_id)
     cur.execute("DELETE FROM estancias WHERE id=?", (estancia_id,))
 
     conn.commit()
     conn.close()
 
     return RedirectResponse(
-        url=f"/definir-estancias/{visita_id}",
+        url=(
+            f"/definir-estancias/{visita_id}?unidad_id={unidad_id_contexto_int}"
+            if unidad_id_contexto_int
+            and limpiar_texto(estancia["ambito_visita"]) == "edificio_completo"
+            else f"/definir-estancias/{visita_id}"
+        ),
+        status_code=303,
+    )
+
+
+@app.post("/borrar-foto-estancia/{foto_id}")
+def borrar_foto_estancia(
+    request: Request,
+    foto_id: int,
+    unidad_id_contexto: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    foto = cur.execute(
+        """
+        SELECT ef.*, es.id AS estancia_real_id
+        FROM estancia_fotos ef
+        JOIN estancias es ON ef.estancia_id = es.id
+        JOIN visitas v ON es.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        WHERE ef.id=? AND e.owner_user_id=?
+        """,
+        (foto_id, current_user["id"]),
+    ).fetchone()
+    require_row(foto, "Foto no encontrada")
+
+    borrar_foto_si_existe(foto["archivo"])
+    cur.execute("DELETE FROM estancia_fotos WHERE id=?", (foto_id,))
+    conn.commit()
+    conn.close()
+    unidad_id_contexto_int = parse_optional_int(unidad_id_contexto)
+    return RedirectResponse(
+        url=(
+            f"/editar-estancia/{foto['estancia_id']}?unidad_id_contexto={unidad_id_contexto_int}"
+            if unidad_id_contexto_int
+            else f"/editar-estancia/{foto['estancia_id']}"
+        ),
         status_code=303,
     )
 
@@ -5302,7 +6442,11 @@ async def api_climatologia(
 
 
 @app.get("/registrar-patologias/{visita_id}", response_class=HTMLResponse)
-def registrar_patologias(request: Request, visita_id: int):
+def registrar_patologias(
+    request: Request,
+    visita_id: int,
+    estancia_id: int | None = Query(None),
+):
     current_user = get_current_user(request)
     ensure_climatologia_table()
 
@@ -5311,22 +6455,64 @@ def registrar_patologias(request: Request, visita_id: int):
 
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
+    estancia_seleccionada = None
 
     estancias = cur.execute(
-        "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
+        """
+        SELECT es.*,
+               ue.identificador AS identificador_unidad_estancia,
+               ne.nombre_nivel AS nombre_nivel_estancia
+        FROM estancias es
+        LEFT JOIN unidades_expediente ue ON es.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+        WHERE es.visita_id=?
+        ORDER BY es.id ASC
+        """,
         (visita_id,),
     ).fetchall()
+    if estancia_id is None and estancias:
+        estancia_seleccionada = estancias[0]
+        estancia_id = estancia_seleccionada["id"]
+    if estancia_id is not None:
+        validar_estancia_para_visita(cur, visita, estancia_id)
+        estancia_seleccionada = get_owned_estancia(cur, estancia_id, current_user["id"])
+        if not estancia_seleccionada or estancia_seleccionada["visita_id"] != visita_id:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Estancia no encontrada")
 
     registros = cur.execute(
         """
-        SELECT rp.*, e.nombre AS estancia_nombre
+        SELECT rp.*, e.nombre AS estancia_nombre,
+               ue.identificador AS identificador_unidad_estancia,
+               ne.nombre_nivel AS nombre_nivel_estancia
         FROM registros_patologias rp
         LEFT JOIN estancias e ON rp.estancia_id = e.id
+        LEFT JOIN unidades_expediente ue ON e.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
         WHERE rp.visita_id=?
         ORDER BY rp.id DESC
         """,
         (visita_id,),
     ).fetchall()
+    registros = [
+        enriquecer_registro_con_fotos(
+            cur,
+            registro,
+            "registro_patologia_fotos",
+            "registro_id",
+            "foto",
+        )
+        for registro in registros
+    ]
+    registros_estancia_seleccionada = (
+        [
+            registro
+            for registro in registros
+            if registro["estancia_id"] == estancia_seleccionada["id"]
+        ]
+        if estancia_seleccionada
+        else []
+    )
     registros_exteriores = cur.execute(
         """
         SELECT *
@@ -5336,6 +6522,16 @@ def registrar_patologias(request: Request, visita_id: int):
         """,
         (visita_id,),
     ).fetchall()
+    registros_exteriores = [
+        enriquecer_registro_con_fotos(
+            cur,
+            registro,
+            "registro_patologia_exterior_fotos",
+            "registro_id",
+            "foto",
+        )
+        for registro in registros_exteriores
+    ]
 
     clima, clima_detalle = obtener_climatologia_guardada(cur, visita_id)
 
@@ -5363,6 +6559,8 @@ def registrar_patologias(request: Request, visita_id: int):
             "mapas_patologia": mapas_patologia,
             "ambito_mapa_options": AMBITO_MAPA_OPTIONS,
             "gravedad_cuadrante_labels": GRAVEDAD_CUADRANTE_LABELS,
+            "estancia_seleccionada": estancia_seleccionada,
+            "registros_estancia_seleccionada": registros_estancia_seleccionada,
         },
     )
 
@@ -5414,6 +6612,12 @@ def guardar_mapa_patologia(
     )
     mapa_id = cur.lastrowid
     generar_cuadrantes_mapa(cur, mapa_id, filas_seguras, columnas_seguras)
+    if nombre_imagen:
+        generar_imagen_anotada_mapa_patologia(
+            nombre_imagen,
+            filas_seguras,
+            columnas_seguras,
+        )
     conn.commit()
     conn.close()
 
@@ -5428,6 +6632,11 @@ def editar_mapa_patologia(request: Request, mapa_id: int):
 
     mapa = get_owned_mapa_patologia(cur, mapa_id, current_user["id"])
     require_row(mapa, "Mapa no encontrado")
+    mapa = dict(mapa)
+    mapa["imagen_base_url"] = (
+        f"/uploads/{mapa['imagen_base']}" if mapa.get("imagen_base") else ""
+    )
+    mapa["imagen_mapa_url"] = construir_imagen_mapa_url(mapa.get("imagen_base"))
     cuadrantes = cur.execute(
         """
         SELECT *
@@ -5475,6 +6684,9 @@ def actualizar_mapa_patologia(
     titulo_limpio = limpiar_texto(titulo)
     if not titulo_limpio:
         conn.close()
+        imagen_url = (
+            f"/uploads/{mapa['imagen_base']}" if mapa.get("imagen_base") else ""
+        )
         return render_template(
             request,
             "editar_mapa_patologia.html",
@@ -5488,6 +6700,8 @@ def actualizar_mapa_patologia(
                     "filas": filas,
                     "columnas": columnas,
                     "observaciones": observaciones,
+                    "imagen_base_url": imagen_url,
+                    "imagen_mapa_url": imagen_url,
                 },
                 "cuadrantes": cur.execute(
                     "SELECT * FROM cuadrantes_mapa_patologia WHERE mapa_id=? ORDER BY id ASC",
@@ -5520,6 +6734,9 @@ def actualizar_mapa_patologia(
 
     if (filas_seguras != mapa["filas"] or columnas_seguras != mapa["columnas"]) and total_cuadrantes_contenido:
         conn.close()
+        imagen_url = (
+            f"/uploads/{mapa['imagen_base']}" if mapa.get("imagen_base") else ""
+        )
         return render_template(
             request,
             "editar_mapa_patologia.html",
@@ -5533,6 +6750,8 @@ def actualizar_mapa_patologia(
                     "filas": filas_seguras,
                     "columnas": columnas_seguras,
                     "observaciones": observaciones,
+                    "imagen_base_url": imagen_url,
+                    "imagen_mapa_url": imagen_url,
                 },
                 "cuadrantes": cur.execute(
                     "SELECT * FROM cuadrantes_mapa_patologia WHERE mapa_id=? ORDER BY id ASC",
@@ -5545,12 +6764,14 @@ def actualizar_mapa_patologia(
         )
 
     if eliminar_imagen_base_actual == "si" and imagen_base_actual:
+        borrar_imagen_anotada_mapa_si_existe(imagen_base_actual)
         borrar_foto_si_existe(imagen_base_actual)
         imagen_base_actual = None
 
     nueva_imagen = guardar_upload_si_existe(imagen_base)
     if nueva_imagen:
         if imagen_base_actual:
+            borrar_imagen_anotada_mapa_si_existe(imagen_base_actual)
             borrar_foto_si_existe(imagen_base_actual)
         imagen_base_actual = nueva_imagen
 
@@ -5576,6 +6797,13 @@ def actualizar_mapa_patologia(
         cur.execute("DELETE FROM cuadrantes_mapa_patologia WHERE mapa_id=?", (mapa_id,))
         generar_cuadrantes_mapa(cur, mapa_id, filas_seguras, columnas_seguras)
 
+    if imagen_base_actual:
+        generar_imagen_anotada_mapa_patologia(
+            imagen_base_actual,
+            filas_seguras,
+            columnas_seguras,
+        )
+
     conn.commit()
     conn.close()
     return RedirectResponse(
@@ -5594,6 +6822,7 @@ def borrar_mapa_patologia(request: Request, mapa_id: int):
     require_row(mapa, "Mapa no encontrado")
 
     if mapa["imagen_base"]:
+        borrar_imagen_anotada_mapa_si_existe(mapa["imagen_base"])
         borrar_foto_si_existe(mapa["imagen_base"])
 
     fotos_cuadrantes = cur.execute(
@@ -5628,6 +6857,13 @@ def editar_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
 
     cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
     require_row(cuadrante, "Cuadrante no encontrado")
+    cuadrante = enriquecer_registro_con_fotos(
+        cur,
+        cuadrante,
+        "cuadrante_mapa_patologia_fotos",
+        "cuadrante_id",
+        "foto_detalle",
+    )
     mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
     require_row(mapa, "Mapa no encontrado")
     patologias_vinculables, candidatos_por_id = obtener_registros_patologia_vinculables(
@@ -5664,8 +6900,7 @@ def actualizar_cuadrante_mapa_patologia(
     patologia_ref: str = Form(""),
     gravedad: str = Form(""),
     observaciones: str = Form(""),
-    eliminar_foto_detalle_actual: str = Form("no"),
-    foto_detalle: UploadFile | None = File(None),
+    fotos_detalle: list[UploadFile] = File([]),
 ):
     current_user = get_current_user(request)
     conn = get_connection()
@@ -5675,8 +6910,8 @@ def actualizar_cuadrante_mapa_patologia(
     require_row(cuadrante, "Cuadrante no encontrado")
     mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
     require_row(mapa, "Mapa no encontrado")
-    nombre_foto = cuadrante["foto_detalle"]
-
+    visita = get_owned_visita(cur, mapa["visita_id"], current_user["id"])
+    require_row(visita, "Visita no encontrada")
     patologia_id = None
     patologia_detectada_limpia = limpiar_texto(patologia_detectada)
     patologia_ref_limpia = limpiar_texto(patologia_ref)
@@ -5699,15 +6934,20 @@ def actualizar_cuadrante_mapa_patologia(
         if not patologia_detectada_limpia:
             patologia_detectada_limpia = patologia_vinculada["patologia"]
 
-    if eliminar_foto_detalle_actual == "si" and nombre_foto:
-        borrar_foto_si_existe(nombre_foto)
-        nombre_foto = None
-
-    nueva_foto = guardar_upload_si_existe(foto_detalle)
-    if nueva_foto:
-        if nombre_foto:
-            borrar_foto_si_existe(nombre_foto)
-        nombre_foto = nueva_foto
+    nombres_fotos = guardar_uploads_contextuales(
+        fotos_detalle,
+        visita["numero_expediente"],
+        "mapa",
+        cuadrante["codigo_cuadrante"],
+    )
+    if nombres_fotos:
+        insertar_fotos_relacionadas(
+            cur,
+            "cuadrante_mapa_patologia_fotos",
+            "cuadrante_id",
+            cuadrante_id,
+            nombres_fotos,
+        )
 
     cur.execute(
         """
@@ -5720,10 +6960,19 @@ def actualizar_cuadrante_mapa_patologia(
             patologia_detectada_limpia,
             patologia_id,
             limpiar_texto(gravedad),
-            nombre_foto,
+            cuadrante["foto_detalle"],
             limpiar_texto(observaciones),
             cuadrante_id,
         ),
+    )
+    sincronizar_foto_principal(
+        cur,
+        "cuadrantes_mapa_patologia",
+        "id",
+        "foto_detalle",
+        cuadrante_id,
+        "cuadrante_mapa_patologia_fotos",
+        "cuadrante_id",
     )
 
     conn.commit()
@@ -5789,7 +7038,7 @@ def guardar_patologia_desde_cuadrante(
     localizacion_dano_exterior: str = Form(""),
     patologia: str = Form(...),
     observaciones: str = Form(""),
-    foto: UploadFile | None = File(None),
+    fotos: list[UploadFile] = File([]),
 ):
     current_user = get_current_user(request)
     conn = get_connection()
@@ -5802,7 +7051,13 @@ def guardar_patologia_desde_cuadrante(
     visita = get_owned_visita(cur, mapa["visita_id"], current_user["id"])
     require_row(visita, "Visita no encontrada")
 
-    nombre_foto = guardar_upload_si_existe(foto)
+    contexto_base = [
+        visita["numero_expediente"],
+        "desde",
+        cuadrante["codigo_cuadrante"],
+    ]
+    nombres_foto: list[str] = []
+    nombre_foto = None
     es_exterior = mapa_patologia_es_exterior(visita, mapa)
     patologia_limpia = limpiar_texto(patologia)
     observaciones_base = limpiar_texto(cuadrante["descripcion"])
@@ -5813,6 +7068,13 @@ def guardar_patologia_desde_cuadrante(
         observaciones_limpias = observaciones_base
 
     if es_exterior:
+        nombres_foto = guardar_uploads_contextuales(
+            fotos,
+            *contexto_base,
+            zona_exterior or "exterior",
+            elemento_exterior or "elemento",
+        )
+        nombre_foto = nombres_foto[0] if nombres_foto else None
         cur.execute(
             """
             INSERT INTO registros_patologias_exteriores (
@@ -5837,11 +7099,30 @@ def guardar_patologia_desde_cuadrante(
             ),
         )
         nuevo_registro_id = cur.lastrowid
+        if nombres_foto:
+            insertar_fotos_relacionadas(
+                cur,
+                "registro_patologia_exterior_fotos",
+                "registro_id",
+                nuevo_registro_id,
+                nombres_foto,
+            )
     else:
         if not estancia_id:
             conn.close()
             raise HTTPException(status_code=400, detail="Debes seleccionar una estancia")
         validar_estancia_para_visita(cur, visita, estancia_id)
+        estancia = cur.execute(
+            "SELECT nombre FROM estancias WHERE id=?",
+            (estancia_id,),
+        ).fetchone()
+        nombres_foto = guardar_uploads_contextuales(
+            fotos,
+            *contexto_base,
+            estancia["nombre"] if estancia else "estancia",
+            elemento or "elemento",
+        )
+        nombre_foto = nombres_foto[0] if nombres_foto else None
         cur.execute(
             """
             INSERT INTO registros_patologias
@@ -5859,6 +7140,14 @@ def guardar_patologia_desde_cuadrante(
             ),
         )
         nuevo_registro_id = cur.lastrowid
+        if nombres_foto:
+            insertar_fotos_relacionadas(
+                cur,
+                "registro_patologia_fotos",
+                "registro_id",
+                nuevo_registro_id,
+                nombres_foto,
+            )
 
     cur.execute(
         """
@@ -5886,6 +7175,12 @@ def borrar_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
     cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
     require_row(cuadrante, "Cuadrante no encontrado")
 
+    borrar_fotos_relacionadas(
+        cur,
+        "cuadrante_mapa_patologia_fotos",
+        "cuadrante_id",
+        cuadrante_id,
+    )
     if cuadrante["foto_detalle"]:
         borrar_foto_si_existe(cuadrante["foto_detalle"])
 
@@ -5901,6 +7196,121 @@ def borrar_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
     )
 
 
+@app.post("/borrar-foto-registro/{foto_id}")
+def borrar_foto_registro(request: Request, foto_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    foto = cur.execute(
+        """
+        SELECT rpf.*, rp.visita_id, rp.id AS registro_real_id
+        FROM registro_patologia_fotos rpf
+        JOIN registros_patologias rp ON rpf.registro_id = rp.id
+        JOIN visitas v ON rp.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        WHERE rpf.id=? AND e.owner_user_id=?
+        """,
+        (foto_id, current_user["id"]),
+    ).fetchone()
+    require_row(foto, "Foto no encontrada")
+
+    borrar_foto_si_existe(foto["archivo"])
+    cur.execute("DELETE FROM registro_patologia_fotos WHERE id=?", (foto_id,))
+    sincronizar_foto_principal(
+        cur,
+        "registros_patologias",
+        "id",
+        "foto",
+        foto["registro_id"],
+        "registro_patologia_fotos",
+        "registro_id",
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/editar-registro/{foto['registro_id']}",
+        status_code=303,
+    )
+
+
+@app.post("/borrar-foto-registro-exterior/{foto_id}")
+def borrar_foto_registro_exterior(request: Request, foto_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    foto = cur.execute(
+        """
+        SELECT rpef.*, rpe.visita_id
+        FROM registro_patologia_exterior_fotos rpef
+        JOIN registros_patologias_exteriores rpe ON rpef.registro_id = rpe.id
+        JOIN visitas v ON rpe.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        WHERE rpef.id=? AND e.owner_user_id=?
+        """,
+        (foto_id, current_user["id"]),
+    ).fetchone()
+    require_row(foto, "Foto no encontrada")
+
+    borrar_foto_si_existe(foto["archivo"])
+    cur.execute("DELETE FROM registro_patologia_exterior_fotos WHERE id=?", (foto_id,))
+    sincronizar_foto_principal(
+        cur,
+        "registros_patologias_exteriores",
+        "id",
+        "foto",
+        foto["registro_id"],
+        "registro_patologia_exterior_fotos",
+        "registro_id",
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/editar-registro-exterior/{foto['registro_id']}",
+        status_code=303,
+    )
+
+
+@app.post("/borrar-foto-cuadrante-mapa-patologia/{foto_id}")
+def borrar_foto_cuadrante_mapa_patologia(request: Request, foto_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+
+    foto = cur.execute(
+        """
+        SELECT qmpf.*, qmp.id AS cuadrante_real_id, mp.visita_id
+        FROM cuadrante_mapa_patologia_fotos qmpf
+        JOIN cuadrantes_mapa_patologia qmp ON qmpf.cuadrante_id = qmp.id
+        JOIN mapas_patologia mp ON qmp.mapa_id = mp.id
+        JOIN visitas v ON mp.visita_id = v.id
+        JOIN expedientes e ON v.expediente_id = e.id
+        WHERE qmpf.id=? AND e.owner_user_id=?
+        """,
+        (foto_id, current_user["id"]),
+    ).fetchone()
+    require_row(foto, "Foto no encontrada")
+
+    borrar_foto_si_existe(foto["archivo"])
+    cur.execute("DELETE FROM cuadrante_mapa_patologia_fotos WHERE id=?", (foto_id,))
+    sincronizar_foto_principal(
+        cur,
+        "cuadrantes_mapa_patologia",
+        "id",
+        "foto_detalle",
+        foto["cuadrante_id"],
+        "cuadrante_mapa_patologia_fotos",
+        "cuadrante_id",
+    )
+    conn.commit()
+    conn.close()
+    return RedirectResponse(
+        url=f"/editar-cuadrante-mapa-patologia/{foto['cuadrante_id']}",
+        status_code=303,
+    )
+
+
 @app.post("/guardar-registro")
 def guardar_registro(
     request: Request,
@@ -5908,9 +7318,11 @@ def guardar_registro(
     estancia_id: int = Form(...),
     elemento: str = Form(...),
     localizacion_dano: str = Form(""),
+    detalle_localizacion: str = Form(""),
+    rol_patologia_observado: str = Form(""),
     patologia: str = Form(...),
     observaciones: str = Form(""),
-    foto: UploadFile | None = File(None),
+    fotos: list[UploadFile] = File([]),
 ):
     current_user = get_current_user(request)
 
@@ -5921,39 +7333,52 @@ def guardar_registro(
     require_row(visita, "Visita no encontrada")
 
     validar_estancia_para_visita(cur, visita, estancia_id)
+    estancia = cur.execute(
+        "SELECT nombre FROM estancias WHERE id=?",
+        (estancia_id,),
+    ).fetchone()
 
-    nombre_foto = None
-
-    if foto and foto.filename:
-        extension = os.path.splitext(foto.filename)[1].lower()
-        nombre_foto = f"{uuid4().hex}{extension}"
-        ruta_destino = UPLOAD_PATH / nombre_foto
-
-        with ruta_destino.open("wb") as buffer:
-            shutil.copyfileobj(foto.file, buffer)
+    nombres_fotos = guardar_uploads_contextuales(
+        fotos,
+        visita["numero_expediente"],
+        estancia["nombre"] if estancia else "estancia",
+        elemento,
+    )
+    nombre_foto = nombres_fotos[0] if nombres_fotos else None
 
     cur.execute(
         """
         INSERT INTO registros_patologias
-        (visita_id, estancia_id, elemento, localizacion_dano, patologia, observaciones, foto)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (visita_id, estancia_id, elemento, localizacion_dano, detalle_localizacion, rol_patologia_observado, patologia, observaciones, foto)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             visita_id,
             estancia_id,
             elemento,
             localizacion_dano,
+            detalle_localizacion,
+            rol_patologia_observado,
             patologia,
             observaciones,
             nombre_foto,
         ),
     )
+    registro_id = cur.lastrowid
+    if nombres_fotos:
+        insertar_fotos_relacionadas(
+            cur,
+            "registro_patologia_fotos",
+            "registro_id",
+            registro_id,
+            nombres_fotos,
+        )
 
     conn.commit()
     conn.close()
 
     return RedirectResponse(
-        url=f"/registrar-patologias/{visita_id}",
+        url=f"/registrar-patologias/{visita_id}?estancia_id={estancia_id}#formulario_patologia",
         status_code=303,
     )
 
@@ -5967,9 +7392,25 @@ def editar_registro(request: Request, registro_id: int):
 
     registro = get_owned_registro(cur, registro_id, current_user["id"])
     require_row(registro, "Registro no encontrado")
+    registro = enriquecer_registro_con_fotos(
+        cur,
+        registro,
+        "registro_patologia_fotos",
+        "registro_id",
+        "foto",
+    )
 
     estancias = cur.execute(
-        "SELECT * FROM estancias WHERE visita_id=? ORDER BY id ASC",
+        """
+        SELECT es.*,
+               ue.identificador AS identificador_unidad_estancia,
+               ne.nombre_nivel AS nombre_nivel_estancia
+        FROM estancias es
+        LEFT JOIN unidades_expediente ue ON es.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+        WHERE es.visita_id=?
+        ORDER BY es.id ASC
+        """,
         (registro["visita_id"],),
     ).fetchall()
 
@@ -6000,10 +7441,11 @@ def actualizar_registro(
     estancia_id: int = Form(...),
     elemento: str = Form(...),
     localizacion_dano: str = Form(""),
+    detalle_localizacion: str = Form(""),
+    rol_patologia_observado: str = Form(""),
     patologia: str = Form(...),
     observaciones: str = Form(""),
-    eliminar_foto_actual: str = Form("no"),
-    foto: UploadFile | None = File(None),
+    fotos: list[UploadFile] = File([]),
 ):
     current_user = get_current_user(request)
 
@@ -6014,42 +7456,54 @@ def actualizar_registro(
     require_row(registro, "Registro no encontrado")
 
     visita_id = registro["visita_id"]
-    nombre_foto = registro["foto"]
-
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
     validar_estancia_para_visita(cur, visita, estancia_id)
-
-    if eliminar_foto_actual == "si" and nombre_foto:
-        borrar_foto_si_existe(nombre_foto)
-        nombre_foto = None
-
-    if foto and foto.filename:
-        if nombre_foto:
-            borrar_foto_si_existe(nombre_foto)
-
-        extension = os.path.splitext(foto.filename)[1].lower()
-        nombre_foto = f"{uuid4().hex}{extension}"
-        ruta_destino = UPLOAD_PATH / nombre_foto
-
-        with ruta_destino.open("wb") as buffer:
-            shutil.copyfileobj(foto.file, buffer)
+    estancia = cur.execute(
+        "SELECT nombre FROM estancias WHERE id=?",
+        (estancia_id,),
+    ).fetchone()
+    nombres_fotos = guardar_uploads_contextuales(
+        fotos,
+        visita["numero_expediente"],
+        estancia["nombre"] if estancia else "estancia",
+        elemento,
+    )
+    if nombres_fotos:
+        insertar_fotos_relacionadas(
+            cur,
+            "registro_patologia_fotos",
+            "registro_id",
+            registro_id,
+            nombres_fotos,
+        )
 
     cur.execute(
         """
         UPDATE registros_patologias
-        SET estancia_id=?, elemento=?, localizacion_dano=?, patologia=?, observaciones=?, foto=?
+        SET estancia_id=?, elemento=?, localizacion_dano=?, detalle_localizacion=?, rol_patologia_observado=?, patologia=?, observaciones=?, foto=?
         WHERE id=?
         """,
         (
             estancia_id,
             elemento,
             localizacion_dano,
+            detalle_localizacion,
+            rol_patologia_observado,
             patologia,
             observaciones,
-            nombre_foto,
+            registro["foto"],
             registro_id,
         ),
+    )
+    sincronizar_foto_principal(
+        cur,
+        "registros_patologias",
+        "id",
+        "foto",
+        registro_id,
+        "registro_patologia_fotos",
+        "registro_id",
     )
     cur.execute(
         """
@@ -6079,7 +7533,7 @@ def guardar_registro_exterior(
     localizacion_dano_exterior: str = Form(""),
     patologia: str = Form(...),
     observaciones: str = Form(""),
-    foto: UploadFile | None = File(None),
+    fotos: list[UploadFile] = File([]),
 ):
     current_user = get_current_user(request)
 
@@ -6089,14 +7543,13 @@ def guardar_registro_exterior(
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
 
-    nombre_foto = None
-    if foto and foto.filename:
-        extension = os.path.splitext(foto.filename)[1].lower()
-        nombre_foto = f"{uuid4().hex}{extension}"
-        ruta_destino = UPLOAD_PATH / nombre_foto
-
-        with ruta_destino.open("wb") as buffer:
-            shutil.copyfileobj(foto.file, buffer)
+    nombres_fotos = guardar_uploads_contextuales(
+        fotos,
+        visita["numero_expediente"],
+        zona_exterior or "exterior",
+        elemento_exterior or "elemento",
+    )
+    nombre_foto = nombres_fotos[0] if nombres_fotos else None
 
     cur.execute(
         """
@@ -6121,6 +7574,15 @@ def guardar_registro_exterior(
             nombre_foto,
         ),
     )
+    registro_id = cur.lastrowid
+    if nombres_fotos:
+        insertar_fotos_relacionadas(
+            cur,
+            "registro_patologia_exterior_fotos",
+            "registro_id",
+            registro_id,
+            nombres_fotos,
+        )
 
     conn.commit()
     conn.close()
@@ -6140,6 +7602,13 @@ def editar_registro_exterior(request: Request, registro_id: int):
 
     registro = get_owned_registro_exterior(cur, registro_id, current_user["id"])
     require_row(registro, "Registro exterior no encontrado")
+    registro = enriquecer_registro_con_fotos(
+        cur,
+        registro,
+        "registro_patologia_exterior_fotos",
+        "registro_id",
+        "foto",
+    )
 
     patologias = cur.execute(
         "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
@@ -6169,8 +7638,7 @@ def actualizar_registro_exterior(
     localizacion_dano_exterior: str = Form(""),
     patologia: str = Form(...),
     observaciones: str = Form(""),
-    eliminar_foto_actual: str = Form("no"),
-    foto: UploadFile | None = File(None),
+    fotos: list[UploadFile] = File([]),
 ):
     current_user = get_current_user(request)
 
@@ -6181,22 +7649,22 @@ def actualizar_registro_exterior(
     require_row(registro, "Registro exterior no encontrado")
 
     visita_id = registro["visita_id"]
-    nombre_foto = registro["foto"]
-
-    if eliminar_foto_actual == "si" and nombre_foto:
-        borrar_foto_si_existe(nombre_foto)
-        nombre_foto = None
-
-    if foto and foto.filename:
-        if nombre_foto:
-            borrar_foto_si_existe(nombre_foto)
-
-        extension = os.path.splitext(foto.filename)[1].lower()
-        nombre_foto = f"{uuid4().hex}{extension}"
-        ruta_destino = UPLOAD_PATH / nombre_foto
-
-        with ruta_destino.open("wb") as buffer:
-            shutil.copyfileobj(foto.file, buffer)
+    visita = get_owned_visita(cur, visita_id, current_user["id"])
+    require_row(visita, "Visita no encontrada")
+    nombres_fotos = guardar_uploads_contextuales(
+        fotos,
+        visita["numero_expediente"],
+        zona_exterior or "exterior",
+        elemento_exterior or "elemento",
+    )
+    if nombres_fotos:
+        insertar_fotos_relacionadas(
+            cur,
+            "registro_patologia_exterior_fotos",
+            "registro_id",
+            registro_id,
+            nombres_fotos,
+        )
 
     cur.execute(
         """
@@ -6210,9 +7678,18 @@ def actualizar_registro_exterior(
             localizacion_dano_exterior,
             patologia,
             observaciones,
-            nombre_foto,
+            registro["foto"],
             registro_id,
         ),
+    )
+    sincronizar_foto_principal(
+        cur,
+        "registros_patologias_exteriores",
+        "id",
+        "foto",
+        registro_id,
+        "registro_patologia_exterior_fotos",
+        "registro_id",
     )
     cur.execute(
         """
@@ -6243,6 +7720,7 @@ def borrar_registro(request: Request, registro_id: int):
     registro = get_owned_registro(cur, registro_id, current_user["id"])
     require_row(registro, "Registro no encontrado")
 
+    borrar_fotos_relacionadas(cur, "registro_patologia_fotos", "registro_id", registro_id)
     if registro["foto"]:
         borrar_foto_si_existe(registro["foto"])
 
@@ -6270,6 +7748,74 @@ def borrar_registro(request: Request, registro_id: int):
     )
 
 
+@app.post("/duplicar-registro/{registro_id}")
+def duplicar_registro(request: Request, registro_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    registro = get_owned_registro(cur, registro_id, current_user["id"])
+    require_row(registro, "Registro no encontrado")
+
+    cur.execute(
+        """
+        INSERT INTO registros_patologias (
+            visita_id,
+            estancia_id,
+            elemento,
+            localizacion_dano,
+            detalle_localizacion,
+            rol_patologia_observado,
+            patologia,
+            observaciones,
+            foto
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            registro["visita_id"],
+            registro["estancia_id"],
+            registro["elemento"],
+            registro["localizacion_dano"],
+            registro["detalle_localizacion"],
+            registro["rol_patologia_observado"],
+            registro["patologia"],
+            registro["observaciones"],
+            None,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/registrar-patologias/{registro['visita_id']}?estancia_id={registro['estancia_id']}#formulario_patologia",
+        status_code=303,
+    )
+
+
+@app.post("/eliminar-registro/{registro_id}")
+def eliminar_registro(request: Request, registro_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    registro = get_owned_registro(cur, registro_id, current_user["id"])
+    require_row(registro, "Registro no encontrado")
+
+    cur.execute("DELETE FROM registros_patologias WHERE id=?", (registro_id,))
+
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        url=f"/registrar-patologias/{registro['visita_id']}?estancia_id={registro['estancia_id']}#formulario_patologia",
+        status_code=303,
+    )
+
+
 @app.post("/borrar-registro-exterior/{registro_id}")
 def borrar_registro_exterior(request: Request, registro_id: int):
     current_user = get_current_user(request)
@@ -6280,6 +7826,12 @@ def borrar_registro_exterior(request: Request, registro_id: int):
     registro = get_owned_registro_exterior(cur, registro_id, current_user["id"])
     require_row(registro, "Registro exterior no encontrado")
 
+    borrar_fotos_relacionadas(
+        cur,
+        "registro_patologia_exterior_fotos",
+        "registro_id",
+        registro_id,
+    )
     if registro["foto"]:
         borrar_foto_si_existe(registro["foto"])
 
@@ -6363,3 +7915,24 @@ def borrar_expediente(request: Request, expediente_id: int):
     conn.close()
 
     return RedirectResponse(url="/expedientes", status_code=303)
+
+
+@app.post("/borrar-visita/{visita_id}")
+def borrar_visita(request: Request, visita_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    visita = get_owned_visita(cur, visita_id, current_user["id"])
+    require_row(visita, "Visita no encontrada")
+
+    eliminar_visita_completa(cur, visita_id)
+
+    conn.commit()
+    conn.close()
+
+    return redirect_detalle_expediente(
+        visita["expediente_id"],
+        mensaje="Visita eliminada.",
+    )

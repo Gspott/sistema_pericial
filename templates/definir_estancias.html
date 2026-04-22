@@ -14,6 +14,260 @@
     <link rel="stylesheet" href="/static/mobile.css?v=7">
     <script src="/static/pwa.js?v=4" defer></script>
 
+    <style>
+        .form-section {
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: #f8fafc;
+            overflow: hidden;
+        }
+
+        .form-section-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .form-section-toggle:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: -2px;
+        }
+
+        .form-section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .form-section-arrow {
+            flex: 0 0 auto;
+            font-size: 1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .form-section.collapsed .form-section-arrow {
+            transform: rotate(-90deg);
+        }
+
+        .form-section-body {
+            padding: 0 16px 16px 16px;
+        }
+
+        .form-section.collapsed .form-section-body {
+            display: none;
+        }
+
+        .estancia-summary {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .estancia-thumb {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            object-fit: cover;
+            flex: 0 0 56px;
+            border: 1px solid var(--border);
+            background: #e2e8f0;
+        }
+
+        .estancia-thumb-placeholder {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            flex: 0 0 56px;
+            border: 1px solid var(--border);
+            background: #e2e8f0;
+        }
+
+        .estancia-summary-text {
+            min-width: 0;
+        }
+
+        .estancia-summary-text p {
+            margin: 0;
+        }
+
+        .estancia-summary-meta {
+            color: #475569;
+            font-size: 0.92rem;
+        }
+
+        .estancia-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .estancia-status.complete {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .estancia-status.incomplete {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .unit-browser {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .unit-browser-level {
+            padding: 12px;
+        }
+
+        .unit-browser-level-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .unit-browser-level-header p,
+        .unit-browser-unit-main p,
+        .unit-browser-unit-meta,
+        .unit-browser-note {
+            margin: 0;
+        }
+
+        .unit-browser-level-meta,
+        .unit-browser-unit-meta,
+        .unit-browser-note {
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .unit-browser-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .unit-browser-unit {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fff;
+            padding: 10px 12px;
+        }
+
+        .unit-browser-unit.selected {
+            border-color: #0f172a;
+            box-shadow: inset 0 0 0 1px #0f172a;
+        }
+
+        .unit-browser-unit-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .unit-browser-unit-main {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .unit-browser-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .unit-browser-badge {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            background: #f8fafc;
+        }
+
+        .unit-browser-badge.pending {
+            border-color: #f59e0b;
+            color: #92400e;
+            background: #fffbeb;
+        }
+
+        .unit-browser-unit-action {
+            white-space: nowrap;
+        }
+
+        .unit-browser-sublist {
+            list-style: none;
+            margin: 8px 0 0 12px;
+            padding: 0 0 0 12px;
+            border-left: 1px solid #cbd5e1;
+            display: grid;
+            gap: 6px;
+        }
+
+        .unit-context-card {
+            margin-bottom: 16px;
+        }
+
+        .unit-context-form {
+            margin-top: 12px;
+        }
+
+        .unit-context-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .unit-context-form label {
+            margin-bottom: 6px;
+            font-size: 0.88rem;
+            font-weight: 700;
+        }
+
+        .unit-context-form select {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 640px) {
+            .unit-browser-level {
+                padding: 10px;
+            }
+
+            .unit-browser-unit-row {
+                align-items: flex-start;
+            }
+
+            .unit-context-grid {
+                gap: 10px;
+            }
+        }
+    </style>
+
     <title>Definir estancias</title>
 </head>
 
@@ -43,16 +297,189 @@
             <a class="boton" href="/registrar-patologias/{{ visita.id }}">Ir a patologías</a>
         </div>
 
-        <h2>Estancias registradas</h2>
+        {% if mostrar_navegacion_multiunidad and unidad_seleccionada %}
+        <div class="card unit-context-card" id="unidad-contexto">
+            <p><strong>Unidad en edición:</strong> {{ unidad_seleccionada.identificador }}</p>
+            <p><strong>Nivel:</strong> {{ unidad_seleccionada.nombre_nivel or 'Sin nivel asignado' }}</p>
 
-        {% if estancias %}
-        {% for estancia in estancias %}
-        <div class="card estancia-card">
-            <a class="estancia-card-link" href="/editar-estancia/{{ estancia.id }}"
-                aria-label="Editar estancia {{ estancia.nombre }}">
-                <div class="estancia-card-content">
+            <form class="unit-context-form" method="post" action="/generar-estancias-base">
+                <input type="hidden" name="visita_id" value="{{ visita.id }}">
+                <input type="hidden" name="unidad_id_objetivo" value="{{ unidad_seleccionada.id }}">
+                <input type="hidden" name="incluir_salon" value="si">
+                <input type="hidden" name="incluir_cocina" value="si">
+                <input type="hidden" name="incluir_pasillo" value="{% if visita.tipo_inmueble == 'Piso' %}si{% else %}no{% endif %}">
+                <input type="hidden" name="incluir_terraza" value="no">
+
+                <div class="unit-context-grid">
+                    <div>
+                        <label for="unidad_dormitorios">Dormitorios</label>
+                        <select id="unidad_dormitorios" name="num_dormitorios">
+                            {% for valor in range(0, 11) %}
+                            <option value="{{ valor }}" {% if dormitorios_sugeridos == valor %}selected{% endif %}>{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="unidad_banos">Baños</label>
+                        <select id="unidad_banos" name="num_banos">
+                            {% for valor in range(0, 11) %}
+                            <option value="{{ valor }}" {% if banos_sugeridos == valor %}selected{% endif %}>{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="boton" type="submit">Generar estancias base para {{ unidad_seleccionada.identificador }}</button>
+                    <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Ver todas las unidades</a>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if mostrar_navegacion_multiunidad %}
+        <h2>Unidades por nivel</h2>
+
+        {% if not unidad_seleccionada %}
+        <div class="card unit-context-card">
+            <p class="helper-text">Selecciona una unidad para registrar o revisar sus estancias dentro de esta visita de edificio completo.</p>
+            {% if navegacion_multiunidad and navegacion_multiunidad.sin_unidad.total %}
+            <p class="helper-text">Hay {{ navegacion_multiunidad.sin_unidad.total }} estancia(s) previa(s) sin unidad asignada en esta visita. Revísalas más abajo para reasignarlas manualmente si procede.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="unit-browser">
+            {% for nivel in navegacion_multiunidad.estructura.niveles %}
+            {% if nivel.principales or nivel.otras %}
+            <div class="card inner-card unit-browser-level">
+                <div class="unit-browser-level-header">
+                    <p><strong>{{ nivel.nombre_nivel }}</strong></p>
+                    <p class="unit-browser-level-meta">{% if nivel.tipo_nivel_label %}{{ nivel.tipo_nivel_label }}{% endif %}</p>
+                </div>
+
+                <ul class="unit-browser-list">
+                    {% for unidad in nivel.principales + nivel.otras %}
+                    <li class="unit-browser-unit {% if unidad.seleccionada %}selected{% endif %}">
+                        <div class="unit-browser-unit-row">
+                            <div class="unit-browser-unit-main">
+                                <p><strong>{{ unidad.identificador }}</strong></p>
+                                <p class="unit-browser-unit-meta">{{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</p>
+                                <div class="unit-browser-badges">
+                                    <span class="unit-browser-badge">{{ unidad.total_estancias }} estancia(s)</span>
+                                    {% if unidad.pendientes_estancias %}
+                                    <span class="unit-browser-badge pending">{{ unidad.pendientes_estancias }} pendiente(s)</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <a class="boton secundario unit-browser-unit-action" href="{{ unidad.gestion_url }}">
+                                {% if unidad.tiene_estancias %}Gestionar{% else %}Definir{% endif %}
+                            </a>
+                        </div>
+
+                        {% if unidad.anejos %}
+                        <ul class="unit-browser-sublist">
+                            {% for anejo in unidad.anejos %}
+                            <li class="unit-browser-unit {% if anejo.seleccionada %}selected{% endif %}">
+                                <div class="unit-browser-unit-row">
+                                    <div class="unit-browser-unit-main">
+                                        <p><strong>{{ anejo.identificador }}</strong></p>
+                                        <p class="unit-browser-unit-meta">Anejo{% if anejo.tipo_anejo_label %} · {{ anejo.tipo_anejo_label }}{% endif %}</p>
+                                        <div class="unit-browser-badges">
+                                            <span class="unit-browser-badge">{{ anejo.total_estancias }} estancia(s)</span>
+                                            {% if anejo.pendientes_estancias %}
+                                            <span class="unit-browser-badge pending">{{ anejo.pendientes_estancias }} pendiente(s)</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <a class="boton secundario unit-browser-unit-action" href="{{ anejo.gestion_url }}">
+                                        {% if anejo.tiene_estancias %}Gestionar{% else %}Definir{% endif %}
+                                    </a>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            {% endfor %}
+
+            {% if navegacion_multiunidad.estructura.sin_nivel.principales or navegacion_multiunidad.estructura.sin_nivel.otras or navegacion_multiunidad.estructura.anejos_sueltos %}
+            <div class="card inner-card unit-browser-level">
+                <div class="unit-browser-level-header">
+                    <p><strong>Sin nivel asignado</strong></p>
+                </div>
+                <ul class="unit-browser-list">
+                    {% for unidad in navegacion_multiunidad.estructura.sin_nivel.principales + navegacion_multiunidad.estructura.sin_nivel.otras + navegacion_multiunidad.estructura.anejos_sueltos %}
+                    <li class="unit-browser-unit {% if unidad.seleccionada %}selected{% endif %}">
+                        <div class="unit-browser-unit-row">
+                            <div class="unit-browser-unit-main">
+                                <p><strong>{{ unidad.identificador }}</strong></p>
+                                <p class="unit-browser-unit-meta">{{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }}</p>
+                                <div class="unit-browser-badges">
+                                    <span class="unit-browser-badge">{{ unidad.total_estancias }} estancia(s)</span>
+                                    {% if unidad.pendientes_estancias %}
+                                    <span class="unit-browser-badge pending">{{ unidad.pendientes_estancias }} pendiente(s)</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <a class="boton secundario unit-browser-unit-action" href="{{ unidad.gestion_url }}">
+                                {% if unidad.tiene_estancias %}Gestionar{% else %}Definir{% endif %}
+                            </a>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <h2 id="estancias-registradas">Estancias registradas</h2>
+
+        {% if mostrar_navegacion_multiunidad and not unidad_seleccionada %}
+        <div class="card">
+            <p class="helper-text">Elige una unidad para ver y gestionar sus estancias.</p>
+        </div>
+
+        {% if estancias_sin_unidad %}
+        <div class="card">
+            <p><strong>Estancias sin unidad asignada</strong></p>
+            <p class="unit-browser-note">Se muestran aparte para no ocultar datos ya existentes en la visita.</p>
+        </div>
+        {% for estancia in estancias_sin_unidad %}
+        <section class="form-section {% if estancia.esta_rellena %}collapsed{% endif %}" data-collapsible data-collapse-id="estancia-{{ estancia.id }}">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="{% if estancia.esta_rellena %}false{% else %}true{% endif %}">
+                <div class="estancia-summary">
+                    {% if estancia.foto_principal_url %}
+                    <img class="estancia-thumb" src="{{ estancia.foto_principal_url }}" alt="Miniatura de {{ estancia.nombre }}">
+                    {% else %}
+                    <span class="estancia-thumb-placeholder" aria-hidden="true"></span>
+                    {% endif %}
+                    <div class="estancia-summary-text">
+                        <p class="form-section-title">{{ estancia.nombre }}</p>
+                        <p class="estancia-summary-meta">{{ estancia.tipo_estancia }} · {{ estancia.planta or 'Sin planta' }}</p>
+                        <span class="estancia-status {% if estancia.esta_rellena %}complete{% else %}incomplete{% endif %}">
+                            {% if estancia.esta_rellena %}Rellenada{% else %}Pendiente{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+
+            <div class="form-section-body" data-collapsible-body>
+                <div class="card inner-card">
                     <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
                     <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
+                    {% if estancia.unidad_identificador %}
+                    <p><strong>Unidad:</strong> {{ estancia.unidad_identificador }}</p>
+                    {% endif %}
+                    {% if estancia.nivel_nombre %}
+                    <p><strong>Nivel:</strong> {{ estancia.nivel_nombre }}</p>
+                    {% endif %}
                     <p><strong>Ventilación:</strong> {{ estancia.ventilacion or '-' }}</p>
                     <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
                     <p><strong>Pavimento:</strong> {{ estancia.acabado_pavimento or '-' }}</p>
@@ -60,18 +487,77 @@
                     <p><strong>Techo:</strong> {{ estancia.acabado_techo or '-' }}</p>
                     <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
                 </div>
-            </a>
 
-            <div class="estancia-card-delete">
-                <form method="post" action="/borrar-estancia/{{ estancia.id }}">
-                    <button class="boton secundario boton-peligro" type="submit">Borrar</button>
-                </form>
+                <div class="actions">
+                    <a class="boton" href="/editar-estancia/{{ estancia.id }}">Editar estancia</a>
+                    <form method="post" action="/borrar-estancia/{{ estancia.id }}">
+                        <button class="boton secundario boton-peligro" type="submit">Borrar</button>
+                    </form>
+                </div>
             </div>
-        </div>
+        </section>
+        {% endfor %}
+        {% endif %}
+        {% elif estancias %}
+        {% for estancia in estancias %}
+        <section class="form-section {% if estancia.esta_rellena %}collapsed{% endif %}" data-collapsible data-collapse-id="estancia-{{ estancia.id }}">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="{% if estancia.esta_rellena %}false{% else %}true{% endif %}">
+                <div class="estancia-summary">
+                    {% if estancia.foto_principal_url %}
+                    <img class="estancia-thumb" src="{{ estancia.foto_principal_url }}" alt="Miniatura de {{ estancia.nombre }}">
+                    {% else %}
+                    <span class="estancia-thumb-placeholder" aria-hidden="true"></span>
+                    {% endif %}
+                    <div class="estancia-summary-text">
+                        <p class="form-section-title">{{ estancia.nombre }}</p>
+                        <p class="estancia-summary-meta">{{ estancia.tipo_estancia }} · {{ estancia.planta or 'Sin planta' }}</p>
+                        <span class="estancia-status {% if estancia.esta_rellena %}complete{% else %}incomplete{% endif %}">
+                            {% if estancia.esta_rellena %}Rellenada{% else %}Pendiente{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+
+            <div class="form-section-body" data-collapsible-body>
+                <div class="card inner-card">
+                    <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
+                    <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
+                    {% if estancia.unidad_identificador %}
+                    <p><strong>Unidad:</strong> {{ estancia.unidad_identificador }}</p>
+                    {% endif %}
+                    {% if estancia.nivel_nombre %}
+                    <p><strong>Nivel:</strong> {{ estancia.nivel_nombre }}</p>
+                    {% endif %}
+                    <p><strong>Ventilación:</strong> {{ estancia.ventilacion or '-' }}</p>
+                    <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
+                    <p><strong>Pavimento:</strong> {{ estancia.acabado_pavimento or '-' }}</p>
+                    <p><strong>Paramento:</strong> {{ estancia.acabado_paramento or '-' }}</p>
+                    <p><strong>Techo:</strong> {{ estancia.acabado_techo or '-' }}</p>
+                    <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
+                </div>
+
+                <div class="actions">
+                    <a class="boton" href="/editar-estancia/{{ estancia.id }}{% if unidad_seleccionada %}?unidad_id_contexto={{ unidad_seleccionada.id }}{% endif %}">Editar estancia</a>
+                    <form method="post" action="/borrar-estancia/{{ estancia.id }}">
+                        {% if unidad_seleccionada %}
+                        <input type="hidden" name="unidad_id_contexto" value="{{ unidad_seleccionada.id }}">
+                        {% endif %}
+                        <button class="boton secundario boton-peligro" type="submit">Borrar</button>
+                    </form>
+                </div>
+            </div>
+        </section>
         {% endfor %}
         {% else %}
         <div class="card">
-            <p class="empty">Todavía no hay estancias registradas para esta visita.</p>
+            <p class="empty">
+                {% if unidad_seleccionada %}
+                Todavía no hay estancias registradas para esta unidad en esta visita.
+                {% else %}
+                Todavía no hay estancias registradas para esta visita.
+                {% endif %}
+            </p>
         </div>
         {% endif %}
 
@@ -82,8 +568,14 @@
             <p class="helper-text">En visitas asociadas a {{ objeto_visita_label or 'este ámbito' }}, las estancias interiores no se generan automáticamente por defecto, pero puedes añadirlas manualmente si las necesitas.</p>
             {% endif %}
 
+            {% if mostrar_navegacion_multiunidad and not unidad_seleccionada %}
+            <p class="helper-text">Selecciona antes una unidad para que la estancia quede bien asociada dentro del edificio completo.</p>
+            {% else %}
             <form method="post" action="/guardar-estancia">
                 <input type="hidden" name="visita_id" value="{{ visita.id }}">
+                {% if unidad_seleccionada %}
+                <input type="hidden" name="unidad_id_objetivo" value="{{ unidad_seleccionada.id }}">
+                {% endif %}
 
                 <label for="nombre">Nombre de la estancia</label>
                 <input type="text" id="nombre" name="nombre" placeholder="Ej. Dormitorio principal" required>
@@ -132,6 +624,7 @@
 
                 <button class="boton" type="submit">Guardar estancia</button>
             </form>
+            {% endif %}
         </div>
     </div>
 
@@ -173,6 +666,70 @@
             <span class="top-nav-label">Perfil</span>
         </a>
     </nav>
+
+    <script>
+        const seccionesColapsables = document.querySelectorAll("[data-collapsible]");
+        const collapsePageKey = "definir_estancias";
+        const collapseContextKey = "visita_{{ visita.id }}";
+
+        function obtenerClaveColapso(seccion) {
+            const collapseId = seccion.dataset.collapseId;
+            if (!collapseId) {
+                return "";
+            }
+            return `collapse:${collapsePageKey}:${collapseContextKey}:${collapseId}`;
+        }
+
+        function aplicarEstadoColapso(seccion, colapsada) {
+            const boton = seccion.querySelector("[data-collapsible-button]");
+            if (!boton) {
+                return;
+            }
+            seccion.classList.toggle("collapsed", colapsada);
+            boton.setAttribute("aria-expanded", String(!colapsada));
+        }
+
+        function aplicarEstadoColapsoGuardado(seccion) {
+            const clave = obtenerClaveColapso(seccion);
+            if (!clave) {
+                return;
+            }
+            const valor = window.localStorage.getItem(clave);
+            if (valor === null) {
+                return;
+            }
+            aplicarEstadoColapso(seccion, valor === "collapsed");
+        }
+
+        function guardarEstadoColapso(seccion, colapsada) {
+            const clave = obtenerClaveColapso(seccion);
+            if (!clave) {
+                return;
+            }
+            window.localStorage.setItem(clave, colapsada ? "collapsed" : "expanded");
+        }
+
+        function configurarSeccionesColapsables() {
+            seccionesColapsables.forEach((seccion) => {
+                const boton = seccion.querySelector("[data-collapsible-button]");
+                const cuerpo = seccion.querySelector("[data-collapsible-body]");
+
+                if (!boton || !cuerpo) {
+                    return;
+                }
+
+                aplicarEstadoColapsoGuardado(seccion);
+
+                boton.addEventListener("click", () => {
+                    const colapsada = seccion.classList.toggle("collapsed");
+                    boton.setAttribute("aria-expanded", String(!colapsada));
+                    guardarEstadoColapso(seccion, colapsada);
+                });
+            });
+        }
+
+        configurarSeccionesColapsables();
+    </script>
 </body>
 
 </html>

@@ -110,8 +110,9 @@
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ cuadrante.descripcion or '' }}</textarea>
 
-                <label for="foto">Foto</label>
-                <input id="foto" name="foto" type="file" accept="image/*">
+                <label for="fotos">Fotos</label>
+                <input id="fotos" name="fotos" type="file" accept="image/*" multiple>
+                <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez; después podrás incorporar más desde editar.</p>
 
                 <div class="actions">
                     <button class="boton" type="submit" {% if modo_patologia == 'interior' and not estancias %}disabled{% endif %}>Crear y vincular</button>
