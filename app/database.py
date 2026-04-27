@@ -224,6 +224,437 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            apellidos TEXT,
+            razon_social TEXT,
+            nif_cif TEXT,
+            email TEXT,
+            telefono TEXT,
+            direccion TEXT,
+            codigo_postal TEXT,
+            ciudad TEXT,
+            provincia TEXT,
+            tipo_cliente TEXT,
+            origen TEXT,
+            notas TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            owner_user_id INTEGER,
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "clientes", "apellidos", "TEXT")
+    asegurar_columna(cur, "clientes", "razon_social", "TEXT")
+    asegurar_columna(cur, "clientes", "nif_cif", "TEXT")
+    asegurar_columna(cur, "clientes", "email", "TEXT")
+    asegurar_columna(cur, "clientes", "telefono", "TEXT")
+    asegurar_columna(cur, "clientes", "direccion", "TEXT")
+    asegurar_columna(cur, "clientes", "codigo_postal", "TEXT")
+    asegurar_columna(cur, "clientes", "ciudad", "TEXT")
+    asegurar_columna(cur, "clientes", "provincia", "TEXT")
+    asegurar_columna(cur, "clientes", "tipo_cliente", "TEXT")
+    asegurar_columna(cur, "clientes", "origen", "TEXT")
+    asegurar_columna(cur, "clientes", "notas", "TEXT")
+    asegurar_columna(cur, "clientes", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "clientes", "updated_at", "TEXT")
+    asegurar_columna(cur, "clientes", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            email TEXT,
+            telefono TEXT,
+            origen TEXT,
+            servicio_solicitado TEXT,
+            mensaje TEXT,
+            estado TEXT NOT NULL DEFAULT 'nuevo',
+            prioridad TEXT,
+            notas TEXT,
+            cliente_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            owner_user_id INTEGER,
+            FOREIGN KEY (cliente_id) REFERENCES clientes (id),
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "leads", "email", "TEXT")
+    asegurar_columna(cur, "leads", "telefono", "TEXT")
+    asegurar_columna(cur, "leads", "origen", "TEXT")
+    asegurar_columna(cur, "leads", "servicio_solicitado", "TEXT")
+    asegurar_columna(cur, "leads", "mensaje", "TEXT")
+    asegurar_columna(cur, "leads", "estado", "TEXT NOT NULL DEFAULT 'nuevo'")
+    asegurar_columna(cur, "leads", "prioridad", "TEXT")
+    asegurar_columna(cur, "leads", "notas", "TEXT")
+    asegurar_columna(cur, "leads", "cliente_id", "INTEGER")
+    asegurar_columna(cur, "leads", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "leads", "updated_at", "TEXT")
+    asegurar_columna(cur, "leads", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS lead_contactos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            resumen TEXT,
+            resultado TEXT,
+            siguiente_accion TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            owner_user_id INTEGER,
+            FOREIGN KEY (lead_id) REFERENCES leads (id),
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "lead_contactos", "fecha", "TEXT NOT NULL")
+    asegurar_columna(cur, "lead_contactos", "tipo", "TEXT NOT NULL")
+    asegurar_columna(cur, "lead_contactos", "resumen", "TEXT")
+    asegurar_columna(cur, "lead_contactos", "resultado", "TEXT")
+    asegurar_columna(cur, "lead_contactos", "siguiente_accion", "TEXT")
+    asegurar_columna(cur, "lead_contactos", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "lead_contactos", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS lead_tareas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            tipo TEXT,
+            fecha_programada TEXT,
+            estado TEXT NOT NULL DEFAULT 'pendiente',
+            notas TEXT,
+            calendar_event_id TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
+            owner_user_id INTEGER,
+            FOREIGN KEY (lead_id) REFERENCES leads (id),
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "lead_tareas", "titulo", "TEXT NOT NULL")
+    asegurar_columna(cur, "lead_tareas", "tipo", "TEXT")
+    asegurar_columna(cur, "lead_tareas", "fecha_programada", "TEXT")
+    asegurar_columna(cur, "lead_tareas", "estado", "TEXT NOT NULL DEFAULT 'pendiente'")
+    asegurar_columna(cur, "lead_tareas", "notas", "TEXT")
+    asegurar_columna(cur, "lead_tareas", "calendar_event_id", "TEXT")
+    asegurar_columna(cur, "lead_tareas", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "lead_tareas", "completed_at", "TEXT")
+    asegurar_columna(cur, "lead_tareas", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS propuestas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_propuesta TEXT NOT NULL,
+            lead_id INTEGER,
+            cliente_id INTEGER,
+            fecha TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'borrador',
+            tipo_trabajo TEXT,
+            direccion_inmueble TEXT,
+            alcance TEXT,
+            plazo_estimado TEXT,
+            condiciones TEXT,
+            base_imponible REAL DEFAULT 0,
+            iva REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            pdf_path TEXT,
+            fecha_envio TEXT,
+            fecha_aceptacion TEXT,
+            expediente_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            owner_user_id INTEGER,
+            FOREIGN KEY (lead_id) REFERENCES leads (id),
+            FOREIGN KEY (cliente_id) REFERENCES clientes (id),
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "propuestas", "lead_id", "INTEGER")
+    asegurar_columna(cur, "propuestas", "cliente_id", "INTEGER")
+    asegurar_columna(cur, "propuestas", "fecha", "TEXT NOT NULL")
+    asegurar_columna(cur, "propuestas", "estado", "TEXT NOT NULL DEFAULT 'borrador'")
+    asegurar_columna(cur, "propuestas", "tipo_trabajo", "TEXT")
+    asegurar_columna(cur, "propuestas", "direccion_inmueble", "TEXT")
+    asegurar_columna(cur, "propuestas", "alcance", "TEXT")
+    asegurar_columna(cur, "propuestas", "plazo_estimado", "TEXT")
+    asegurar_columna(cur, "propuestas", "condiciones", "TEXT")
+    asegurar_columna(cur, "propuestas", "base_imponible", "REAL DEFAULT 0")
+    asegurar_columna(cur, "propuestas", "iva", "REAL DEFAULT 0")
+    asegurar_columna(cur, "propuestas", "total", "REAL DEFAULT 0")
+    asegurar_columna(cur, "propuestas", "pdf_path", "TEXT")
+    asegurar_columna(cur, "propuestas", "fecha_envio", "TEXT")
+    asegurar_columna(cur, "propuestas", "fecha_aceptacion", "TEXT")
+    asegurar_columna(cur, "propuestas", "expediente_id", "INTEGER")
+    asegurar_columna(cur, "propuestas", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "propuestas", "updated_at", "TEXT")
+    asegurar_columna(cur, "propuestas", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS propuesta_lineas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            propuesta_id INTEGER NOT NULL,
+            concepto TEXT NOT NULL,
+            descripcion TEXT,
+            cantidad REAL NOT NULL DEFAULT 1,
+            precio_unitario REAL NOT NULL DEFAULT 0,
+            iva_porcentaje REAL NOT NULL DEFAULT 21,
+            total REAL NOT NULL DEFAULT 0,
+            orden INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (propuesta_id) REFERENCES propuestas (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "propuesta_lineas", "descripcion", "TEXT")
+    asegurar_columna(cur, "propuesta_lineas", "cantidad", "REAL NOT NULL DEFAULT 1")
+    asegurar_columna(cur, "propuesta_lineas", "precio_unitario", "REAL NOT NULL DEFAULT 0")
+    asegurar_columna(cur, "propuesta_lineas", "iva_porcentaje", "REAL NOT NULL DEFAULT 21")
+    asegurar_columna(cur, "propuesta_lineas", "total", "REAL NOT NULL DEFAULT 0")
+    asegurar_columna(cur, "propuesta_lineas", "orden", "INTEGER DEFAULT 0")
+    asegurar_columna(cur, "propuesta_lineas", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS configuracion_fiscal (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre_fiscal TEXT,
+            nif_cif TEXT,
+            direccion TEXT,
+            codigo_postal TEXT,
+            ciudad TEXT,
+            provincia TEXT,
+            email TEXT,
+            telefono TEXT,
+            iva_defecto REAL DEFAULT 21,
+            irpf_defecto REAL DEFAULT 0,
+            serie_factura TEXT DEFAULT 'F',
+            tipo_emisor TEXT DEFAULT 'autonomo',
+            es_nuevo_autonomo INTEGER DEFAULT 0,
+            aplicar_irpf_por_defecto INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            owner_user_id INTEGER
+        )
+        """
+    )
+    asegurar_columna(cur, "configuracion_fiscal", "nombre_fiscal", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "nif_cif", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "direccion", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "codigo_postal", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "ciudad", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "provincia", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "email", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "telefono", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "iva_defecto", "REAL DEFAULT 21")
+    asegurar_columna(cur, "configuracion_fiscal", "irpf_defecto", "REAL DEFAULT 0")
+    asegurar_columna(cur, "configuracion_fiscal", "serie_factura", "TEXT DEFAULT 'F'")
+    asegurar_columna(cur, "configuracion_fiscal", "tipo_emisor", "TEXT DEFAULT 'autonomo'")
+    asegurar_columna(cur, "configuracion_fiscal", "es_nuevo_autonomo", "INTEGER DEFAULT 0")
+    asegurar_columna(cur, "configuracion_fiscal", "aplicar_irpf_por_defecto", "INTEGER DEFAULT 1")
+    asegurar_columna(cur, "configuracion_fiscal", "created_at", "TEXT DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "configuracion_fiscal", "updated_at", "TEXT")
+    asegurar_columna(cur, "configuracion_fiscal", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS facturas_emitidas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_factura TEXT,
+            serie TEXT DEFAULT 'F',
+            fecha TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'borrador',
+            cliente_id INTEGER,
+            propuesta_id INTEGER,
+            expediente_id INTEGER,
+            concepto_general TEXT,
+            base_imponible REAL DEFAULT 0,
+            iva REAL DEFAULT 0,
+            irpf REAL DEFAULT 0,
+            irpf_porcentaje_defecto REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            fecha_emision TEXT,
+            fecha_cobro TEXT,
+            metodo_cobro TEXT,
+            pdf_path TEXT,
+            notas TEXT,
+            factura_rectificada_id INTEGER,
+            tipo_factura TEXT DEFAULT 'ordinaria',
+            motivo_rectificacion TEXT,
+            hash_factura TEXT,
+            hash_anterior TEXT,
+            cadena_hash TEXT,
+            qr_payload TEXT,
+            qr_path TEXT,
+            verifactu_estado TEXT DEFAULT 'pendiente',
+            verifactu_fecha_generacion TEXT,
+            verifactu_fecha_envio TEXT,
+            verifactu_respuesta TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            owner_user_id INTEGER
+        )
+        """
+    )
+    asegurar_columna(cur, "facturas_emitidas", "numero_factura", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "serie", "TEXT DEFAULT 'F'")
+    asegurar_columna(cur, "facturas_emitidas", "fecha", "TEXT NOT NULL")
+    asegurar_columna(cur, "facturas_emitidas", "estado", "TEXT NOT NULL DEFAULT 'borrador'")
+    asegurar_columna(cur, "facturas_emitidas", "cliente_id", "INTEGER")
+    asegurar_columna(cur, "facturas_emitidas", "propuesta_id", "INTEGER")
+    asegurar_columna(cur, "facturas_emitidas", "expediente_id", "INTEGER")
+    asegurar_columna(cur, "facturas_emitidas", "concepto_general", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "base_imponible", "REAL DEFAULT 0")
+    asegurar_columna(cur, "facturas_emitidas", "iva", "REAL DEFAULT 0")
+    asegurar_columna(cur, "facturas_emitidas", "irpf", "REAL DEFAULT 0")
+    asegurar_columna(cur, "facturas_emitidas", "irpf_porcentaje_defecto", "REAL DEFAULT 0")
+    asegurar_columna(cur, "facturas_emitidas", "total", "REAL DEFAULT 0")
+    asegurar_columna(cur, "facturas_emitidas", "fecha_emision", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "fecha_cobro", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "metodo_cobro", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "pdf_path", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "notas", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "factura_rectificada_id", "INTEGER")
+    asegurar_columna(cur, "facturas_emitidas", "tipo_factura", "TEXT DEFAULT 'ordinaria'")
+    asegurar_columna(cur, "facturas_emitidas", "motivo_rectificacion", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "hash_factura", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "hash_anterior", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "cadena_hash", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "qr_payload", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "qr_path", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "verifactu_estado", "TEXT DEFAULT 'pendiente'")
+    asegurar_columna(cur, "facturas_emitidas", "verifactu_fecha_generacion", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "verifactu_fecha_envio", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "verifactu_respuesta", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "created_at", "TEXT DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "facturas_emitidas", "updated_at", "TEXT")
+    asegurar_columna(cur, "facturas_emitidas", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS factura_lineas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            factura_id INTEGER NOT NULL,
+            concepto TEXT NOT NULL,
+            descripcion TEXT,
+            cantidad REAL DEFAULT 1,
+            precio_unitario REAL DEFAULT 0,
+            iva_porcentaje REAL DEFAULT 21,
+            irpf_porcentaje REAL DEFAULT 0,
+            subtotal REAL DEFAULT 0,
+            iva_importe REAL DEFAULT 0,
+            irpf_importe REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            orden INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    asegurar_columna(cur, "factura_lineas", "descripcion", "TEXT")
+    asegurar_columna(cur, "factura_lineas", "cantidad", "REAL DEFAULT 1")
+    asegurar_columna(cur, "factura_lineas", "precio_unitario", "REAL DEFAULT 0")
+    asegurar_columna(cur, "factura_lineas", "iva_porcentaje", "REAL DEFAULT 21")
+    asegurar_columna(cur, "factura_lineas", "irpf_porcentaje", "REAL DEFAULT 0")
+    asegurar_columna(cur, "factura_lineas", "subtotal", "REAL DEFAULT 0")
+    asegurar_columna(cur, "factura_lineas", "iva_importe", "REAL DEFAULT 0")
+    asegurar_columna(cur, "factura_lineas", "irpf_importe", "REAL DEFAULT 0")
+    asegurar_columna(cur, "factura_lineas", "total", "REAL DEFAULT 0")
+    asegurar_columna(cur, "factura_lineas", "orden", "INTEGER DEFAULT 0")
+    asegurar_columna(cur, "factura_lineas", "created_at", "TEXT DEFAULT CURRENT_TIMESTAMP")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS factura_eventos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            factura_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            descripcion TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            owner_user_id INTEGER
+        )
+        """
+    )
+    asegurar_columna(cur, "factura_eventos", "factura_id", "INTEGER NOT NULL")
+    asegurar_columna(cur, "factura_eventos", "tipo", "TEXT NOT NULL")
+    asegurar_columna(cur, "factura_eventos", "descripcion", "TEXT")
+    asegurar_columna(cur, "factura_eventos", "created_at", "TEXT DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "factura_eventos", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cobros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            factura_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            importe REAL NOT NULL,
+            metodo TEXT,
+            notas TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            owner_user_id INTEGER
+        )
+        """
+    )
+    asegurar_columna(cur, "cobros", "fecha", "TEXT NOT NULL")
+    asegurar_columna(cur, "cobros", "importe", "REAL NOT NULL")
+    asegurar_columna(cur, "cobros", "metodo", "TEXT")
+    asegurar_columna(cur, "cobros", "notas", "TEXT")
+    asegurar_columna(cur, "cobros", "created_at", "TEXT DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "cobros", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS gastos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT NOT NULL,
+            proveedor TEXT NOT NULL,
+            nif_proveedor TEXT,
+            numero_factura TEXT,
+            concepto TEXT NOT NULL,
+            categoria TEXT,
+            base_imponible REAL DEFAULT 0,
+            iva_porcentaje REAL DEFAULT 21,
+            iva_importe REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            deducible INTEGER DEFAULT 1,
+            archivo_path TEXT,
+            notas TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            owner_user_id INTEGER
+        )
+        """
+    )
+    asegurar_columna(cur, "gastos", "fecha", "TEXT NOT NULL")
+    asegurar_columna(cur, "gastos", "proveedor", "TEXT NOT NULL")
+    asegurar_columna(cur, "gastos", "nif_proveedor", "TEXT")
+    asegurar_columna(cur, "gastos", "numero_factura", "TEXT")
+    asegurar_columna(cur, "gastos", "concepto", "TEXT NOT NULL")
+    asegurar_columna(cur, "gastos", "categoria", "TEXT")
+    asegurar_columna(cur, "gastos", "base_imponible", "REAL DEFAULT 0")
+    asegurar_columna(cur, "gastos", "iva_porcentaje", "REAL DEFAULT 21")
+    asegurar_columna(cur, "gastos", "iva_importe", "REAL DEFAULT 0")
+    asegurar_columna(cur, "gastos", "total", "REAL DEFAULT 0")
+    asegurar_columna(cur, "gastos", "deducible", "INTEGER DEFAULT 1")
+    asegurar_columna(cur, "gastos", "archivo_path", "TEXT")
+    asegurar_columna(cur, "gastos", "notas", "TEXT")
+    asegurar_columna(cur, "gastos", "created_at", "TEXT DEFAULT CURRENT_TIMESTAMP")
+    asegurar_columna(cur, "gastos", "updated_at", "TEXT")
+    asegurar_columna(cur, "gastos", "owner_user_id", "INTEGER")
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS expedientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             numero_expediente TEXT NOT NULL,

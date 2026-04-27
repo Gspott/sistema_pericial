@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Leads</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Leads</h1>
+            <p class="subtitle">Contactos comerciales, historial y próximas acciones.</p>
+
+            <form method="get" action="/leads">
+                <label for="estado">Filtrar por estado</label>
+                <select id="estado" name="estado">
+                    <option value="">Todos</option>
+                    {% for estado in estados_lead %}
+                    <option value="{{ estado }}" {% if estado_actual == estado %}selected{% endif %}>{{ estado.replace('_', ' ') }}</option>
+                    {% endfor %}
+                </select>
+                <button class="boton secundario" type="submit">Aplicar filtro</button>
+            </form>
+
+            <div class="actions">
+                <a class="boton" href="/leads/nuevo">Nuevo lead</a>
+                <a class="boton secundario" href="/">Inicio</a>
+                <a class="boton secundario" href="/clientes">Clientes</a>
+                <a class="boton secundario" href="/expedientes">Expedientes</a>
+            </div>
+        </div>
+
+        {% if leads %}
+            {% for lead in leads %}
+            <div class="card card-clickable">
+                <a class="card-link-cover" href="/leads/{{ lead.id }}" aria-label="Abrir lead {{ lead.nombre }}"></a>
+                <div class="card-content">
+                    <h2>{{ lead.nombre }}</h2>
+                    {% if lead.servicio_solicitado %}<p><strong>Servicio:</strong> {{ lead.servicio_solicitado }}</p>{% endif %}
+                    {% if lead.telefono %}<p><strong>Teléfono:</strong> {{ lead.telefono }}</p>{% endif %}
+                    {% if lead.email %}<p><strong>Email:</strong> {{ lead.email }}</p>{% endif %}
+                    {% set lead_estado_clase = 'estado-pendiente' if lead.estado in ['nuevo', 'contactado', 'pendiente_respuesta'] else 'estado-borrador' %}
+                    <p><strong>Estado:</strong> <span class="estado-badge {{ lead_estado_clase }}">{{ lead.estado.replace('_', ' ') }}</span></p>
+                </div>
+                <div class="card-actions">
+                    <a class="boton secundario" href="/leads/{{ lead.id }}/editar">Editar</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p class="empty">Todavía no hay leads registrados para este usuario.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

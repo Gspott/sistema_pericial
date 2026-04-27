@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>{{ titulo }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>{{ titulo }}</h1>
+            <p class="subtitle">Borrador de factura emitida.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+            <form method="post" action="{{ form_action }}">
+                <label for="fecha">Fecha</label>
+                <input id="fecha" name="fecha" type="date" value="{{ factura.fecha or '' }}" {% if factura.estado and factura.estado != 'borrador' %}readonly{% endif %} required>
+
+                <label for="serie">Serie</label>
+                <input id="serie" name="serie" type="text" value="{{ factura.serie or 'F' }}" {% if factura.estado and factura.estado != 'borrador' %}readonly{% endif %}>
+
+                <label for="cliente_id">Cliente</label>
+                <select id="cliente_id" name="cliente_id" {% if factura.estado and factura.estado != 'borrador' %}disabled{% endif %}>
+                    <option value="">Sin cliente</option>
+                    {% for cliente in clientes %}
+                    <option value="{{ cliente.id }}" {% if factura.cliente_id == cliente.id %}selected{% endif %}>
+                        {{ cliente.razon_social or cliente.nombre }}{% if cliente.apellidos %} {{ cliente.apellidos }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+
+                <label for="propuesta_id">Propuesta</label>
+                <select id="propuesta_id" name="propuesta_id" {% if factura.estado and factura.estado != 'borrador' %}disabled{% endif %}>
+                    <option value="">Sin propuesta</option>
+                    {% for propuesta in propuestas %}
+                    <option value="{{ propuesta.id }}" {% if factura.propuesta_id == propuesta.id %}selected{% endif %}>{{ propuesta.numero_propuesta }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="expediente_id">Expediente</label>
+                <select id="expediente_id" name="expediente_id" {% if factura.estado and factura.estado != 'borrador' %}disabled{% endif %}>
+                    <option value="">Sin expediente</option>
+                    {% for expediente in expedientes %}
+                    <option value="{{ expediente.id }}" {% if factura.expediente_id == expediente.id %}selected{% endif %}>
+                        {{ expediente.numero_expediente }} · {{ expediente.cliente }}
+                    </option>
+                    {% endfor %}
+                </select>
+
+                <label for="concepto_general">Concepto general</label>
+                <input id="concepto_general" name="concepto_general" type="text" value="{{ factura.concepto_general or '' }}" {% if factura.estado and factura.estado != 'borrador' %}readonly{% endif %}>
+
+                {% if factura.irpf_porcentaje_defecto is defined %}
+                <p><strong>IRPF sugerido para nuevas líneas:</strong> {{ factura.irpf_porcentaje_defecto or 0 }} %</p>
+                <p class="helper-text">El IRPF se aplica normalmente a facturas de profesionales autónomos dirigidas a empresas, autónomos o entidades españolas. No suele aplicarse a particulares ni clientes extranjeros.</p>
+                {% endif %}
+
+                <label for="notas">Notas</label>
+                <textarea id="notas" name="notas">{{ factura.notas or '' }}</textarea>
+
+                <div class="actions">
+                    <button class="boton" type="submit">{{ submit_label }}</button>
+                    {% if factura.id %}
+                    <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}">Volver a factura</a>
+                    {% endif %}
+                    <a class="boton secundario" href="/facturacion/facturas">Facturas</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

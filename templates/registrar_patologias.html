@@ -11,8 +11,8 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=7">
-    <script src="/static/pwa.js?v=4" defer></script>
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
         .form-section {
@@ -179,13 +179,8 @@
 </head>
 
 <body>
-    <div class="page with-top-nav">
-        <div class="topbar">
-            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
-            <a class="boton secundario" href="/logout">Cerrar sesión</a>
-        </div>
-
-        <h1>Registrar patologías</h1>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page"><h1>Registrar patologías</h1>
 
         <div class="actions">
             <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Volver a estancias</a>
@@ -328,41 +323,6 @@
                 {% endif %}
 
                 {% if estancias %}
-                {% if estancia_seleccionada %}
-                <div class="card inner-card">
-                    <p><strong>Estancia actual:</strong> {{ estancia_seleccionada.nombre or '-' }}</p>
-                    <p>
-                        <strong>Contexto:</strong>
-                        {% if estancia_seleccionada.identificador_unidad_estancia %}Unidad: {{ estancia_seleccionada.identificador_unidad_estancia }}{% else %}Unidad: -{% endif %}
-                        {% if estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita %} · {% endif %}
-                        {% if estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita %}Nivel: {{ estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita }}{% endif %}
-                    </p>
-                    {% if registros_estancia_seleccionada %}
-                    <p><strong>Patologías ya registradas en esta estancia:</strong></p>
-                    <ul>
-                        {% for registro in registros_estancia_seleccionada %}
-                        <li style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>
-                                {{ registro.patologia }}{% if registro.localizacion_dano %} · {{ registro.localizacion_dano }}{% endif %}
-                            </span>
-
-                            <span style="display: flex; gap: 8px;">
-                                <form method="post" action="/duplicar-registro/{{ registro.id }}" style="display: inline;">
-                                    <button class="boton secundario" type="submit">Duplicar</button>
-                                </form>
-                                <form method="post" action="/eliminar-registro/{{ registro.id }}" style="display: inline;"
-                                    onsubmit="return confirm('¿Seguro que quieres eliminar este registro?');">
-                                    <button class="boton secundario" type="submit">Eliminar</button>
-                                </form>
-                            </span>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p class="helper-text">Todavía no hay patologías registradas en esta estancia.</p>
-                    {% endif %}
-                </div>
-                {% endif %}
                 <form id="formulario_patologia" method="post" action="/guardar-registro" enctype="multipart/form-data">
                     <input type="hidden" name="visita_id" value="{{ visita.id }}">
 
@@ -375,6 +335,45 @@
                         </option>
                         {% endfor %}
                     </select>
+
+                    <div class="card inner-card">
+                        <div id="resumen_estancia_actual">
+                            {% if estancia_seleccionada %}
+                            <p><strong>Estancia actual:</strong> {{ estancia_seleccionada.nombre or '-' }}</p>
+                            <p>
+                                <strong>Contexto:</strong>
+                                {% if estancia_seleccionada.identificador_unidad_estancia %}Unidad: {{ estancia_seleccionada.identificador_unidad_estancia }}{% else %}Unidad: -{% endif %}
+                                {% if estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita %} · {% endif %}
+                                {% if estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita %}Nivel: {{ estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita }}{% endif %}
+                            </p>
+                            {% if registros_estancia_seleccionada %}
+                            <p><strong>Patologías ya registradas en esta estancia:</strong></p>
+                            <ul>
+                                {% for registro in registros_estancia_seleccionada %}
+                                <li style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span>
+                                        {{ registro.patologia }}{% if registro.localizacion_dano %} · {{ registro.localizacion_dano }}{% endif %}
+                                    </span>
+
+                                    <span style="display: flex; gap: 8px;">
+                                        <button class="boton secundario" type="button" data-registro-action="editar"
+                                            data-registro-id="{{ registro.id }}">Editar</button>
+                                        <button class="boton secundario" type="button" data-registro-action="duplicar"
+                                            data-registro-id="{{ registro.id }}">Duplicar</button>
+                                        <button class="boton secundario" type="button" data-registro-action="eliminar"
+                                            data-registro-id="{{ registro.id }}">Eliminar</button>
+                                    </span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="helper-text">Todavía no hay patologías registradas en esta estancia.</p>
+                            {% endif %}
+                            {% else %}
+                            <p class="helper-text">Selecciona una estancia para ver si ya tiene patologías registradas.</p>
+                            {% endif %}
+                        </div>
+                    </div>
 
                     <label for="patologia">Patología</label>
                     <select id="patologia" name="patologia" required>
@@ -639,45 +638,7 @@
         </section>
         {% endif %}
     </div>
-
-    <nav class="top-nav" aria-label="Navegación principal">
-        <a class="top-nav-item" href="/">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 10.5 12 3l9 7.5"></path>
-                <path d="M5 9.5V21h14V9.5"></path>
-            </svg>
-            <span class="top-nav-label">Inicio</span>
-        </a>
-        <a class="top-nav-item active" href="/expedientes">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path>
-            </svg>
-            <span class="top-nav-label">Expedientes</span>
-        </a>
-        <a class="top-nav-item center" href="/nuevo-expediente" aria-label="Nuevo expediente">
-            <span class="top-nav-plus">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5v14"></path>
-                    <path d="M5 12h14"></path>
-                </svg>
-            </span>
-            <span class="top-nav-label">Nuevo</span>
-        </a>
-        <a class="top-nav-item" href="/biblioteca-patologias">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5.5 4.5h10A2.5 2.5 0 0 1 18 7v12H7a2 2 0 0 0-2 2"></path>
-                <path d="M5.5 4.5A2.5 2.5 0 0 0 3 7v12.5A1.5 1.5 0 0 0 4.5 21H18"></path>
-            </svg>
-            <span class="top-nav-label">Biblioteca</span>
-        </a>
-        <a class="top-nav-item" href="/logout">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M15.5 19a7.5 7.5 0 1 0-7 0"></path>
-                <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
-            </svg>
-            <span class="top-nav-label">Perfil</span>
-        </a>
-    </nav>
+    {% include "partials/_app_shell_end.html" %}
 
     <script>
         const seccionesColapsables = document.querySelectorAll("[data-collapsible]");
@@ -745,17 +706,30 @@
         const selectorPatologiaInterior = document.getElementById("patologia");
         const selectorElementoInterior = document.getElementById("elemento");
         const selectorEstanciaInterior = document.getElementById("estancia_id");
+        const resumenEstanciaActual = document.getElementById("resumen_estancia_actual");
         const selectorRolPatologiaObservado = document.getElementById("rol_patologia_observado");
         const selectorRolPatologiaObservadoBox = document.getElementById("rol_patologia_observado_box");
         const sugerenciasPatologiaBox = document.getElementById("patologia_sugerencias");
         const sugerenciasPatologiaLista = document.getElementById("patologia_sugerencias_lista");
         const revisionTecnicaBox = document.getElementById("revision_tecnica");
         const revisionTecnicaLista = document.getElementById("revision_tecnica_lista");
+        const estanciasInteriores = [
+            {% for estancia in estancias %}
+            {
+                id: "{{ estancia.id }}",
+                nombre: {{ (estancia.nombre or '')|tojson }},
+                identificadorUnidadEstancia: {{ (estancia.identificador_unidad_estancia or '')|tojson }},
+                nombreNivelEstancia: {{ (estancia.nombre_nivel_estancia or estancia.nombre_nivel_visita or '')|tojson }}
+            },
+            {% endfor %}
+        ];
         const registrosInterioresExistentes = [
             {% for registro in registros %}
             {
+                id: "{{ registro.id }}",
                 estanciaId: "{{ registro.estancia_id }}",
                 patologia: {{ (registro.patologia or '')|tojson }},
+                localizacionDano: {{ (registro.localizacion_dano or '')|tojson }},
                 rolPatologiaObservado: {{ (registro.rol_patologia_observado or '')|tojson }}
             },
             {% endfor %}
@@ -807,6 +781,130 @@
             }
             sugerenciasPatologiaLista.innerHTML = "";
             sugerenciasPatologiaBox.hidden = true;
+        }
+
+        function construirBotonResumen(texto, accion, registroId) {
+            const boton = document.createElement("button");
+            boton.className = "boton secundario";
+            boton.type = "button";
+            boton.textContent = texto;
+            boton.dataset.registroAction = accion;
+            boton.dataset.registroId = registroId;
+            return boton;
+        }
+
+        function enviarFormularioPostTemporal(action) {
+            const form = document.createElement("form");
+            form.method = "post";
+            form.action = action;
+            form.hidden = true;
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function manejarAccionRegistro(event) {
+            const boton = event.target.closest("[data-registro-action]");
+            if (!boton) {
+                return;
+            }
+
+            const accion = boton.dataset.registroAction;
+            const registroId = boton.dataset.registroId;
+            if (!accion || !registroId) {
+                return;
+            }
+
+            if (accion === "eliminar" && !window.confirm("¿Seguro que quieres eliminar este registro?")) {
+                return;
+            }
+
+            if (accion === "editar") {
+                window.location.href = `/editar-registro/${registroId}`;
+                return;
+            }
+
+            const ruta = accion === "duplicar"
+                ? `/duplicar-registro/${registroId}`
+                : `/eliminar-registro/${registroId}`;
+            enviarFormularioPostTemporal(ruta);
+        }
+
+        function actualizarResumenEstancia() {
+            if (!selectorEstanciaInterior || !resumenEstanciaActual) {
+                return;
+            }
+
+            const estanciaIdSeleccionada = selectorEstanciaInterior.value;
+            const estancia = estanciasInteriores.find((item) => item.id === estanciaIdSeleccionada);
+            resumenEstanciaActual.innerHTML = "";
+
+            const parrafoEstancia = document.createElement("p");
+            const strongEstancia = document.createElement("strong");
+            strongEstancia.textContent = "Estancia actual:";
+            parrafoEstancia.appendChild(strongEstancia);
+            parrafoEstancia.append(` ${estancia?.nombre || "-"}`);
+            resumenEstanciaActual.appendChild(parrafoEstancia);
+
+            const parrafoContexto = document.createElement("p");
+            const strongContexto = document.createElement("strong");
+            strongContexto.textContent = "Contexto:";
+            parrafoContexto.appendChild(strongContexto);
+            parrafoContexto.append(` Unidad: ${estancia?.identificadorUnidadEstancia || "-"}`);
+            if (estancia?.nombreNivelEstancia) {
+                parrafoContexto.append(` · Nivel: ${estancia.nombreNivelEstancia}`);
+            }
+            resumenEstanciaActual.appendChild(parrafoContexto);
+
+            const registrosEstancia = estanciaIdSeleccionada
+                ? registrosInterioresExistentes.filter((registro) => registro.estanciaId === estanciaIdSeleccionada)
+                : [];
+
+            if (!registrosEstancia.length) {
+                const parrafoVacio = document.createElement("p");
+                parrafoVacio.className = "helper-text";
+                parrafoVacio.textContent = estanciaIdSeleccionada
+                    ? "Todavía no hay patologías registradas en esta estancia."
+                    : "Selecciona una estancia para ver si ya tiene patologías registradas.";
+                resumenEstanciaActual.appendChild(parrafoVacio);
+                return;
+            }
+
+            const tituloRegistros = document.createElement("p");
+            const strongRegistros = document.createElement("strong");
+            strongRegistros.textContent = "Patologías ya registradas en esta estancia:";
+            tituloRegistros.appendChild(strongRegistros);
+            resumenEstanciaActual.appendChild(tituloRegistros);
+
+            const lista = document.createElement("ul");
+            registrosEstancia.forEach((registro) => {
+                const item = document.createElement("li");
+                item.style.display = "flex";
+                item.style.justifyContent = "space-between";
+                item.style.alignItems = "center";
+
+                const descripcion = document.createElement("span");
+                descripcion.textContent = registro.localizacionDano
+                    ? `${registro.patologia} · ${registro.localizacionDano}`
+                    : registro.patologia;
+
+                const acciones = document.createElement("span");
+                acciones.style.display = "flex";
+                acciones.style.gap = "8px";
+                acciones.appendChild(
+                    construirBotonResumen("Editar", "editar", registro.id)
+                );
+                acciones.appendChild(
+                    construirBotonResumen("Duplicar", "duplicar", registro.id)
+                );
+                acciones.appendChild(
+                    construirBotonResumen("Eliminar", "eliminar", registro.id)
+                );
+
+                item.appendChild(descripcion);
+                item.appendChild(acciones);
+                lista.appendChild(item);
+            });
+            resumenEstanciaActual.appendChild(lista);
         }
 
         function obtenerPatologiasYaRegistradasEnEstancia() {
@@ -960,14 +1058,20 @@
         }
 
         if (selectorEstanciaInterior) {
+            selectorEstanciaInterior.addEventListener("change", actualizarResumenEstancia);
             selectorEstanciaInterior.addEventListener("change", renderizarSugerenciasPatologia);
             selectorEstanciaInterior.addEventListener("change", actualizarRevisionTecnica);
+        }
+
+        if (resumenEstanciaActual) {
+            resumenEstanciaActual.addEventListener("click", manejarAccionRegistro);
         }
 
         if (selectorRolPatologiaObservado) {
             selectorRolPatologiaObservado.addEventListener("change", actualizarRevisionTecnica);
         }
 
+        actualizarResumenEstancia();
         actualizarRolPatologiaObservado();
         actualizarRevisionTecnica();
 

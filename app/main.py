@@ -46,6 +46,13 @@ from app.config import (
     ensure_directories,
 )
 from app.database import init_db
+from app.routers import backups as backups_router
+from app.routers import clientes as clientes_router
+from app.routers import dashboard as dashboard_router
+from app.routers import facturacion as facturacion_router
+from app.routers import gastos as gastos_router
+from app.routers import leads as leads_router
+from app.routers import propuestas as propuestas_router
 from app.services.catastro import consultar_catastro_por_referencia
 from app.services.clima import geocodificar, obtener_climatologia
 from app.services.direccion import autocompletar_direccion, sugerir_direcciones
@@ -66,6 +73,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_PATH)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_PATH)), name="uploads")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_PATH))
+app.state.templates = templates
 app.state.base_url = BASE_URL
 app.state.app_host = APP_HOST
 app.state.app_port = APP_PORT
@@ -2470,6 +2478,15 @@ def render_template(request: Request, template_name: str, context: dict | None =
     return templates.TemplateResponse(template_name, data)
 
 
+def normalizar_redirect_interno(destino: str | None) -> str:
+    destino_limpio = limpiar_texto(destino)
+    if not destino_limpio:
+        return ""
+    if not destino_limpio.startswith("/") or destino_limpio.startswith("//"):
+        return ""
+    return destino_limpio
+
+
 def is_public_path(path: str) -> bool:
     return path in PUBLIC_PATHS or any(path.startswith(prefix) for prefix in PUBLIC_PREFIXES)
 
@@ -2611,6 +2628,179 @@ def cargar_estructura_multiunidad(cur, expediente_id: int):
         "sin_nivel": sin_nivel,
         "anejos_sueltos": anejos_sueltos,
         "unidades_principales": unidades_principales,
+    }
+
+
+def preparar_resumen_registro_expediente(cur, expediente_id: int):
+    estructura_multiunidad = cargar_estructura_multiunidad(cur, expediente_id)
+
+    patologias_exteriores_rows = cur.execute(
+        """
+        SELECT rpe.*,
+               v.fecha AS visita_fecha,
+               u.identificador AS unidad_identificador,
+               n.nombre_nivel AS nivel_nombre
+        FROM registros_patologias_exteriores rpe
+        JOIN visitas v ON rpe.visita_id = v.id
+        LEFT JOIN unidades_expediente u ON v.unidad_id = u.id
+        LEFT JOIN niveles_edificio n ON v.nivel_id = n.id
+        WHERE v.expediente_id = ?
+        ORDER BY v.fecha DESC, rpe.id DESC
+        """,
+        (expediente_id,),
+    ).fetchall()
+    patologias_exteriores = []
+    for row in patologias_exteriores_rows:
+        registro = dict(row)
+        registro["zona_exterior_label"] = etiquetar_opcion(
+            registro.get("zona_exterior", ""),
+            ZONA_EXTERIOR_LABELS,
+        )
+        registro["elemento_exterior_label"] = etiquetar_opcion(
+            registro.get("elemento_exterior", ""),
+            ELEMENTO_EXTERIOR_LABELS,
+        )
+        registro["localizacion_dano_exterior_label"] = etiquetar_opcion(
+            registro.get("localizacion_dano_exterior", ""),
+            LOCALIZACION_EXTERIOR_LABELS,
+        )
+        patologias_exteriores.append(registro)
+
+    patologias_interiores_rows = cur.execute(
+        """
+        SELECT rp.id,
+               rp.estancia_id,
+               rp.patologia
+        FROM registros_patologias rp
+        JOIN visitas v ON rp.visita_id = v.id
+        WHERE v.expediente_id = ?
+        ORDER BY rp.id ASC
+        """,
+        (expediente_id,),
+    ).fetchall()
+    patologias_por_estancia: dict[int, list[dict]] = {}
+    for row in patologias_interiores_rows:
+        estancia_id = row["estancia_id"]
+        if not estancia_id:
+            continue
+        patologias_por_estancia.setdefault(estancia_id, []).append(
+            {
+                "id": row["id"],
+                "patologia": limpiar_texto(row["patologia"]),
+            }
+        )
+
+    estancias_rows = cur.execute(
+        """
+        SELECT es.*,
+               v.fecha AS visita_fecha,
+               ue.identificador AS unidad_identificador,
+               ue.tipo_unidad AS unidad_tipo_unidad,
+               ue.uso AS unidad_uso,
+               ne.nombre_nivel AS nivel_nombre,
+               EXISTS(
+                   SELECT 1
+                   FROM estancia_fotos ef
+                   WHERE ef.estancia_id = es.id
+                   LIMIT 1
+               ) AS tiene_foto_principal
+        FROM estancias es
+        JOIN visitas v ON es.visita_id = v.id
+        LEFT JOIN unidades_expediente ue ON es.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+        WHERE v.expediente_id = ?
+        ORDER BY
+            CASE WHEN ue.nivel_id IS NULL THEN 1 ELSE 0 END,
+            COALESCE(ne.orden_nivel, 999999),
+            COALESCE(ne.nombre_nivel, ''),
+            COALESCE(ue.identificador, ''),
+            es.id ASC
+        """,
+        (expediente_id,),
+    ).fetchall()
+
+    unidades_por_id = {
+        unidad["id"]: {
+            **unidad,
+            "tipo_unidad_label": unidad.get("tipo_unidad_label")
+            or etiquetar_opcion(unidad.get("tipo_unidad", ""), TIPO_UNIDAD_LABELS),
+            "nivel_nombre": limpiar_texto(unidad.get("nombre_nivel")),
+            "estancias": [],
+        }
+        for unidad in estructura_multiunidad["unidades"]
+    }
+
+    estancias_sin_unidad = []
+    for row in estancias_rows:
+        estancia = dict(row)
+        estancia["foto_principal_url"] = "__resumen__" if estancia.get("tiene_foto_principal") else ""
+        estancia["esta_pendiente"] = not calcular_estancia_rellena(estancia)
+        estancia["patologias"] = patologias_por_estancia.get(estancia["id"], [])
+        estancia["total_patologias"] = len(estancia["patologias"])
+        unidad_id = estancia.get("unidad_id")
+        if unidad_id and unidad_id in unidades_por_id:
+            unidades_por_id[unidad_id]["estancias"].append(estancia)
+        else:
+            estancias_sin_unidad.append(estancia)
+
+    def construir_resumen_unidad(unidad: dict):
+        unidad_resumen = unidades_por_id.get(unidad["id"], dict(unidad))
+        unidad_resumen.setdefault("estancias", [])
+        unidad_resumen["tipo_unidad_label"] = unidad_resumen.get(
+            "tipo_unidad_label"
+        ) or etiquetar_opcion(unidad_resumen.get("tipo_unidad", ""), TIPO_UNIDAD_LABELS)
+        unidad_resumen["nivel_nombre"] = limpiar_texto(
+            unidad_resumen.get("nivel_nombre") or unidad_resumen.get("nombre_nivel")
+        )
+        return unidad_resumen
+
+    grupos_unidades = []
+    for nivel in estructura_multiunidad["niveles"]:
+        unidades_nivel = []
+        for grupo in ("principales", "comunes", "exteriores", "otras"):
+            unidades_nivel.extend(
+                construir_resumen_unidad(unidad) for unidad in nivel.get(grupo, [])
+            )
+        grupos_unidades.append(
+            {
+                "titulo": nivel["nombre_nivel"],
+                "meta": nivel.get("tipo_nivel_label") or "",
+                "unidades": unidades_nivel,
+            }
+        )
+
+    unidades_sin_nivel = []
+    for grupo in ("principales", "comunes", "exteriores", "otras"):
+        unidades_sin_nivel.extend(
+            construir_resumen_unidad(unidad)
+            for unidad in estructura_multiunidad["sin_nivel"].get(grupo, [])
+        )
+
+    if estancias_sin_unidad:
+        unidades_sin_nivel.append(
+            {
+                "id": None,
+                "identificador": "Sin unidad asignada",
+                "nivel_nombre": "",
+                "tipo_unidad_label": "",
+                "uso": "",
+                "estancias": estancias_sin_unidad,
+            }
+        )
+
+    if unidades_sin_nivel:
+        grupos_unidades.append(
+            {
+                "titulo": "Sin nivel asignado",
+                "meta": "",
+                "unidades": unidades_sin_nivel,
+            }
+        )
+
+    return {
+        "patologias_exteriores": patologias_exteriores,
+        "grupos_unidades": grupos_unidades,
+        "hay_unidades_o_estancias": bool(grupos_unidades),
     }
 
 
@@ -3160,6 +3350,15 @@ async def auth_middleware(request: Request, call_next):
         return RedirectResponse(url="/", status_code=303)
 
     return await call_next(request)
+
+
+app.include_router(backups_router.router)
+app.include_router(clientes_router.router)
+app.include_router(dashboard_router.router)
+app.include_router(facturacion_router.router)
+app.include_router(gastos_router.router)
+app.include_router(leads_router.router)
+app.include_router(propuestas_router.router)
 
 
 # -------------------------------------------------------
@@ -4265,6 +4464,38 @@ def detalle_expediente(request: Request, expediente_id: int):
             "tipo_anejo_options": TIPO_ANEJO_OPTIONS,
             "mensaje": limpiar_texto(request.query_params.get("mensaje")),
             "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.get("/resumen-registro/{expediente_id}", response_class=HTMLResponse)
+def resumen_registro(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+    require_row(expediente, "Expediente no encontrado")
+
+    resumen_registro_data = preparar_resumen_registro_expediente(cur, expediente_id)
+
+    conn.close()
+
+    expediente_data = dict(expediente)
+    expediente_data["tipo_informe_label"] = etiquetar_opcion(
+        expediente_data.get("tipo_informe", ""),
+        TIPO_INFORME_LABELS,
+    )
+
+    return render_template(
+        request,
+        "resumen_registro.html",
+        {
+            "expediente": expediente_data,
+            "patologias_exteriores": resumen_registro_data["patologias_exteriores"],
+            "grupos_unidades": resumen_registro_data["grupos_unidades"],
+            "hay_unidades_o_estancias": resumen_registro_data["hay_unidades_o_estancias"],
         },
     )
 
@@ -6021,6 +6252,7 @@ def editar_estancia(
     request: Request,
     estancia_id: int,
     unidad_id_contexto: int | None = Query(None),
+    next: str = Query(""),
 ):
     current_user = get_current_user(request)
 
@@ -6043,6 +6275,7 @@ def editar_estancia(
         {
             "estancia": estancia,
             "unidad_id_contexto": unidad_id_contexto,
+            "next_url": normalizar_redirect_interno(next),
         },
     )
 
@@ -6062,6 +6295,7 @@ def actualizar_estancia(
     fotos: list[UploadFile] = File([]),
     siguiente: str = Form("estancias"),
     unidad_id_contexto: str = Form(""),
+    next: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -6130,6 +6364,13 @@ def actualizar_estancia(
     conn.close()
 
     unidad_id_contexto_int = parse_optional_int(unidad_id_contexto)
+    next_url = normalizar_redirect_interno(next)
+
+    if next_url:
+        return RedirectResponse(
+            url=next_url,
+            status_code=303,
+        )
 
     if siguiente == "patologias":
         return RedirectResponse(
@@ -7384,7 +7625,7 @@ def guardar_registro(
 
 
 @app.get("/editar-registro/{registro_id}", response_class=HTMLResponse)
-def editar_registro(request: Request, registro_id: int):
+def editar_registro(request: Request, registro_id: int, next: str = Query("")):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -7430,6 +7671,7 @@ def editar_registro(request: Request, registro_id: int):
             "estancias": estancias,
             "patologias": patologias,
             "objeto_visita_label": objeto_visita_label,
+            "next_url": normalizar_redirect_interno(next),
         },
     )
 
@@ -7446,6 +7688,7 @@ def actualizar_registro(
     patologia: str = Form(...),
     observaciones: str = Form(""),
     fotos: list[UploadFile] = File([]),
+    next: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -7517,6 +7760,13 @@ def actualizar_registro(
 
     conn.commit()
     conn.close()
+
+    next_url = normalizar_redirect_interno(next)
+    if next_url:
+        return RedirectResponse(
+            url=next_url,
+            status_code=303,
+        )
 
     return RedirectResponse(
         url=f"/registrar-patologias/{visita_id}",

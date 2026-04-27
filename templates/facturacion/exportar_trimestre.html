@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Exportar trimestre</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Exportar trimestre</h1>
+            <p class="subtitle">Exportación interna para asesoría. No equivale a presentación oficial del Modelo 303.</p>
+            <form method="post" action="/facturacion/exportar-trimestre">
+                <label for="year">Año</label>
+                <input id="year" name="year" type="number" value="{{ year }}" required>
+
+                <label for="trimestre">Trimestre</label>
+                <select id="trimestre" name="trimestre">
+                    <option value="1" {% if trimestre == 1 %}selected{% endif %}>T1 · enero-marzo</option>
+                    <option value="2" {% if trimestre == 2 %}selected{% endif %}>T2 · abril-junio</option>
+                    <option value="3" {% if trimestre == 3 %}selected{% endif %}>T3 · julio-septiembre</option>
+                    <option value="4" {% if trimestre == 4 %}selected{% endif %}>T4 · octubre-diciembre</option>
+                </select>
+
+                <div class="actions">
+                    <button class="boton" type="submit">Generar ZIP</button>
+                    <a class="boton secundario" href="/facturacion/iva?year={{ year }}&trimestre={{ trimestre }}">Ver resumen IVA</a>
+                    <a class="boton secundario" href="/facturacion">Facturación</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Contenido</h2>
+            <p>resumen_iva.csv</p>
+            <p>facturas_emitidas.csv</p>
+            <p>gastos_deducibles.csv</p>
+            <p>gastos_adjuntos/ si hay archivos adjuntos deducibles</p>
+            <p>facturas_pdf/ si hay PDFs locales guardados</p>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

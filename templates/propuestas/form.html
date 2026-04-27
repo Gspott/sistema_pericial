@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>{{ titulo }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>{{ titulo }}</h1>
+            <p class="subtitle">Propuesta sencilla y robusta, lista para imprimirse desde el navegador.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+            {% if lead_relacionado or cliente_relacionado %}
+            <div class="inner-card">
+                {% if lead_relacionado %}
+                <p><strong>Lead enlazado:</strong> {{ lead_relacionado.nombre }}{% if lead_relacionado.telefono %} · {{ lead_relacionado.telefono }}{% endif %}{% if lead_relacionado.email %} · {{ lead_relacionado.email }}{% endif %}</p>
+                {% endif %}
+                {% if cliente_relacionado %}
+                <p><strong>Cliente enlazado:</strong> {{ cliente_relacionado.nombre }} {{ cliente_relacionado.apellidos or '' }}{% if cliente_relacionado.razon_social %} · {{ cliente_relacionado.razon_social }}{% endif %}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <form method="post" action="{{ form_action }}">
+                <label for="numero_propuesta">Número de propuesta</label>
+                <input id="numero_propuesta" name="numero_propuesta" type="text" value="{{ propuesta.numero_propuesta or '' }}" required>
+
+                <label for="fecha">Fecha</label>
+                <input id="fecha" name="fecha" type="date" value="{{ propuesta.fecha or '' }}" required>
+
+                <label for="lead_id">Lead</label>
+                <select id="lead_id" name="lead_id">
+                    <option value="">Sin lead</option>
+                    {% for lead in leads %}
+                    <option value="{{ lead.id }}" {% if propuesta.lead_id == lead.id or propuesta.lead_id == (lead.id | string) %}selected{% endif %}>{{ lead.nombre }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="cliente_id">Cliente</label>
+                <select id="cliente_id" name="cliente_id">
+                    <option value="">Sin cliente</option>
+                    {% for cliente in clientes %}
+                    <option value="{{ cliente.id }}" {% if propuesta.cliente_id == cliente.id or propuesta.cliente_id == (cliente.id | string) %}selected{% endif %}>{{ cliente.nombre }} {{ cliente.apellidos or '' }}{% if cliente.razon_social %} · {{ cliente.razon_social }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+
+                {% if propuesta.estado is defined %}
+                <label for="estado_visual">Estado actual</label>
+                <input id="estado_visual" type="text" value="{{ propuesta.estado }}" readonly>
+                {% endif %}
+
+                <label for="tipo_trabajo">Tipo de trabajo</label>
+                <input id="tipo_trabajo" name="tipo_trabajo" type="text" value="{{ propuesta.tipo_trabajo or '' }}">
+
+                <label for="direccion_inmueble">Dirección del inmueble</label>
+                <input id="direccion_inmueble" name="direccion_inmueble" type="text" value="{{ propuesta.direccion_inmueble or '' }}">
+
+                <label for="alcance">Alcance</label>
+                <textarea id="alcance" name="alcance">{{ propuesta.alcance or '' }}</textarea>
+
+                <label for="plazo_estimado">Plazo estimado</label>
+                <input id="plazo_estimado" name="plazo_estimado" type="text" value="{{ propuesta.plazo_estimado or '' }}">
+
+                <label for="condiciones">Condiciones</label>
+                <textarea id="condiciones" name="condiciones">{{ propuesta.condiciones or '' }}</textarea>
+
+                {% if form_action == '/propuestas/nueva' %}
+                <input type="hidden" name="estado" value="{{ propuesta.estado or 'borrador' }}">
+                {% endif %}
+
+                <div class="actions">
+                    <button class="boton" type="submit">{{ submit_label }}</button>
+                    <a class="boton secundario" href="/propuestas">Volver a propuestas</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

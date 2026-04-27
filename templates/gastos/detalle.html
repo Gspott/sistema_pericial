@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Gasto {{ gasto.proveedor }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>{{ gasto.proveedor }}</h1>
+            <p class="subtitle">{{ gasto.concepto }}</p>
+            <div class="actions">
+                <a class="boton secundario" href="/gastos">Volver a gastos</a>
+                <a class="boton" href="/gastos/{{ gasto.id }}/editar">Editar gasto</a>
+                <form method="post" action="/gastos/{{ gasto.id }}/eliminar" onsubmit="return confirm('¿Seguro que quieres eliminar este gasto?');">
+                    <button class="boton secundario" type="submit">Eliminar gasto</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Datos</h2>
+            <p><strong>Fecha:</strong> {{ gasto.fecha }}</p>
+            <p><strong>Proveedor:</strong> {{ gasto.proveedor }}</p>
+            <p><strong>NIF proveedor:</strong> {{ gasto.nif_proveedor or 'Sin indicar' }}</p>
+            <p><strong>Número factura:</strong> {{ gasto.numero_factura or 'Sin indicar' }}</p>
+            <p><strong>Concepto:</strong> {{ gasto.concepto }}</p>
+            <p><strong>Categoría:</strong> {{ gasto.categoria or 'Sin indicar' }}</p>
+            <p><strong>Deducible:</strong> {{ 'Sí' if gasto.deducible else 'No' }}</p>
+            <p><strong>Notas:</strong> {{ gasto.notas or 'Sin notas' }}</p>
+            {% if gasto.archivo_path %}
+            <p><strong>Archivo:</strong> <a href="/uploads/{{ gasto.archivo_path }}" target="_blank" rel="noopener">Ver adjunto</a></p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Importes</h2>
+            <p><strong>Base imponible:</strong> {{ format_money(gasto.base_imponible) }} €</p>
+            <p><strong>IVA %:</strong> {{ format_money(gasto.iva_porcentaje) }} %</p>
+            <p><strong>IVA soportado:</strong> {{ format_money(gasto.iva_importe) }} €</p>
+            <p><strong>Total:</strong> {{ format_money(gasto.total) }} €</p>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

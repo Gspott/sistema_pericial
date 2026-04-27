@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Gastos</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Gastos</h1>
+            <p class="subtitle">Facturas de proveedores y tickets deducibles.</p>
+            <form method="get" action="/gastos">
+                <label for="year">Año</label>
+                <input id="year" name="year" type="number" value="{{ year }}" placeholder="2026">
+
+                <label for="trimestre">Trimestre</label>
+                <select id="trimestre" name="trimestre">
+                    <option value="">Todos</option>
+                    <option value="1" {% if trimestre == 1 %}selected{% endif %}>T1</option>
+                    <option value="2" {% if trimestre == 2 %}selected{% endif %}>T2</option>
+                    <option value="3" {% if trimestre == 3 %}selected{% endif %}>T3</option>
+                    <option value="4" {% if trimestre == 4 %}selected{% endif %}>T4</option>
+                </select>
+
+                <label for="deducible">Deducible</label>
+                <select id="deducible" name="deducible">
+                    <option value="" {% if deducible == '' %}selected{% endif %}>Todos</option>
+                    <option value="1" {% if deducible == '1' %}selected{% endif %}>Sí</option>
+                    <option value="0" {% if deducible == '0' %}selected{% endif %}>No</option>
+                </select>
+
+                <button class="boton secundario" type="submit">Filtrar</button>
+            </form>
+            <div class="actions">
+                <a class="boton" href="/gastos/nuevo">Nuevo gasto</a>
+                <a class="boton secundario" href="/facturacion">Facturación</a>
+                <a class="boton secundario" href="/">Inicio</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Resumen filtrado</h2>
+            <p><strong>Base:</strong> {{ format_money(resumen.base) }} €</p>
+            <p><strong>IVA soportado:</strong> {{ format_money(resumen.iva) }} €</p>
+            <p><strong>Total:</strong> {{ format_money(resumen.total) }} €</p>
+        </div>
+
+        {% if gastos %}
+            {% for gasto in gastos %}
+            <div class="card card-clickable">
+                <a class="card-link-cover" href="/gastos/{{ gasto.id }}" aria-label="Abrir gasto"></a>
+                <div class="card-content">
+                    <h2>{{ gasto.proveedor }}</h2>
+                    <p><strong>Fecha:</strong> {{ gasto.fecha }}</p>
+                    <p><strong>Concepto:</strong> {{ gasto.concepto }}</p>
+                    <p><strong>Base:</strong> {{ format_money(gasto.base_imponible) }} €</p>
+                    <p><strong>IVA:</strong> {{ format_money(gasto.iva_importe) }} €</p>
+                    <p><strong>Total:</strong> {{ format_money(gasto.total) }} €</p>
+                    <p><strong>Deducible:</strong> {{ 'Sí' if gasto.deducible else 'No' }}</p>
+                </div>
+                <div class="card-actions">
+                    <a class="boton secundario" href="/gastos/{{ gasto.id }}/editar">Editar</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p class="empty">Todavía no hay gastos registrados.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

@@ -38,6 +38,8 @@ default_db_path = BASE_DIR / "data" / "pericial.db"
 default_upload_dir = BASE_DIR / "uploads"
 default_informes_dir = BASE_DIR / "informes"
 default_fotos_dir = BASE_DIR / "fotos"
+default_backups_dir = BASE_DIR / "backups"
+default_exports_dir = BASE_DIR / "exports"
 default_static_dir = BASE_DIR / "static"
 default_templates_dir = BASE_DIR / "templates"
 default_logs_dir = BASE_DIR / "logs"
@@ -52,6 +54,8 @@ DB_PATH = _resolve_project_path(os.getenv("DB_PATH"), default_db_path)
 UPLOAD_DIR = _resolve_project_path(os.getenv("UPLOAD_DIR"), default_upload_dir)
 INFORMES_DIR = _resolve_project_path(os.getenv("INFORMES_DIR"), default_informes_dir)
 FOTOS_DIR = _resolve_project_path(os.getenv("FOTOS_DIR"), default_fotos_dir)
+BACKUPS_DIR = _resolve_project_path(os.getenv("BACKUPS_DIR"), default_backups_dir)
+EXPORTS_DIR = _resolve_project_path(os.getenv("EXPORTS_DIR"), default_exports_dir)
 STATIC_DIR = _resolve_project_path(os.getenv("STATIC_DIR"), default_static_dir)
 TEMPLATES_DIR = _resolve_project_path(
     os.getenv("TEMPLATES_DIR"),
@@ -76,6 +80,8 @@ def ensure_directories() -> None:
     Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
     Path(INFORMES_DIR).mkdir(parents=True, exist_ok=True)
     Path(FOTOS_DIR).mkdir(parents=True, exist_ok=True)
+    Path(BACKUPS_DIR).mkdir(parents=True, exist_ok=True)
+    Path(EXPORTS_DIR).mkdir(parents=True, exist_ok=True)
     Path(LOGS_DIR).mkdir(parents=True, exist_ok=True)
     Path(STATIC_DIR).mkdir(parents=True, exist_ok=True)
     Path(TEMPLATES_DIR).mkdir(parents=True, exist_ok=True)

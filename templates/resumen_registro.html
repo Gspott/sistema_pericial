@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .summary-layout {
+            display: grid;
+            gap: 16px;
+        }
+
+        .summary-card {
+            padding: 14px;
+        }
+
+        .summary-card p {
+            margin: 0;
+        }
+
+        .summary-card p + p {
+            margin-top: 8px;
+        }
+
+        .summary-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .summary-item {
+            padding: 12px 14px;
+        }
+
+        .summary-item-title {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .summary-item-meta {
+            margin: 6px 0 0 0;
+            color: #475569;
+            font-size: 0.92rem;
+        }
+
+        .summary-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .summary-tag {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 4px 10px;
+            background: #f8fafc;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .summary-tag.pending {
+            border-color: #f59e0b;
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+        .summary-tag.edit-link {
+            margin-left: auto;
+            text-decoration: none;
+            color: #0f172a;
+            background: #ffffff;
+            white-space: nowrap;
+        }
+
+        .summary-tag.edit-link:hover,
+        .summary-tag.edit-link:focus-visible {
+            text-decoration: underline;
+        }
+
+        .summary-inline-list {
+            margin: 8px 0 0 0;
+            color: #0f172a;
+        }
+
+        .summary-level {
+            padding: 14px;
+            background: #f8fafc;
+        }
+
+        .summary-level-header {
+            margin-bottom: 12px;
+        }
+
+        .summary-level-header p {
+            margin: 0;
+        }
+
+        .summary-level-meta {
+            margin-top: 4px;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .summary-label {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .summary-unit-list,
+        .summary-stay-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .summary-stay-list {
+            margin-top: 10px;
+        }
+
+        .summary-unit {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fff;
+            padding: 12px;
+        }
+
+        .summary-unit-title {
+            font-weight: 800;
+        }
+
+        .summary-stay {
+            margin-left: 4px;
+            border-top: 1px solid #e2e8f0;
+            border-left: 3px solid #e2e8f0;
+            border-radius: 0 10px 10px 0;
+            background: #f9fafb;
+            padding: 10px 0 0 8px;
+        }
+
+        .summary-stay:first-child {
+            border-top: 0;
+            padding-top: 0;
+        }
+
+        .summary-stay-header,
+        .summary-pathology-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .summary-stay-title,
+        .summary-pathology-text {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .summary-stay-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .summary-pathology-list {
+            list-style: none;
+            margin: 10px 0 0 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .summary-pathology-row {
+            padding-top: 2px;
+        }
+
+        .summary-pathology-text {
+            font-size: 0.92rem;
+            font-weight: 400;
+            color: #334155;
+        }
+
+        .summary-empty {
+            color: #475569;
+        }
+    </style>
+
+    <title>Resumen de registro</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page"><h1>Resumen de registro</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al detalle del expediente</a>
+        </div>
+
+        <div class="summary-layout">
+            <section class="card summary-card">
+                <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+                <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+                <p><strong>Tipo de informe:</strong> {{ expediente.tipo_informe_label or '-' }}</p>
+            </section>
+
+            <section class="form-section">
+                <div class="form-section-body" style="padding-top: 16px;">
+                    <h2>Patologías exteriores</h2>
+
+                    {% if patologias_exteriores %}
+                    <div class="summary-list">
+                        {% for registro in patologias_exteriores %}
+                        <div class="card inner-card summary-item">
+                            <p class="summary-item-title">{{ registro.patologia }}</p>
+                            <p class="summary-item-meta">
+                                {{ registro.zona_exterior_label or registro.zona_exterior or 'Exterior' }}
+                                {% if registro.elemento_exterior_label or registro.elemento_exterior %}
+                                · {{ registro.elemento_exterior_label or registro.elemento_exterior }}
+                                {% endif %}
+                                {% if registro.localizacion_dano_exterior_label or registro.localizacion_dano_exterior %}
+                                · {{ registro.localizacion_dano_exterior_label or registro.localizacion_dano_exterior }}
+                                {% endif %}
+                                {% if registro.unidad_identificador %}
+                                · {{ registro.unidad_identificador }}
+                                {% endif %}
+                                {% if registro.nivel_nombre %}
+                                · {{ registro.nivel_nombre }}
+                                {% endif %}
+                            </p>
+                            {% if registro.observaciones %}
+                            <p class="summary-inline-list"><strong>Observaciones:</strong> {{ registro.observaciones }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="empty">No hay patologías exteriores registradas.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="form-section">
+                <div class="form-section-body" style="padding-top: 16px;">
+                    <h2>Estructura interior</h2>
+
+                    {% if hay_unidades_o_estancias %}
+                    <div class="summary-list">
+                        {% for grupo in grupos_unidades %}
+                        <div class="card inner-card summary-level">
+                            <div class="summary-level-header">
+                                <p><strong><span class="summary-label">Nivel</span> · {{ grupo.titulo }}</strong></p>
+                                {% if grupo.meta %}
+                                <p class="summary-level-meta">{{ grupo.meta }}</p>
+                                {% endif %}
+                            </div>
+
+                            {% if grupo.unidades %}
+                            <ul class="summary-unit-list">
+                                {% for unidad in grupo.unidades %}
+                                <li class="summary-unit">
+                                    <p class="summary-item-title summary-unit-title">
+                                        <span class="summary-label">Unidad</span> · {{ unidad.identificador or 'Unidad sin identificar' }}
+                                    </p>
+                                    <p class="summary-item-meta">
+                                        {% if unidad.nivel_nombre %}
+                                        Nivel: {{ unidad.nivel_nombre }}
+                                        {% else %}
+                                        Nivel sin asignar
+                                        {% endif %}
+                                        {% if unidad.tipo_unidad_label %}
+                                        · {{ unidad.tipo_unidad_label }}
+                                        {% endif %}
+                                        {% if unidad.uso %}
+                                        · Uso: {{ unidad.uso }}
+                                        {% endif %}
+                                    </p>
+
+                                    {% if unidad.estancias %}
+                                    <ul class="summary-stay-list">
+                                        {% for estancia in unidad.estancias %}
+                                        <li class="summary-stay">
+                                            <div class="summary-stay-header">
+                                                <p class="summary-item-title summary-stay-title">
+                                                    <span class="summary-label">Estancia</span> · {{ estancia.nombre }}
+                                                </p>
+                                                <a class="summary-tag edit-link" href="/editar-estancia/{{ estancia.id }}?next={{ ('/resumen-registro/' ~ expediente.id) | urlencode }}">Editar</a>
+                                            </div>
+                                            <div class="summary-tags">
+                                                {% if estancia.esta_pendiente %}
+                                                <span class="summary-tag pending">Pendiente</span>
+                                                {% endif %}
+                                                <span class="summary-tag">
+                                                    {% if estancia.total_patologias %}
+                                                    {{ estancia.total_patologias }} patología{% if estancia.total_patologias != 1 %}s{% endif %}
+                                                    {% else %}
+                                                    Sin patologías registradas
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                            {% if estancia.total_patologias %}
+                                            <ul class="summary-pathology-list">
+                                                {% for patologia in estancia.patologias %}
+                                                <li class="summary-pathology-row">
+                                                    <span class="summary-pathology-text">{{ patologia.patologia }}</span>
+                                                    <a class="summary-tag edit-link" href="/editar-registro/{{ patologia.id }}?next={{ ('/resumen-registro/' ~ expediente.id) | urlencode }}">Editar</a>
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                            {% else %}
+                                            <p class="summary-inline-list summary-empty">Sin patologías registradas</p>
+                                            {% endif %}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    <p class="summary-inline-list summary-empty">No hay estancias definidas en esta unidad.</p>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="empty">No hay unidades registradas en este nivel.</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="empty">No hay unidades interiores registradas.</p>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

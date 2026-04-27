@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Propuesta {{ propuesta.numero_propuesta }}</title>
+</head>
+<body>
+    {% if not print_mode %}
+    {% include "partials/_app_shell_start.html" %}
+    {% endif %}
+    <div class="page">
+        <div class="card">
+            <h1>{{ propuesta.numero_propuesta }}</h1>
+            <p class="subtitle">Detalle imprimible de la propuesta de encargo.</p>
+            {% if not print_mode %}
+            <div class="actions">
+                <a class="boton" href="/propuestas/{{ propuesta.id }}/editar">Editar propuesta</a>
+                <a class="boton secundario" href="/propuestas">Volver al listado</a>
+                {% if propuesta.expediente_id %}
+                <a class="boton" href="/detalle-expediente/{{ propuesta.expediente_id }}">Ver expediente</a>
+                {% elif propuesta.estado == 'aceptada' %}
+                <form method="post" action="/propuestas/{{ propuesta.id }}/crear-expediente">
+                    <button class="boton" type="submit">Crear expediente desde propuesta</button>
+                </form>
+                {% endif %}
+                {% if propuesta.estado == 'aceptada' %}
+                <a class="boton secundario" href="/facturacion/facturas/nueva?propuesta_id={{ propuesta.id }}">Crear factura</a>
+                {% endif %}
+                <form method="post" action="/propuestas/{{ propuesta.id }}/generar-pdf">
+                    <button class="boton secundario" type="submit">Imprimir / Guardar PDF</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Datos generales</h2>
+            <p><strong>Fecha:</strong> {{ propuesta.fecha }}</p>
+            {% set propuesta_estado_clase = 'estado-' ~ propuesta.estado if propuesta.estado in ['borrador', 'enviada', 'aceptada', 'rechazada'] else 'estado-pendiente' %}
+            <p><strong>Estado:</strong> <span class="estado-badge {{ propuesta_estado_clase }}">{{ propuesta.estado }}</span></p>
+            <p><strong>Tipo de trabajo:</strong> {{ propuesta.tipo_trabajo or 'Sin indicar' }}</p>
+            <p><strong>Dirección del inmueble:</strong> {{ propuesta.direccion_inmueble or 'Sin indicar' }}</p>
+            <p><strong>Plazo estimado:</strong> {{ propuesta.plazo_estimado or 'Sin indicar' }}</p>
+            {% if propuesta.lead_nombre %}<p><strong>Lead:</strong> {{ propuesta.lead_nombre }}{% if propuesta.lead_telefono %} · {{ propuesta.lead_telefono }}{% endif %}{% if propuesta.lead_email %} · {{ propuesta.lead_email }}{% endif %}</p>{% endif %}
+            {% if propuesta.cliente_nombre %}<p><strong>Cliente:</strong> {{ propuesta.cliente_nombre }} {{ propuesta.cliente_apellidos or '' }}{% if propuesta.cliente_razon_social %} · {{ propuesta.cliente_razon_social }}{% endif %}</p>{% endif %}
+            {% if propuesta.cliente_email or propuesta.cliente_telefono %}
+            <p><strong>Contacto cliente:</strong> {{ propuesta.cliente_telefono or '' }}{% if propuesta.cliente_telefono and propuesta.cliente_email %} · {% endif %}{{ propuesta.cliente_email or '' }}</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Alcance y condiciones</h2>
+            <p><strong>Alcance:</strong> {{ propuesta.alcance or 'Sin definir' }}</p>
+            <p><strong>Condiciones:</strong> {{ propuesta.condiciones or 'Sin definir' }}</p>
+            <p><strong>Fecha de envío:</strong> {{ propuesta.fecha_envio or 'No enviada' }}</p>
+            <p><strong>Fecha de aceptación:</strong> {{ propuesta.fecha_aceptacion or 'No aceptada' }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Líneas de propuesta</h2>
+            {% if lineas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concepto</th>
+                        <th>Cantidad</th>
+                        <th>Precio</th>
+                        <th>IVA</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for linea in lineas %}
+                    <tr>
+                        <td>
+                            <strong>{{ linea.concepto }}</strong>
+                            {% if linea.descripcion %}<br>{{ linea.descripcion }}{% endif %}
+                        </td>
+                        <td>{{ format_money(linea.cantidad) }}</td>
+                        <td>{{ format_money(linea.precio_unitario) }} €</td>
+                        <td>{{ format_money(linea.iva_porcentaje) }} %</td>
+                        <td>{{ format_money(linea.total) }} €</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty">Todavía no hay líneas en esta propuesta.</p>
+            {% endif %}
+
+            <div class="inner-card">
+                <p><strong>Base imponible:</strong> {{ format_money(propuesta.base_imponible) }} €</p>
+                <p><strong>IVA:</strong> {{ format_money(propuesta.iva) }} €</p>
+                <p><strong>Total:</strong> {{ format_money(propuesta.total) }} €</p>
+            </div>
+        </div>
+
+        {% if not print_mode %}
+        <div class="card">
+            <h2>Añadir línea</h2>
+            <form method="post" action="/propuestas/{{ propuesta.id }}/lineas">
+                <label for="concepto">Concepto</label>
+                <input id="concepto" name="concepto" type="text" required>
+
+                <label for="descripcion">Descripción</label>
+                <textarea id="descripcion" name="descripcion"></textarea>
+
+                <label for="cantidad">Cantidad</label>
+                <input id="cantidad" name="cantidad" type="number" step="0.01" min="0" value="1">
+
+                <label for="precio_unitario">Precio unitario</label>
+                <input id="precio_unitario" name="precio_unitario" type="number" step="0.01" value="0">
+
+                <label for="iva_porcentaje">IVA %</label>
+                <input id="iva_porcentaje" name="iva_porcentaje" type="number" step="0.01" value="21">
+
+                <button class="boton" type="submit">Guardar línea</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Cambiar estado</h2>
+            <form method="post" action="/propuestas/{{ propuesta.id }}/estado">
+                <label for="estado">Estado</label>
+                <select id="estado" name="estado">
+                    {% for estado in estados_propuesta %}
+                    <option value="{{ estado }}" {% if propuesta.estado == estado %}selected{% endif %}>{{ estado }}</option>
+                    {% endfor %}
+                </select>
+                <button class="boton" type="submit">Actualizar estado</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if not print_mode %}
+    {% include "partials/_app_shell_end.html" %}
+    {% endif %}
+</body>
+</html>

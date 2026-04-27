@@ -861,8 +861,18 @@ def unir_lista_natural(valores) -> str:
 
 
 def obtener_rol_final_patologia(registro) -> str:
+    rol_patologia_observado = (
+        registro["rol_patologia_observado"]
+        if "rol_patologia_observado" in registro.keys()
+        else ""
+    )
+    rol_patologia_biblioteca = (
+        registro["rol_patologia_biblioteca"]
+        if "rol_patologia_biblioteca" in registro.keys()
+        else ""
+    )
     return limpiar_texto(
-        registro["rol_patologia_observado"] or registro["rol_patologia_biblioteca"]
+        rol_patologia_observado or rol_patologia_biblioteca
     ).lower()
 
 
@@ -941,7 +951,11 @@ def detectar_incoherencias(registros) -> list[str]:
     mixtas_sin_definir = 0
 
     for registro in registros:
-        rol_observado = limpiar_texto(registro["rol_patologia_observado"]).lower()
+        rol_observado = limpiar_texto(
+            registro["rol_patologia_observado"]
+            if "rol_patologia_observado" in registro.keys()
+            else ""
+        ).lower()
         rol_final = obtener_rol_final_patologia(registro)
         if rol_final == "causa":
             causas += 1
@@ -2395,7 +2409,9 @@ def generar_informe_patologias(cur, expediente, visitas, doc: Document) -> None:
         patologias_exteriores.extend(
             cur.execute(
                 """
-                SELECT rpe.*, bp.rol_patologia AS rol_patologia_biblioteca
+                SELECT rpe.*,
+                       '' AS rol_patologia_observado,
+                       bp.rol_patologia AS rol_patologia_biblioteca
                 FROM registros_patologias_exteriores rpe
                 LEFT JOIN biblioteca_patologias bp
                        ON lower(trim(bp.nombre)) = lower(trim(rpe.patologia))

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Resumen IVA</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Resumen IVA</h1>
+            <p class="subtitle">Ayuda interna para preparar el IVA trimestral. No es una presentación oficial del Modelo 303.</p>
+            <form method="get" action="/facturacion/iva">
+                <label for="year">Año</label>
+                <input id="year" name="year" type="number" value="{{ year }}" required>
+
+                <label for="trimestre">Trimestre</label>
+                <select id="trimestre" name="trimestre">
+                    <option value="1" {% if trimestre == 1 %}selected{% endif %}>T1 · enero-marzo</option>
+                    <option value="2" {% if trimestre == 2 %}selected{% endif %}>T2 · abril-junio</option>
+                    <option value="3" {% if trimestre == 3 %}selected{% endif %}>T3 · julio-septiembre</option>
+                    <option value="4" {% if trimestre == 4 %}selected{% endif %}>T4 · octubre-diciembre</option>
+                </select>
+
+                <button class="boton secundario" type="submit">Calcular</button>
+            </form>
+            <div class="actions">
+                <a class="boton secundario" href="/facturacion">Facturación</a>
+                <a class="boton secundario" href="/facturacion/exportar-trimestre?year={{ year }}&trimestre={{ trimestre }}">Exportar trimestre</a>
+                <a class="boton secundario" href="/facturacion/facturas">Facturas</a>
+                <a class="boton secundario" href="/gastos">Gastos</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Periodo</h2>
+            <p><strong>Desde:</strong> {{ resumen.fecha_inicio }}</p>
+            <p><strong>Hasta:</strong> {{ resumen.fecha_fin }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Cálculo estimado</h2>
+            <p><strong>Bases facturas emitidas:</strong> {{ format_money(resumen.bases_facturas) }} €</p>
+            <p><strong>IVA repercutido:</strong> {{ format_money(resumen.iva_repercutido) }} €</p>
+            <p><strong>Total facturado:</strong> {{ format_money(resumen.total_facturado) }} €</p>
+            <p><strong>Bases gastos deducibles:</strong> {{ format_money(resumen.bases_gastos) }} €</p>
+            <p><strong>IVA soportado deducible:</strong> {{ format_money(resumen.iva_soportado) }} €</p>
+            <p><strong>Total gastos deducibles:</strong> {{ format_money(resumen.total_gastos) }} €</p>
+            <div class="inner-card">
+                <p><strong>Resultado estimado:</strong> {{ format_money(resumen.resultado_estimado) }} €</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Facturas incluidas</h2>
+            {% if resumen.facturas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Número</th>
+                        <th>Cliente</th>
+                        <th>Base</th>
+                        <th>IVA</th>
+                        <th>IRPF</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for factura in resumen.facturas %}
+                    <tr>
+                        <td>{{ factura.fecha }}</td>
+                        <td><a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or '-' }}</a></td>
+                        <td>{{ nombre_cliente(factura) }}</td>
+                        <td>{{ format_money(factura.base_imponible) }} €</td>
+                        <td>{{ format_money(factura.iva) }} €</td>
+                        <td>{{ format_money(factura.irpf) }} €</td>
+                        <td>{{ format_money(factura.total) }} €</td>
+                        <td>{{ factura.estado }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty">No hay facturas emitidas o cobradas en este periodo.</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Gastos incluidos</h2>
+            {% if resumen.gastos %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Proveedor</th>
+                        <th>Número</th>
+                        <th>Concepto</th>
+                        <th>Base</th>
+                        <th>IVA</th>
+                        <th>Total</th>
+                        <th>Deducible</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for gasto in resumen.gastos %}
+                    <tr>
+                        <td>{{ gasto.fecha }}</td>
+                        <td><a href="/gastos/{{ gasto.id }}">{{ gasto.proveedor }}</a></td>
+                        <td>{{ gasto.numero_factura or '-' }}</td>
+                        <td>{{ gasto.concepto }}</td>
+                        <td>{{ format_money(gasto.base_imponible) }} €</td>
+                        <td>{{ format_money(gasto.iva_importe) }} €</td>
+                        <td>{{ format_money(gasto.total) }} €</td>
+                        <td>{{ 'Sí' if gasto.deducible else 'No' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty">No hay gastos deducibles en este periodo.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

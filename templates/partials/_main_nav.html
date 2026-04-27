@@ -1,0 +1,13 @@
+{% set path = request.url.path %}
+<nav class="card main-nav" aria-label="Navegación principal">
+    <div class="actions main-nav-actions">
+        <a class="boton secundario {% if path.startswith('/dashboard') %}active{% endif %}" href="/dashboard">Dashboard</a>
+        <a class="boton secundario {% if path.startswith('/leads') %}active{% endif %}" href="/leads">Leads</a>
+        <a class="boton secundario {% if path.startswith('/propuestas') %}active{% endif %}" href="/propuestas">Propuestas</a>
+        <a class="boton secundario {% if path.startswith('/clientes') %}active{% endif %}" href="/clientes">Clientes</a>
+        <a class="boton secundario {% if path.startswith('/expedientes') or path.startswith('/detalle-expediente') or path.startswith('/nuevo-expediente') or path.startswith('/editar-expediente') %}active{% endif %}" href="/expedientes">Expedientes</a>
+        <a class="boton secundario {% if path.startswith('/facturacion') %}active{% endif %}" href="/facturacion">Facturación</a>
+        <a class="boton secundario {% if path.startswith('/gastos') %}active{% endif %}" href="/gastos">Gastos</a>
+        <a class="boton secundario {% if path.startswith('/backups') %}active{% endif %}" href="/backups">Backups</a>
+    </div>
+</nav>

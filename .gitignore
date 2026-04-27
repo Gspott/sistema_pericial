@@ -1,6 +1,8 @@
 # Entornos
 .venv/
 venv/
+
+# Config sensible
 .env
 .env.*
 !.env.example
@@ -29,11 +31,13 @@ logs/
 *.sqlite3
 
 # Datos generados por la app
-data/
+data/*.db
 uploads/
 informes/
 fotos/
-
-# Opcional: backups locales
+exports/
 backups/
+
+# Temporales
 *.bak
+*.tmp

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Factura {{ factura.numero_factura or factura.id }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>{{ factura.numero_factura or 'Borrador sin número' }}</h1>
+            {% set factura_estado_clase = 'estado-' ~ factura.estado if factura.estado in ['borrador', 'emitida', 'cobrada', 'anulada'] else 'estado-pendiente' %}
+            <p class="subtitle">Estado: <span class="estado-badge {{ factura_estado_clase }}">{{ factura.estado }}</span></p>
+            <p><strong>Tipo:</strong> {{ 'Rectificativa' if factura.tipo_factura == 'rectificativa' else 'Ordinaria' }}</p>
+            {% if factura.estado == 'anulada' %}<p class="error">Factura anulada internamente.</p>{% endif %}
+            {% if factura.estado != 'borrador' %}<p class="error">Factura emitida: bloqueada para edición fiscal.</p>{% endif %}
+            {% if not configuracion_fiscal_completa %}
+            <p class="error">Completa tu configuración fiscal antes de emitir o imprimir facturas</p>
+            {% endif %}
+            <div class="actions">
+                <a class="boton secundario" href="/facturacion/facturas">Volver al listado</a>
+                {% if factura.estado == 'borrador' %}
+                <a class="boton" href="/facturacion/facturas/{{ factura.id }}/editar">Editar factura</a>
+                {% endif %}
+                <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}/imprimir">Imprimir / Guardar PDF</a>
+                <a class="boton secundario" href="/facturacion/configuracion">Configuración fiscal</a>
+                {% if factura.estado == 'borrador' %}
+                <form method="post" action="/facturacion/facturas/{{ factura.id }}/emitir">
+                    <button class="boton" type="submit">Emitir factura</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Datos</h2>
+            <p><strong>Fecha:</strong> {{ factura.fecha }}</p>
+            <p><strong>Cliente:</strong> {{ nombre_cliente(factura) }}</p>
+            {% if factura.numero_propuesta %}<p><strong>Propuesta:</strong> {{ factura.numero_propuesta }}</p>{% endif %}
+            {% if factura.numero_expediente %}<p><strong>Expediente:</strong> {{ factura.numero_expediente }}</p>{% endif %}
+            {% if factura_rectificada %}
+            <p><strong>Rectifica a:</strong> <a href="/facturacion/facturas/{{ factura_rectificada.id }}">{{ factura_rectificada.numero_factura or ('Factura #' ~ factura_rectificada.id) }}</a></p>
+            {% endif %}
+            <p><strong>Concepto:</strong> {{ factura.concepto_general or 'Sin indicar' }}</p>
+            {% if factura.motivo_rectificacion %}<p><strong>Motivo rectificación:</strong> {{ factura.motivo_rectificacion }}</p>{% endif %}
+            <p><strong>Notas:</strong> {{ factura.notas or 'Sin notas' }}</p>
+        </div>
+
+        {% if factura.estado in ['emitida', 'cobrada', 'anulada'] and factura.hash_factura %}
+        <div class="card">
+            <h2>Datos técnicos de facturación</h2>
+            <p><strong>Hash factura:</strong> {{ factura.hash_factura[:16] }}...</p>
+            {% if factura.hash_anterior %}
+            <p><strong>Hash anterior:</strong> {{ factura.hash_anterior[:16] }}...</p>
+            {% endif %}
+            <p><strong>Estado VeriFactu interno:</strong> {{ factura.verifactu_estado or 'generado' }}</p>
+            <p><strong>Fecha generación:</strong> {{ factura.verifactu_fecha_generacion or 'Sin indicar' }}</p>
+            <p class="helper-text">Registro técnico interno preparado para futura compatibilidad VeriFactu. No enviado a AEAT.</p>
+        </div>
+        {% elif factura.estado in ['emitida', 'cobrada', 'anulada'] %}
+        <div class="card">
+            <h2>Datos técnicos de facturación</h2>
+            <p class="helper-text">Esta factura no tiene todavía registro técnico interno.</p>
+            <form method="post" action="/facturacion/facturas/{{ factura.id }}/generar-registro-tecnico">
+                <button class="boton secundario" type="submit">Generar registro técnico</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if rectificativas %}
+        <div class="card">
+            <h2>Rectificativas asociadas</h2>
+            {% for rectificativa in rectificativas %}
+            <div class="inner-card">
+                <p><strong>Factura:</strong> <a href="/facturacion/facturas/{{ rectificativa.id }}">{{ rectificativa.numero_factura or ('Borrador #' ~ rectificativa.id) }}</a></p>
+                {% set rectificativa_estado_clase = 'estado-' ~ rectificativa.estado if rectificativa.estado in ['borrador', 'emitida', 'cobrada', 'anulada'] else 'estado-pendiente' %}
+                <p><strong>Estado:</strong> <span class="estado-badge {{ rectificativa_estado_clase }}">{{ rectificativa.estado }}</span></p>
+                <p><strong>Total:</strong> {{ format_money(rectificativa.total) }} €</p>
+                <p><strong>Motivo:</strong> {{ rectificativa.motivo_rectificacion or '-' }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <h2>Líneas</h2>
+            {% if lineas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concepto</th>
+                        <th>Base</th>
+                        <th>IVA</th>
+                        <th>Retención IRPF</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for linea in lineas %}
+                    <tr>
+                        <td><strong>{{ linea.concepto }}</strong>{% if linea.descripcion %}<br>{{ linea.descripcion }}{% endif %}</td>
+                        <td>{{ format_money(linea.subtotal) }} €</td>
+                        <td>{{ format_money(linea.iva_importe) }} €</td>
+                        <td>{{ format_money(linea.irpf_importe) }} €</td>
+                        <td>{{ format_money(linea.total) }} €</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty">Todavía no hay líneas en esta factura.</p>
+            {% endif %}
+
+            <div class="inner-card">
+                <p><strong>Base imponible:</strong> {{ format_money(factura.base_imponible) }} €</p>
+                <p><strong>IVA:</strong> {{ format_money(factura.iva) }} €</p>
+                <p><strong>Retención IRPF:</strong> {{ format_money(factura.irpf) }} €</p>
+                <p><strong>Total:</strong> {{ format_money(factura.total) }} €</p>
+            </div>
+        </div>
+
+        {% if factura.estado == 'borrador' %}
+        <div class="card">
+            <h2>Añadir línea</h2>
+            <form method="post" action="/facturacion/facturas/{{ factura.id }}/lineas">
+                <label for="concepto">Concepto</label>
+                <input id="concepto" name="concepto" type="text" required>
+
+                <label for="descripcion">Descripción</label>
+                <textarea id="descripcion" name="descripcion"></textarea>
+
+                <label for="cantidad">Cantidad</label>
+                <input id="cantidad" name="cantidad" type="number" step="0.01" value="1">
+
+                <label for="precio_unitario">Precio unitario</label>
+                <input id="precio_unitario" name="precio_unitario" type="number" step="0.01" value="0">
+
+                <label for="iva_porcentaje">IVA %</label>
+                <input id="iva_porcentaje" name="iva_porcentaje" type="number" step="0.01" value="{{ iva_defecto }}">
+
+                <label for="irpf_porcentaje">IRPF %</label>
+                <input id="irpf_porcentaje" name="irpf_porcentaje" type="number" step="0.01" value="{{ irpf_defecto }}">
+                <p class="helper-text">El IRPF se aplica normalmente a facturas de profesionales autónomos dirigidas a empresas, autónomos o entidades españolas. No suele aplicarse a particulares ni clientes extranjeros.</p>
+
+                <button class="boton" type="submit">Guardar línea</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if factura.estado != 'borrador' %}
+        <div class="card">
+            <h2>Notas internas</h2>
+            <form method="post" action="/facturacion/facturas/{{ factura.id }}/notas">
+                <label for="notas_factura">Notas</label>
+                <textarea id="notas_factura" name="notas">{{ factura.notas or '' }}</textarea>
+                <button class="boton secundario" type="submit">Guardar notas</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if factura.estado in ['emitida', 'cobrada'] %}
+        <div class="card">
+            <h2>Anulación interna</h2>
+            <form method="post" action="/facturacion/facturas/{{ factura.id }}/anular" onsubmit="return confirm('¿Seguro que quieres marcar esta factura como anulada?');">
+                <label for="motivo_anulacion">Motivo</label>
+                <textarea id="motivo_anulacion" name="motivo" required></textarea>
+                <button class="boton secundario" type="submit">Marcar como anulada</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if factura.estado in ['emitida', 'cobrada', 'anulada'] %}
+        <div class="card">
+            <h2>Rectificativa</h2>
+            <form method="post" action="/facturacion/facturas/{{ factura.id }}/crear-rectificativa">
+                <label for="motivo_rectificacion">Motivo</label>
+                <textarea id="motivo_rectificacion" name="motivo_rectificacion" required></textarea>
+                <button class="boton secundario" type="submit">Crear rectificativa</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <h2>Cobros registrados</h2>
+            {% if cobros %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Importe</th>
+                        <th>Método</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cobro in cobros %}
+                    <tr>
+                        <td>{{ cobro.fecha }}</td>
+                        <td>{{ format_money(cobro.importe) }} €</td>
+                        <td>{{ cobro.metodo or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty">Todavía no hay cobros registrados.</p>
+            {% endif %}
+            <p><strong>Total cobrado:</strong> {{ format_money(total_cobrado) }} €</p>
+
+            {% if factura.estado in ['emitida', 'cobrada'] %}
+            <form method="post" action="/facturacion/facturas/{{ factura.id }}/cobros">
+                <label for="fecha_cobro">Fecha</label>
+                <input id="fecha_cobro" name="fecha" type="date" required>
+
+                <label for="importe">Importe</label>
+                <input id="importe" name="importe" type="number" step="0.01" required>
+
+                <label for="metodo">Método</label>
+                <input id="metodo" name="metodo" type="text">
+
+                <label for="notas_cobro">Notas</label>
+                <textarea id="notas_cobro" name="notas"></textarea>
+
+                <button class="boton" type="submit">Registrar cobro</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Historial</h2>
+            {% if eventos %}
+                {% for evento in eventos %}
+                <div class="inner-card">
+                    <p><strong>{{ evento.tipo }}</strong> · {{ evento.created_at }}</p>
+                    {% if evento.descripcion %}<p>{{ evento.descripcion }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="empty">Todavía no hay eventos registrados.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

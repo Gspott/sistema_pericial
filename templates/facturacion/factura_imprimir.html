@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Imprimir factura {{ factura.numero_factura or factura.id }}</title>
+</head>
+<body>
+    <div class="page">
+        <div class="card">
+            <h1>Factura {{ factura.numero_factura or 'Borrador' }}</h1>
+            <p><strong>Fecha:</strong> {{ factura.fecha }}</p>
+            <p><strong>Estado:</strong> {{ factura.estado }}</p>
+            <div class="actions">
+                <button class="boton" type="button" onclick="window.print()">Guardar PDF</button>
+                <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}">Volver</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Emisor</h2>
+            <p><strong>Nombre fiscal:</strong> {{ config.nombre_fiscal or 'Sin indicar' }}</p>
+            <p><strong>NIF / CIF:</strong> {{ config.nif_cif or 'Sin indicar' }}</p>
+            <p><strong>Dirección:</strong> {{ config.direccion or 'Sin indicar' }}</p>
+            <p><strong>Código postal:</strong> {{ config.codigo_postal or 'Sin indicar' }}</p>
+            <p><strong>Ciudad:</strong> {{ config.ciudad or 'Sin indicar' }}</p>
+            <p><strong>Provincia:</strong> {{ config.provincia or 'Sin indicar' }}</p>
+            <p><strong>Email:</strong> {{ config.email or 'Sin indicar' }}</p>
+            <p><strong>Teléfono:</strong> {{ config.telefono or 'Sin indicar' }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Cliente</h2>
+            <p><strong>Cliente:</strong> {{ nombre_cliente(factura) }}</p>
+            <p><strong>NIF / CIF:</strong> {{ factura.cliente_nif_cif or 'Sin indicar' }}</p>
+            <p><strong>Dirección:</strong> {{ factura.cliente_direccion or 'Sin indicar' }}</p>
+            <p><strong>Email:</strong> {{ factura.cliente_email or 'Sin indicar' }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Conceptos</h2>
+            {% if lineas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concepto</th>
+                        <th>Base</th>
+                        <th>IVA</th>
+                        {% if factura.irpf and factura.irpf > 0 %}<th>Retención IRPF</th>{% endif %}
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for linea in lineas %}
+                    <tr>
+                        <td><strong>{{ linea.concepto }}</strong>{% if linea.descripcion %}<br>{{ linea.descripcion }}{% endif %}</td>
+                        <td>{{ format_money(linea.subtotal) }} €</td>
+                        <td>{{ format_money(linea.iva_importe) }} €</td>
+                        {% if factura.irpf and factura.irpf > 0 %}<td>{{ format_money(linea.irpf_importe) }} €</td>{% endif %}
+                        <td>{{ format_money(linea.total) }} €</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+            <div class="inner-card">
+                <p><strong>Base imponible:</strong> {{ format_money(factura.base_imponible) }} €</p>
+                <p><strong>IVA:</strong> {{ format_money(factura.iva) }} €</p>
+                {% if factura.irpf and factura.irpf > 0 %}<p><strong>Retención IRPF:</strong> {{ format_money(factura.irpf) }} €</p>{% endif %}
+                <p><strong>Total:</strong> {{ format_money(factura.total) }} €</p>
+                <p><strong>Cobrado:</strong> {{ format_money(total_cobrado) }} €</p>
+            </div>
+        </div>
+
+        {% if factura.hash_factura %}
+        <div class="card">
+            <h2>Datos técnicos de facturación</h2>
+            <p><strong>Hash factura:</strong> {{ factura.hash_factura[:16] }}...</p>
+            {% if factura.hash_anterior %}
+            <p><strong>Hash anterior:</strong> {{ factura.hash_anterior[:16] }}...</p>
+            {% endif %}
+            <p><strong>Estado VeriFactu interno:</strong> {{ factura.verifactu_estado or 'generado' }}</p>
+            <p><strong>QR interno:</strong> <small>{{ factura.qr_payload or '' }}</small></p>
+            <p class="helper-text">Registro técnico interno preparado para futura compatibilidad VeriFactu. No enviado a AEAT.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

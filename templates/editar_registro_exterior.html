@@ -11,20 +11,15 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=7">
-    <script src="/static/pwa.js?v=4" defer></script>
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <script src="/static/pwa.js?v=5" defer></script>
 
     <title>Editar registro exterior</title>
 </head>
 
 <body>
-    <div class="page with-top-nav">
-        <div class="topbar">
-            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
-            <a class="boton secundario" href="/logout">Cerrar sesión</a>
-        </div>
-
-        <h1>Editar patología exterior</h1>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page"><h1>Editar patología exterior</h1>
 
         <div class="actions">
             <a class="boton secundario" href="/registrar-patologias/{{ registro.visita_id }}">Volver a patologías</a>
@@ -110,45 +105,7 @@
             {% endif %}
         </div>
     </div>
-
-    <nav class="top-nav" aria-label="Navegación principal">
-        <a class="top-nav-item" href="/">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 10.5 12 3l9 7.5"></path>
-                <path d="M5 9.5V21h14V9.5"></path>
-            </svg>
-            <span class="top-nav-label">Inicio</span>
-        </a>
-        <a class="top-nav-item active" href="/expedientes">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path>
-            </svg>
-            <span class="top-nav-label">Expedientes</span>
-        </a>
-        <a class="top-nav-item center" href="/nuevo-expediente" aria-label="Nuevo expediente">
-            <span class="top-nav-plus">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5v14"></path>
-                    <path d="M5 12h14"></path>
-                </svg>
-            </span>
-            <span class="top-nav-label">Nuevo</span>
-        </a>
-        <a class="top-nav-item" href="/biblioteca-patologias">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5.5 4.5h10A2.5 2.5 0 0 1 18 7v12H7a2 2 0 0 0-2 2"></path>
-                <path d="M5.5 4.5A2.5 2.5 0 0 0 3 7v12.5A1.5 1.5 0 0 0 4.5 21H18"></path>
-            </svg>
-            <span class="top-nav-label">Biblioteca</span>
-        </a>
-        <a class="top-nav-item" href="/logout">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M15.5 19a7.5 7.5 0 1 0-7 0"></path>
-                <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
-            </svg>
-            <span class="top-nav-label">Perfil</span>
-        </a>
-    </nav>
+    {% include "partials/_app_shell_end.html" %}
 </body>
 
 </html>

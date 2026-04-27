@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Configuración fiscal</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page"><div class="card">
+            <h1>Configuración fiscal</h1>
+            <p class="subtitle">Datos del emisor para facturas imprimibles.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+            <form method="post" action="/facturacion/configuracion">
+                <label for="nombre_fiscal">Nombre fiscal</label>
+                <input id="nombre_fiscal" name="nombre_fiscal" type="text" value="{{ config.nombre_fiscal or '' }}">
+
+                <label for="nif_cif">NIF / CIF</label>
+                <input id="nif_cif" name="nif_cif" type="text" value="{{ config.nif_cif or '' }}">
+
+                <label for="direccion">Dirección</label>
+                <input id="direccion" name="direccion" type="text" value="{{ config.direccion or '' }}">
+
+                <label for="codigo_postal">Código postal</label>
+                <input id="codigo_postal" name="codigo_postal" type="text" value="{{ config.codigo_postal or '' }}">
+
+                <label for="ciudad">Ciudad</label>
+                <input id="ciudad" name="ciudad" type="text" value="{{ config.ciudad or '' }}">
+
+                <label for="provincia">Provincia</label>
+                <input id="provincia" name="provincia" type="text" value="{{ config.provincia or '' }}">
+
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" value="{{ config.email or '' }}">
+
+                <label for="telefono">Teléfono</label>
+                <input id="telefono" name="telefono" type="text" value="{{ config.telefono or '' }}">
+
+                <label for="iva_defecto">IVA por defecto %</label>
+                <input id="iva_defecto" name="iva_defecto" type="number" step="0.01" value="{{ config.iva_defecto }}">
+
+                <label for="serie_factura">Serie de factura</label>
+                <input id="serie_factura" name="serie_factura" type="text" value="{{ config.serie_factura or 'F' }}">
+
+                <label for="tipo_emisor">Tipo de emisor</label>
+                <select id="tipo_emisor" name="tipo_emisor">
+                    <option value="autonomo" {% if config.tipo_emisor == 'autonomo' %}selected{% endif %}>Autónomo / profesional</option>
+                    <option value="sociedad" {% if config.tipo_emisor == 'sociedad' %}selected{% endif %}>Sociedad / SL</option>
+                </select>
+
+                <label>
+                    <input name="es_nuevo_autonomo" type="checkbox" value="1" {% if config.es_nuevo_autonomo %}checked{% endif %}>
+                    Nuevo autónomo
+                </label>
+
+                <label>
+                    <input name="aplicar_irpf_por_defecto" type="checkbox" value="1" {% if config.aplicar_irpf_por_defecto %}checked{% endif %}>
+                    Sugerir IRPF automáticamente
+                </label>
+
+                <div class="actions">
+                    <button class="boton" type="submit">Guardar configuración</button>
+                    <a class="boton secundario" href="/facturacion">Volver a facturación</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

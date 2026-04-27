@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Dashboard</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Dashboard</h1>
+            <p class="subtitle">Vista rápida para operar el día.</p>
+            <div class="actions">
+                <form method="post" action="/backups/crear">
+                    <button class="boton secundario" type="submit">Crear backup</button>
+                </form>
+                <a class="boton secundario" href="/facturacion/exportar-trimestre">Exportar trimestre</a>
+            </div>
+        </div>
+
+        {% include "partials/_quick_actions.html" %}
+
+        <div class="card">
+            <h2>Leads</h2>
+            <p><strong>Nuevos:</strong> {{ leads.nuevos }}</p>
+            <p><strong>Contactados:</strong> {{ leads.contactados }}</p>
+            <p><strong>Pendientes respuesta:</strong> {{ leads.pendientes_respuesta }}</p>
+            {% if leads.tareas_hoy %}
+            <h3>Tareas vencidas o de hoy</h3>
+            {% for tarea in leads.tareas_hoy %}
+            <div class="inner-card">
+                <p><strong>{{ tarea.titulo }}</strong></p>
+                <p>{{ tarea.lead_nombre or 'Lead' }} · {{ tarea.fecha_programada or 'Sin fecha' }}</p>
+            </div>
+            {% endfor %}
+            {% endif %}
+            <div class="actions"><a class="boton secundario" href="/leads">Ver leads</a></div>
+        </div>
+
+        <div class="card">
+            <h2>Propuestas</h2>
+            <p><strong>Enviadas:</strong> {{ propuestas.enviadas }}</p>
+            <p><strong>Aceptadas sin expediente:</strong> {{ propuestas.aceptadas_sin_expediente }}</p>
+            {% if propuestas.borradores %}
+            <h3>Borradores recientes</h3>
+            {% for propuesta in propuestas.borradores %}
+            <p><a href="/propuestas/{{ propuesta.id }}">{{ propuesta.numero_propuesta }}</a> · {{ propuesta.fecha }}</p>
+            {% endfor %}
+            {% endif %}
+            <div class="actions"><a class="boton secundario" href="/propuestas">Ver propuestas</a></div>
+        </div>
+
+        <div class="card">
+            <h2>Expedientes</h2>
+            {% if expedientes.ultimos %}
+            <h3>Últimos</h3>
+            {% for expediente in expedientes.ultimos %}
+            <p><a href="/detalle-expediente/{{ expediente.id }}">{{ expediente.numero_expediente }}</a> · {{ expediente.cliente }}</p>
+            {% endfor %}
+            {% endif %}
+            {% if expedientes.sin_factura %}
+            <h3>Sin factura</h3>
+            {% for expediente in expedientes.sin_factura %}
+            <p><a href="/detalle-expediente/{{ expediente.id }}">{{ expediente.numero_expediente }}</a> · {{ expediente.cliente }}</p>
+            {% endfor %}
+            {% endif %}
+            {% if expedientes.desde_propuestas %}
+            <h3>Desde propuestas</h3>
+            {% for expediente in expedientes.desde_propuestas %}
+            <p><a href="/detalle-expediente/{{ expediente.id }}">{{ expediente.numero_expediente }}</a> · {{ expediente.numero_propuesta }}</p>
+            {% endfor %}
+            {% endif %}
+            <div class="actions"><a class="boton secundario" href="/expedientes">Ver expedientes</a></div>
+        </div>
+
+        <div class="card">
+            <h2>Facturación</h2>
+            <p><strong>Pendiente de cobro:</strong> {{ format_money(total_pendiente) }} €</p>
+            {% if facturas_borrador %}
+            <h3>Borradores</h3>
+            {% for factura in facturas_borrador %}
+            <p><a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or ('Borrador #' ~ factura.id) }}</a> · {{ nombre_cliente(factura) }}</p>
+            {% endfor %}
+            {% endif %}
+            {% if facturas_pendientes %}
+            <h3>Emitidas pendientes</h3>
+            {% for factura in facturas_pendientes %}
+            <p><a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or factura.id }}</a> · {{ format_money(factura.total) }} €</p>
+            {% endfor %}
+            {% endif %}
+            <div class="actions"><a class="boton secundario" href="/facturacion">Ver facturación</a></div>
+        </div>
+
+        <div class="card">
+            <h2>IVA T{{ trimestre_actual }} {{ year_actual }}</h2>
+            <p><strong>IVA repercutido:</strong> {{ format_money(resumen_iva.iva_repercutido) }} €</p>
+            <p><strong>IVA soportado:</strong> {{ format_money(resumen_iva.iva_soportado) }} €</p>
+            <p><strong>Resultado estimado:</strong> {{ format_money(resumen_iva.resultado_estimado) }} €</p>
+            <div class="actions">
+                <a class="boton secundario" href="/facturacion/iva?year={{ year_actual }}&trimestre={{ trimestre_actual }}">Resumen IVA</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Gastos</h2>
+            <p><strong>Total deducible trimestre:</strong> {{ format_money(resumen_iva.total_gastos) }} €</p>
+            {% if gastos_ultimos %}
+            <h3>Últimos gastos</h3>
+            {% for gasto in gastos_ultimos %}
+            <p><a href="/gastos/{{ gasto.id }}">{{ gasto.proveedor }}</a> · {{ gasto.concepto }} · {{ format_money(gasto.total) }} €</p>
+            {% endfor %}
+            {% endif %}
+            <div class="actions"><a class="boton secundario" href="/gastos">Ver gastos</a></div>
+        </div>
+
+        <div class="card">
+            <h2>Backups</h2>
+            {% if backups %}
+            {% for backup in backups %}
+            <p>{{ backup.nombre }} · {{ backup.fecha.strftime('%Y-%m-%d %H:%M') }}</p>
+            {% endfor %}
+            {% else %}
+            <p class="empty">Todavía no hay backups.</p>
+            {% endif %}
+            <div class="actions"><a class="boton secundario" href="/backups">Ver backups</a></div>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

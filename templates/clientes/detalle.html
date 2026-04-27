@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Cliente {{ cliente.nombre }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>{{ cliente.nombre }}{% if cliente.apellidos %} {{ cliente.apellidos }}{% endif %}</h1>
+            <p class="subtitle">Ficha de cliente preparada para enlazarla más adelante con expedientes y facturación.</p>
+            <div class="actions">
+                <a class="boton" href="/clientes/{{ cliente.id }}/editar">Editar cliente</a>
+                <a class="boton secundario" href="/propuestas/nueva?cliente_id={{ cliente.id }}">Crear propuesta</a>
+                <a class="boton secundario" href="/clientes">Volver al listado</a>
+                <a class="boton secundario" href="/leads">Leads</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Datos de contacto</h2>
+            <p><strong>Email:</strong> {{ cliente.email or 'Sin indicar' }}</p>
+            <p><strong>Teléfono:</strong> {{ cliente.telefono or 'Sin indicar' }}</p>
+            <p><strong>Dirección:</strong> {{ cliente.direccion or 'Sin indicar' }}</p>
+            <p><strong>Código postal:</strong> {{ cliente.codigo_postal or 'Sin indicar' }}</p>
+            <p><strong>Ciudad:</strong> {{ cliente.ciudad or 'Sin indicar' }}</p>
+            <p><strong>Provincia:</strong> {{ cliente.provincia or 'Sin indicar' }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Datos comerciales</h2>
+            <p><strong>Razón social:</strong> {{ cliente.razon_social or 'Sin indicar' }}</p>
+            <p><strong>NIF / CIF:</strong> {{ cliente.nif_cif or 'Sin indicar' }}</p>
+            <p><strong>Tipo de cliente:</strong> {{ cliente.tipo_cliente or 'Sin indicar' }}</p>
+            <p><strong>Origen:</strong> {{ cliente.origen or 'Sin indicar' }}</p>
+            <p><strong>Notas:</strong> {{ cliente.notas or 'Sin notas' }}</p>
+        </div>
+
+        <div class="card">
+            <h2>Facturas</h2>
+            <div class="actions">
+                <a class="boton secundario" href="/facturacion/facturas/nueva?cliente_id={{ cliente.id }}">Crear factura</a>
+            </div>
+            {% if facturas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Número</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for factura in facturas %}
+                    <tr>
+                        <td><a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or 'Borrador' }}</a></td>
+                        <td>{{ factura.fecha }}</td>
+                        <td>{{ factura.estado }}</td>
+                        <td>{{ format_money(factura.total) }} €</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty">Todavía no hay facturas asociadas.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

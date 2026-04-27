@@ -1,0 +1,17 @@
+{% set path = request.url.path %}
+<div class="drawer-overlay" data-drawer-close></div>
+<nav id="app-drawer" class="drawer-nav" aria-label="Navegación principal">
+    <div class="drawer-header">
+        <strong>Sistema Pericial</strong>
+        <button class="drawer-close" type="button" aria-label="Cerrar menú" data-drawer-close>×</button>
+    </div>
+    <a class="drawer-link {% if path.startswith('/dashboard') or path == '/' %}active{% endif %}" href="/dashboard">Dashboard</a>
+    <a class="drawer-link {% if path.startswith('/leads') %}active{% endif %}" href="/leads">Leads</a>
+    <a class="drawer-link {% if path.startswith('/propuestas') %}active{% endif %}" href="/propuestas">Propuestas</a>
+    <a class="drawer-link {% if path.startswith('/clientes') %}active{% endif %}" href="/clientes">Clientes</a>
+    <a class="drawer-link {% if path.startswith('/expedientes') or path.startswith('/detalle-expediente') or path.startswith('/nuevo-expediente') or path.startswith('/editar-expediente') or path.startswith('/nueva-visita') or path.startswith('/editar-visita') or path.startswith('/definir-estancias') or path.startswith('/editar-estancia') or path.startswith('/registrar-patologias') or path.startswith('/editar-registro') or path.startswith('/editar-nivel-expediente') or path.startswith('/editar-unidad-expediente') or path.startswith('/editar-mapa-patologia') or path.startswith('/editar-cuadrante-mapa-patologia') or path.startswith('/crear-patologia-desde-cuadrante') %}active{% endif %}" href="/expedientes">Expedientes</a>
+    <a class="drawer-link {% if path.startswith('/facturacion') %}active{% endif %}" href="/facturacion">Facturación</a>
+    <a class="drawer-link {% if path.startswith('/gastos') %}active{% endif %}" href="/gastos">Gastos</a>
+    <a class="drawer-link {% if path.startswith('/backups') %}active{% endif %}" href="/backups">Backups</a>
+    <a class="drawer-link drawer-link-logout" href="/logout">Cerrar sesión</a>
+</nav>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Facturas</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Facturas</h1>
+            <p class="subtitle">Listado de facturas emitidas y borradores.</p>
+            <form method="get" action="/facturacion/facturas">
+                <label for="estado">Filtrar por estado</label>
+                <select id="estado" name="estado">
+                    <option value="">Todos</option>
+                    {% for estado in estados_factura %}
+                    <option value="{{ estado }}" {% if estado_actual == estado %}selected{% endif %}>{{ estado }}</option>
+                    {% endfor %}
+                </select>
+                <button class="boton secundario" type="submit">Filtrar</button>
+            </form>
+            <div class="actions">
+                <a class="boton" href="/facturacion/facturas/nueva">Nueva factura</a>
+                <a class="boton secundario" href="/facturacion">Facturación</a>
+            </div>
+        </div>
+
+        {% if facturas %}
+            {% for factura in facturas %}
+            <div class="card card-clickable">
+                <a class="card-link-cover" href="/facturacion/facturas/{{ factura.id }}" aria-label="Abrir factura"></a>
+                <div class="card-content">
+                    <h2>{{ factura.numero_factura or 'Borrador sin número' }}</h2>
+                    <p><strong>Fecha:</strong> {{ factura.fecha }}</p>
+                    {% set factura_estado_clase = 'estado-' ~ factura.estado if factura.estado in ['borrador', 'emitida', 'cobrada', 'anulada'] else 'estado-pendiente' %}
+                    <p><strong>Estado:</strong> <span class="estado-badge {{ factura_estado_clase }}">{{ factura.estado }}</span></p>
+                    <p><strong>Tipo:</strong> {{ 'Rectificativa' if factura.tipo_factura == 'rectificativa' else 'Ordinaria' }}</p>
+                    <p><strong>Cliente:</strong> {{ nombre_cliente(factura) }}</p>
+                    <p><strong>Total:</strong> {{ format_money(factura.total) }} €</p>
+                </div>
+                <div class="card-actions">
+                    {% if factura.estado == 'borrador' %}
+                    <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}/editar">Editar</a>
+                    {% else %}
+                    <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}">Ver</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p class="empty">Todavía no hay facturas registradas.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Propuestas</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Propuestas</h1>
+            <p class="subtitle">Propuestas de encargo vinculables a leads o clientes, con cálculo de importes y seguimiento de estado.</p>
+
+            <form method="get" action="/propuestas">
+                <label for="estado">Filtrar por estado</label>
+                <select id="estado" name="estado">
+                    <option value="">Todos</option>
+                    {% for estado in estados_propuesta %}
+                    <option value="{{ estado }}" {% if estado_actual == estado %}selected{% endif %}>{{ estado }}</option>
+                    {% endfor %}
+                </select>
+                <button class="boton secundario" type="submit">Aplicar filtro</button>
+            </form>
+
+            <div class="actions">
+                <a class="boton" href="/propuestas/nueva">Nueva propuesta</a>
+                <a class="boton secundario" href="/leads">Leads</a>
+                <a class="boton secundario" href="/clientes">Clientes</a>
+                <a class="boton secundario" href="/expedientes">Expedientes</a>
+            </div>
+        </div>
+
+        {% if propuestas %}
+            {% for propuesta in propuestas %}
+            <div class="card card-clickable">
+                <a class="card-link-cover" href="/propuestas/{{ propuesta.id }}" aria-label="Abrir propuesta {{ propuesta.numero_propuesta }}"></a>
+                <div class="card-content">
+                    <h2>{{ propuesta.numero_propuesta }}</h2>
+                    <p><strong>Fecha:</strong> {{ propuesta.fecha }}</p>
+                    {% set propuesta_estado_clase = 'estado-' ~ propuesta.estado if propuesta.estado in ['borrador', 'enviada', 'aceptada', 'rechazada'] else 'estado-pendiente' %}
+                    <p><strong>Estado:</strong> <span class="estado-badge {{ propuesta_estado_clase }}">{{ propuesta.estado }}</span></p>
+                    {% if propuesta.lead_nombre %}<p><strong>Lead:</strong> {{ propuesta.lead_nombre }}</p>{% endif %}
+                    {% if propuesta.cliente_nombre %}<p><strong>Cliente:</strong> {{ propuesta.cliente_nombre }} {{ propuesta.cliente_apellidos or '' }}</p>{% endif %}
+                    <p><strong>Total:</strong> {{ format_money(propuesta.total) }} €</p>
+                </div>
+                <div class="card-actions">
+                    <a class="boton secundario" href="/propuestas/{{ propuesta.id }}/editar">Editar</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p class="empty">Todavía no hay propuestas registradas.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

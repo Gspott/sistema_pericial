@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Facturación</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Facturación</h1>
+            <p class="subtitle">Facturas emitidas, líneas y cobros.</p>
+            <div class="actions">
+                <a class="boton" href="/facturacion/facturas/nueva">Nueva factura</a>
+                <a class="boton secundario" href="/facturacion/facturas">Ver facturas</a>
+                <a class="boton secundario" href="/facturacion/iva">Resumen IVA</a>
+                <a class="boton secundario" href="/facturacion/exportar-trimestre">Exportar trimestre</a>
+                <a class="boton secundario" href="/gastos">Gastos</a>
+                <a class="boton secundario" href="/facturacion/configuracion">Configuración fiscal</a>
+                <a class="boton secundario" href="/">Inicio</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Resumen</h2>
+            <p><strong>Facturas:</strong> {{ resumen.total_facturas or 0 }}</p>
+            <p><strong>Borradores:</strong> {{ resumen.borradores or 0 }}</p>
+            <p><strong>Emitidas:</strong> {{ resumen.emitidas or 0 }}</p>
+            <p><strong>Cobradas:</strong> {{ resumen.cobradas or 0 }}</p>
+            <p><strong>Total:</strong> {{ format_money(resumen.total_importe) }} €</p>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

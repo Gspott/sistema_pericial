@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>{{ titulo }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>{{ titulo }}</h1>
+            <p class="subtitle">Datos básicos del cliente, sin afectar expedientes existentes.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+            <form method="post" action="{{ form_action }}">
+                <label for="nombre">Nombre</label>
+                <input id="nombre" name="nombre" type="text" value="{{ cliente.nombre or '' }}" required>
+
+                <label for="apellidos">Apellidos</label>
+                <input id="apellidos" name="apellidos" type="text" value="{{ cliente.apellidos or '' }}">
+
+                <label for="razon_social">Razón social</label>
+                <input id="razon_social" name="razon_social" type="text" value="{{ cliente.razon_social or '' }}">
+
+                <label for="nif_cif">NIF / CIF</label>
+                <input id="nif_cif" name="nif_cif" type="text" value="{{ cliente.nif_cif or '' }}">
+
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" value="{{ cliente.email or '' }}">
+
+                <label for="telefono">Teléfono</label>
+                <input id="telefono" name="telefono" type="text" value="{{ cliente.telefono or '' }}">
+
+                <label for="direccion">Dirección</label>
+                <input id="direccion" name="direccion" type="text" value="{{ cliente.direccion or '' }}">
+
+                <label for="codigo_postal">Código postal</label>
+                <input id="codigo_postal" name="codigo_postal" type="text" value="{{ cliente.codigo_postal or '' }}">
+
+                <label for="ciudad">Ciudad</label>
+                <input id="ciudad" name="ciudad" type="text" value="{{ cliente.ciudad or '' }}">
+
+                <label for="provincia">Provincia</label>
+                <input id="provincia" name="provincia" type="text" value="{{ cliente.provincia or '' }}">
+
+                <label for="tipo_cliente">Tipo de cliente</label>
+                <select id="tipo_cliente" name="tipo_cliente">
+                    {% if cliente.tipo_cliente and cliente.tipo_cliente not in ['particular', 'empresa', 'autonomo', 'entidad', 'extranjero'] %}
+                    <option value="{{ cliente.tipo_cliente }}" selected>{{ cliente.tipo_cliente }}</option>
+                    {% endif %}
+                    <option value="" {% if not cliente.tipo_cliente %}selected{% endif %}>Sin indicar</option>
+                    <option value="particular" {% if cliente.tipo_cliente == 'particular' %}selected{% endif %}>Particular</option>
+                    <option value="empresa" {% if cliente.tipo_cliente == 'empresa' %}selected{% endif %}>Empresa</option>
+                    <option value="autonomo" {% if cliente.tipo_cliente == 'autonomo' %}selected{% endif %}>Autónomo</option>
+                    <option value="entidad" {% if cliente.tipo_cliente == 'entidad' %}selected{% endif %}>Entidad</option>
+                    <option value="extranjero" {% if cliente.tipo_cliente == 'extranjero' %}selected{% endif %}>Extranjero</option>
+                </select>
+
+                <label for="origen">Origen</label>
+                <input id="origen" name="origen" type="text" value="{{ cliente.origen or '' }}">
+
+                <label for="notas">Notas</label>
+                <textarea id="notas" name="notas">{{ cliente.notas or '' }}</textarea>
+
+                <div class="actions">
+                    <button class="boton" type="submit">{{ submit_label }}</button>
+                    <a class="boton secundario" href="/clientes">Volver a clientes</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

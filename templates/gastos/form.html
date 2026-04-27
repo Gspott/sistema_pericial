@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>{{ titulo }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>{{ titulo }}</h1>
+            <p class="subtitle">Factura o ticket de proveedor.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+            <form method="post" action="{{ form_action }}" enctype="multipart/form-data">
+                <label for="fecha">Fecha</label>
+                <input id="fecha" name="fecha" type="date" value="{{ gasto.fecha or '' }}" required>
+
+                <label for="proveedor">Proveedor</label>
+                <input id="proveedor" name="proveedor" type="text" value="{{ gasto.proveedor or '' }}" required>
+
+                <label for="nif_proveedor">NIF proveedor</label>
+                <input id="nif_proveedor" name="nif_proveedor" type="text" value="{{ gasto.nif_proveedor or '' }}">
+
+                <label for="numero_factura">Número de factura</label>
+                <input id="numero_factura" name="numero_factura" type="text" value="{{ gasto.numero_factura or '' }}">
+
+                <label for="concepto">Concepto</label>
+                <input id="concepto" name="concepto" type="text" value="{{ gasto.concepto or '' }}" required>
+
+                <label for="categoria">Categoría</label>
+                <input id="categoria" name="categoria" type="text" value="{{ gasto.categoria or '' }}">
+
+                <label for="base_imponible">Base imponible</label>
+                <input id="base_imponible" name="base_imponible" type="number" step="0.01" value="{{ gasto.base_imponible or 0 }}">
+
+                <label for="iva_porcentaje">IVA %</label>
+                <input id="iva_porcentaje" name="iva_porcentaje" type="number" step="0.01" value="{{ gasto.iva_porcentaje if gasto.iva_porcentaje is not none else 21 }}">
+
+                <label>
+                    <input name="deducible" type="checkbox" value="1" {% if gasto.deducible is not defined or gasto.deducible %}checked{% endif %}>
+                    Deducible
+                </label>
+
+                <label for="archivo">Factura / ticket</label>
+                <input id="archivo" name="archivo" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,application/pdf,image/jpeg,image/png,image/heic,image/heif">
+                {% if gasto.archivo_path %}
+                <p><strong>Archivo actual:</strong> <a href="/uploads/{{ gasto.archivo_path }}" target="_blank" rel="noopener">{{ gasto.archivo_path }}</a></p>
+                {% endif %}
+
+                <label for="notas">Notas</label>
+                <textarea id="notas" name="notas">{{ gasto.notas or '' }}</textarea>
+
+                <div class="inner-card">
+                    <p><strong>IVA calculado:</strong> {{ format_money(gasto.iva_importe) }} €</p>
+                    <p><strong>Total calculado:</strong> {{ format_money(gasto.total) }} €</p>
+                </div>
+
+                <div class="actions">
+                    <button class="boton" type="submit">{{ submit_label }}</button>
+                    <a class="boton secundario" href="/gastos">Volver a gastos</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

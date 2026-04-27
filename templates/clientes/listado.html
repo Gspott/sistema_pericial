@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Clientes</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page">
+<div class="card">
+            <h1>Clientes</h1>
+            <p class="subtitle">Base de clientes para futuros expedientes y seguimiento comercial.</p>
+            <div class="actions">
+                <a class="boton" href="/clientes/nuevo">Nuevo cliente</a>
+                <a class="boton secundario" href="/">Inicio</a>
+                <a class="boton secundario" href="/leads">Leads</a>
+                <a class="boton secundario" href="/expedientes">Expedientes</a>
+            </div>
+        </div>
+
+        {% if clientes %}
+            {% for cliente in clientes %}
+            <div class="card card-clickable">
+                <a class="card-link-cover" href="/clientes/{{ cliente.id }}" aria-label="Abrir cliente {{ cliente.nombre }}"></a>
+                <div class="card-content">
+                    <h2>{{ cliente.nombre }}{% if cliente.apellidos %} {{ cliente.apellidos }}{% endif %}</h2>
+                    {% if cliente.razon_social %}<p><strong>Razón social:</strong> {{ cliente.razon_social }}</p>{% endif %}
+                    {% if cliente.email %}<p><strong>Email:</strong> {{ cliente.email }}</p>{% endif %}
+                    {% if cliente.telefono %}<p><strong>Teléfono:</strong> {{ cliente.telefono }}</p>{% endif %}
+                    <p class="empty">Alta: {{ cliente.created_at }}</p>
+                </div>
+                <div class="card-actions">
+                    <a class="boton secundario" href="/clientes/{{ cliente.id }}/editar">Editar</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p class="empty">Todavía no hay clientes registrados.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>
