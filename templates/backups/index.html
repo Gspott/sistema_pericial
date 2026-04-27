@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <title>Backups</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+<div class="page with-top-nav">
+<div class="card">
+            <h1>Backups</h1>
+            <p class="subtitle">Exportación manual de base de datos, archivos e informes.</p>
+            <div class="actions">
+                <form method="post" action="/backups/crear">
+                    <button class="boton" type="submit">Crear backup ahora</button>
+                </form>
+                <a class="boton secundario" href="/">Inicio</a>
+            </div>
+        </div>
+
+        {% if backups %}
+            {% for backup in backups %}
+            <div class="card">
+                <h2>{{ backup.nombre }}</h2>
+                <p><strong>Tamaño:</strong> {{ format_size(backup.tamano) }}</p>
+                <p><strong>Fecha:</strong> {{ backup.fecha.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                <div class="actions">
+                    <a class="boton" href="/backups/descargar/{{ backup.nombre }}">Descargar</a>
+                    <form method="post" action="/backups/eliminar/{{ backup.nombre }}" onsubmit="return confirm('¿Seguro que quieres eliminar este backup?');">
+                        <button class="boton secundario" type="submit">Eliminar</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p class="empty">Todavía no hay backups creados.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>
