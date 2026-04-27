@@ -323,6 +323,15 @@ El proyecto conserva scripts de operación local:
 
 En Apple Silicon, ejecutar en `arm64` nativo si se reutiliza una `.venv` arm64.
 
+## Recuperación Ante Pérdida De Equipo
+
+El proceso de restauración completa está documentado en:
+
+- [docs/RESTORE.md](docs/RESTORE.md)
+- [docs/RECOVERY_CHECKLIST.md](docs/RECOVERY_CHECKLIST.md)
+
+Resumen: clonar el repo, crear `.venv`, copiar `.env.example` a `.env`, restaurar `data/pericial.db` y carpetas `uploads/`, `informes/`, `fotos/` desde el último ZIP de iCloud, arrancar la app y probar un backup manual.
+
 ## Validaciones Útiles
 
 ```bash

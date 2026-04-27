@@ -22,14 +22,14 @@ def load_env_file() -> None:
         os.environ.setdefault(key, value)
 
 
-def _resolve_project_path(path_value: str | None, fallback: Path) -> str:
+def _resolve_project_path(path_value: str | None, fallback: Path) -> Path:
     if not path_value or "TU_USUARIO" in path_value:
-        return str(fallback)
+        return fallback
 
     candidate = Path(path_value).expanduser()
     if not candidate.is_absolute():
         candidate = BASE_DIR / candidate
-    return str(candidate.resolve())
+    return candidate.resolve()
 
 
 load_env_file()
@@ -76,12 +76,12 @@ SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", secrets.token_urlsafe(32))
 
 
 def ensure_directories() -> None:
-    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
-    Path(INFORMES_DIR).mkdir(parents=True, exist_ok=True)
-    Path(FOTOS_DIR).mkdir(parents=True, exist_ok=True)
-    Path(BACKUPS_DIR).mkdir(parents=True, exist_ok=True)
-    Path(EXPORTS_DIR).mkdir(parents=True, exist_ok=True)
-    Path(LOGS_DIR).mkdir(parents=True, exist_ok=True)
-    Path(STATIC_DIR).mkdir(parents=True, exist_ok=True)
-    Path(TEMPLATES_DIR).mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    INFORMES_DIR.mkdir(parents=True, exist_ok=True)
+    FOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    STATIC_DIR.mkdir(parents=True, exist_ok=True)
+    TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
