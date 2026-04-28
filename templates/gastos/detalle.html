@@ -15,9 +15,11 @@
             <div class="actions">
                 <a class="boton secundario" href="/gastos">Volver a gastos</a>
                 <a class="boton" href="/gastos/{{ gasto.id }}/editar">Editar gasto</a>
-                <form method="post" action="/gastos/{{ gasto.id }}/eliminar" onsubmit="return confirm('¿Seguro que quieres eliminar este gasto?');">
-                    <button class="boton secundario" type="submit">Eliminar gasto</button>
+                {% if gasto.id %}
+                <form method="post" action="/gastos/{{ gasto.id }}/eliminar" onsubmit="return confirm('¿Seguro que quieres eliminar este gasto? Esta acción no se puede deshacer.');">
+                    <button class="boton secundario boton-peligro" type="submit" style="color: #b91c1c; border-color: #fecaca; background: #fef2f2;">Eliminar gasto</button>
                 </form>
+                {% endif %}
             </div>
         </div>
 

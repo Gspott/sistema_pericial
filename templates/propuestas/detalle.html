@@ -14,9 +14,23 @@
         <div class="card">
             <h1>{{ propuesta.numero_propuesta }}</h1>
             <p class="subtitle">Detalle imprimible de la propuesta de encargo.</p>
+            {% if mensaje %}<p class="success">{{ mensaje }}</p>{% endif %}
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
             {% if not print_mode %}
             <div class="actions">
                 <a class="boton" href="/propuestas/{{ propuesta.id }}/editar">Editar propuesta</a>
+                <a class="boton secundario" href="/propuestas/{{ propuesta.id }}/imprimir">Ver / imprimir propuesta</a>
+                <a class="boton secundario" href="/propuestas/{{ propuesta.id }}/pdf">Descargar PDF</a>
+                {% if email_disponible %}
+                <form method="post" action="/propuestas/{{ propuesta.id }}/enviar-email" style="display:inline;">
+                    <button class="boton secundario" type="submit">Enviar PDF por email</button>
+                </form>
+                {% else %}
+                <span class="boton secundario">Sin email del cliente</span>
+                {% endif %}
+                {% if mailto_url %}
+                <a class="boton secundario" href="{{ mailto_url }}">Enviar por email</a>
+                {% endif %}
                 <a class="boton secundario" href="/propuestas">Volver al listado</a>
                 {% if propuesta.expediente_id %}
                 <a class="boton" href="/detalle-expediente/{{ propuesta.expediente_id }}">Ver expediente</a>

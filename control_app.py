@@ -30,6 +30,9 @@ WINDOW_BG = "#f7f4ee"
 TEXT_COLOR = "#ffffff"
 DIAG_OK_COLOR = RUNNING_ACTIVE_COLOR
 DIAG_OFF_COLOR = "#8c8c8c"
+MESSAGE_INFO_COLOR = "#4a6fa5"
+MESSAGE_OK_COLOR = RUNNING_ACTIVE_COLOR
+MESSAGE_ERROR_COLOR = STOPPED_ACTIVE_COLOR
 
 class MacStatusItem:
     def __init__(self, on_activate) -> None:
@@ -45,7 +48,7 @@ class ControlApp:
         logging.info("Detected project root: %s", PROJECT_ROOT)
         self.root = tk.Tk()
         self.root.title("Control Servidor")
-        self.root.geometry("380x360")
+        self.root.geometry("380x405")
         self.root.resizable(False, False)
         self.root.configure(bg=WINDOW_BG)
         self.app_icon = None
@@ -102,6 +105,17 @@ class ControlApp:
             bg=WINDOW_BG,
         )
         self.status_label.pack(pady=(0, 10))
+
+        self.action_message_label = tk.Label(
+            container,
+            text="",
+            font=("Helvetica", 10),
+            fg=MESSAGE_INFO_COLOR,
+            bg=WINDOW_BG,
+            wraplength=320,
+            justify="center",
+        )
+        self.action_message_label.pack(pady=(0, 8))
 
         diagnostics_frame = tk.Frame(container, bg=WINDOW_BG)
         diagnostics_frame.pack(fill="x", pady=(4, 0))
@@ -241,9 +255,11 @@ class ControlApp:
         if self.state == "STOPPED":
             self.action_label = "INICIANDO..."
             target_script = START_SCRIPT
+            self._set_action_message("Iniciando servidor...", MESSAGE_INFO_COLOR)
         else:
             self.action_label = "DETENIENDO..."
             target_script = STOP_SCRIPT
+            self._set_action_message("Deteniendo servidor...", MESSAGE_INFO_COLOR)
 
         self._apply_state(self.state)
         threading.Thread(
@@ -276,14 +292,81 @@ class ControlApp:
                 logging.info("stdout %s:\n%s", script_path.name, stdout.strip())
             if stderr:
                 logging.info("stderr %s:\n%s", script_path.name, stderr.strip())
+            self.ui_queue.put(
+                (
+                    "action_complete",
+                    {
+                        "script": script_path.name,
+                        "returncode": process.returncode,
+                        "stdout": stdout,
+                        "stderr": stderr,
+                    },
+                )
+            )
         except Exception:
             logging.exception("Error running action script: %s", script_path)
-        self.ui_queue.put(("action_complete", None))
+            self.ui_queue.put(
+                (
+                    "action_complete",
+                    {
+                        "script": script_path.name,
+                        "returncode": 1,
+                        "stdout": "",
+                        "stderr": f"Error ejecutando {script_path.name}. Revisa logs/control_app.log.",
+                    },
+                )
+            )
 
-    def _complete_action(self) -> None:
+    def _complete_action(self, payload: object = None) -> None:
         self.action_in_progress = False
         self.action_label = None
+        if isinstance(payload, dict):
+            self._show_action_result(payload)
         self.refresh_state()
+
+    def _set_action_message(self, text: str, color: str) -> None:
+        self.action_message_label.configure(text=text, fg=color)
+
+    def _show_action_result(self, payload: dict) -> None:
+        script = str(payload.get("script") or "script")
+        returncode = payload.get("returncode")
+        if returncode == 0:
+            if script == START_SCRIPT.name:
+                message = "Servidor iniciado correctamente."
+            elif script == STOP_SCRIPT.name:
+                message = "Servidor detenido correctamente."
+            else:
+                message = f"{script} ejecutado correctamente."
+            self._set_action_message(message, MESSAGE_OK_COLOR)
+            return
+
+        stderr = str(payload.get("stderr") or "")
+        detail = self._first_matching_line(stderr, "Posible valor con espacios")
+        if not detail:
+            detail = self._last_relevant_line(stderr)
+        if not detail:
+            detail = self._last_relevant_line(str(payload.get("stdout") or ""))
+        if detail:
+            message = f"Error: {detail}"
+        else:
+            message = f"Error al ejecutar {script}. Revisa logs/control_app.log."
+        self._set_action_message(message, MESSAGE_ERROR_COLOR)
+
+    @staticmethod
+    def _last_relevant_line(text: str) -> str:
+        for line in reversed(text.splitlines()):
+            cleaned = line.strip()
+            if cleaned:
+                return cleaned
+        return ""
+
+    @staticmethod
+    def _first_matching_line(text: str, needle: str) -> str:
+        for line in text.splitlines():
+            cleaned = line.strip()
+            if needle in cleaned:
+                return cleaned
+        return ""
 
     def _on_button_click(self, _event: tk.Event) -> None:
         if self.action_in_progress:
@@ -328,7 +411,7 @@ class ControlApp:
                     self._apply_diagnostics(payload.get("diagnostics", {}))
                     self._finish_refresh(str(payload.get("state", "STOPPED")))
                 elif action == "action_complete":
-                    self._complete_action()
+                    self._complete_action(value)
         except queue.Empty:
             pass
         self.root.after(100, self._process_ui_queue)

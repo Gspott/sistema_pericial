@@ -1,8 +1,22 @@
+import re
+import smtplib
+from email.message import EmailMessage
+from email.utils import formataddr
 from datetime import date
+from io import BytesIO
+from urllib.parse import quote
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 
+from app.config import (
+    SMTP_FROM_EMAIL,
+    SMTP_FROM_NAME,
+    SMTP_HOST,
+    SMTP_PASSWORD,
+    SMTP_PORT,
+    SMTP_USER,
+)
 from app.database import get_connection
 
 router = APIRouter()
@@ -53,6 +67,147 @@ def parse_float(valor: str | None, default: float = 0.0) -> float:
 
 def format_money(valor: float | int | None) -> str:
     return f"{float(valor or 0):.2f}"
+
+
+def calcular_honorarios(base_imponible: float, iva_porcentaje: float):
+    base = round(max(base_imponible, 0), 2)
+    iva_pct = round(max(iva_porcentaje, 0), 2)
+    importe_iva = round(base * iva_pct / 100, 2)
+    total_propuesta = round(base + importe_iva, 2)
+    return base, iva_pct, importe_iva, total_propuesta
+
+
+def construir_mailto_propuesta(request: Request, propuesta) -> str:
+    email = obtener_email_propuesta(propuesta)
+    if not email:
+        return ""
+
+    url_imprimir = str(
+        request.url_for("imprimir_propuesta", propuesta_id=propuesta["id"])
+    )
+    asunto = f"Propuesta {propuesta['numero_propuesta']} - Servicios profesionales"
+    cuerpo = f"""Hola,
+
+Te remito la propuesta de servicios profesionales correspondiente.
+
+Puedes revisar la propuesta en el siguiente enlace:
+
+{url_imprimir}
+
+Para aceptar la propuesta, es suficiente con responder a este correo indicando:
+
+“Acepto la propuesta enviada.”
+
+Quedo a tu disposición para cualquier aclaración.
+
+Un saludo,
+Carlos Blanco
+Arquitecto Técnico
+647033915"""
+
+    return (
+        f"mailto:{quote(email)}"
+        f"?subject={quote(asunto)}"
+        f"&body={quote(cuerpo)}"
+    )
+
+
+def limpiar_nombre_pdf(valor: str | None) -> str:
+    nombre = re.sub(r"[^A-Za-z0-9_.-]+", "-", limpiar_texto(valor))
+    return nombre.strip("-") or "propuesta"
+
+
+def obtener_email_propuesta(propuesta) -> str:
+    return limpiar_texto(propuesta["cliente_email"] or propuesta["lead_email"])
+
+
+def nombre_archivo_pdf_propuesta(propuesta) -> str:
+    return f"Propuesta-{limpiar_nombre_pdf(propuesta['numero_propuesta'])}.pdf"
+
+
+def generar_pdf_propuesta_bytes(request: Request, propuesta) -> bytes:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Playwright no está instalado. Actualiza dependencias para generar PDFs.",
+        ) from exc
+
+    html = request.app.state.templates.env.get_template(
+        "propuestas/imprimir.html"
+    ).render(
+        {
+            "request": request,
+            "current_user": getattr(request.state, "current_user", None),
+            "propuesta": propuesta,
+            "format_money": format_money,
+            "mailto_url": "",
+        }
+    )
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.set_content(html, wait_until="networkidle")
+            pdf_bytes = page.pdf(
+                format="A4",
+                margin={
+                    "top": "16mm",
+                    "right": "16mm",
+                    "bottom": "16mm",
+                    "left": "16mm",
+                },
+                print_background=True,
+                prefer_css_page_size=True,
+            )
+            browser.close()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo generar el PDF de la propuesta.",
+        ) from exc
+
+    return pdf_bytes
+
+
+def enviar_email_propuesta(destinatario: str, propuesta, pdf_bytes: bytes):
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL]):
+        raise RuntimeError("smtp_not_configured")
+
+    asunto = f"Propuesta {propuesta['numero_propuesta']} - Servicios profesionales"
+    cuerpo = """Hola,
+
+Te remito adjunta la propuesta de servicios profesionales correspondiente.
+
+Para aceptar la propuesta, es suficiente con responder a este correo indicando:
+
+“Acepto la propuesta enviada.”
+
+Quedo a tu disposición para cualquier aclaración.
+
+Un saludo,
+Carlos Blanco
+Arquitecto Técnico
+647033915"""
+
+    mensaje = EmailMessage()
+    mensaje["Subject"] = asunto
+    mensaje["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
+    mensaje["To"] = destinatario
+    mensaje.set_content(cuerpo)
+    mensaje.add_attachment(
+        pdf_bytes,
+        maintype="application",
+        subtype="pdf",
+        filename=nombre_archivo_pdf_propuesta(propuesta),
+    )
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+        smtp.starttls()
+        smtp.login(SMTP_USER, SMTP_PASSWORD)
+        smtp.send_message(mensaje)
 
 
 def get_owned_lead(cur, lead_id: int, owner_user_id: int):
@@ -140,10 +295,11 @@ def recalcular_totales_propuesta(cur, propuesta_id: int):
     cur.execute(
         """
         UPDATE propuestas
-        SET base_imponible = ?, iva = ?, total = ?, updated_at = CURRENT_TIMESTAMP
+        SET base_imponible = ?, importe_iva = ?, total_propuesta = ?,
+            iva = ?, total = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
         """,
-        (base_imponible, iva, total, propuesta_id),
+        (base_imponible, iva, total, iva, total, propuesta_id),
     )
 
 
@@ -304,6 +460,10 @@ def nueva_propuesta(
             "direccion_inmueble": "",
             "alcance": "",
             "plazo_estimado": "",
+            "base_imponible": 0,
+            "iva_porcentaje": 21,
+            "importe_iva": 0,
+            "total_propuesta": 0,
             "condiciones": "",
         }
     finally:
@@ -339,11 +499,17 @@ def crear_propuesta(
     direccion_inmueble: str = Form(""),
     alcance: str = Form(""),
     plazo_estimado: str = Form(""),
+    base_imponible: str = Form("0"),
+    iva_porcentaje: str = Form("21"),
     condiciones: str = Form(""),
 ):
     current_user = get_current_user(request)
     lead_id_int = parse_optional_int(lead_id)
     cliente_id_int = parse_optional_int(cliente_id)
+    base, iva_pct, importe_iva, total_propuesta = calcular_honorarios(
+        parse_float(base_imponible, 0),
+        parse_float(iva_porcentaje, 21),
+    )
     propuesta = {
         "numero_propuesta": limpiar_texto(numero_propuesta),
         "lead_id": lead_id_int or "",
@@ -354,6 +520,10 @@ def crear_propuesta(
         "direccion_inmueble": limpiar_texto(direccion_inmueble),
         "alcance": limpiar_texto(alcance),
         "plazo_estimado": limpiar_texto(plazo_estimado),
+        "base_imponible": base,
+        "iva_porcentaje": iva_pct,
+        "importe_iva": importe_iva,
+        "total_propuesta": total_propuesta,
         "condiciones": limpiar_texto(condiciones),
     }
 
@@ -401,9 +571,11 @@ def crear_propuesta(
             """
             INSERT INTO propuestas (
                 numero_propuesta, lead_id, cliente_id, fecha, estado, tipo_trabajo,
-                direccion_inmueble, alcance, plazo_estimado, condiciones, owner_user_id
+                direccion_inmueble, alcance, plazo_estimado, base_imponible,
+                iva_porcentaje, importe_iva, total_propuesta, iva, total,
+                condiciones, owner_user_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 propuesta["numero_propuesta"],
@@ -415,6 +587,12 @@ def crear_propuesta(
                 propuesta["direccion_inmueble"],
                 propuesta["alcance"],
                 propuesta["plazo_estimado"],
+                propuesta["base_imponible"],
+                propuesta["iva_porcentaje"],
+                propuesta["importe_iva"],
+                propuesta["total_propuesta"],
+                propuesta["importe_iva"],
+                propuesta["total_propuesta"],
                 propuesta["condiciones"],
                 current_user["id"],
             ),
@@ -432,6 +610,8 @@ def detalle_propuesta(
     request: Request,
     propuesta_id: int,
     print: int = Query(0),
+    mensaje: str = Query(""),
+    error: str = Query(""),
 ):
     current_user = get_current_user(request)
     conn = get_connection()
@@ -453,7 +633,100 @@ def detalle_propuesta(
             "estados_propuesta": PROPUESTA_ESTADOS,
             "format_money": format_money,
             "print_mode": bool(print),
+            "mailto_url": construir_mailto_propuesta(request, propuesta),
+            "email_disponible": bool(obtener_email_propuesta(propuesta)),
+            "mensaje": limpiar_texto(mensaje),
+            "error": limpiar_texto(error),
         },
+    )
+
+
+@router.get("/propuestas/{propuesta_id}/imprimir", response_class=HTMLResponse)
+def imprimir_propuesta(request: Request, propuesta_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "propuestas/imprimir.html",
+        {
+            "propuesta": propuesta,
+            "format_money": format_money,
+            "mailto_url": construir_mailto_propuesta(request, propuesta),
+            "email_disponible": bool(obtener_email_propuesta(propuesta)),
+        },
+    )
+
+
+@router.get("/propuestas/{propuesta_id}/pdf")
+def descargar_pdf_propuesta(request: Request, propuesta_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+    finally:
+        conn.close()
+
+    pdf_bytes = generar_pdf_propuesta_bytes(request, propuesta)
+    filename = nombre_archivo_pdf_propuesta(propuesta)
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/propuestas/{propuesta_id}/enviar-email")
+def enviar_propuesta_email(request: Request, propuesta_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+    finally:
+        conn.close()
+
+    destinatario = obtener_email_propuesta(propuesta)
+    if not destinatario:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('La propuesta no tiene email de cliente o lead.')}",
+            status_code=303,
+        )
+
+    try:
+        pdf_bytes = generar_pdf_propuesta_bytes(request, propuesta)
+        enviar_email_propuesta(destinatario, propuesta, pdf_bytes)
+    except RuntimeError:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('No está configurado el envío de email.')}",
+            status_code=303,
+        )
+    except HTTPException as exc:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote(str(exc.detail))}",
+            status_code=303,
+        )
+    except Exception:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('No se pudo enviar la propuesta por email.')}",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        url=f"/propuestas/{propuesta_id}?mensaje={quote('Propuesta enviada correctamente por email.')}",
+        status_code=303,
     )
 
 
@@ -505,11 +778,17 @@ def actualizar_propuesta(
     direccion_inmueble: str = Form(""),
     alcance: str = Form(""),
     plazo_estimado: str = Form(""),
+    base_imponible: str = Form("0"),
+    iva_porcentaje: str = Form("21"),
     condiciones: str = Form(""),
 ):
     current_user = get_current_user(request)
     lead_id_int = parse_optional_int(lead_id)
     cliente_id_int = parse_optional_int(cliente_id)
+    base, iva_pct, importe_iva, total_propuesta = calcular_honorarios(
+        parse_float(base_imponible, 0),
+        parse_float(iva_porcentaje, 21),
+    )
     propuesta = {
         "id": propuesta_id,
         "numero_propuesta": limpiar_texto(numero_propuesta),
@@ -520,6 +799,10 @@ def actualizar_propuesta(
         "direccion_inmueble": limpiar_texto(direccion_inmueble),
         "alcance": limpiar_texto(alcance),
         "plazo_estimado": limpiar_texto(plazo_estimado),
+        "base_imponible": base,
+        "iva_porcentaje": iva_pct,
+        "importe_iva": importe_iva,
+        "total_propuesta": total_propuesta,
         "condiciones": limpiar_texto(condiciones),
     }
 
@@ -571,7 +854,9 @@ def actualizar_propuesta(
             UPDATE propuestas
             SET numero_propuesta = ?, lead_id = ?, cliente_id = ?, fecha = ?,
                 tipo_trabajo = ?, direccion_inmueble = ?, alcance = ?,
-                plazo_estimado = ?, condiciones = ?, updated_at = CURRENT_TIMESTAMP
+                plazo_estimado = ?, base_imponible = ?, iva_porcentaje = ?,
+                importe_iva = ?, total_propuesta = ?, iva = ?, total = ?,
+                condiciones = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND owner_user_id = ?
             """,
             (
@@ -583,6 +868,12 @@ def actualizar_propuesta(
                 propuesta["direccion_inmueble"],
                 propuesta["alcance"],
                 propuesta["plazo_estimado"],
+                propuesta["base_imponible"],
+                propuesta["iva_porcentaje"],
+                propuesta["importe_iva"],
+                propuesta["total_propuesta"],
+                propuesta["importe_iva"],
+                propuesta["total_propuesta"],
                 propuesta["condiciones"],
                 propuesta_id,
                 current_user["id"],

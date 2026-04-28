@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Propuesta {{ propuesta.numero_propuesta }}</title>
+    <style>
+        :root {
+            color: #1f2933;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        body {
+            margin: 0;
+            background: #eef1f4;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            padding: 18px;
+        }
+
+        .print-help {
+            align-self: center;
+            color: #5c6670;
+            font-size: 12px;
+            max-width: 520px;
+        }
+
+        .button {
+            border: 1px solid #1f2933;
+            border-radius: 4px;
+            background: #1f2933;
+            color: #fff;
+            cursor: pointer;
+            font: inherit;
+            padding: 9px 14px;
+            text-decoration: none;
+        }
+
+        .button.secondary {
+            background: #fff;
+            color: #1f2933;
+        }
+
+        .document {
+            box-sizing: border-box;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto 24px;
+            padding: 22mm;
+            background: #fff;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+        }
+
+        .header {
+            border-bottom: 2px solid #1f2933;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 22px;
+            letter-spacing: 0;
+        }
+
+        h2 {
+            border-bottom: 1px solid #d8dee6;
+            color: #2f3a45;
+            font-size: 15px;
+            margin: 24px 0 12px;
+            padding-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        p {
+            margin: 5px 0;
+        }
+
+        .section {
+            break-inside: avoid;
+            line-height: 1.45;
+            page-break-inside: avoid;
+        }
+
+        .meta,
+        .grid {
+            display: grid;
+            gap: 8px 18px;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .row {
+            display: flex;
+            gap: 40px;
+            justify-content: space-between;
+        }
+
+        .col {
+            flex: 1;
+        }
+
+        .col.right {
+            text-align: right;
+        }
+
+        .label {
+            color: #6b7280;
+            font-size: 11px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+
+        .value {
+            color: #111827;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .issuer {
+            color: #1f2937;
+            font-size: 13px;
+            margin-bottom: 22px;
+            margin-top: 10px;
+        }
+
+        .issuer-row {
+            display: flex;
+            gap: 24px;
+            justify-content: space-between;
+            line-height: 1.45;
+        }
+
+        .pre-line {
+            white-space: pre-line;
+        }
+
+        .amounts {
+            border: 1px solid #d8dee6;
+            margin-top: 8px;
+        }
+
+        .amount-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            padding: 9px 12px;
+        }
+
+        .amount-row + .amount-row {
+            border-top: 1px solid #e5e9ef;
+        }
+
+        .amount-row.total-row {
+            background: #f3f6f8;
+            font-weight: 700;
+        }
+
+        .total {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .conditions-text {
+            line-height: 1.45;
+            margin: 0 0 10px;
+            white-space: pre-line;
+        }
+
+        .conditions-subblock {
+            line-height: 1.45;
+            margin-top: 10px;
+        }
+
+        .conditions-subblock h3 {
+            color: #374151;
+            font-size: 13px;
+            font-weight: 700;
+            margin: 0 0 5px;
+            text-transform: none;
+        }
+
+        .conditions-subblock p {
+            margin: 0 0 6px;
+        }
+
+        .conditions-subblock ul {
+            margin: 6px 0 8px 18px;
+            padding: 0;
+        }
+
+        .conditions-subblock li {
+            margin-bottom: 4px;
+        }
+
+        @page {
+            size: A4;
+            margin: 16mm;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .print-help {
+                display: none !important;
+            }
+
+            .document {
+                box-shadow: none;
+                margin: 0;
+                min-height: auto;
+                padding: 0;
+                width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% set cliente_nombre_base = (propuesta.cliente_nombre ~ ' ' ~ (propuesta.cliente_apellidos or '')) | trim if propuesta.cliente_nombre else '' %}
+    {% set cliente_nombre = cliente_nombre_base or propuesta.cliente_razon_social or propuesta.lead_nombre %}
+    {% set cliente_email = propuesta.cliente_email or propuesta.lead_email %}
+    {% set cliente_telefono = propuesta.cliente_telefono or propuesta.lead_telefono %}
+    {% set iva_porcentaje = propuesta.iva_porcentaje if propuesta.iva_porcentaje is defined and propuesta.iva_porcentaje is not none else 21 %}
+    {% set importe_iva = propuesta.importe_iva if propuesta.importe_iva is defined and propuesta.importe_iva is not none else propuesta.iva %}
+    {% set total_propuesta = propuesta.total_propuesta if propuesta.total_propuesta is defined and propuesta.total_propuesta is not none else propuesta.total %}
+
+    <div class="toolbar no-print">
+        <button class="button" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+        <a class="button secondary" href="/propuestas/{{ propuesta.id }}/pdf">Descargar PDF</a>
+        {% if email_disponible %}
+        <form method="post" action="/propuestas/{{ propuesta.id }}/enviar-email" style="display:inline;">
+            <button class="button secondary" type="submit">Enviar PDF por email</button>
+        </form>
+        {% else %}
+        <span class="button secondary">Sin email del cliente</span>
+        {% endif %}
+        {% if mailto_url %}
+        <a class="button secondary" href="{{ mailto_url }}">Enviar por email</a>
+        {% endif %}
+        <a class="button secondary" href="/propuestas/{{ propuesta.id }}">Volver</a>
+        <span class="print-help">Antes de guardar como PDF, desactiva ‘Cabeceras y pies’ en el diálogo de impresión para ocultar URL, fecha y paginación automática del navegador.</span>
+    </div>
+
+    <main class="document">
+        <header class="header">
+            <h1>PROPUESTA DE SERVICIOS PROFESIONALES</h1>
+            <div class="issuer">
+                <div class="issuer-row">
+                    <span><strong>Carlos Blanco</strong></span>
+                    <span>Arquitecto Técnico</span>
+                </div>
+                <div class="issuer-row">
+                    <span>647033915</span>
+                    <span>Valencia</span>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <div class="label">Número de propuesta</div>
+                    <div class="value">{{ propuesta.numero_propuesta or '-' }}</div>
+                </div>
+                <div class="col right">
+                    <div class="label">Fecha</div>
+                    <div class="value">{{ propuesta.fecha or '-' }}</div>
+                </div>
+            </div>
+        </header>
+
+        <section>
+            <h2>Datos del cliente</h2>
+            <div class="row">
+                <div class="col">
+                    <div class="label">Nombre</div>
+                    <div class="value">{{ cliente_nombre or '-' }}</div>
+                </div>
+                <div class="col right">
+                    <div class="label">Email</div>
+                    <div class="value">{{ cliente_email or '-' }}</div>
+                </div>
+            </div>
+            <div>
+                <div class="label">Teléfono</div>
+                <div>{{ cliente_telefono or '-' }}</div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Datos del encargo</h2>
+            <p><span class="label">Tipo de trabajo</span><br>{{ propuesta.tipo_trabajo or '-' }}</p>
+            <p><span class="label">Dirección del inmueble</span><br>{{ propuesta.direccion_inmueble or '-' }}</p>
+            <p><span class="label">Alcance</span><br><span class="pre-line">{{ propuesta.alcance or '-' }}</span></p>
+            <p><span class="label">Plazo estimado</span><br>{{ propuesta.plazo_estimado or '-' }}</p>
+        </section>
+
+        <section>
+            <h2>Honorarios</h2>
+            <div class="amounts">
+                <div class="amount-row">
+                    <span>Honorarios profesionales / base imponible</span>
+                    <strong>{{ format_money(propuesta.base_imponible) }} €</strong>
+                </div>
+                <div class="amount-row">
+                    <span>IVA {{ format_money(iva_porcentaje) }} %</span>
+                    <strong>{{ format_money(importe_iva) }} €</strong>
+                </div>
+                <div class="amount-row total-row">
+                    <span>Total honorarios</span>
+                    <strong class="total">{{ format_money(total_propuesta) }} €</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Condiciones de contratación</h2>
+            <p class="conditions-text">{{ propuesta.condiciones or '-' }}</p>
+            <div class="conditions-subblock">
+                <h3>Forma de pago</h3>
+                <p>Los honorarios profesionales se abonarán de la siguiente forma:</p>
+                <ul>
+                    <li>50% del importe total en concepto de provisión de fondos, previo al inicio de los trabajos.</li>
+                    <li>50% restante a la entrega del informe pericial.</li>
+                </ul>
+                <p>La entrega del informe queda condicionada al abono completo de los honorarios.</p>
+                <p>El inicio de los trabajos se realizará una vez recibida la aceptación de la propuesta y la provisión de fondos indicada.</p>
+            </div>
+            <div class="conditions-subblock">
+                <h3>Impago o demora en el pago</h3>
+                <p>En caso de incumplimiento de las condiciones de pago, el técnico se reserva el derecho a suspender los trabajos o la entrega del informe hasta la regularización de los importes pendientes.</p>
+            </div>
+            <div class="conditions-subblock">
+                <h3>Alcance del encargo</h3>
+                <p>El presente encargo se limita exclusivamente a las actuaciones descritas en el apartado “Alcance”. Cualquier trabajo adicional no contemplado en dicho apartado deberá ser objeto de nuevo presupuesto o aceptación expresa por ambas partes.</p>
+            </div>
+            <div class="conditions-subblock">
+                <h3>Limitación de responsabilidad técnica</h3>
+                <p>Las conclusiones del informe se basarán en la inspección visual, en la documentación disponible y en la información facilitada por el cliente en la fecha de la visita o del análisis técnico. No se realizarán ensayos destructivos, catas, pruebas de laboratorio ni actuaciones invasivas salvo contratación expresa.</p>
+                <p>El técnico no responderá por daños ocultos, defectos no visibles o circunstancias no detectables mediante una inspección ordinaria en el momento de la intervención.</p>
+            </div>
+            <div class="conditions-subblock">
+                <h3>Uso del informe</h3>
+                <p>El informe se emitirá para el uso específico indicado por el cliente. No podrá ser reproducido, distribuido o utilizado para fines distintos sin autorización expresa del técnico, salvo obligación legal o requerimiento de autoridad competente.</p>
+            </div>
+            <div class="conditions-subblock">
+                <h3>Validez de las conclusiones</h3>
+                <p>Las conclusiones reflejarán el estado del inmueble, documentación o circunstancias analizadas en la fecha de la inspección o emisión del informe, pudiendo variar por el transcurso del tiempo, nuevas patologías, intervenciones posteriores o información no disponible inicialmente.</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Aceptación de la propuesta</h2>
+            <p>Para aceptar esta propuesta será suficiente con responder al correo electrónico en el que se remita este documento indicando expresamente:</p>
+            <p>“Acepto la propuesta enviada.”</p>
+            <p>La aceptación por correo electrónico se considerará confirmación suficiente del encargo profesional y de las condiciones indicadas.</p>
+        </section>
+    </main>
+</body>
+</html>

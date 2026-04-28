@@ -366,6 +366,9 @@ def init_db():
             plazo_estimado TEXT,
             condiciones TEXT,
             base_imponible REAL DEFAULT 0,
+            iva_porcentaje REAL DEFAULT 21,
+            importe_iva REAL DEFAULT 0,
+            total_propuesta REAL DEFAULT 0,
             iva REAL DEFAULT 0,
             total REAL DEFAULT 0,
             pdf_path TEXT,
@@ -391,6 +394,9 @@ def init_db():
     asegurar_columna(cur, "propuestas", "plazo_estimado", "TEXT")
     asegurar_columna(cur, "propuestas", "condiciones", "TEXT")
     asegurar_columna(cur, "propuestas", "base_imponible", "REAL DEFAULT 0")
+    asegurar_columna(cur, "propuestas", "iva_porcentaje", "REAL DEFAULT 21")
+    asegurar_columna(cur, "propuestas", "importe_iva", "REAL DEFAULT 0")
+    asegurar_columna(cur, "propuestas", "total_propuesta", "REAL DEFAULT 0")
     asegurar_columna(cur, "propuestas", "iva", "REAL DEFAULT 0")
     asegurar_columna(cur, "propuestas", "total", "REAL DEFAULT 0")
     asegurar_columna(cur, "propuestas", "pdf_path", "TEXT")

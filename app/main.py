@@ -34,6 +34,7 @@ except ImportError:  # pragma: no cover - dependencia opcional
     register_heif_opener = None
 
 from app.config import (
+    SESSION_COOKIE_SECURE,
     APP_HOST,
     APP_PORT,
     BASE_URL,
@@ -96,7 +97,7 @@ PUBLIC_PATHS = {
 PUBLIC_PREFIXES = ("/static/", "/uploads/")
 AUTH_PAGES = {"/login", "/crear-usuario"}
 SESSION_COOKIE_NAME = "sistema_pericial_session"
-SESSION_COOKIE_SECURE = BASE_URL.startswith("https://")
+# SESSION_COOKIE_SECURE = BASE_URL.startswith("https://")
 TIPO_INFORME_LABELS = {
     "patologias": "Patologías",
     "inspeccion": "Inspección del inmueble",

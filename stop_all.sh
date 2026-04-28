@@ -6,9 +6,35 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
+validate_env_file() {
+    local env_file="$1"
+    local line
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            ""|\#*) continue ;;
+        esac
+
+        if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*=.*[[:space:]].* ]] \
+            && [[ ! "$line" =~ =\" ]] \
+            && [[ ! "$line" =~ =\' ]]; then
+            echo "Posible valor con espacios sin comillas en .env: $line" >&2
+            echo "Usa comillas en valores con espacios, por ejemplo: SMTP_FROM_NAME=\"Carlos Blanco\"" >&2
+            return 1
+        fi
+    done < "$env_file"
+}
+
 if [ -f ".env" ]; then
+    if ! validate_env_file ".env"; then
+        exit 1
+    fi
     set -a
-    . ./.env
+    if ! . ./.env; then
+        set +a
+        echo "Error cargando .env. Revisa comillas en valores con espacios." >&2
+        exit 1
+    fi
     set +a
 fi
 
