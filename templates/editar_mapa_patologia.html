@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -121,7 +121,7 @@
                 {% endif %}
 
                 <label for="imagen_base">Nueva imagen base</label>
-                <input id="imagen_base" name="imagen_base" type="file" accept="image/*">
+                <input id="imagen_base" name="imagen_base" type="file" accept="image/*" capture="environment">
 
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ mapa.observaciones or '' }}</textarea>

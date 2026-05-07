@@ -3,8 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <title>Gastos</title>
+    <style>
+        .review-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .review-summary-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 12px;
+            background: #f9fafb;
+        }
+
+        .review-summary-item strong {
+            display: block;
+            font-size: 1.2rem;
+        }
+
+        .review-filter-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .review-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+
+        .review-ok {
+            color: #166534;
+            background: #dcfce7;
+            border-color: #bbf7d0;
+        }
+
+        .review-revisar {
+            color: #92400e;
+            background: #fef3c7;
+            border-color: #fde68a;
+        }
+
+        .review-rechazar {
+            color: #991b1b;
+            background: #fee2e2;
+            border-color: #fecaca;
+        }
+
+        .review-desconocido {
+            color: #374151;
+            background: #f3f4f6;
+            border-color: #e5e7eb;
+        }
+
+        .expense-card-review-revisar {
+            background: #fffbeb;
+            border-color: #fde68a;
+        }
+    </style>
 </head>
 <body>
     {% include "partials/_app_shell_start.html" %}
@@ -12,6 +79,11 @@
 <div class="card">
             <h1>Gastos</h1>
             <p class="subtitle">Facturas de proveedores y tickets deducibles.</p>
+            {% if mensaje %}<p class="success">{{ mensaje }}</p>{% endif %}
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+            <form method="post" action="/gastos/importar-recibos" onsubmit="return confirmarImportacionRecibos(this);">
+                <button class="boton" type="submit" data-import-button>Importar recibos</button>
+            </form>
             <form method="get" action="/gastos">
                 <label for="year">Año</label>
                 <input id="year" name="year" type="number" value="{{ year }}" placeholder="2026">
@@ -25,35 +97,66 @@
                     <option value="4" {% if trimestre == 4 %}selected{% endif %}>T4</option>
                 </select>
 
-                <label for="deducible">Deducible</label>
-                <select id="deducible" name="deducible">
-                    <option value="" {% if deducible == '' %}selected{% endif %}>Todos</option>
-                    <option value="1" {% if deducible == '1' %}selected{% endif %}>Sí</option>
-                    <option value="0" {% if deducible == '0' %}selected{% endif %}>No</option>
+	                <label for="deducible">Deducible</label>
+	                <select id="deducible" name="deducible">
+	                    <option value="" {% if deducible == '' %}selected{% endif %}>Todos</option>
+	                    <option value="1" {% if deducible == '1' %}selected{% endif %}>Sí</option>
+	                    <option value="0" {% if deducible == '0' %}selected{% endif %}>No</option>
+	                </select>
+
+                <label for="revision">Revisión</label>
+                <select id="revision" name="revision">
+                    <option value="" {% if revision == '' %}selected{% endif %}>Todos</option>
+                    <option value="revisar" {% if revision == 'revisar' %}selected{% endif %}>Pendientes revisión</option>
+                    <option value="ok" {% if revision == 'ok' %}selected{% endif %}>Revisados</option>
+                    <option value="rechazar" {% if revision == 'rechazar' %}selected{% endif %}>Rechazados</option>
+                    <option value="desconocido" {% if revision == 'desconocido' %}selected{% endif %}>Sin estado</option>
                 </select>
 
-                <button class="boton secundario" type="submit">Filtrar</button>
-            </form>
-            <div class="actions">
-                <a class="boton" href="/gastos/nuevo">Nuevo gasto</a>
-                <a class="boton secundario" href="/facturacion">Facturación</a>
-                <a class="boton secundario" href="/">Inicio</a>
+	                <button class="boton secundario" type="submit">Filtrar</button>
+	            </form>
+            <div class="review-filter-actions" aria-label="Filtros de revisión">
+                <a class="boton secundario {% if revision == '' %}active{% endif %}" href="/gastos?year={{ year }}&trimestre={{ trimestre }}&deducible={{ deducible }}">Todos</a>
+                <a class="boton secundario {% if revision == 'revisar' %}active{% endif %}" href="/gastos?year={{ year }}&trimestre={{ trimestre }}&deducible={{ deducible }}&revision=revisar">Pendientes revisión</a>
+                <a class="boton secundario {% if revision == 'ok' %}active{% endif %}" href="/gastos?year={{ year }}&trimestre={{ trimestre }}&deducible={{ deducible }}&revision=ok">Revisados</a>
+                <a class="boton secundario {% if revision == 'rechazar' %}active{% endif %}" href="/gastos?year={{ year }}&trimestre={{ trimestre }}&deducible={{ deducible }}&revision=rechazar">Rechazados</a>
             </div>
-        </div>
+	        </div>
 
         <div class="card">
             <h2>Resumen filtrado</h2>
             <p><strong>Base:</strong> {{ format_money(resumen.base) }} €</p>
             <p><strong>IVA soportado:</strong> {{ format_money(resumen.iva) }} €</p>
             <p><strong>Total:</strong> {{ format_money(resumen.total) }} €</p>
+            <div class="review-summary">
+                <div class="review-summary-item">
+                    <span>Revisados</span>
+                    <strong>{{ review_summary.ok }}</strong>
+                </div>
+                <div class="review-summary-item">
+                    <span>Pendientes revisión</span>
+                    <strong>{{ review_summary.revisar }}</strong>
+                </div>
+                <div class="review-summary-item">
+                    <span>Rechazados</span>
+                    <strong>{{ review_summary.rechazar }}</strong>
+                </div>
+                <div class="review-summary-item">
+                    <span>Sin estado</span>
+                    <strong>{{ review_summary.desconocido }}</strong>
+                </div>
+            </div>
         </div>
 
         {% if gastos %}
             {% for gasto in gastos %}
-            <div class="card card-clickable">
+            {% set review_status = get_expense_review_status(gasto) %}
+            {% set review_class = get_expense_review_class(review_status) %}
+            <div class="card card-clickable expense-card-{{ review_class }}">
                 <a class="card-link-cover" href="/gastos/{{ gasto.id }}" aria-label="Abrir gasto"></a>
                 <div class="card-content">
                     <h2>{{ gasto.proveedor }}</h2>
+                    <p><span class="review-badge {{ review_class }}">{{ get_expense_review_label(review_status) }}</span></p>
                     <p><strong>Fecha:</strong> {{ gasto.fecha }}</p>
                     <p><strong>Concepto:</strong> {{ gasto.concepto }}</p>
                     <p><strong>Base:</strong> {{ format_money(gasto.base_imponible) }} €</p>
@@ -73,5 +176,18 @@
         {% endif %}
     </div>
     {% include "partials/_app_shell_end.html" %}
+    <script>
+        function confirmarImportacionRecibos(form) {
+            if (!confirm("¿Importar recibos desde la carpeta Pendientes?")) {
+                return false;
+            }
+            const button = form.querySelector("[data-import-button]");
+            if (button) {
+                button.disabled = true;
+                button.textContent = "Importando...";
+            }
+            return true;
+        }
+    </script>
 </body>
 </html>

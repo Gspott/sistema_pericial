@@ -240,16 +240,12 @@
         <a class="button secondary" href="/propuestas/{{ propuesta.id }}/pdf">Descargar PDF</a>
         {% if email_disponible %}
         <form method="post" action="/propuestas/{{ propuesta.id }}/enviar-email" style="display:inline;">
-            <button class="button secondary" type="submit">Enviar PDF por email</button>
+            <button class="button secondary" type="submit">Enviar por email</button>
         </form>
         {% else %}
         <span class="button secondary">Sin email del cliente</span>
         {% endif %}
-        {% if mailto_url %}
-        <a class="button secondary" href="{{ mailto_url }}">Enviar por email</a>
-        {% endif %}
         <a class="button secondary" href="/propuestas/{{ propuesta.id }}">Volver</a>
-        <span class="print-help">Antes de guardar como PDF, desactiva ‘Cabeceras y pies’ en el diálogo de impresión para ocultar URL, fecha y paginación automática del navegador.</span>
     </div>
 
     <main class="document">

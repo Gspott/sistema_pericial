@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <title>Crear patología desde cuadrante</title>
@@ -105,9 +105,12 @@
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ cuadrante.descripcion or '' }}</textarea>
 
-                <label for="fotos">Fotos</label>
-                <input id="fotos" name="fotos" type="file" accept="image/*" multiple>
+                <div class="photo-capture-box missing">
+                <p class="photo-required-warning">Falta al menos una fotografía</p>
+                <label class="photo-capture-label" for="fotos">Añadir foto (requerido)</label>
+                <input class="photo-input" id="fotos" name="fotos" type="file" accept="image/*" capture="environment" multiple>
                 <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez; después podrás incorporar más desde editar.</p>
+                </div>
 
                 <div class="actions">
                     <button class="boton" type="submit" {% if modo_patologia == 'interior' and not estancias %}disabled{% endif %}>Crear y vincular</button>

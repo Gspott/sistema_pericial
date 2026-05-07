@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <title>Propuesta {{ propuesta.numero_propuesta }}</title>
 </head>
 <body>
@@ -19,32 +19,13 @@
             {% if not print_mode %}
             <div class="actions">
                 <a class="boton" href="/propuestas/{{ propuesta.id }}/editar">Editar propuesta</a>
-                <a class="boton secundario" href="/propuestas/{{ propuesta.id }}/imprimir">Ver / imprimir propuesta</a>
-                <a class="boton secundario" href="/propuestas/{{ propuesta.id }}/pdf">Descargar PDF</a>
-                {% if email_disponible %}
-                <form method="post" action="/propuestas/{{ propuesta.id }}/enviar-email" style="display:inline;">
-                    <button class="boton secundario" type="submit">Enviar PDF por email</button>
-                </form>
-                {% else %}
-                <span class="boton secundario">Sin email del cliente</span>
-                {% endif %}
-                {% if mailto_url %}
-                <a class="boton secundario" href="{{ mailto_url }}">Enviar por email</a>
-                {% endif %}
-                <a class="boton secundario" href="/propuestas">Volver al listado</a>
                 {% if propuesta.expediente_id %}
-                <a class="boton" href="/detalle-expediente/{{ propuesta.expediente_id }}">Ver expediente</a>
-                {% elif propuesta.estado == 'aceptada' %}
-                <form method="post" action="/propuestas/{{ propuesta.id }}/crear-expediente">
-                    <button class="boton" type="submit">Crear expediente desde propuesta</button>
-                </form>
+                <a class="boton secundario" href="/detalle-expediente/{{ propuesta.expediente_id }}">Ver expediente</a>
+                {% else %}
+                <a class="boton secundario" href="/nuevo-expediente?propuesta_id={{ propuesta.id }}">Crear expediente</a>
                 {% endif %}
-                {% if propuesta.estado == 'aceptada' %}
-                <a class="boton secundario" href="/facturacion/facturas/nueva?propuesta_id={{ propuesta.id }}">Crear factura</a>
-                {% endif %}
-                <form method="post" action="/propuestas/{{ propuesta.id }}/generar-pdf">
-                    <button class="boton secundario" type="submit">Imprimir / Guardar PDF</button>
-                </form>
+                <a class="boton secundario" href="/propuestas/{{ propuesta.id }}/imprimir">Ver / imprimir propuesta</a>
+                <a class="boton secundario" href="/propuestas">Volver al listado</a>
             </div>
             {% endif %}
         </div>

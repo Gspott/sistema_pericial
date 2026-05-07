@@ -1,7 +1,10 @@
 import os
 import shutil
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
@@ -14,6 +17,10 @@ router = APIRouter()
 
 EXTENSIONES_PERMITIDAS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
 UPLOAD_PATH = Path(UPLOAD_DIR)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+IMPORT_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "importar_gastos_icloud.py"
+VENV_PYTHON_PATH = PROJECT_ROOT / ".venv" / "bin" / "python"
+IMPORT_TIMEOUT_SECONDS = 120
 
 
 def get_current_user(request: Request):
@@ -145,12 +152,101 @@ def validar_gasto(gasto: dict) -> str:
     return ""
 
 
+def get_import_python_path() -> Path:
+    if VENV_PYTHON_PATH.exists():
+        return VENV_PYTHON_PATH
+    return Path(sys.executable)
+
+
+def parse_import_summary(output: str) -> dict[str, int]:
+    summary = {"importados": 0, "errores": 0, "duplicados": 0}
+    for line in output.splitlines():
+        key, separator, value = line.partition(":")
+        key = key.strip().lower()
+        if separator and key in summary:
+            try:
+                summary[key] = int(value.strip())
+            except ValueError:
+                summary[key] = 0
+    return summary
+
+
+def build_import_message(output: str) -> str:
+    summary = parse_import_summary(output)
+    imported_label = "importado" if summary["importados"] == 1 else "importados"
+    duplicate_label = "duplicado" if summary["duplicados"] == 1 else "duplicados"
+    error_label = "error" if summary["errores"] == 1 else "errores"
+    return (
+        "Importación completada: "
+        f"{summary['importados']} {imported_label}, "
+        f"{summary['duplicados']} {duplicate_label}, "
+        f"{summary['errores']} {error_label}."
+    )
+
+
+def get_expense_review_status(gasto) -> str:
+    notes = limpiar_texto(gasto["notas"]).lower()
+    concept = limpiar_texto(gasto["concepto"]).upper()
+
+    if "rule review status: rechazar" in notes or "ai review status: rechazar" in notes:
+        return "rechazar"
+    if "rule review status: ok" in notes or "ai review status: ok" in notes:
+        return "ok"
+    if (
+        "rule review status: revisar" in notes
+        or "ai review status: revisar" in notes
+        or concept.startswith("REVISAR")
+        or float(gasto["base_imponible"] or 0) == 0
+        or float(gasto["total"] or 0) == 0
+    ):
+        return "revisar"
+    return "desconocido"
+
+
+def get_expense_review_label(status: str) -> str:
+    labels = {
+        "ok": "OK",
+        "revisar": "Revisar",
+        "rechazar": "Rechazar",
+        "desconocido": "Sin estado",
+    }
+    return labels.get(status, "Sin estado")
+
+
+def get_expense_review_class(status: str) -> str:
+    classes = {
+        "ok": "review-ok",
+        "revisar": "review-revisar",
+        "rechazar": "review-rechazar",
+        "desconocido": "review-desconocido",
+    }
+    return classes.get(status, "review-desconocido")
+
+
+def build_review_summary(gastos) -> dict[str, int]:
+    summary = {"ok": 0, "revisar": 0, "rechazar": 0, "desconocido": 0}
+    for gasto in gastos:
+        summary[get_expense_review_status(gasto)] += 1
+    return summary
+
+
+def build_amount_summary(gastos) -> dict[str, float]:
+    return {
+        "base": sum(float(gasto["base_imponible"] or 0) for gasto in gastos),
+        "iva": sum(float(gasto["iva_importe"] or 0) for gasto in gastos),
+        "total": sum(float(gasto["total"] or 0) for gasto in gastos),
+    }
+
+
 @router.get("/gastos", response_class=HTMLResponse)
 def listar_gastos(
     request: Request,
     year: int | None = Query(None),
     trimestre: int | None = Query(None),
     deducible: str = Query(""),
+    revision: str = Query(""),
+    mensaje: str = Query(""),
+    error: str = Query(""),
 ):
     current_user = get_current_user(request)
     filtros = ["owner_user_id = ?"]
@@ -180,19 +276,19 @@ def listar_gastos(
             """,
             params,
         ).fetchall()
-        resumen = cur.execute(
-            f"""
-            SELECT
-                COALESCE(SUM(base_imponible), 0) AS base,
-                COALESCE(SUM(iva_importe), 0) AS iva,
-                COALESCE(SUM(total), 0) AS total
-            FROM gastos
-            WHERE {' AND '.join(filtros)}
-            """,
-            params,
-        ).fetchone()
     finally:
         conn.close()
+
+    review_summary = build_review_summary(gastos)
+    if revision in ("ok", "revisar", "rechazar", "desconocido"):
+        gastos = [
+            gasto
+            for gasto in gastos
+            if get_expense_review_status(gasto) == revision
+        ]
+    else:
+        revision = ""
+    resumen = build_amount_summary(gastos)
 
     return render_template(
         request,
@@ -203,8 +299,54 @@ def listar_gastos(
             "year": year or "",
             "trimestre": trimestre or "",
             "deducible": deducible,
+            "revision": revision,
+            "review_summary": review_summary,
+            "get_expense_review_status": get_expense_review_status,
+            "get_expense_review_label": get_expense_review_label,
+            "get_expense_review_class": get_expense_review_class,
+            "mensaje": limpiar_texto(mensaje),
+            "error": limpiar_texto(error),
             "format_money": format_money,
         },
+    )
+
+
+@router.post("/gastos/importar-recibos")
+def importar_recibos_gastos(request: Request):
+    get_current_user(request)
+    python_path = get_import_python_path()
+
+    print("Running receipt import script...")
+    try:
+        result = subprocess.run(
+            [str(python_path), str(IMPORT_SCRIPT_PATH)],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=IMPORT_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return RedirectResponse(
+            url=f"/gastos?error={quote('La importación tardó demasiado.')}",
+            status_code=303,
+        )
+    except OSError:
+        return RedirectResponse(
+            url=f"/gastos?error={quote('No se pudo lanzar la importación.')}",
+            status_code=303,
+        )
+
+    output = "\n".join([result.stdout or "", result.stderr or ""])
+    if result.returncode != 0:
+        return RedirectResponse(
+            url=f"/gastos?error={quote('No se pudo completar la importación.')}",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        url=f"/gastos?mensaje={quote(build_import_message(output))}",
+        status_code=303,
     )
 
 

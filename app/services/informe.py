@@ -1,14 +1,20 @@
+import base64
 import os
 import re
 from io import BytesIO
 from datetime import datetime
 from collections import OrderedDict
 
+from fastapi import HTTPException, Request
+
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Cm, Pt
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Cm, Pt, RGBColor
 
 from app.config import INFORMES_DIR, UPLOAD_DIR
 from app.database import get_connection
@@ -29,6 +35,49 @@ def valor_o_guion(valor):
 
 def limpiar_texto(valor) -> str:
     return str(valor or "").strip()
+
+
+def row_to_dict(row) -> dict:
+    return dict(row) if row is not None else {}
+
+
+def get_row_value(row, key: str, default=""):
+    if row is None:
+        return default
+    try:
+        if key in row.keys():
+            return row[key]
+    except AttributeError:
+        return row.get(key, default)
+    return default
+
+
+def imagen_url_pdf(nombre_archivo: str | None, base_url: str = "") -> str:
+    nombre = limpiar_texto(nombre_archivo)
+    if not nombre:
+        return ""
+    prefijo = base_url.rstrip("/")
+    return f"{prefijo}/uploads/{nombre}" if prefijo else f"/uploads/{nombre}"
+
+
+def mapa_overlay_data_uri(mapa) -> str:
+    nombre_foto = limpiar_texto(mapa.get("imagen_base"))
+    if not nombre_foto:
+        return ""
+    ruta_foto = os.path.join(UPLOAD_DIR, nombre_foto)
+    cuadrantes_con_incidencia = [
+        cuadrante["codigo_cuadrante"] for cuadrante in mapa.get("cuadrantes", [])
+    ]
+    try:
+        overlay = generar_overlay_cuadrantes_mapa(
+            ruta_foto,
+            mapa.get("filas"),
+            mapa.get("columnas"),
+            cuadrantes_con_incidencia,
+        )
+    except Exception:
+        return ""
+    return "data:image/png;base64," + base64.b64encode(overlay.getvalue()).decode("ascii")
 
 
 def clave_orden_cuadrante(codigo):
@@ -501,7 +550,27 @@ def add_tabla_datos_expediente(doc: Document, expediente) -> None:
                         run.bold = True
 
 
-def add_imagen_si_existe(doc: Document, nombre_foto: str) -> None:
+def add_pie_figura(doc: Document, texto: str) -> None:
+    """Añade un pie de figura discreto y homogéneo."""
+    if not limpiar_texto(texto):
+        return
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(10)
+    run = p.add_run(texto)
+    run.font.name = "Arial"
+    run.font.size = Pt(9)
+    run.italic = True
+
+
+def siguiente_numero_figura(doc: Document) -> int:
+    numero = getattr(doc, "_numero_figura", 1)
+    setattr(doc, "_numero_figura", numero + 1)
+    return numero
+
+
+def add_imagen_si_existe(doc: Document, nombre_foto: str, pie: str | None = None) -> None:
     if not nombre_foto:
         return
 
@@ -514,9 +583,44 @@ def add_imagen_si_existe(doc: Document, nombre_foto: str) -> None:
         doc.add_picture(ruta_foto, width=Cm(12.5))
         ultimo = doc.paragraphs[-1]
         ultimo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        ultimo.paragraph_format.space_after = Pt(8)
+        ultimo.paragraph_format.space_after = Pt(2)
+        if pie:
+            add_pie_figura(doc, pie)
     except Exception:
         add_parrafo(doc, f"No se ha podido insertar la fotografía: {nombre_foto}")
+
+
+def add_separador_bloque(doc: Document) -> None:
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(8)
+    run = p.add_run("──────────────────────────────────────────────────────")
+    run.font.name = "Arial"
+    run.font.size = Pt(8)
+
+
+def add_tabla_campos(doc: Document, filas) -> None:
+    """Tabla compacta de campos técnicos para una patología."""
+    tabla = doc.add_table(rows=0, cols=2)
+    tabla.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tabla.style = "Table Grid"
+
+    for etiqueta, valor in filas:
+        row = tabla.add_row().cells
+        row[0].text = valor_o_guion(etiqueta)
+        row[1].text = valor_o_guion(valor)
+
+    for fila in tabla.rows:
+        for i, celda in enumerate(fila.cells):
+            celda.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            for parrafo in celda.paragraphs:
+                parrafo.paragraph_format.space_after = Pt(0)
+                for run in parrafo.runs:
+                    run.font.name = "Arial"
+                    run.font.size = Pt(9)
+                    if i == 0:
+                        run.bold = True
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
 
 def indice_a_letras_cuadrante(indice: int) -> str:
@@ -1112,6 +1216,9 @@ def add_apartado_patologias_interiores(
     grupos = agrupar_patologias_interiores(patologias)
     indice_estancia = 1
     for grupo in grupos.values():
+        if indice_estancia > 1:
+            add_separador_bloque(doc)
+
         doc.add_heading(
             f"{numero_apartado}.{indice_estancia} {construir_titulo_grupo_interior(grupo)}",
             level=2,
@@ -1127,27 +1234,36 @@ def add_apartado_patologias_interiores(
             add_parrafo(doc, "Observaciones técnicas:", bold=True)
             for item in incoherencias:
                 add_parrafo(doc, f"- {item}")
+
         for indice_item, item in enumerate(grupo["items"], start=1):
             doc.add_heading(
-                f"{numero_apartado}.{indice_estancia}.{indice_item} {valor_o_guion(item['patologia'])}",
+                f"Patología {indice_item} · {valor_o_guion(item['patologia'])}",
                 level=3,
             )
             referencias_cuadrantes = obtener_referencias_cuadrantes_patologia(
                 conn, item["id"]
             )
+            filas = []
             if referencias_cuadrantes:
-                add_etiqueta_valor(
-                    doc,
+                filas.append((
                     "Cuadrantes",
                     formatear_referencias_cuadrantes_patologia(referencias_cuadrantes),
-                )
-            add_etiqueta_valor(doc, "Localización del daño", item["localizacion_dano"])
-            add_etiqueta_valor(doc, "Elemento", item["elemento"])
-            add_etiqueta_valor(doc, "Patología", item["patologia"])
-            add_etiqueta_valor(doc, "Observaciones", item["observaciones"])
+                ))
+            filas.extend([
+                ("Localización del daño", item["localizacion_dano"]),
+                ("Elemento", item["elemento"]),
+                ("Patología", item["patologia"]),
+                ("Observaciones", item["observaciones"]),
+            ])
+            add_tabla_campos(doc, filas)
             if item["foto"]:
-                add_parrafo(doc, "Fotografía asociada:", bold=True)
-                add_imagen_si_existe(doc, item["foto"])
+                numero_figura = siguiente_numero_figura(doc)
+                pie = (
+                    f"Figura {numero_figura}. {valor_o_guion(item['patologia'])} "
+                    f"en {valor_o_guion(item['localizacion_dano']).lower()} "
+                    f"({valor_o_guion(grupo['estancia'])})"
+                )
+                add_imagen_si_existe(doc, item["foto"], pie=pie)
         indice_estancia += 1
 
 
@@ -1192,8 +1308,12 @@ def add_apartado_patologias_exteriores(
     grupos = agrupar_patologias_exteriores(registros)
     indice_zona = 1
     for zona, items in grupos.items():
+        if indice_zona > 1:
+            add_separador_bloque(doc)
+
+        zona_legible = zonas.get(zona, zona)
         doc.add_heading(
-            f"{numero_apartado}.{indice_zona} {zonas.get(zona, zona)}",
+            f"{numero_apartado}.{indice_zona} {zona_legible}",
             level=2,
         )
         resumen = construir_resumen_patologias(
@@ -1209,36 +1329,40 @@ def add_apartado_patologias_exteriores(
                 add_parrafo(doc, f"- {item}")
         for indice_item, item in enumerate(items, start=1):
             doc.add_heading(
-                f"{numero_apartado}.{indice_zona}.{indice_item} {valor_o_guion(item['patologia'])}",
+                f"Patología {indice_item} · {valor_o_guion(item['patologia'])}",
                 level=3,
             )
             referencias_cuadrantes = obtener_referencias_cuadrantes_patologia(
                 conn, item["id"]
             )
+            elemento_exterior = elementos.get(
+                limpiar_texto(item["elemento_exterior"]), item["elemento_exterior"]
+            )
+            localizacion_exterior = localizaciones.get(
+                limpiar_texto(item["localizacion_dano_exterior"]),
+                item["localizacion_dano_exterior"],
+            )
+            filas = []
             if referencias_cuadrantes:
-                add_etiqueta_valor(
-                    doc,
+                filas.append((
                     "Cuadrantes",
                     formatear_referencias_cuadrantes_patologia(referencias_cuadrantes),
-                )
-            add_etiqueta_valor(
-                doc,
-                "Elemento exterior",
-                elementos.get(limpiar_texto(item["elemento_exterior"]), item["elemento_exterior"]),
-            )
-            add_etiqueta_valor(
-                doc,
-                "Localización del daño exterior",
-                localizaciones.get(
-                    limpiar_texto(item["localizacion_dano_exterior"]),
-                    item["localizacion_dano_exterior"],
-                ),
-            )
-            add_etiqueta_valor(doc, "Patología", item["patologia"])
-            add_etiqueta_valor(doc, "Observaciones", item["observaciones"])
+                ))
+            filas.extend([
+                ("Elemento exterior", elemento_exterior),
+                ("Localización del daño exterior", localizacion_exterior),
+                ("Patología", item["patologia"]),
+                ("Observaciones", item["observaciones"]),
+            ])
+            add_tabla_campos(doc, filas)
             if item["foto"]:
-                add_parrafo(doc, "Fotografía asociada:", bold=True)
-                add_imagen_si_existe(doc, item["foto"])
+                numero_figura = siguiente_numero_figura(doc)
+                pie = (
+                    f"Figura {numero_figura}. {valor_o_guion(item['patologia'])} "
+                    f"en {valor_o_guion(localizacion_exterior).lower()} "
+                    f"({valor_o_guion(zona_legible)})"
+                )
+                add_imagen_si_existe(doc, item["foto"], pie=pie)
         indice_zona += 1
 
 
@@ -2464,6 +2588,1243 @@ def generar_informe_patologias(cur, expediente, visitas, doc: Document) -> None:
         patologias_interiores,
         patologias_exteriores,
     )
+
+
+def obtener_fotos_registro_informe(cur, tabla: str, fk_columna: str, parent_id: int, foto_principal: str | None = None) -> list[dict]:
+    fotos = []
+    vistos = set()
+    foto_principal = limpiar_texto(foto_principal)
+    if foto_principal:
+        fotos.append({"archivo": foto_principal})
+        vistos.add(foto_principal)
+
+    for fila in cur.execute(
+        f"""
+        SELECT archivo
+        FROM {tabla}
+        WHERE {fk_columna}=?
+        ORDER BY id ASC
+        """,
+        (parent_id,),
+    ).fetchall():
+        archivo = limpiar_texto(fila["archivo"])
+        if archivo and archivo not in vistos:
+            fotos.append({"archivo": archivo})
+            vistos.add(archivo)
+    return fotos
+
+
+def obtener_fotos_estancia_informe(cur, estancia_id: int) -> list[dict]:
+    return [
+        {"archivo": fila["archivo"]}
+        for fila in cur.execute(
+            """
+            SELECT archivo
+            FROM estancia_fotos
+            WHERE estancia_id=?
+            ORDER BY id ASC
+            """,
+            (estancia_id,),
+        ).fetchall()
+        if limpiar_texto(fila["archivo"])
+    ]
+
+
+def construir_figura(contador: dict | None, archivo: str, pie_base: str, base_url: str) -> dict:
+    return {
+        "archivo": archivo,
+        "url": imagen_url_pdf(archivo, base_url),
+        "caption_base": pie_base,
+        "caption": pie_base,
+    }
+
+
+def construir_campos_informe(filas) -> list[dict]:
+    return [{"label": etiqueta, "value": valor_o_guion(valor)} for etiqueta, valor in filas]
+
+
+def construir_toc_items_informe(contexto: dict, paginas: dict | None = None) -> list[dict]:
+    paginas = paginas or {}
+    offset = 1 if contexto.get("bloque_judicial") else 0
+    post_mapas = 1 if contexto.get("mapas") else 0
+    items = [
+        ("identificacion", 1, "Identificación del expediente"),
+        ("objeto", 2, "Objeto del informe"),
+        ("descripcion", 3, "Descripción del inmueble"),
+        ("datos-patologias", 4, "Datos específicos del informe de patologías"),
+    ]
+    if contexto.get("bloque_judicial"):
+        items.append(("judicial", 5, "Encargo judicial"))
+    items.extend(
+        [
+            ("inspeccion", 5 + offset, "Inspección y visita"),
+            ("patologias-interiores", 6 + offset, "Patologías interiores"),
+            ("patologias-exteriores", 7 + offset, "Patologías exteriores"),
+        ]
+    )
+    if contexto.get("mapas"):
+        items.append(("mapas", 8 + offset, "Mapas de localización de daños"))
+    items.extend(
+        [
+            ("analisis", 8 + offset + post_mapas, "Análisis técnico"),
+            ("propuesta", 9 + offset + post_mapas, "Propuesta de reparación"),
+            ("conclusiones-tecnicas", 10 + offset + post_mapas, "Conclusiones técnicas"),
+            ("conclusiones-periciales", 11 + offset + post_mapas, "Conclusiones periciales"),
+        ]
+    )
+    return [
+        {
+            "id": item_id,
+            "number": number,
+            "title": title,
+            "page": paginas.get(item_id),
+        }
+        for item_id, number, title in items
+    ]
+
+
+def asignar_numero_figura(figura: dict | None, contador: dict) -> None:
+    if not figura:
+        return
+    numero = contador["valor"]
+    contador["valor"] += 1
+    figura["numero"] = numero
+    figura["caption"] = f"Figura {numero}. {figura.get('caption_base') or ''}".strip()
+
+
+def numerar_figuras_en_orden_visual(contexto: dict) -> int:
+    contador = {"valor": 1}
+
+    for visita in contexto.get("visitas", []):
+        for foto in visita.get("fotos_exteriores", []):
+            asignar_numero_figura(foto.get("figura"), contador)
+
+    for estancia in contexto.get("estancias", []):
+        for figura in estancia.get("fotos", []):
+            asignar_numero_figura(figura, contador)
+        for patologia in estancia.get("patologias", []):
+            for figura in patologia.get("fotos", []):
+                asignar_numero_figura(figura, contador)
+
+    for zona in contexto.get("patologias_exteriores", []):
+        for patologia in zona.get("patologias", []):
+            for figura in patologia.get("fotos", []):
+                asignar_numero_figura(figura, contador)
+
+    for bloque in contexto.get("mapas", []):
+        for mapa in bloque.get("mapas", []):
+            for cuadrante in mapa.get("cuadrantes", []):
+                asignar_numero_figura(cuadrante.get("foto_figura"), contador)
+
+    return contador["valor"] - 1
+
+
+def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
+    """Prepara los datos del informe HTML sin alterar la generación DOCX existente."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = cur.execute(
+            "SELECT * FROM expedientes WHERE id=?",
+            (expediente_id,),
+        ).fetchone()
+        if not expediente:
+            raise ValueError("Expediente no encontrado")
+
+        visitas = cur.execute(
+            """
+            SELECT *
+            FROM visitas
+            WHERE expediente_id=?
+            ORDER BY id ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+
+        ambitos = {
+            "interior": "Interior",
+            "exterior": "Exterior",
+            "interior_exterior": "Interior y exterior",
+        }
+        zonas_exteriores = {
+            "fachada": "Fachada",
+            "cubierta": "Cubierta",
+            "medianera": "Medianera",
+            "patio": "Patio",
+            "terraza": "Terraza",
+            "exterior_general": "Exterior general",
+        }
+        elementos_exteriores = {
+            "revestimiento": "Revestimiento",
+            "cerramiento": "Cerramiento",
+            "cornisa": "Cornisa",
+            "alero": "Alero",
+            "peto": "Peto",
+            "impermeabilizacion": "Impermeabilización",
+            "carpinteria_exterior": "Carpintería exterior",
+            "barandilla": "Barandilla",
+            "bajante": "Bajante",
+            "canalon": "Canalón",
+            "forjado": "Forjado",
+            "otro": "Otro",
+        }
+        localizaciones_exteriores = {
+            "horizontal": "Horizontal",
+            "vertical": "Vertical",
+            "encuentro": "Encuentro",
+            "puntual": "Puntual",
+        }
+
+        patologias_interiores_rows = []
+        patologias_exteriores_rows = []
+        visitas_contexto = []
+        estancias_por_id: dict[int, dict] = {}
+        bloques_mapas = []
+
+        for visita in visitas:
+            climatologia = cur.execute(
+                """
+                SELECT *
+                FROM climatologia_visitas
+                WHERE visita_id=?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (visita["id"],),
+            ).fetchone()
+            fotos_exteriores_visita = [
+                {
+                    "descripcion": foto["descripcion"],
+                    "figura": construir_figura(
+                        None,
+                        foto["ruta"],
+                        f"Fotografía exterior descriptiva ({valor_o_guion(visita['fecha'])})",
+                        base_url,
+                    ),
+                }
+                for foto in cur.execute(
+                    """
+                    SELECT ruta, descripcion
+                    FROM visita_fotos
+                    WHERE visita_id=? AND categoria='exterior'
+                    ORDER BY id ASC
+                    """,
+                    (visita["id"],),
+                ).fetchall()
+            ]
+            visitas_contexto.append(
+                {
+                    "id": visita["id"],
+                    "fecha": visita["fecha"],
+                    "tecnico": visita["tecnico"],
+                    "observaciones": visita["observaciones_visita"],
+                    "objeto": describir_objeto_visita_informe(cur, visita),
+                    "climatologia": get_row_value(climatologia, "resumen", "No consta climatología registrada"),
+                    "fotos_exteriores": fotos_exteriores_visita,
+                }
+            )
+
+            for estancia in cur.execute(
+                """
+                SELECT e.*,
+                       ue.identificador AS unidad_identificador,
+                       ne.nombre_nivel AS nivel_nombre
+                FROM estancias e
+                LEFT JOIN unidades_expediente ue ON e.unidad_id = ue.id
+                LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+                WHERE e.visita_id=?
+                ORDER BY ne.nombre_nivel ASC, ue.identificador ASC, e.id ASC
+                """,
+                (visita["id"],),
+            ).fetchall():
+                fotos_estancia = []
+                for foto in obtener_fotos_estancia_informe(cur, estancia["id"]):
+                    fotos_estancia.append(
+                        construir_figura(
+                            None,
+                            foto["archivo"],
+                            f"Vista general de {valor_o_guion(estancia['nombre'])}",
+                            base_url,
+                        )
+                    )
+                estancias_por_id[estancia["id"]] = {
+                    "id": estancia["id"],
+                    "visita_id": visita["id"],
+                    "nombre": limpiar_texto(estancia["nombre"]) or "Sin estancia",
+                    "nivel": limpiar_texto(estancia["nivel_nombre"]),
+                    "unidad": limpiar_texto(estancia["unidad_identificador"]),
+                    "campos": construir_campos_informe(
+                        [
+                            ("Tipo de estancia", estancia["tipo_estancia"]),
+                            ("Planta", estancia["planta"]),
+                            ("Ventilación", estancia["ventilacion"]),
+                            ("Acabado de pavimento", estancia["acabado_pavimento"]),
+                            ("Acabado de paramento", estancia["acabado_paramento"]),
+                            ("Acabado de techo", estancia["acabado_techo"]),
+                            ("Observaciones técnicas", estancia["observaciones"]),
+                        ]
+                    ),
+                    "fotos": fotos_estancia,
+                    "patologias": [],
+                }
+
+            patologias_interiores_rows.extend(
+                cur.execute(
+                    """
+                    SELECT rp.*,
+                           e.nombre AS estancia_nombre,
+                           ue.identificador AS unidad_identificador,
+                           ne.nombre_nivel AS nivel_nombre,
+                           bp.rol_patologia AS rol_patologia_biblioteca
+                    FROM registros_patologias rp
+                    INNER JOIN estancias e ON rp.estancia_id = e.id
+                    LEFT JOIN unidades_expediente ue ON e.unidad_id = ue.id
+                    LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+                    LEFT JOIN biblioteca_patologias bp
+                           ON lower(trim(bp.nombre)) = lower(trim(rp.patologia))
+                    WHERE rp.visita_id=?
+                    ORDER BY ne.nombre_nivel ASC, ue.identificador ASC, e.nombre ASC, rp.id ASC
+                    """,
+                    (visita["id"],),
+                ).fetchall()
+            )
+            patologias_exteriores_rows.extend(
+                cur.execute(
+                    """
+                    SELECT rpe.*,
+                           '' AS rol_patologia_observado,
+                           bp.rol_patologia AS rol_patologia_biblioteca
+                    FROM registros_patologias_exteriores rpe
+                    LEFT JOIN biblioteca_patologias bp
+                           ON lower(trim(bp.nombre)) = lower(trim(rpe.patologia))
+                    WHERE rpe.visita_id=?
+                    ORDER BY rpe.zona_exterior ASC, rpe.id ASC
+                    """,
+                    (visita["id"],),
+                ).fetchall()
+            )
+            bloques_mapas.append(
+                {
+                    "visita": visita,
+                    "mapas": cargar_mapas_patologia_utiles_visita(cur, visita),
+                }
+            )
+
+        for registro in patologias_interiores_rows:
+            referencias_cuadrantes = obtener_referencias_cuadrantes_patologia(conn, registro["id"])
+            fotos = []
+            for foto in obtener_fotos_registro_informe(
+                cur,
+                "registro_patologia_fotos",
+                "registro_id",
+                registro["id"],
+                registro["foto"],
+            ):
+                pie_base = (
+                    f"{valor_o_guion(registro['patologia'])} en "
+                    f"{valor_o_guion(registro['localizacion_dano']).lower()} "
+                    f"({valor_o_guion(registro['estancia_nombre'])})"
+                )
+                fotos.append(construir_figura(None, foto["archivo"], pie_base, base_url))
+            patologia = {
+                "id": registro["id"],
+                "titulo": valor_o_guion(registro["patologia"]),
+                "campos": construir_campos_informe(
+                    [
+                        ("Cuadrantes", formatear_referencias_cuadrantes_patologia(referencias_cuadrantes) if referencias_cuadrantes else ""),
+                        ("Localización del daño", registro["localizacion_dano"]),
+                        ("Detalle de localización", registro["detalle_localizacion"]),
+                        ("Elemento", registro["elemento"]),
+                        ("Patología", registro["patologia"]),
+                        ("Rol técnico", registro["rol_patologia_observado"] or registro["rol_patologia_biblioteca"]),
+                        ("Observaciones", registro["observaciones"]),
+                    ]
+                ),
+                "fotos": fotos,
+            }
+            if registro["estancia_id"] not in estancias_por_id:
+                estancias_por_id[registro["estancia_id"]] = {
+                    "id": registro["estancia_id"],
+                    "visita_id": registro["visita_id"],
+                    "nombre": limpiar_texto(registro["estancia_nombre"]) or "Sin estancia",
+                    "nivel": limpiar_texto(registro["nivel_nombre"]),
+                    "unidad": limpiar_texto(registro["unidad_identificador"]),
+                    "campos": [],
+                    "fotos": [],
+                    "patologias": [],
+                }
+            estancias_por_id[registro["estancia_id"]]["patologias"].append(patologia)
+
+        estancias = list(estancias_por_id.values())
+        for estancia in estancias:
+            prefijo = f"En la estancia {estancia['nombre']}"
+            registros_estancia = [
+                registro
+                for registro in patologias_interiores_rows
+                if registro["estancia_id"] == estancia["id"]
+            ]
+            estancia["resumen"] = construir_resumen_patologias(prefijo, registros_estancia)
+            estancia["incoherencias"] = detectar_incoherencias(registros_estancia)
+
+        patologias_exteriores = []
+        for zona, items in agrupar_patologias_exteriores(patologias_exteriores_rows).items():
+            zona_legible = zonas_exteriores.get(zona, zona)
+            patologias_zona = []
+            for registro in items:
+                referencias_cuadrantes = obtener_referencias_cuadrantes_patologia(conn, registro["id"])
+                elemento_exterior = elementos_exteriores.get(
+                    limpiar_texto(registro["elemento_exterior"]),
+                    registro["elemento_exterior"],
+                )
+                localizacion_exterior = localizaciones_exteriores.get(
+                    limpiar_texto(registro["localizacion_dano_exterior"]),
+                    registro["localizacion_dano_exterior"],
+                )
+                fotos = []
+                for foto in obtener_fotos_registro_informe(
+                    cur,
+                    "registro_patologia_exterior_fotos",
+                    "registro_id",
+                    registro["id"],
+                    registro["foto"],
+                ):
+                    pie_base = (
+                        f"{valor_o_guion(registro['patologia'])} en "
+                        f"{valor_o_guion(localizacion_exterior).lower()} "
+                        f"({valor_o_guion(zona_legible)})"
+                    )
+                    fotos.append(construir_figura(None, foto["archivo"], pie_base, base_url))
+                patologias_zona.append(
+                    {
+                        "id": registro["id"],
+                        "titulo": valor_o_guion(registro["patologia"]),
+                        "campos": construir_campos_informe(
+                            [
+                                ("Cuadrantes", formatear_referencias_cuadrantes_patologia(referencias_cuadrantes) if referencias_cuadrantes else ""),
+                                ("Zona exterior", zona_legible),
+                                ("Elemento exterior", elemento_exterior),
+                                ("Localización del daño exterior", localizacion_exterior),
+                                ("Patología", registro["patologia"]),
+                                ("Rol técnico", registro["rol_patologia_observado"] or registro["rol_patologia_biblioteca"]),
+                                ("Observaciones", registro["observaciones"]),
+                            ]
+                        ),
+                        "fotos": fotos,
+                    }
+                )
+            patologias_exteriores.append(
+                {
+                    "zona": valor_o_guion(zona_legible),
+                    "resumen": construir_resumen_patologias("En el exterior del inmueble", items),
+                    "incoherencias": detectar_incoherencias(items),
+                    "patologias": patologias_zona,
+                }
+            )
+
+        mapas_contexto = []
+        for bloque in bloques_mapas:
+            mapas = []
+            for mapa in bloque["mapas"]:
+                cuadrantes = []
+                for cuadrante in mapa["cuadrantes"]:
+                    foto_detalle = ""
+                    if limpiar_texto(cuadrante["foto_detalle"]):
+                        foto_detalle = construir_figura(
+                            None,
+                            cuadrante["foto_detalle"],
+                            f"Detalle del cuadrante {valor_o_guion(cuadrante['codigo_cuadrante'])}",
+                            base_url,
+                        )
+                    cuadrantes.append({**cuadrante, "foto_figura": foto_detalle})
+                mapas.append(
+                    {
+                        **mapa,
+                        "imagen_base_url": imagen_url_pdf(mapa["imagen_base"], base_url),
+                        "imagen_overlay_url": mapa_overlay_data_uri({**mapa, "cuadrantes": cuadrantes}),
+                        "cuadrantes": cuadrantes,
+                    }
+                )
+            if mapas:
+                mapas_contexto.append(
+                    {
+                        "visita": row_to_dict(bloque["visita"]),
+                        "mapas": mapas,
+                    }
+                )
+
+        expediente_dict = row_to_dict(expediente)
+        tipo_trabajo = {
+            "patologias": "Informe de patologías",
+            "inspeccion": "Informe de inspección técnica",
+            "habitabilidad": "Informe de habitabilidad",
+            "valoracion": "Informe de valoración",
+        }.get(limpiar_texto(expediente["tipo_informe"]), "Informe pericial")
+        contexto = {
+            "expediente": expediente_dict,
+            "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
+            "portada": {
+                "tecnico": visitas_contexto[0]["tecnico"] if visitas_contexto else "-",
+                "tipo_trabajo": tipo_trabajo,
+                "direccion": valor_o_guion(expediente["direccion"]),
+                "fecha": datetime.now().strftime("%d/%m/%Y"),
+            },
+            "identificacion": construir_campos_informe(
+                [
+                    ("Número de expediente", expediente["numero_expediente"]),
+                    ("Cliente", expediente["cliente"]),
+                    ("Dirección", expediente["direccion"]),
+                    ("Código postal", expediente["codigo_postal"]),
+                    ("Ciudad", expediente["ciudad"]),
+                    ("Provincia", expediente["provincia"]),
+                    ("Tipo de inmueble", expediente["tipo_inmueble"]),
+                    ("Orientación", expediente["orientacion_inmueble"]),
+                    ("Año de construcción", expediente["anio_construccion"]),
+                    ("Uso del inmueble", expediente["uso_inmueble"]),
+                ]
+            ),
+            "descripcion_inmueble": construir_campos_informe(
+                [
+                    ("Referencia catastral", expediente["referencia_catastral"]),
+                    ("Observaciones generales", expediente["observaciones_generales"]),
+                    ("Observaciones del edificio", expediente["observaciones_bloque"]),
+                    ("Planta de la unidad", expediente["planta_unidad"]),
+                    ("Puerta / unidad", expediente["puerta_unidad"]),
+                    ("Superficie construida", expediente["superficie_construida"]),
+                    ("Superficie útil", expediente["superficie_util"]),
+                    ("Dormitorios", expediente["dormitorios_unidad"]),
+                    ("Baños", expediente["banos_unidad"]),
+                    ("Observaciones de la unidad", expediente["observaciones_unidad"]),
+                ]
+            ),
+            "datos_patologias": construir_campos_informe(
+                [
+                    ("Ámbito de patologías", ambitos.get(limpiar_texto(expediente["ambito_patologias"]), expediente["ambito_patologias"])),
+                    ("Descripción del daño", expediente["descripcion_dano"]),
+                    ("Causa probable", expediente["causa_probable"]),
+                    ("Pruebas e indicios", expediente["pruebas_indicios"]),
+                    ("Evolución / preexistencia", expediente["evolucion_preexistencia"]),
+                    ("Propuesta de reparación", expediente["propuesta_reparacion"]),
+                    ("Urgencia / gravedad", expediente["urgencia_gravedad"]),
+                ]
+            ),
+            "bloque_judicial": construir_campos_informe(
+                [
+                    ("Procedimiento judicial", expediente["procedimiento_judicial"]),
+                    ("Juzgado", expediente["juzgado"]),
+                    ("Auto judicial", expediente["auto_judicial"]),
+                    ("Parte solicitante", expediente["parte_solicitante"]),
+                    ("Objeto de la pericia", expediente["objeto_pericia"]),
+                    ("Alcance y limitaciones", expediente["alcance_limitaciones"]),
+                    ("Metodología pericial", expediente["metodologia_pericial"]),
+                ]
+            )
+            if limpiar_texto(expediente["destinatario"]) == "judicial"
+            else [],
+            "visitas": visitas_contexto,
+            "estancias": estancias,
+            "patologias_exteriores": patologias_exteriores,
+            "mapas": mapas_contexto,
+            "analisis_tecnico": construir_campos_informe(
+                [
+                    ("Descripción del daño", expediente["descripcion_dano"]),
+                    ("Causa probable", expediente["causa_probable"]),
+                    ("Pruebas e indicios", expediente["pruebas_indicios"]),
+                    ("Evolución / preexistencia", expediente["evolucion_preexistencia"]),
+                    ("Urgencia / gravedad", expediente["urgencia_gravedad"]),
+                ]
+            ),
+            "propuesta_reparacion": valor_o_guion(expediente["propuesta_reparacion"])
+            if limpiar_texto(expediente["propuesta_reparacion"])
+            else "No consta propuesta de reparación registrada.",
+            "conclusion_tecnica": construir_conclusion_tecnica_global(
+                patologias_interiores_rows,
+                patologias_exteriores_rows,
+            ),
+            "conclusion_pericial": construir_conclusion_pericial(
+                patologias_interiores_rows,
+                patologias_exteriores_rows,
+            ),
+        }
+        contexto["total_figuras"] = numerar_figuras_en_orden_visual(contexto)
+        contexto["toc_items"] = construir_toc_items_informe(contexto)
+        return contexto
+    finally:
+        conn.close()
+
+
+def nombre_archivo_pdf_informe(expediente) -> str:
+    numero = limpiar_nombre_archivo(get_row_value(expediente, "numero_expediente", "expediente"))
+    return f"Informe-{numero}.pdf"
+
+
+def nombre_archivo_docx_editable_informe(expediente) -> str:
+    numero = limpiar_nombre_archivo(get_row_value(expediente, "numero_expediente", "expediente"))
+    return f"Informe-editable-{numero}.docx"
+
+
+def get_or_create_paragraph_style(doc: Document, name: str):
+    try:
+        return doc.styles[name]
+    except KeyError:
+        return doc.styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
+
+
+def configurar_estilo_parrafo(
+    doc: Document,
+    name: str,
+    *,
+    size: int,
+    bold: bool = False,
+    italic: bool = False,
+    color: str = "1F2933",
+    alignment=None,
+):
+    style = get_or_create_paragraph_style(doc, name)
+    style.font.name = "Arial"
+    style.font.size = Pt(size)
+    style.font.bold = bold
+    style.font.italic = italic
+    style.font.color.rgb = RGBColor.from_string(color)
+    if alignment is not None:
+        style.paragraph_format.alignment = alignment
+    return style
+
+
+def configurar_documento_editable(doc: Document) -> None:
+    configurar_documento(doc)
+    seccion = doc.sections[-1]
+    seccion.top_margin = Cm(1.5)
+    seccion.bottom_margin = Cm(1.5)
+    seccion.left_margin = Cm(1.7)
+    seccion.right_margin = Cm(1.7)
+
+    estilo_normal = doc.styles["Normal"]
+    estilo_normal.font.name = "Arial"
+    estilo_normal.font.size = Pt(10)
+
+    configurar_estilo_parrafo(
+        doc,
+        "Informe Portada Titulo",
+        size=26,
+        bold=True,
+        alignment=WD_ALIGN_PARAGRAPH.CENTER,
+    )
+    configurar_estilo_parrafo(
+        doc,
+        "Informe Portada Subtitulo",
+        size=12,
+        italic=True,
+        color="4B5563",
+        alignment=WD_ALIGN_PARAGRAPH.CENTER,
+    )
+    configurar_estilo_parrafo(doc, "Informe Caption", size=8, italic=True, color="4B5563", alignment=WD_ALIGN_PARAGRAPH.CENTER)
+    configurar_estilo_parrafo(doc, "Informe Observacion", size=9, color="1F2933")
+    configurar_estilo_parrafo(doc, "Informe Card Titulo", size=11, bold=True)
+
+
+def ajustar_runs_parrafo(parrafo, font_size: int | None = None, bold: bool | None = None) -> None:
+    for run in parrafo.runs:
+        run.font.name = "Arial"
+        if font_size:
+            run.font.size = Pt(font_size)
+        if bold is not None:
+            run.bold = bold
+
+
+def add_heading_editable(doc: Document, texto: str, level: int = 1) -> None:
+    parrafo = doc.add_heading(valor_o_guion(texto), level=level)
+    ajustar_runs_parrafo(parrafo, font_size=16 if level == 1 else 13 if level == 2 else 11)
+    parrafo.paragraph_format.keep_with_next = True
+
+
+def aplicar_bordes_celda(celda, color: str = "D8DEE6", size: str = "6") -> None:
+    tc_pr = celda._tc.get_or_add_tcPr()
+    tc_borders = tc_pr.first_child_found_in("w:tcBorders")
+    if tc_borders is None:
+        tc_borders = OxmlElement("w:tcBorders")
+        tc_pr.append(tc_borders)
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        tag = f"w:{edge}"
+        element = tc_borders.find(qn(tag))
+        if element is None:
+            element = OxmlElement(tag)
+            tc_borders.append(element)
+        element.set(qn("w:val"), "single")
+        element.set(qn("w:sz"), size)
+        element.set(qn("w:space"), "0")
+        element.set(qn("w:color"), color)
+
+
+def aplicar_fila_no_dividir(fila) -> None:
+    tr_pr = fila._tr.get_or_add_trPr()
+    cant_split = tr_pr.find(qn("w:cantSplit"))
+    if cant_split is None:
+        tr_pr.append(OxmlElement("w:cantSplit"))
+
+
+def aplicar_sombreado_celda(celda, fill: str) -> None:
+    tc_pr = celda._tc.get_or_add_tcPr()
+    shading = tc_pr.find(qn("w:shd"))
+    if shading is None:
+        shading = OxmlElement("w:shd")
+        tc_pr.append(shading)
+    shading.set(qn("w:fill"), fill)
+
+
+def aplicar_margenes_celda(celda, margen: int = 120) -> None:
+    tc_pr = celda._tc.get_or_add_tcPr()
+    tc_mar = tc_pr.find(qn("w:tcMar"))
+    if tc_mar is None:
+        tc_mar = OxmlElement("w:tcMar")
+        tc_pr.append(tc_mar)
+    for lado in ("top", "left", "bottom", "right"):
+        nodo = tc_mar.find(qn(f"w:{lado}"))
+        if nodo is None:
+            nodo = OxmlElement(f"w:{lado}")
+            tc_mar.append(nodo)
+        nodo.set(qn("w:w"), str(margen))
+        nodo.set(qn("w:type"), "dxa")
+
+
+def aplicar_estilo_tabla_suave(tabla, sombrear_primera_columna: bool = False) -> None:
+    tabla.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for fila in tabla.rows:
+        aplicar_fila_no_dividir(fila)
+        for indice, celda in enumerate(fila.cells):
+            celda.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            aplicar_bordes_celda(celda)
+            aplicar_margenes_celda(celda)
+            if sombrear_primera_columna and indice == 0:
+                aplicar_sombreado_celda(celda, "F3F6F8")
+            for parrafo in celda.paragraphs:
+                parrafo.paragraph_format.space_after = Pt(0)
+                for run in parrafo.runs:
+                    run.font.name = "Arial"
+                    run.font.size = Pt(9)
+                    if sombrear_primera_columna and indice == 0:
+                        run.bold = True
+                        run.font.color.rgb = RGBColor.from_string("6B7280")
+
+
+def add_parrafo_editable(
+    doc: Document,
+    texto: str,
+    *,
+    bold: bool = False,
+    italic: bool = False,
+    centrado: bool = False,
+    espacio_despues: int = 6,
+) -> None:
+    parrafo = doc.add_paragraph()
+    parrafo.alignment = WD_ALIGN_PARAGRAPH.CENTER if centrado else WD_ALIGN_PARAGRAPH.LEFT
+    parrafo.paragraph_format.space_after = Pt(espacio_despues)
+    run = parrafo.add_run(valor_o_guion(texto))
+    run.font.name = "Arial"
+    run.font.size = Pt(10)
+    run.bold = bold
+    run.italic = italic
+
+
+def add_tabla_campos_editable(doc: Document, campos: list[dict]) -> None:
+    tabla = doc.add_table(rows=0, cols=2)
+
+    for campo in campos:
+        row = tabla.add_row().cells
+        row[0].text = valor_o_guion(campo.get("label")).upper()
+        row[1].text = valor_o_guion(campo.get("value"))
+
+    aplicar_estilo_tabla_suave(tabla, sombrear_primera_columna=True)
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+
+def obtener_imagen_origen_docx(figura: dict):
+    if not figura:
+        return None
+
+    archivo = limpiar_texto(figura.get("archivo"))
+    if archivo:
+        ruta_foto = os.path.join(UPLOAD_DIR, archivo)
+        if os.path.exists(ruta_foto):
+            return ruta_foto
+
+    data_uri = limpiar_texto(figura.get("data_uri"))
+    if data_uri.startswith("data:image/") and "," in data_uri:
+        try:
+            return BytesIO(base64.b64decode(data_uri.split(",", 1)[1]))
+        except Exception:
+            return None
+
+    return None
+
+
+def add_imagen_en_parrafo(parrafo, figura: dict, ancho_cm: float) -> bool:
+    imagen_origen = obtener_imagen_origen_docx(figura)
+    if imagen_origen is None:
+        return False
+    run = parrafo.add_run()
+    run.add_picture(imagen_origen, width=Cm(ancho_cm))
+    return True
+
+
+def add_imagen_editable(doc: Document, figura: dict, ancho_cm: float = 11.5) -> None:
+    if not figura:
+        return
+
+    imagen_origen = obtener_imagen_origen_docx(figura)
+    archivo = limpiar_texto(figura.get("archivo"))
+    if imagen_origen is None:
+        add_parrafo_editable(doc, f"Imagen no localizada: {archivo or '-'}")
+        return
+
+    try:
+        doc.add_picture(imagen_origen, width=Cm(ancho_cm))
+        ultimo = doc.paragraphs[-1]
+        ultimo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        ultimo.paragraph_format.space_after = Pt(2)
+        if limpiar_texto(figura.get("caption")):
+            parrafo_pie = doc.add_paragraph(style="Informe Caption")
+            parrafo_pie.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            parrafo_pie.paragraph_format.space_after = Pt(10)
+            run = parrafo_pie.add_run(figura["caption"])
+            run.font.name = "Arial"
+            run.font.size = Pt(9)
+            run.italic = True
+    except Exception:
+        add_parrafo_editable(doc, f"No se ha podido insertar la imagen: {archivo or '-'}")
+
+
+def add_bloque_figuras_editable(doc: Document, figuras: list[dict], ancho_cm: float = 11.5) -> None:
+    for figura in figuras or []:
+        add_imagen_editable(doc, figura, ancho_cm=ancho_cm)
+
+
+def add_grid_figuras_editable(doc: Document, figuras: list[dict], ancho_cm: float = 7.5) -> None:
+    figuras = [figura for figura in (figuras or []) if figura]
+    if not figuras:
+        return
+
+    tabla = doc.add_table(rows=0, cols=2)
+    for indice in range(0, len(figuras), 2):
+        row = tabla.add_row()
+        aplicar_fila_no_dividir(row)
+        cells = row.cells
+        for offset, celda in enumerate(cells):
+            posicion = indice + offset
+            aplicar_bordes_celda(celda, color="FFFFFF", size="0")
+            aplicar_margenes_celda(celda, margen=80)
+            if posicion >= len(figuras):
+                continue
+            figura = figuras[posicion]
+            parrafo_imagen = celda.paragraphs[0]
+            parrafo_imagen.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            parrafo_imagen.paragraph_format.keep_with_next = True
+            if not add_imagen_en_parrafo(parrafo_imagen, figura, ancho_cm):
+                parrafo_imagen.add_run("Imagen no localizada")
+            parrafo_pie = celda.add_paragraph()
+            parrafo_pie.style = "Informe Caption"
+            parrafo_pie.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            parrafo_pie.paragraph_format.space_after = Pt(6)
+            run = parrafo_pie.add_run(valor_o_guion(figura.get("caption")))
+            run.font.name = "Arial"
+            run.font.size = Pt(8)
+            run.italic = True
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+
+def add_bloque_observaciones_docx(doc: Document, items: list[str]) -> None:
+    if not items:
+        return
+    tabla = doc.add_table(rows=1, cols=1)
+    aplicar_fila_no_dividir(tabla.rows[0])
+    celda = tabla.rows[0].cells[0]
+    aplicar_bordes_celda(celda, color="E5C46A")
+    aplicar_sombreado_celda(celda, "FFF8E6")
+    aplicar_margenes_celda(celda, margen=150)
+    parrafo = celda.paragraphs[0]
+    parrafo.paragraph_format.keep_with_next = True
+    run = parrafo.add_run("Observaciones técnicas")
+    run.font.name = "Arial"
+    run.font.size = Pt(10)
+    run.bold = True
+    for item in items:
+        p = celda.add_paragraph()
+        p.style = "Informe Observacion"
+        p.paragraph_format.space_after = Pt(2)
+        r = p.add_run(f"- {item}")
+        r.font.name = "Arial"
+        r.font.size = Pt(9)
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+
+def add_bloque_destacado_docx(doc: Document, titulo: str, texto: str, fill: str = "F8FAFC") -> None:
+    tabla = doc.add_table(rows=1, cols=1)
+    aplicar_fila_no_dividir(tabla.rows[0])
+    celda = tabla.rows[0].cells[0]
+    aplicar_bordes_celda(celda, color="D8DEE6")
+    aplicar_sombreado_celda(celda, fill)
+    aplicar_margenes_celda(celda, margen=170)
+    parrafo_titulo = celda.paragraphs[0]
+    parrafo_titulo.paragraph_format.keep_with_next = True
+    run_titulo = parrafo_titulo.add_run(valor_o_guion(titulo))
+    run_titulo.font.name = "Arial"
+    run_titulo.font.size = Pt(12)
+    run_titulo.bold = True
+    parrafo_texto = celda.add_paragraph()
+    parrafo_texto.paragraph_format.space_after = Pt(0)
+    run_texto = parrafo_texto.add_run(valor_o_guion(texto))
+    run_texto.font.name = "Arial"
+    run_texto.font.size = Pt(10)
+    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+
+
+def add_portada_editable_docx(doc: Document, contexto: dict) -> None:
+    expediente = contexto["expediente"]
+    portada = contexto["portada"]
+
+    for _ in range(3):
+        doc.add_paragraph()
+
+    p = doc.add_paragraph(style="Informe Portada Titulo")
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(8)
+    run = p.add_run("INFORME PERICIAL")
+    run.font.name = "Arial"
+    run.font.size = Pt(26)
+    run.bold = True
+
+    add_parrafo_editable(
+        doc,
+        "Inspección técnica y registro de patologías",
+        italic=True,
+        centrado=True,
+        espacio_despues=26,
+    )
+
+    tabla = doc.add_table(rows=0, cols=2)
+    for etiqueta, valor in [
+        ("Expediente", expediente.get("numero_expediente")),
+        ("Cliente", expediente.get("cliente")),
+        ("Dirección", expediente.get("direccion")),
+        ("Fecha de emisión", contexto.get("fecha_emision")),
+        ("Técnico", portada.get("tecnico")),
+        ("Tipo de trabajo", portada.get("tipo_trabajo")),
+    ]:
+        row = tabla.add_row().cells
+        row[0].text = valor_o_guion(etiqueta).upper()
+        row[1].text = valor_o_guion(valor)
+    aplicar_estilo_tabla_suave(tabla, sombrear_primera_columna=True)
+    add_salto_pagina(doc)
+
+
+def add_patologia_card_docx(doc: Document, patologia: dict, indice: int) -> None:
+    tabla_titulo = doc.add_table(rows=1, cols=1)
+    aplicar_fila_no_dividir(tabla_titulo.rows[0])
+    celda = tabla_titulo.rows[0].cells[0]
+    aplicar_bordes_celda(celda, color="D8DEE6")
+    aplicar_sombreado_celda(celda, "F8FAFC")
+    aplicar_margenes_celda(celda, margen=130)
+    p = celda.paragraphs[0]
+    p.style = "Informe Card Titulo"
+    p.paragraph_format.keep_with_next = True
+    run = p.add_run(f"Patología {indice} · {valor_o_guion(patologia.get('titulo'))}")
+    run.font.name = "Arial"
+    run.font.size = Pt(11)
+    run.bold = True
+
+    add_tabla_campos_editable(doc, patologia.get("campos", []))
+    add_bloque_figuras_editable(doc, patologia.get("fotos", []), ancho_cm=11.5)
+
+
+def add_estancia_card_docx(doc: Document, estancia: dict, indice: int) -> None:
+    meta = " · ".join(
+        parte
+        for parte in [
+            f"Nivel: {estancia.get('nivel')}" if limpiar_texto(estancia.get("nivel")) else "",
+            f"Unidad: {estancia.get('unidad')}" if limpiar_texto(estancia.get("unidad")) else "",
+        ]
+        if parte
+    )
+    tabla_titulo = doc.add_table(rows=1, cols=1)
+    aplicar_fila_no_dividir(tabla_titulo.rows[0])
+    celda_titulo = tabla_titulo.rows[0].cells[0]
+    aplicar_bordes_celda(celda_titulo, color="D8DEE6")
+    aplicar_sombreado_celda(celda_titulo, "F8FAFC")
+    aplicar_margenes_celda(celda_titulo, margen=150)
+    p_titulo = celda_titulo.paragraphs[0]
+    p_titulo.style = "Informe Card Titulo"
+    p_titulo.paragraph_format.keep_with_next = True
+    run_titulo = p_titulo.add_run(f"{indice}. {valor_o_guion(estancia.get('nombre'))}")
+    run_titulo.font.name = "Arial"
+    run_titulo.font.size = Pt(13)
+    run_titulo.bold = True
+    if meta:
+        p_meta = celda_titulo.add_paragraph()
+        p_meta.paragraph_format.space_after = Pt(0)
+        r_meta = p_meta.add_run(meta)
+        r_meta.font.name = "Arial"
+        r_meta.font.size = Pt(9)
+        r_meta.italic = True
+    if limpiar_texto(estancia.get("resumen")):
+        add_parrafo_editable(doc, estancia["resumen"], espacio_despues=4)
+
+    add_bloque_observaciones_docx(doc, estancia.get("incoherencias", []))
+    add_tabla_campos_editable(doc, estancia.get("campos", []))
+    add_grid_figuras_editable(doc, estancia.get("fotos", []), ancho_cm=7.5)
+
+    if estancia.get("patologias"):
+        for indice_patologia, patologia in enumerate(estancia["patologias"], start=1):
+            add_patologia_card_docx(doc, patologia, indice_patologia)
+    else:
+        add_parrafo_editable(
+            doc,
+            "No constan patologías interiores registradas en esta estancia.",
+            italic=True,
+            espacio_despues=8,
+        )
+
+
+def add_zona_exterior_card_docx(doc: Document, zona: dict, indice: int) -> None:
+    add_heading_editable(doc, f"{indice}. {valor_o_guion(zona.get('zona'))}", level=2)
+    if limpiar_texto(zona.get("resumen")):
+        add_parrafo_editable(doc, zona["resumen"], espacio_despues=4)
+    add_bloque_observaciones_docx(doc, zona.get("incoherencias", []))
+    for indice_patologia, patologia in enumerate(zona.get("patologias", []), start=1):
+        add_patologia_card_docx(doc, patologia, indice_patologia)
+
+
+def generar_informe_docx_editable_bytes(expediente_id: int) -> bytes:
+    contexto = build_informe_context(expediente_id)
+    doc = Document()
+    configurar_documento_editable(doc)
+
+    add_portada_editable_docx(doc, contexto)
+
+    add_heading_editable(doc, "1. Identificación", level=1)
+    add_tabla_campos_editable(doc, contexto["identificacion"])
+
+    add_heading_editable(doc, "2. Objeto del informe", level=1)
+    add_parrafo_editable(
+        doc,
+        "El presente informe pericial documenta las patologías observadas en el inmueble objeto del expediente, "
+        "incorporando los antecedentes disponibles, las visitas realizadas y los registros técnicos interiores "
+        "y/o exteriores existentes en el sistema.",
+    )
+
+    add_heading_editable(doc, "3. Descripción", level=1)
+    add_tabla_campos_editable(doc, contexto["descripcion_inmueble"])
+
+    add_heading_editable(doc, "4. Datos específicos del informe de patologías", level=1)
+    add_tabla_campos_editable(doc, contexto["datos_patologias"])
+
+    if contexto.get("bloque_judicial"):
+        add_heading_editable(doc, "5. Encargo judicial", level=1)
+        add_tabla_campos_editable(doc, contexto["bloque_judicial"])
+        offset = 1
+    else:
+        offset = 0
+
+    add_heading_editable(doc, f"{5 + offset}. Inspección", level=1)
+    if contexto["visitas"]:
+        for indice, visita in enumerate(contexto["visitas"], start=1):
+            add_heading_editable(doc, f"{5 + offset}.{indice} Visita de fecha {valor_o_guion(visita.get('fecha'))}", level=2)
+            add_tabla_campos_editable(
+                doc,
+                construir_campos_informe(
+                    [
+                        ("Técnico", visita.get("tecnico")),
+                        ("Objeto de visita", visita.get("objeto")),
+                        ("Climatología", visita.get("climatologia")),
+                        ("Observaciones de visita", visita.get("observaciones")),
+                    ]
+                ),
+            )
+            if visita.get("fotos_exteriores"):
+                add_heading_editable(doc, "Fotografías exteriores descriptivas", level=3)
+                add_grid_figuras_editable(
+                    doc,
+                    [foto["figura"] for foto in visita["fotos_exteriores"]],
+                    ancho_cm=7.5,
+                )
+    else:
+        add_parrafo_editable(doc, "No constan visitas registradas en el expediente.")
+
+    add_heading_editable(doc, f"{6 + offset}. Patologías interiores", level=1)
+    if contexto["estancias"]:
+        for indice_estancia, estancia in enumerate(contexto["estancias"], start=1):
+            add_estancia_card_docx(doc, estancia, indice_estancia)
+    else:
+        add_parrafo_editable(doc, "No constan estancias registradas.")
+
+    add_heading_editable(doc, f"{7 + offset}. Patologías exteriores", level=1)
+    if contexto["patologias_exteriores"]:
+        for indice_zona, zona in enumerate(contexto["patologias_exteriores"], start=1):
+            add_zona_exterior_card_docx(doc, zona, indice_zona)
+    else:
+        add_parrafo_editable(doc, "No constan patologías exteriores registradas.")
+
+    if contexto.get("mapas"):
+        add_heading_editable(doc, f"{8 + offset}. Mapas de localización de daños", level=1)
+        for bloque in contexto["mapas"]:
+            for mapa in bloque.get("mapas", []):
+                add_heading_editable(doc, valor_o_guion(mapa.get("titulo")), level=2)
+                add_tabla_campos_editable(
+                    doc,
+                    construir_campos_informe(
+                        [
+                            ("Descripción", mapa.get("descripcion")),
+                            ("Contexto", mapa.get("objeto_visita_label")),
+                        ]
+                    ),
+                )
+                if limpiar_texto(mapa.get("imagen_overlay_url")):
+                    add_imagen_editable(
+                        doc,
+                        {"data_uri": mapa["imagen_overlay_url"], "caption": ""},
+                        ancho_cm=12,
+                    )
+                elif limpiar_texto(mapa.get("imagen_base")):
+                    add_imagen_editable(
+                        doc,
+                        {"archivo": mapa["imagen_base"], "caption": ""},
+                        ancho_cm=12,
+                    )
+                for cuadrante in mapa.get("cuadrantes", []):
+                    add_heading_editable(
+                        doc,
+                        f"Cuadrante {valor_o_guion(cuadrante.get('codigo_cuadrante'))}",
+                        level=3,
+                    )
+                    add_tabla_campos_editable(
+                        doc,
+                        construir_campos_informe(
+                            [
+                                ("Descripción", cuadrante.get("descripcion")),
+                                ("Gravedad", cuadrante.get("gravedad_label")),
+                                ("Patología vinculada", cuadrante.get("patologia_vinculada_resumen")),
+                            ]
+                        ),
+                    )
+                    if cuadrante.get("foto_figura"):
+                        add_imagen_editable(doc, cuadrante["foto_figura"], ancho_cm=10.5)
+        post_mapas = 1
+    else:
+        post_mapas = 0
+
+    add_heading_editable(doc, f"{8 + offset + post_mapas}. Análisis técnico", level=1)
+    add_tabla_campos_editable(doc, contexto["analisis_tecnico"])
+
+    add_heading_editable(doc, f"{9 + offset + post_mapas}. Propuesta de reparación", level=1)
+    add_parrafo_editable(doc, contexto["propuesta_reparacion"])
+
+    add_salto_pagina(doc)
+    add_heading_editable(doc, f"{10 + offset + post_mapas}. Conclusiones técnicas", level=1)
+    add_bloque_destacado_docx(
+        doc,
+        "Conclusiones técnicas",
+        contexto["conclusion_tecnica"],
+        fill="F8FAFC",
+    )
+
+    add_heading_editable(doc, f"{11 + offset + post_mapas}. Conclusiones periciales", level=1)
+    add_bloque_destacado_docx(
+        doc,
+        "Conclusiones periciales",
+        contexto["conclusion_pericial"],
+        fill="F8FAFC",
+    )
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def generar_informe_pdf_bytes(request: Request, expediente_id: int) -> bytes:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Playwright no está instalado. Actualiza dependencias para generar PDFs.",
+        ) from exc
+
+    contexto = build_informe_context(
+        expediente_id,
+        base_url=str(request.base_url).rstrip("/"),
+    )
+    template = request.app.state.templates.env.get_template("informes/imprimir.html")
+
+    def render_html():
+        return template.render({
+            "request": request,
+            "current_user": getattr(request.state, "current_user", None),
+            "modo_pdf": True,
+            **contexto,
+        })
+
+    html = render_html()
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 794, "height": 1123})
+            page.emulate_media(media="print")
+            page.set_content(html, wait_until="networkidle")
+            paginas_toc = page.evaluate(
+                """
+                () => {
+                    const probe = document.createElement('div');
+                    probe.style.width = '100mm';
+                    probe.style.height = '1px';
+                    probe.style.position = 'absolute';
+                    probe.style.left = '-10000px';
+                    document.body.appendChild(probe);
+                    const pxPerMm = probe.getBoundingClientRect().width / 100;
+                    probe.remove();
+                    const pageHeight = 264 * pxPerMm;
+                    const documentTop = document.querySelector('.document')?.getBoundingClientRect().top + window.scrollY || 0;
+                    const result = {};
+                    document.querySelectorAll('[data-toc-id]').forEach((el) => {
+                        const id = el.getAttribute('data-toc-id');
+                        const top = el.getBoundingClientRect().top + window.scrollY - documentTop;
+                        result[id] = Math.max(1, Math.floor(top / pageHeight) + 1);
+                    });
+                    return result;
+                }
+                """
+            )
+            if paginas_toc:
+                contexto["toc_items"] = construir_toc_items_informe(contexto, paginas_toc)
+                html = render_html()
+                page.set_content(html, wait_until="networkidle")
+            pdf_bytes = page.pdf(
+                format="A4",
+                margin={
+                    "top": "15mm",
+                    "right": "16mm",
+                    "bottom": "18mm",
+                    "left": "16mm",
+                },
+                display_header_footer=True,
+                header_template="<span></span>",
+                footer_template=(
+                    "<div style='width:100%;font-family:Arial,Helvetica,sans-serif;"
+                    "font-size:8px;color:#6b7280;text-align:center;'>"
+                    "Página <span class='pageNumber'></span> de <span class='totalPages'></span>"
+                    "</div>"
+                ),
+                print_background=True,
+                prefer_css_page_size=True,
+            )
+            browser.close()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo generar el PDF del informe.",
+        ) from exc
+
+    return pdf_bytes
 
 
 def generar_informe_inspeccion(cur, expediente, visitas, doc: Document) -> None:

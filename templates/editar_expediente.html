@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -236,6 +236,7 @@
                         </select>
 
                         <div id="bloque_unidad_simple" {% if expediente.analisis_unidades_resuelto=="varias_unidades" %}hidden{% endif %}>
+                        <div data-unit-location-fields {% if expediente.tipo_inmueble not in ['Vivienda plurifamiliar', 'Piso'] %}hidden{% endif %}>
                         <label for="planta_unidad">Planta de la unidad</label>
                         <input type="text" id="planta_unidad" name="planta_unidad"
                             value="{{ expediente.planta_unidad or '' }}">
@@ -243,6 +244,7 @@
                         <label for="puerta_unidad">Puerta / unidad</label>
                         <input type="text" id="puerta_unidad" name="puerta_unidad"
                             value="{{ expediente.puerta_unidad or '' }}">
+                        </div>
 
                         <label for="superficie_construida">Superficie construida</label>
                         <input type="text" id="superficie_construida" name="superficie_construida"
@@ -252,41 +254,22 @@
                         <input type="text" id="superficie_util" name="superficie_util"
                             value="{{ expediente.superficie_util or '' }}">
 
-                        <label for="dormitorios_unidad">Dormitorios</label>
-                        <input type="text" id="dormitorios_unidad" name="dormitorios_unidad"
-                            value="{{ expediente.dormitorios_unidad or '' }}">
+                        <input type="hidden" name="dormitorios_unidad" value="{{ expediente.dormitorios_unidad or '' }}">
+                        <input type="hidden" name="banos_unidad" value="{{ expediente.banos_unidad or '' }}">
 
-                        <label for="banos_unidad">Baños</label>
-                        <input type="text" id="banos_unidad" name="banos_unidad"
-                            value="{{ expediente.banos_unidad or '' }}">
-
-                        <p class="unit-hint">Las nuevas visitas copiarán primero las estancias de la visita anterior; si no existen, usarán estos datos para generar estancias base.</p>
-
-                        <label for="observaciones_bloque">Observaciones del bloque</label>
+                        <label for="observaciones_bloque">Observaciones del edificio</label>
                         <textarea id="observaciones_bloque"
                             name="observaciones_bloque">{{ expediente.observaciones_bloque or '' }}</textarea>
 
+                        <div data-unit-observations-field {% if expediente.tipo_inmueble == 'Vivienda unifamiliar' %}hidden{% endif %}>
                         <label for="observaciones_unidad">Observaciones de la unidad</label>
                         <textarea id="observaciones_unidad"
                             name="observaciones_unidad">{{ expediente.observaciones_unidad or '' }}</textarea>
+                        </div>
 
-                        <label for="reformado">¿Reformado?</label>
-                        <select id="reformado" name="reformado">
-                            <option value="No" {% if expediente.reformado=="No" or not expediente.reformado %}selected{% endif %}>No</option>
-                            <option value="Sí" {% if expediente.reformado=="Sí" %}selected{% endif %}>Sí</option>
-                        </select>
-
-                        <label for="fecha_reforma">Fecha de reforma</label>
-                        <select id="fecha_reforma" name="fecha_reforma">
-                            <option value="">Sin reforma / no aplica</option>
-                            {% for anio in anios_disponibles %}
-                            <option value="{{ anio }}" {% if expediente.fecha_reforma==anio|string %}selected{% endif %}>{{ anio }}</option>
-                            {% endfor %}
-                        </select>
-
-                        <label for="observaciones_reforma">Observaciones de la reforma</label>
-                        <textarea id="observaciones_reforma"
-                            name="observaciones_reforma">{{ expediente.observaciones_reforma or '' }}</textarea>
+                        <input type="hidden" name="reformado" value="{{ expediente.reformado or 'No' }}">
+                        <input type="hidden" name="fecha_reforma" value="{{ expediente.fecha_reforma or '' }}">
+                        <input type="hidden" name="observaciones_reforma" value="{{ expediente.observaciones_reforma or '' }}">
                         </div>
 
                         <div id="bloque_unidad_multiple" {% if expediente.analisis_unidades_resuelto!="varias_unidades" %}hidden{% endif %}>
@@ -371,6 +354,7 @@
         const botonCatastro = document.getElementById("boton_catastro");
         const catastroEstado = document.getElementById("catastro_estado");
         const tipoInformeInput = document.getElementById("tipo_informe");
+        const tipoInmuebleInput = document.getElementById("tipo_inmueble");
         const destinatarioInput = document.getElementById("destinatario");
         const bloqueJudicial = document.getElementById("bloque_judicial");
         const bloquePatologias = document.getElementById("bloque_patologias");
@@ -378,6 +362,8 @@
         const analisisUnidadesInput = document.getElementById("analisis_unidades");
         const bloqueUnidadSimple = document.getElementById("bloque_unidad_simple");
         const bloqueUnidadMultiple = document.getElementById("bloque_unidad_multiple");
+        const unitLocationFields = document.querySelector("[data-unit-location-fields]");
+        const unitObservationsField = document.querySelector("[data-unit-observations-field]");
         const usoInput = document.getElementById("uso_inmueble");
         const anioInput = document.getElementById("anio_construccion");
         const superficieConstruidaInput = document.getElementById("superficie_construida");
@@ -586,6 +572,19 @@
             bloqueUnidadMultiple.hidden = !variasUnidades;
         }
 
+        function actualizarCamposPorTipoInmueble() {
+            const tipo = (tipoInmuebleInput.value || "").toLowerCase();
+            const esUnifamiliar = tipo.includes("unifamiliar");
+            const muestraPlantaPuerta = tipo.includes("plurifamiliar") || tipo === "piso";
+
+            if (unitLocationFields) {
+                unitLocationFields.hidden = !muestraPlantaPuerta;
+            }
+            if (unitObservationsField) {
+                unitObservationsField.hidden = esUnifamiliar;
+            }
+        }
+
         function obtenerClaveColapso(seccion) {
             const collapseId = seccion.dataset.collapseId;
             if (!collapseId) {
@@ -644,6 +643,7 @@
 
         botonCatastro.addEventListener("click", autocompletarDesdeCatastro);
         tipoInformeInput.addEventListener("change", actualizarBloquePatologias);
+        tipoInmuebleInput.addEventListener("change", actualizarCamposPorTipoInmueble);
         destinatarioInput.addEventListener("change", actualizarBloqueJudicial);
         analisisUnidadesInput.addEventListener("change", actualizarAnalisisUnidades);
         direccionInput.addEventListener("input", () => {
@@ -661,6 +661,7 @@
         actualizarBloqueJudicial();
         actualizarBloquePatologias();
         actualizarAnalisisUnidades();
+        actualizarCamposPorTipoInmueble();
         actualizarPreviewCatastro(catastroPreviewImage.getAttribute("src"));
     </script>
     {% include "partials/_app_shell_end.html" %}

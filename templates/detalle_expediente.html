@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -198,17 +198,120 @@
     {% include "partials/_app_shell_start.html" %}
 <div class="page"><h1>Expediente {{ expediente.numero_expediente }}</h1>
 
-        <div class="actions">
-            <a class="boton secundario" href="/expedientes">Volver a expedientes</a>
-            <a class="boton" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
-            <a class="boton" href="/nueva-visita/{{ expediente.id }}">Nueva visita</a>
-            <a class="boton secundario" href="/facturacion/facturas/nueva?expediente_id={{ expediente.id }}">Crear factura</a>
-            <a class="boton secundario" href="/generar-informe/{{ expediente.id }}">Generar informe</a>
-            <form method="post" action="/borrar-expediente/{{ expediente.id }}"
-                onsubmit="return confirm('¿Seguro que quieres borrar este expediente y todos sus datos asociados?');">
-                <button class="boton secundario" type="submit">Borrar expediente</button>
-            </form>
-        </div>
+        {% set estado = namespace(total_estancias=0, total_patologias=0) %}
+        {% for visita_estado in visitas %}
+        {% set estado.total_estancias = estado.total_estancias + (visita_estado.total_estancias or 0) %}
+        {% set estado.total_patologias = estado.total_patologias + (visita_estado.total_patologias or 0) + (visita_estado.total_patologias_exteriores or 0) %}
+        {% endfor %}
+        {% set ultima_visita = visitas[0] if visitas else none %}
+
+        <section class="card expediente-status-card" aria-labelledby="estado-expediente-title">
+            <div class="expediente-status-header">
+                <div>
+                    <h2 id="estado-expediente-title">Estado del expediente</h2>
+                    <p class="expediente-next-step">
+                        <strong>Siguiente paso:</strong>
+                        {% if not visitas %}
+                        crear visita
+                        {% elif expediente.es_informe_patologias and estado.total_estancias == 0 %}
+                        definir estancias
+                        {% elif expediente.es_informe_patologias and estado.total_patologias == 0 %}
+                        registrar patologías
+                        {% elif expediente.es_informe_patologias %}
+                        continuar patologías
+                        {% else %}
+                        continuar visita
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <div class="expediente-status-summary" aria-label="Resumen del expediente">
+                <span class="estado-badge">Visitas: {{ visitas|length }}</span>
+                <span class="estado-badge">Estancias: {{ estado.total_estancias }}</span>
+                {% if expediente.es_informe_patologias %}
+                <span class="estado-badge">Patologías: {{ estado.total_patologias }}</span>
+                {% endif %}
+            </div>
+
+            <div class="actions expediente-next-action">
+                {% if not visitas %}
+                <a class="boton" href="/nueva-visita/{{ expediente.id }}">Crear visita</a>
+                {% elif expediente.es_informe_patologias and estado.total_estancias == 0 %}
+                <a class="boton" href="/definir-estancias/{{ ultima_visita.id }}">Definir estancias</a>
+                {% elif expediente.es_informe_patologias and estado.total_patologias == 0 %}
+                <a class="boton" href="/registrar-patologias/{{ ultima_visita.id }}">Registrar patologías</a>
+                {% elif expediente.es_informe_patologias %}
+                <a class="boton" href="/registrar-patologias/{{ ultima_visita.id }}">Continuar patologías</a>
+                {% else %}
+                <a class="boton" href="/nueva-visita/{{ expediente.id }}?visita_id={{ ultima_visita.id }}">Continuar visita</a>
+                {% endif %}
+
+            </div>
+
+            {% if revision_informe and revision_informe.total %}
+            <div class="next-pending-card expediente-next-pending">
+                <div>
+                    <p class="next-pending-eyebrow">Siguiente pendiente</p>
+                    <h2>{{ revision_informe.siguiente_accion.titulo }}</h2>
+                    <p class="next-pending-desc">{{ revision_informe.siguiente_accion.descripcion }}</p>
+                </div>
+                <div class="actions next-pending-actions">
+                    <a class="boton" href="{{ revision_informe.siguiente_accion.url }}">Continuar siguiente pendiente</a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if visitas and (not expediente.es_informe_patologias or estado.total_patologias > 0) %}
+            <div class="informe-action-card {% if revision_informe and revision_informe.total %}warning{% else %}ready{% endif %}">
+                {% if revision_informe and revision_informe.total %}
+                <div>
+                    <p class="informe-action-title">Hay pendientes antes del informe</p>
+                    <p class="informe-action-desc">{{ revision_informe.total }} pendiente{% if revision_informe.total != 1 %}s{% endif %} detectado{% if revision_informe.total != 1 %}s{% endif %}. Puedes revisarlo{% if revision_informe.total != 1 %}s{% endif %} o generar el informe igualmente.</p>
+                </div>
+                <div class="actions informe-actions">
+                    <a class="boton secundario" href="/resumen-registro/{{ expediente.id }}">Revisar pendientes</a>
+                    <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe PDF</a>
+                    <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
+                    <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
+                </div>
+                {% else %}
+                <div>
+                    <p class="informe-action-title">Sin pendientes críticos detectados</p>
+                    <p class="informe-action-desc">La revisión probatoria no muestra avisos principales.</p>
+                </div>
+                <div class="actions informe-actions">
+                    <a class="boton" href="/informes/{{ expediente.id }}/imprimir">Ver informe PDF</a>
+                    <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
+                    <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="expediente-secondary-actions" aria-labelledby="otras-acciones-expediente">
+            <h2 id="otras-acciones-expediente" class="expediente-secondary-actions-title">Otras acciones</h2>
+            <div class="actions actions-secondary">
+                <a class="boton secundario" href="/expedientes">Volver a expedientes</a>
+                {% if visitas %}
+                <a class="boton secundario" href="/nueva-visita/{{ expediente.id }}">Registrar nueva visita</a>
+                {% endif %}
+                <a class="boton secundario" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
+                <a class="boton secundario" href="/facturacion/facturas/nueva?expediente_id={{ expediente.id }}">Crear factura</a>
+                <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe PDF</a>
+                <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
+                <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
+                <a class="boton secundario" href="/generar-informe/{{ expediente.id }}">Generar DOCX antiguo</a>
+            </div>
+
+            <div class="actions actions-danger expediente-danger-zone">
+                <form method="post" action="/borrar-expediente/{{ expediente.id }}"
+                    onsubmit="return confirm('¿Seguro que quieres borrar este expediente y todos sus datos asociados?');">
+                    <button class="boton secundario boton-peligro" type="submit">Borrar expediente</button>
+                </form>
+            </div>
+        </section>
 
         {% if error %}
         <p class="error">{{ error }}</p>
@@ -315,6 +418,7 @@
                                 <div class="expediente-tree-row">
                                     <div class="expediente-tree-text">
                                         {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }}){% if unidad.uso %} · Uso: {{ unidad.uso }}{% endif %}{% if unidad.superficie %} · Sup.: {{ unidad.superficie }}{% endif %}
+                                        {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                     </div>
                                     {% if unidad.id %}
                                     <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -327,6 +431,7 @@
                                         <div class="expediente-tree-row">
                                             <div class="expediente-tree-text">
                                                 Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}
+                                                {% if anejo.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ anejo.numero_plantas }} plantas</span>{% endif %}
                                             </div>
                                             {% if anejo.id %}
                                             <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ anejo.id }}">Editar</a>
@@ -350,6 +455,7 @@
                                     <div class="expediente-tree-row">
                                         <div class="expediente-tree-text">
                                             {{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}
+                                            {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                         </div>
                                         {% if unidad.id %}
                                         <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -370,6 +476,7 @@
                                     <div class="expediente-tree-row">
                                         <div class="expediente-tree-text">
                                             {{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}
+                                            {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                         </div>
                                         {% if unidad.id %}
                                         <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -388,6 +495,7 @@
                                 <div class="expediente-tree-row">
                                     <div class="expediente-tree-text">
                                         {{ unidad.identificador }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}
+                                        {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                     </div>
                                     {% if unidad.id %}
                                     <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -416,6 +524,7 @@
                                 <div class="expediente-tree-row">
                                     <div class="expediente-tree-text">
                                         {{ unidad.identificador }} ({{ unidad.tipo_unidad_label or unidad.tipo_unidad or 'Unidad' }})
+                                        {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                     </div>
                                     {% if unidad.id %}
                                     <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -428,6 +537,7 @@
                                         <div class="expediente-tree-row">
                                             <div class="expediente-tree-text">
                                                 Anejo: {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}
+                                                {% if anejo.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ anejo.numero_plantas }} plantas</span>{% endif %}
                                             </div>
                                             {% if anejo.id %}
                                             <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ anejo.id }}">Editar</a>
@@ -451,6 +561,7 @@
                                     <div class="expediente-tree-row">
                                         <div class="expediente-tree-text">
                                             {{ unidad.identificador }}
+                                            {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                         </div>
                                         {% if unidad.id %}
                                         <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -471,6 +582,7 @@
                                     <div class="expediente-tree-row">
                                         <div class="expediente-tree-text">
                                             {{ unidad.identificador }}
+                                            {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                         </div>
                                         {% if unidad.id %}
                                         <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -489,6 +601,7 @@
                                 <div class="expediente-tree-row">
                                     <div class="expediente-tree-text">
                                         {{ unidad.identificador }}
+                                        {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                                     </div>
                                     {% if unidad.id %}
                                     <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
@@ -508,6 +621,7 @@
                                     <div class="expediente-tree-row">
                                         <div class="expediente-tree-text">
                                             {{ anejo.identificador }}{% if anejo.tipo_anejo_label %} ({{ anejo.tipo_anejo_label }}){% endif %}
+                                            {% if anejo.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ anejo.numero_plantas }} plantas</span>{% endif %}
                                         </div>
                                         {% if anejo.id %}
                                         <a class="expediente-tree-edit" href="/editar-unidad-expediente/{{ anejo.id }}">Editar</a>
@@ -581,6 +695,22 @@
                         <option value="{{ valor }}">{{ etiqueta }}</option>
                         {% endfor %}
                     </select>
+
+                    <div class="unit-floor-settings">
+                        <label class="checkbox-row" for="tiene_varias_plantas">
+                            <input id="tiene_varias_plantas" name="tiene_varias_plantas" type="checkbox" value="1" data-toggle-floor-count>
+                            <span>Esta unidad tiene varias plantas</span>
+                        </label>
+
+                        <div class="unit-floor-count" data-floor-count-block hidden>
+                            <label for="numero_plantas">Número de plantas</label>
+                            <select id="numero_plantas" name="numero_plantas">
+                                {% for valor in range(1, 6) %}
+                                <option value="{{ valor }}">{{ valor }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
 
                     <label for="vinculo_unidad">Vínculo de la unidad</label>
                     <select id="vinculo_unidad" name="vinculo_unidad">
@@ -659,6 +789,7 @@
                         {% if unidad.nombre_nivel %} · {{ unidad.nombre_nivel }}{% endif %}
                         {% if unidad.vinculo_unidad_label %} · {{ unidad.vinculo_unidad_label }}{% endif %}
                         {% if unidad.unidad_principal_identificador %} · Principal: {{ unidad.unidad_principal_identificador }}{% endif %}
+                        {% if unidad.tiene_varias_plantas %}<span class="unit-floor-badge">Varias plantas · {{ unidad.numero_plantas }} plantas</span>{% endif %}
                     </span>
                     <a class="boton secundario" href="/editar-unidad-expediente/{{ unidad.id }}">Editar</a>
                     <form method="post" action="/borrar-unidad-expediente/{{ unidad.id }}"
@@ -737,11 +868,11 @@
 
         <section class="form-section" data-collapsible data-collapse-id="caracteristicas_bloque">
             <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
-                <span class="form-section-title">Características del bloque</span>
+                <span class="form-section-title">Características del edificio</span>
                 <span class="form-section-arrow" aria-hidden="true">▾</span>
             </button>
             <div class="form-section-body" data-collapsible-body>
-                <p><strong>Observaciones del bloque:</strong> {{ expediente.observaciones_bloque or '-' }}</p>
+                <p><strong>Observaciones del edificio:</strong> {{ expediente.observaciones_bloque or '-' }}</p>
             </div>
         </section>
 
@@ -756,24 +887,10 @@
                 <p><strong>Puerta / unidad:</strong> {{ expediente.puerta_unidad or '-' }}</p>
                 <p><strong>Superficie construida:</strong> {{ expediente.superficie_construida or '-' }}</p>
                 <p><strong>Superficie útil:</strong> {{ expediente.superficie_util or '-' }}</p>
-                <p><strong>Dormitorios:</strong> {{ expediente.dormitorios_unidad or '-' }}</p>
-                <p><strong>Baños:</strong> {{ expediente.banos_unidad or '-' }}</p>
                 <p><strong>Observaciones de la unidad:</strong> {{ expediente.observaciones_unidad or '-' }}</p>
             </div>
         </section>
         {% endif %}
-
-        <section class="form-section" data-collapsible data-collapse-id="reforma">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
-                <span class="form-section-title">Reforma</span>
-                <span class="form-section-arrow" aria-hidden="true">▾</span>
-            </button>
-            <div class="form-section-body" data-collapsible-body>
-                <p><strong>Reformado:</strong> {{ expediente.reformado or 'No' }}</p>
-                <p><strong>Fecha de reforma:</strong> {{ expediente.fecha_reforma or '-' }}</p>
-                <p><strong>Observaciones de la reforma:</strong> {{ expediente.observaciones_reforma or '-' }}</p>
-            </div>
-        </section>
 
         <section class="form-section" data-collapsible data-collapse-id="imagen_catastro">
             <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
@@ -803,6 +920,19 @@
                 return;
             }
             bloqueAnejoDetalle.hidden = vinculoUnidadInput.value !== "anejo";
+        }
+
+        function configurarCamposVariasPlantas() {
+            document.querySelectorAll("[data-toggle-floor-count]").forEach((control) => {
+                const bloque = control.closest(".unit-floor-settings")?.querySelector("[data-floor-count-block]");
+                const actualizar = () => {
+                    if (bloque) {
+                        bloque.hidden = !control.checked;
+                    }
+                };
+                control.addEventListener("change", actualizar);
+                actualizar();
+            });
         }
 
         function obtenerClaveColapso(seccion) {
@@ -866,6 +996,7 @@
             actualizarBloqueAnejoDetalle();
         }
 
+        configurarCamposVariasPlantas();
         configurarSeccionesColapsables();
     </script>
 </body>

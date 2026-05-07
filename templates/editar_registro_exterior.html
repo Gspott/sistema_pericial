@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <title>Editar registro exterior</title>
@@ -22,7 +22,7 @@
 <div class="page"><h1>Editar patología exterior</h1>
 
         <div class="actions">
-            <a class="boton secundario" href="/registrar-patologias/{{ registro.visita_id }}">Volver a patologías</a>
+            <a class="boton secundario" href="{{ next_url or ('/registrar-patologias/' ~ registro.visita_id) }}">Volver a patologías</a>
         </div>
 
         {% if objeto_visita_label %}
@@ -33,6 +33,7 @@
 
         <div class="card">
             <form method="post" action="/actualizar-registro-exterior/{{ registro.id }}" enctype="multipart/form-data">
+                <input type="hidden" name="next" value="{{ next_url or '' }}">
                 <label for="zona_exterior">Zona exterior</label>
                 <select id="zona_exterior" name="zona_exterior" required>
                     <option value="fachada" {% if registro.zona_exterior=="fachada" %}selected{% endif %}>Fachada</option>
@@ -80,9 +81,19 @@
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ registro.observaciones or '' }}</textarea>
 
-                <label for="fotos">Añadir fotos</label>
-                <input type="file" id="fotos" name="fotos" accept="image/*" multiple>
-                <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez. Puedes seguir añadiendo más fotos aquí sin perder las actuales.</p>
+                <div class="photo-capture-box {% if not registro.fotos %}missing{% endif %}">
+                    {% if registro.fotos %}
+                    <p class="photo-capture-title">Añadir otra foto</p>
+                    {% else %}
+                    <p class="photo-required-warning">Falta fotografía</p>
+                    {% endif %}
+                    <label class="camera-button {% if not registro.fotos %}camera-button-required{% endif %}" for="fotos" aria-label="{% if registro.fotos %}Añadir otra foto{% else %}Añadir foto requerida{% endif %}">
+                        <span aria-hidden="true">📷</span>
+                        <span class="sr-only">{% if registro.fotos %}Añadir otra foto{% else %}Añadir foto requerida{% endif %}</span>
+                    </label>
+                <input class="photo-input camera-input" type="file" id="fotos" name="fotos" accept="image/*" capture="environment" multiple>
+                <p class="helper-text">Puedes añadir varias fotos; si usas la cámara, normalmente se añade una por vez.</p>
+                </div>
 
                 <div class="actions">
                     <button class="boton" type="submit">Guardar cambios</button>

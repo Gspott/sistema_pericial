@@ -33,7 +33,7 @@ logs/
 # Datos generados por la app
 data/*.db
 uploads/
-informes/
+/informes/
 fotos/
 exports/
 /backups/

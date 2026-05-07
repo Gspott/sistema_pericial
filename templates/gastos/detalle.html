@@ -3,12 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <title>Gasto {{ gasto.proveedor }}</title>
+    <style>
+        .expense-preview-media {
+            width: 100%;
+            max-width: 100%;
+            max-height: 700px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            object-fit: contain;
+            background: white;
+        }
+
+        .expense-preview-frame {
+            width: 100%;
+            height: 700px;
+        }
+    </style>
 </head>
 <body>
     {% include "partials/_app_shell_start.html" %}
 <div class="page">
+{% if gasto.archivo_path %}
+{% set attachment_path = gasto.archivo_path %}
+{% set attachment_lower = attachment_path | lower %}
+{% set is_image = attachment_lower.endswith('.jpg') or attachment_lower.endswith('.jpeg') or attachment_lower.endswith('.png') or attachment_lower.endswith('.webp') or attachment_lower.endswith('.heic') or attachment_lower.endswith('.heif') %}
+{% set is_pdf = attachment_lower.endswith('.pdf') %}
+{% endif %}
 <div class="card">
             <h1>{{ gasto.proveedor }}</h1>
             <p class="subtitle">{{ gasto.concepto }}</p>
@@ -37,6 +59,20 @@
             <p><strong>Archivo:</strong> <a href="/uploads/{{ gasto.archivo_path }}" target="_blank" rel="noopener">Ver adjunto</a></p>
             {% endif %}
         </div>
+
+        {% if gasto.archivo_path %}
+        <div class="card">
+            <h2>Vista previa del justificante</h2>
+            <p><a class="boton secundario" href="/uploads/{{ attachment_path }}" target="_blank" rel="noopener">Abrir en nueva pestaña</a></p>
+            {% if is_image %}
+            <img class="expense-preview-media" src="/uploads/{{ attachment_path }}" alt="Vista previa del justificante">
+            {% elif is_pdf %}
+            <iframe class="expense-preview-media expense-preview-frame" src="/uploads/{{ attachment_path }}" title="Vista previa del justificante"></iframe>
+            {% else %}
+            <p><a href="/uploads/{{ attachment_path }}" target="_blank" rel="noopener">Abrir archivo adjunto</a></p>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <div class="card">
             <h2>Importes</h2>

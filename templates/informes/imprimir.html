@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Informe {{ expediente.numero_expediente }}</title>
+    <style>
+        :root {
+            color: #1f2933;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            --ink: #1f2933;
+            --muted: #6b7280;
+            --line: #d8dee6;
+            --soft: #fff;
+            --soft-strong: #f8fafc;
+            --warning: #fffdf5;
+        }
+
+        body {
+            margin: 0;
+            background: #eef1f4;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            padding: 18px;
+        }
+
+        .button {
+            border: 1px solid #1f2933;
+            border-radius: 4px;
+            background: #1f2933;
+            color: #fff;
+            cursor: pointer;
+            font: inherit;
+            padding: 9px 14px;
+            text-decoration: none;
+        }
+
+        .button.secondary {
+            background: #fff;
+            color: #1f2933;
+        }
+
+        .document {
+            box-sizing: border-box;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto 24px;
+            padding: 20mm;
+            background: #fff;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+        }
+
+        .cover {
+            align-items: center;
+            border-bottom: 2px solid var(--ink);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 14mm;
+            height: 264mm;
+            justify-content: center;
+            padding: 18mm 14mm;
+            page-break-after: always;
+            text-align: center;
+        }
+
+        .cover h1 {
+            font-size: 30px;
+            margin: 0 0 10px;
+            text-transform: uppercase;
+        }
+
+        .cover .subtitle {
+            color: #4b5563;
+            font-size: 15px;
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+
+        .cover-meta {
+            display: grid;
+            gap: 10px 18px;
+            grid-template-columns: 1fr 1fr;
+            max-width: 145mm;
+            width: 100%;
+        }
+
+        .toc {
+            break-before: page;
+            box-sizing: border-box;
+            min-height: 264mm;
+            padding-top: 6mm;
+            page-break-before: always;
+            page-break-after: always;
+        }
+
+        .toc-list {
+            border-top: 1px solid var(--line);
+            margin-top: 14px;
+        }
+
+        .toc-row {
+            align-items: baseline;
+            border-bottom: 1px solid #e5e9ef;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 28px 1fr auto;
+            padding: 8px 0;
+        }
+
+        .toc-number {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .toc-title {
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .toc-page {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            min-width: 18px;
+            text-align: right;
+        }
+
+        .header {
+            border-bottom: 2px solid var(--ink);
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            letter-spacing: 0;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 8px;
+        }
+
+        h2 {
+            border-bottom: 1px solid var(--line);
+            break-after: avoid;
+            color: #2f3a45;
+            font-size: 15px;
+            margin: 24px 0 12px;
+            page-break-after: avoid;
+            padding-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        h3 {
+            color: #24313d;
+            font-size: 14px;
+            margin: 14px 0 8px;
+        }
+
+        h4 {
+            color: #374151;
+            font-size: 13px;
+            margin: 12px 0 8px;
+        }
+
+        p {
+            margin: 5px 0;
+        }
+
+        .card,
+        .pathology-card,
+        .figure,
+        .figure-grid,
+        .image-block,
+        .map-block,
+        .pathology-heading,
+        .technical-note {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .section {
+            break-inside: auto;
+            page-break-inside: auto;
+        }
+
+        .grid {
+            display: grid;
+            gap: 8px 18px;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .data-table {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            display: block;
+            gap: 0;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .data-table > div {
+            border-bottom: 1px solid #e5e9ef;
+            display: grid;
+            grid-template-columns: minmax(38mm, 0.9fr) 1.4fr;
+            min-height: 12mm;
+        }
+
+        .data-table > div:last-child {
+            border-bottom: 0;
+        }
+
+        .data-table .label,
+        .data-table .value {
+            margin: 0;
+            padding: 7px 9px;
+        }
+
+        .data-table .label {
+            align-items: center;
+            background: var(--soft-strong);
+            display: flex;
+            font-weight: 700;
+        }
+
+        .label {
+            color: var(--muted);
+            font-size: 11px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+
+        .value {
+            color: #111827;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: pre-line;
+        }
+
+        .card,
+        .section-card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-left: 1px solid var(--line);
+            border-radius: 6px;
+            margin: 10px 0 13px;
+            padding: 11px 12px 13px;
+        }
+
+        .card.compact-stay,
+        .stay-card.compact-stay {
+            margin: 8px 0 10px;
+            padding: 10px 12px;
+        }
+
+        .card.compact-stay .grid,
+        .stay-card.compact-stay .grid {
+            gap: 6px 14px;
+        }
+
+        .card-title {
+            align-items: baseline;
+            border-bottom: 1px solid #e5e9ef;
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .warning,
+        .technical-note {
+            background: var(--warning);
+            border: 1px solid #f0dfb8;
+            border-left: 2px solid #d69000;
+            margin: 8px 0;
+            padding: 8px 10px;
+        }
+
+        .pathology-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-left: 1px solid #cbd5e1;
+            border-radius: 6px;
+            margin-top: 9px;
+            padding: 10px 11px;
+        }
+
+        .pathology-heading {
+            background: #fff;
+            border-bottom: 1px solid #e5e9ef;
+            border-radius: 0;
+            margin: -1px 0 8px;
+            padding: 0 0 6px;
+        }
+
+        .pathology-heading h4 {
+            margin: 0;
+        }
+
+        .figure-grid,
+        .photo-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: 10px;
+        }
+
+        .figure-grid.pathology-figures {
+            gap: 10px;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .figure-grid.stay-figures {
+            gap: 10px;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .figure {
+            background: #fff;
+            border: 1px solid #e5e9ef;
+            border-radius: 5px;
+            margin: 0;
+            padding: 5px;
+        }
+
+        .figure img {
+            border-radius: 4px;
+            display: block;
+            height: 64mm;
+            object-fit: contain;
+            width: 100%;
+        }
+
+        .stay-figures .figure img {
+            height: 52mm;
+        }
+
+        .pathology-figures .figure img {
+            height: 68mm;
+        }
+
+        .figure figcaption {
+            color: #4b5563;
+            font-size: 11px;
+            font-style: italic;
+            line-height: 1.35;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        .map-image {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            display: block;
+            max-height: 120mm;
+            object-fit: contain;
+            width: 100%;
+        }
+
+        .page-break {
+            break-before: page;
+            page-break-before: always;
+        }
+
+        .final-section {
+            break-before: page;
+            page-break-before: always;
+        }
+
+        .conclusion-card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-left: 2px solid var(--ink);
+            border-radius: 6px;
+            margin: 12px 0 16px;
+            padding: 14px 16px;
+        }
+
+        @page {
+            size: A4;
+            margin: 15mm 16mm 18mm;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .document {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                width: auto;
+            }
+        }
+
+        @media screen and (max-width: 900px) {
+            .document {
+                margin: 0;
+                min-height: auto;
+                padding: 18px;
+                width: 100%;
+            }
+
+            .cover {
+                min-height: 70vh;
+                height: auto;
+            }
+
+            .grid,
+            .cover-footer,
+            .figure-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% if not modo_pdf %}
+    <div class="toolbar no-print">
+        <button class="button" type="button" onclick="window.print()">Imprimir / guardar PDF</button>
+        <a class="button secondary" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
+        <a class="button secondary" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
+        <a class="button secondary" href="/detalle-expediente/{{ expediente.id }}">Volver</a>
+    </div>
+    {% endif %}
+
+    <main class="document">
+        {% set offset = 1 if bloque_judicial else 0 %}
+        {% set post_mapas = 1 if mapas else 0 %}
+        <section class="cover">
+            <div>
+                <h1>INFORME PERICIAL</h1>
+                <p class="subtitle">Inspección técnica y registro de patologías</p>
+                <div class="cover-meta">
+                    <div>
+                        <div class="label">Expediente</div>
+                        <div class="value">{{ expediente.numero_expediente or "-" }}</div>
+                    </div>
+                    <div>
+                        <div class="label">Cliente</div>
+                        <div class="value">{{ expediente.cliente or "-" }}</div>
+                    </div>
+                    <div>
+                        <div class="label">Dirección</div>
+                        <div class="value">{{ expediente.direccion or "-" }}</div>
+                    </div>
+                    <div>
+                        <div class="label">Fecha de emisión</div>
+                        <div class="value">{{ fecha_emision }}</div>
+                    </div>
+                    <div>
+                        <div class="label">Técnico</div>
+                        <div class="value">{{ portada.tecnico or "-" }}</div>
+                </div>
+                <div>
+                        <div class="label">Tipo de trabajo</div>
+                        <div class="value">{{ portada.tipo_trabajo or "-" }}</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <div class="header">
+                <h1>Índice</h1>
+                <p>Expediente {{ expediente.numero_expediente or "-" }}</p>
+            </div>
+            <div class="toc-list" aria-label="Índice del informe">
+                {% for item in toc_items %}
+                <div class="toc-row">
+                    <span class="toc-number">{{ item.number }}</span>
+                    <span class="toc-title">{{ item.title }}</span>
+                    <span class="toc-page">{% if item.page %}{{ item.page }}{% endif %}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="section page-break" data-toc-id="identificacion">
+            <div class="header">
+                <h1>INFORME PERICIAL</h1>
+                <p>Expediente {{ expediente.numero_expediente or "-" }}</p>
+            </div>
+
+            <h2>1. Identificación del expediente</h2>
+            <div class="grid data-table">
+                {% for campo in identificacion %}
+                <div>
+                    <div class="label">{{ campo.label }}</div>
+                    <div class="value">{{ campo.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="section" data-toc-id="objeto">
+            <h2>2. Objeto del informe</h2>
+            <p>El presente informe pericial documenta las patologías observadas en el inmueble objeto del expediente, incorporando los antecedentes disponibles, las visitas realizadas y los registros técnicos interiores y/o exteriores existentes en el sistema.</p>
+        </section>
+
+        <section class="section" data-toc-id="descripcion">
+            <h2>3. Descripción del inmueble</h2>
+            <div class="grid data-table">
+                {% for campo in descripcion_inmueble %}
+                <div>
+                    <div class="label">{{ campo.label }}</div>
+                    <div class="value">{{ campo.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="section" data-toc-id="datos-patologias">
+            <h2>4. Datos específicos del informe de patologías</h2>
+            <div class="grid data-table">
+                {% for campo in datos_patologias %}
+                <div>
+                    <div class="label">{{ campo.label }}</div>
+                    <div class="value">{{ campo.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if bloque_judicial %}
+        <section class="section" data-toc-id="judicial">
+            <h2>5. Encargo judicial</h2>
+            <div class="grid data-table">
+                {% for campo in bloque_judicial %}
+                <div>
+                    <div class="label">{{ campo.label }}</div>
+                    <div class="value">{{ campo.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% set offset = 1 %}
+        {% else %}
+        {% set offset = 0 %}
+        {% endif %}
+
+        <section class="section" data-toc-id="inspeccion">
+            <h2>{{ 5 + offset }}. Inspección y visita</h2>
+            {% if visitas %}
+                {% for visita in visitas %}
+                <div class="card section-card">
+                    <div class="card-title">
+                        <h3>Visita de fecha {{ visita.fecha or "-" }}</h3>
+                        <span class="muted">{{ visita.objeto or "-" }}</span>
+                    </div>
+                    <div class="grid data-table">
+                        <div>
+                            <div class="label">Técnico</div>
+                            <div class="value">{{ visita.tecnico or "-" }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Climatología</div>
+                            <div class="value">{{ visita.climatologia or "No consta climatología registrada" }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Observaciones de visita</div>
+                            <div class="value">{{ visita.observaciones or "-" }}</div>
+                        </div>
+                    </div>
+                    {% if visita.fotos_exteriores %}
+                    <h4>Fotografías exteriores descriptivas</h4>
+                    <div class="figure-grid photo-grid stay-figures image-block">
+                        {% for foto in visita.fotos_exteriores %}
+                        <figure class="figure">
+                            <img src="{{ foto.figura.url }}" alt="Fotografía exterior de la visita">
+                            <figcaption>{{ foto.figura.caption }}{% if foto.descripcion %}. {{ foto.descripcion }}{% endif %}</figcaption>
+                        </figure>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>No constan visitas registradas en el expediente.</p>
+            {% endif %}
+        </section>
+
+        <section class="section" data-toc-id="patologias-interiores">
+            <h2>{{ 6 + offset }}. Patologías interiores</h2>
+            {% if estancias %}
+                {% for estancia in estancias %}
+                <article class="card stay-card {% if not estancia.patologias %}compact-stay{% endif %}">
+                    <div class="card-title">
+                        <h3>{{ estancia.nombre }}</h3>
+                        <span class="muted">{% if estancia.nivel %}Nivel: {{ estancia.nivel }} · {% endif %}{% if estancia.unidad %}Unidad: {{ estancia.unidad }}{% endif %}</span>
+                    </div>
+                    {% if estancia.resumen %}
+                    <p>{{ estancia.resumen }}</p>
+                    {% endif %}
+                    {% if estancia.incoherencias %}
+                    <div class="warning technical-note">
+                        <strong>Observaciones técnicas</strong>
+                        {% for incoherencia in estancia.incoherencias %}
+                        <p>{{ incoherencia }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="grid data-table">
+                        {% for campo in estancia.campos %}
+                        <div>
+                            <div class="label">{{ campo.label }}</div>
+                            <div class="value">{{ campo.value }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if estancia.fotos %}
+                    <div class="figure-grid photo-grid stay-figures image-block">
+                        {% for figura in estancia.fotos %}
+                        <figure class="figure">
+                            <img src="{{ figura.url }}" alt="Fotografía de la estancia {{ estancia.nombre }}">
+                            <figcaption>{{ figura.caption }}</figcaption>
+                        </figure>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if estancia.patologias %}
+                        {% for patologia in estancia.patologias %}
+                        <div class="pathology-card">
+                            <div class="pathology-heading">
+                                <h4>Patología {{ loop.index }} · {{ patologia.titulo }}</h4>
+                            </div>
+                            <div class="grid data-table">
+                                {% for campo in patologia.campos %}
+                                <div>
+                                    <div class="label">{{ campo.label }}</div>
+                                    <div class="value">{{ campo.value }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% if patologia.fotos %}
+                            <div class="figure-grid photo-grid pathology-figures image-block">
+                                {% for figura in patologia.fotos %}
+                                <figure class="figure">
+                                    <img src="{{ figura.url }}" alt="Fotografía de patología interior en {{ estancia.nombre }}">
+                                    <figcaption>{{ figura.caption }}</figcaption>
+                                </figure>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="muted"><strong>No constan patologías interiores registradas en esta estancia.</strong></p>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            {% else %}
+                <p>No constan estancias registradas.</p>
+            {% endif %}
+        </section>
+
+        <section class="section page-break" data-toc-id="patologias-exteriores">
+            <h2>{{ 7 + offset }}. Patologías exteriores</h2>
+            {% if patologias_exteriores %}
+                {% for zona in patologias_exteriores %}
+                <article class="card section-card">
+                    <h3>{{ zona.zona }}</h3>
+                    {% if zona.resumen %}
+                    <p>{{ zona.resumen }}</p>
+                    {% endif %}
+                    {% if zona.incoherencias %}
+                    <div class="warning technical-note">
+                        <strong>Observaciones técnicas</strong>
+                        {% for incoherencia in zona.incoherencias %}
+                        <p>{{ incoherencia }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% for patologia in zona.patologias %}
+                    <div class="pathology-card">
+                        <div class="pathology-heading">
+                            <h4>Patología {{ loop.index }} · {{ patologia.titulo }}</h4>
+                        </div>
+                        <div class="grid data-table">
+                            {% for campo in patologia.campos %}
+                            <div>
+                                <div class="label">{{ campo.label }}</div>
+                                <div class="value">{{ campo.value }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if patologia.fotos %}
+                        <div class="figure-grid photo-grid pathology-figures image-block">
+                            {% for figura in patologia.fotos %}
+                            <figure class="figure">
+                                <img src="{{ figura.url }}" alt="Fotografía de patología exterior en {{ zona.zona }}">
+                                <figcaption>{{ figura.caption }}</figcaption>
+                            </figure>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </article>
+                {% endfor %}
+            {% else %}
+                <p>No constan patologías exteriores registradas.</p>
+            {% endif %}
+        </section>
+
+        {% if mapas %}
+        <section class="section page-break" data-toc-id="mapas">
+            <h2>{{ 8 + offset }}. Mapas de localización de daños</h2>
+            {% for bloque in mapas %}
+                {% for mapa in bloque.mapas %}
+                <article class="card section-card">
+                    <h3>{{ mapa.titulo or "-" }}</h3>
+                    <div class="grid data-table">
+                        <div>
+                            <div class="label">Descripción</div>
+                            <div class="value">{{ mapa.descripcion or "-" }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Contexto</div>
+                            <div class="value">{{ mapa.objeto_visita_label or "-" }}</div>
+                        </div>
+                    </div>
+                    {% if mapa.imagen_overlay_url or mapa.imagen_base_url %}
+                    <div class="map-block">
+                        <img class="map-image" src="{{ mapa.imagen_overlay_url or mapa.imagen_base_url }}" alt="Mapa {{ mapa.titulo or '' }}">
+                    </div>
+                    {% endif %}
+                    {% for cuadrante in mapa.cuadrantes %}
+                    <div class="pathology-card">
+                        <div class="pathology-heading">
+                            <h4>Cuadrante {{ cuadrante.codigo_cuadrante or "-" }}</h4>
+                        </div>
+                        <div class="grid data-table">
+                            <div>
+                                <div class="label">Descripción</div>
+                                <div class="value">{{ cuadrante.descripcion or "-" }}</div>
+                            </div>
+                            <div>
+                                <div class="label">Gravedad</div>
+                                <div class="value">{{ cuadrante.gravedad_label or "-" }}</div>
+                            </div>
+                            <div>
+                                <div class="label">Patología vinculada</div>
+                                <div class="value">{{ cuadrante.patologia_vinculada_resumen or "-" }}</div>
+                            </div>
+                        </div>
+                        {% if cuadrante.foto_figura %}
+                        <figure class="figure image-block">
+                            <img src="{{ cuadrante.foto_figura.url }}" alt="Fotografía del cuadrante {{ cuadrante.codigo }}">
+                            <figcaption>{{ cuadrante.foto_figura.caption }}</figcaption>
+                        </figure>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </article>
+                {% endfor %}
+            {% endfor %}
+        </section>
+        {% set post_mapas = 1 %}
+        {% else %}
+        {% set post_mapas = 0 %}
+        {% endif %}
+
+        <section class="section" data-toc-id="analisis">
+            <h2>{{ 8 + offset + post_mapas }}. Análisis técnico</h2>
+            <div class="grid data-table">
+                {% for campo in analisis_tecnico %}
+                <div>
+                    <div class="label">{{ campo.label }}</div>
+                    <div class="value">{{ campo.value }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="section" data-toc-id="propuesta">
+            <h2>{{ 9 + offset + post_mapas }}. Propuesta de reparación</h2>
+            <p>{{ propuesta_reparacion }}</p>
+        </section>
+
+        <section class="section final-section" data-toc-id="conclusiones-tecnicas">
+            <h2>{{ 10 + offset + post_mapas }}. Conclusiones técnicas</h2>
+            <div class="conclusion-card">
+                <p>{{ conclusion_tecnica }}</p>
+            </div>
+        </section>
+
+        <section class="section" data-toc-id="conclusiones-periciales">
+            <h2>{{ 11 + offset + post_mapas }}. Conclusiones periciales</h2>
+            <div class="conclusion-card">
+                <p>{{ conclusion_pericial }}</p>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

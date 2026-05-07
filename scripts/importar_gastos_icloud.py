@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 import shutil
 import sqlite3
 import sys
@@ -19,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.services.rule_based_invoice_extractor import (
     extract_invoice_data as extract_rule_based_invoice_data,
+    infer_expense_category,
 )
 
 
@@ -152,6 +154,9 @@ def load_shortcuts_json(json_path: Path) -> dict:
         try:
             data = json.loads(repaired)
         except json.JSONDecodeError:
+            recovered = recover_malformed_shortcuts_json(raw, json_path)
+            if recovered:
+                return recovered
             return {
                 "fecha_captura": json_path.stem[:10],
                 "origen": "shortcut_mac",
@@ -168,6 +173,42 @@ def load_shortcuts_json(json_path: Path) -> dict:
     if not isinstance(data, dict):
         raise ValueError("JSON content is not an object")
     return data
+
+
+def recover_json_string_field(raw: str, key: str) -> str:
+    match = re.search(rf'"{re.escape(key)}"\s*:\s*"([^"]*)"', raw, re.DOTALL)
+    return match.group(1).replace('\\"', '"').strip() if match else ""
+
+
+def recover_malformed_shortcuts_json(raw: str, json_path: Path) -> dict:
+    ocr_match = re.search(
+        r'"ocr_text"\s*:\s*"(.*?)"\s*,\s*"proveedor"',
+        raw,
+        re.DOTALL,
+    )
+    if not ocr_match:
+        return {}
+
+    ocr_text = ocr_match.group(1).replace('\\"', '"').strip()
+    if not ocr_text:
+        return {}
+
+    return {
+        "fecha_captura": recover_json_string_field(raw, "fecha_captura")
+        or json_path.stem[:10],
+        "origen": recover_json_string_field(raw, "origen") or "shortcut_mac",
+        "ambito": recover_json_string_field(raw, "ambito") or "trabajo",
+        "estado": recover_json_string_field(raw, "estado")
+        or "revisar_json_recuperado",
+        "archivo_imagen": recover_json_string_field(raw, "archivo_imagen")
+        or json_path.name.replace(".json", ".jpg"),
+        "ocr_text": ocr_text,
+        "proveedor": "",
+        "concepto": "",
+        "deducible": True,
+        "es_factura_probable": "",
+        "_json_recovered": True,
+    }
 
 
 def load_json(json_path: Path) -> dict:
@@ -319,9 +360,8 @@ def build_local_extraction_text(data: dict, attachment_path: Path | None) -> str
     mac_ocr_text = ""
 
     if attachment_path and attachment_path.suffix.lower() == ".pdf":
-        if not shortcut_text:
-            pdf_text = extract_text_from_pdf(attachment_path)
-            print(f"Extracted PDF text length: {len(pdf_text)}")
+        pdf_text = extract_text_from_pdf(attachment_path)
+        print(f"Extracted PDF text length: {len(pdf_text)}")
     elif attachment_path and attachment_path.suffix.lower() in IMAGE_ATTACHMENT_EXTENSIONS:
         print(f"Running local OCR for image: {attachment_path.name}")
         mac_ocr_text = extract_text_from_image(attachment_path)
@@ -331,14 +371,14 @@ def build_local_extraction_text(data: dict, attachment_path: Path | None) -> str
     data["_mac_ocr_text"] = mac_ocr_text
     data["_pdf_text"] = pdf_text
 
+    parts = []
+    if shortcut_text:
+        parts.append(f"--- SHORTCUT OCR ---\n{shortcut_text}")
+    if mac_ocr_text:
+        parts.append(f"--- MAC OCR ---\n{mac_ocr_text}")
     if pdf_text:
-        return f"\n\n--- PDF TEXT ---\n{pdf_text}"
-    if shortcut_text or mac_ocr_text:
-        return (
-            f"\n\n--- SHORTCUT OCR ---\n{shortcut_text}"
-            f"\n\n--- MAC OCR ---\n{mac_ocr_text}"
-        ).strip()
-    return ""
+        parts.append(f"--- PDF TEXT ---\n{pdf_text}")
+    return "\n\n".join(parts)
 
 
 def apply_rule_based_invoice_data(data: dict, extracted_data: dict) -> str:
@@ -350,6 +390,15 @@ def apply_rule_based_invoice_data(data: dict, extracted_data: dict) -> str:
 
     if clean_text(extracted_data.get("invoice_number")):
         data["numero_factura"] = extracted_data["invoice_number"]
+
+    if clean_text(extracted_data.get("supplier_tax_id")):
+        data["nif_proveedor"] = extracted_data["supplier_tax_id"]
+
+    if clean_text(extracted_data.get("invoice_date")):
+        data["invoice_date"] = extracted_data["invoice_date"]
+
+    if clean_text(extracted_data.get("document_type")):
+        data["document_type"] = extracted_data["document_type"]
 
     tax_lines = extracted_data.get("tax_lines") or []
     if tax_lines:
@@ -378,6 +427,19 @@ def apply_rule_based_invoice_data(data: dict, extracted_data: dict) -> str:
     return "\n".join(lines)
 
 
+def apply_inferred_category(data: dict, combined_text: str) -> None:
+    if clean_text(data.get("categoria")):
+        return
+
+    category = infer_expense_category(
+        clean_text(data.get("proveedor")),
+        clean_text(data.get("concepto")),
+        combined_text,
+    )
+    data["categoria"] = category
+    data["_category_inferred"] = category
+
+
 def build_notes(
     data: dict,
     original_sha256: str | None,
@@ -402,6 +464,15 @@ def build_notes(
     ]
     if data.get("_json_parse_warning"):
         parts.append("WARNING: Original JSON could not be parsed cleanly.")
+    if data.get("_json_recovered"):
+        parts.append(
+            "WARNING: Original JSON was recovered from malformed Shortcuts output."
+        )
+    if clean_text(data.get("document_type")):
+        parts.append(f"Document type: {clean_text(data.get('document_type'))}")
+    if clean_text(data.get("_category_inferred")):
+        parts.append(f"Category inferred: {clean_text(data.get('_category_inferred'))}")
+        parts.append("Category source: rules")
     if resolved_filename and resolved_filename != original_filename:
         parts.append(f"Resolved file: {resolved_filename}")
     if extraction_notes:
@@ -430,7 +501,12 @@ def build_expense(
     extraction_notes: str = "",
 ) -> dict:
     capture_date = clean_text(data.get("fecha_captura"))
-    expense_date = capture_date[:10] if capture_date else date.today().isoformat()
+    invoice_date = clean_text(data.get("invoice_date"))
+    expense_date = (
+        invoice_date[:10]
+        if invoice_date
+        else capture_date[:10] if capture_date else date.today().isoformat()
+    )
 
     original_supplier = clean_text(data.get("proveedor"))
     supplier = original_supplier or "Pendiente de revisión"
@@ -589,6 +665,8 @@ def import_expense(
     else:
         rule_data = extract_rule_based_invoice_data(combined_text)
         extraction_notes = apply_rule_based_invoice_data(data, rule_data)
+
+    apply_inferred_category(data, combined_text)
 
     uploaded_filename = copy_attachment_to_uploads(attachment_path)
     expense = build_expense(

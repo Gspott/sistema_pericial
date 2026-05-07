@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <title>Dashboard</title>
 </head>
 <body>
     {% include "partials/_app_shell_start.html" %}
-<div class="page">
-<div class="card">
+<div class="page dashboard-page">
+<div class="card dashboard-hero-card">
             <h1>Dashboard</h1>
             <p class="subtitle">Vista rápida para operar el día.</p>
             <div class="actions">
@@ -20,9 +20,7 @@
             </div>
         </div>
 
-        {% include "partials/_quick_actions.html" %}
-
-        <div class="card">
+        <div class="card dashboard-card dashboard-card-primary">
             <h2>Leads</h2>
             <p><strong>Nuevos:</strong> {{ leads.nuevos }}</p>
             <p><strong>Contactados:</strong> {{ leads.contactados }}</p>
@@ -39,7 +37,7 @@
             <div class="actions"><a class="boton secundario" href="/leads">Ver leads</a></div>
         </div>
 
-        <div class="card">
+        <div class="card dashboard-card dashboard-card-primary">
             <h2>Propuestas</h2>
             <p><strong>Enviadas:</strong> {{ propuestas.enviadas }}</p>
             <p><strong>Aceptadas sin expediente:</strong> {{ propuestas.aceptadas_sin_expediente }}</p>
@@ -52,7 +50,7 @@
             <div class="actions"><a class="boton secundario" href="/propuestas">Ver propuestas</a></div>
         </div>
 
-        <div class="card">
+        <div class="card dashboard-card dashboard-card-primary">
             <h2>Expedientes</h2>
             {% if expedientes.ultimos %}
             <h3>Últimos</h3>
@@ -75,7 +73,7 @@
             <div class="actions"><a class="boton secundario" href="/expedientes">Ver expedientes</a></div>
         </div>
 
-        <div class="card">
+        <div class="card dashboard-card dashboard-card-admin">
             <h2>Facturación</h2>
             <p><strong>Pendiente de cobro:</strong> {{ format_money(total_pendiente) }} €</p>
             {% if facturas_borrador %}
@@ -93,7 +91,7 @@
             <div class="actions"><a class="boton secundario" href="/facturacion">Ver facturación</a></div>
         </div>
 
-        <div class="card">
+        <div class="card dashboard-card dashboard-card-admin">
             <h2>IVA T{{ trimestre_actual }} {{ year_actual }}</h2>
             <p><strong>IVA repercutido:</strong> {{ format_money(resumen_iva.iva_repercutido) }} €</p>
             <p><strong>IVA soportado:</strong> {{ format_money(resumen_iva.iva_soportado) }} €</p>
@@ -103,7 +101,7 @@
             </div>
         </div>
 
-        <div class="card">
+        <div class="card dashboard-card dashboard-card-admin">
             <h2>Gastos</h2>
             <p><strong>Total deducible trimestre:</strong> {{ format_money(resumen_iva.total_gastos) }} €</p>
             {% if gastos_ultimos %}
@@ -115,7 +113,7 @@
             <div class="actions"><a class="boton secundario" href="/gastos">Ver gastos</a></div>
         </div>
 
-        <div class="card">
+        <div class="card dashboard-card dashboard-card-admin">
             <h2>Backups</h2>
             {% if backups %}
             {% for backup in backups %}

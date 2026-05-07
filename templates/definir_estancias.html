@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=11">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -253,6 +253,176 @@
             margin-bottom: 0;
         }
 
+        .summary-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .summary-item-title {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .summary-item-meta {
+            margin: 6px 0 0 0;
+            color: #475569;
+            font-size: 0.92rem;
+        }
+
+        .summary-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .summary-tag {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 4px 10px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .summary-tag.pending {
+            border-color: #f59e0b;
+            background: #fffbeb;
+            color: #92400e;
+        }
+
+        .summary-tag.edit-link,
+        .summary-tag.pathology-link {
+            text-decoration: none;
+            color: #0f172a;
+            background: #ffffff;
+            white-space: nowrap;
+        }
+
+        .summary-tag.edit-link {
+            margin-left: auto;
+        }
+
+        .summary-tag.edit-link:hover,
+        .summary-tag.edit-link:focus-visible,
+        .summary-tag.pathology-link:hover,
+        .summary-tag.pathology-link:focus-visible {
+            text-decoration: underline;
+        }
+
+        .summary-inline-list {
+            margin: 8px 0 0 0;
+            color: #0f172a;
+        }
+
+        .summary-level {
+            padding: 14px;
+            background: #f8fafc;
+        }
+
+        .summary-level-header {
+            margin-bottom: 12px;
+        }
+
+        .summary-level-header p {
+            margin: 0;
+        }
+
+        .summary-level-meta {
+            margin-top: 4px;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .summary-label {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .summary-unit-list,
+        .summary-stay-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .summary-stay-list {
+            margin-top: 10px;
+        }
+
+        .summary-unit {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fff;
+            padding: 12px;
+        }
+
+        .summary-unit-title {
+            font-weight: 800;
+        }
+
+        .summary-stay {
+            margin-left: 4px;
+            border-top: 1px solid #e2e8f0;
+            border-left: 3px solid #e2e8f0;
+            border-radius: 0 10px 10px 0;
+            background: #f9fafb;
+            padding: 10px 0 0 8px;
+        }
+
+        .summary-stay:first-child {
+            border-top: 0;
+            padding-top: 0;
+        }
+
+        .summary-stay-header,
+        .summary-pathology-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .summary-stay-title,
+        .summary-pathology-text {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .summary-stay-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .summary-pathology-list {
+            list-style: none;
+            margin: 10px 0 0 0;
+            padding: 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .summary-pathology-row {
+            padding-top: 2px;
+        }
+
+        .summary-pathology-text {
+            color: #334155;
+            font-size: 0.92rem;
+            font-weight: 400;
+        }
+
+        .summary-empty {
+            color: #475569;
+        }
+
         @media (max-width: 640px) {
             .unit-browser-level {
                 padding: 10px;
@@ -273,9 +443,60 @@
 
 <body>
     {% include "partials/_app_shell_start.html" %}
-<div class="page"><h1>Definir estancias</h1>
+<div class="page">
+        {% set estado_estancias = namespace(total=estancias|length) %}
+        {% if estancias_sin_unidad %}
+        {% set estado_estancias.total = estado_estancias.total + (estancias_sin_unidad|length) %}
+        {% endif %}
+        {% if mostrar_navegacion_multiunidad and navegacion_multiunidad %}
+            {% set estado_estancias.total = navegacion_multiunidad.sin_unidad.total or estado_estancias.total %}
+            {% for nivel_estado in navegacion_multiunidad.estructura.niveles %}
+                {% for unidad_estado in nivel_estado.principales + nivel_estado.otras %}
+                    {% set estado_estancias.total = estado_estancias.total + (unidad_estado.total_estancias or 0) %}
+                    {% for anejo_estado in unidad_estado.anejos %}
+                        {% set estado_estancias.total = estado_estancias.total + (anejo_estado.total_estancias or 0) %}
+                    {% endfor %}
+                {% endfor %}
+            {% endfor %}
+            {% for unidad_estado in navegacion_multiunidad.estructura.sin_nivel.principales + navegacion_multiunidad.estructura.sin_nivel.otras + navegacion_multiunidad.estructura.anejos_sueltos %}
+                {% set estado_estancias.total = estado_estancias.total + (unidad_estado.total_estancias or 0) %}
+            {% endfor %}
+        {% endif %}
 
-        <div class="card">
+        <section class="card estancias-header">
+            <div class="estancias-header-main">
+                <p class="estancias-eyebrow">Expediente {{ visita.numero_expediente }}</p>
+                <h1>Definir estancias</h1>
+                <p class="estancias-header-meta">{{ visita.direccion }}</p>
+                <p class="estancias-header-meta">Visita: {{ visita.fecha }}</p>
+                {% if objeto_visita_label %}
+                <p class="estancias-header-meta">{{ objeto_visita_label }}</p>
+                {% endif %}
+            </div>
+            <div class="actions estancias-header-actions">
+                <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+            </div>
+        </section>
+
+        <section class="card estancias-next-card">
+            <div>
+                <h2>Siguiente paso</h2>
+                {% if estado_estancias.total %}
+                <p class="helper-text">Ya hay estancias registradas. Puedes continuar con el registro de patologías.</p>
+                {% else %}
+                <p class="helper-text">Primero crea o añade estancias para poder registrar patologías con contexto.</p>
+                {% endif %}
+            </div>
+            <div class="actions">
+                {% if estado_estancias.total %}
+                <a class="boton" href="/registrar-patologias/{{ visita.id }}">Continuar a patologías</a>
+                {% else %}
+                <a class="boton" href="{% if mostrar_navegacion_multiunidad and not unidad_seleccionada %}#unidades-por-nivel{% else %}#anadir-estancia-manual{% endif %}">Añadir estancia</a>
+                {% endif %}
+            </div>
+        </section>
+
+        <div class="card estancias-context-card">
             <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
             <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
             <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
@@ -284,60 +505,13 @@
             {% endif %}
         </div>
 
-        <div class="actions">
-            <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
-        </div>
-
-        <div class="actions">
-            <a class="boton" href="/registrar-patologias/{{ visita.id }}">Ir a patologías</a>
-        </div>
-
-        {% if mostrar_navegacion_multiunidad and unidad_seleccionada %}
-        <div class="card unit-context-card" id="unidad-contexto">
-            <p><strong>Unidad en edición:</strong> {{ unidad_seleccionada.identificador }}</p>
-            <p><strong>Nivel:</strong> {{ unidad_seleccionada.nombre_nivel or 'Sin nivel asignado' }}</p>
-
-            <form class="unit-context-form" method="post" action="/generar-estancias-base">
-                <input type="hidden" name="visita_id" value="{{ visita.id }}">
-                <input type="hidden" name="unidad_id_objetivo" value="{{ unidad_seleccionada.id }}">
-                <input type="hidden" name="incluir_salon" value="si">
-                <input type="hidden" name="incluir_cocina" value="si">
-                <input type="hidden" name="incluir_pasillo" value="{% if visita.tipo_inmueble == 'Piso' %}si{% else %}no{% endif %}">
-                <input type="hidden" name="incluir_terraza" value="no">
-
-                <div class="unit-context-grid">
-                    <div>
-                        <label for="unidad_dormitorios">Dormitorios</label>
-                        <select id="unidad_dormitorios" name="num_dormitorios">
-                            {% for valor in range(0, 11) %}
-                            <option value="{{ valor }}" {% if dormitorios_sugeridos == valor %}selected{% endif %}>{{ valor }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label for="unidad_banos">Baños</label>
-                        <select id="unidad_banos" name="num_banos">
-                            {% for valor in range(0, 11) %}
-                            <option value="{{ valor }}" {% if banos_sugeridos == valor %}selected{% endif %}>{{ valor }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div class="actions">
-                    <button class="boton" type="submit">Generar estancias base para {{ unidad_seleccionada.identificador }}</button>
-                    <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Ver todas las unidades</a>
-                </div>
-            </form>
-        </div>
-        {% endif %}
-
         {% if mostrar_navegacion_multiunidad %}
-        <h2>Unidades por nivel</h2>
+        <h2 id="unidades-por-nivel">Unidades por nivel</h2>
 
         {% if not unidad_seleccionada %}
         <div class="card unit-context-card">
-            <p class="helper-text">Selecciona una unidad para registrar o revisar sus estancias dentro de esta visita de edificio completo.</p>
+            <p class="helper-text">Selecciona una unidad para añadir estancias.</p>
+            <p class="helper-text">Después verás el selector rápido de estancias habituales y el formulario manual para esa unidad.</p>
             {% if navegacion_multiunidad and navegacion_multiunidad.sin_unidad.total %}
             <p class="helper-text">Hay {{ navegacion_multiunidad.sin_unidad.total }} estancia(s) previa(s) sin unidad asignada en esta visita. Revísalas más abajo para reasignarlas manualmente si procede.</p>
             {% endif %}
@@ -433,138 +607,204 @@
         </div>
         {% endif %}
 
-        <h2 id="estancias-registradas">Estancias registradas</h2>
+        {% if hay_estructura_estancias %}
+        <section class="form-section" id="estructura-interior" aria-labelledby="estructura-interior-title">
+            {% set next_definir_url = '/definir-estancias/' ~ visita.id ~ ('?unidad_id=' ~ unidad_seleccionada.id if unidad_seleccionada else '') ~ '#estructura-interior' %}
+            <div class="form-section-body" style="padding-top: 16px;">
+                <h2 id="estructura-interior-title">Estructura interior</h2>
 
-        {% if mostrar_navegacion_multiunidad and not unidad_seleccionada %}
-        <div class="card">
-            <p class="helper-text">Elige una unidad para ver y gestionar sus estancias.</p>
-        </div>
+                <div class="summary-list">
+                    {% for grupo in grupos_estructura_estancias %}
+                    <div class="card inner-card summary-level">
+                        <div class="summary-level-header">
+                            <p><strong><span class="summary-label">Nivel</span> · {{ grupo.titulo }}</strong></p>
+                            {% if grupo.meta %}
+                            <p class="summary-level-meta">{{ grupo.meta }}</p>
+                            {% endif %}
+                        </div>
 
-        {% if estancias_sin_unidad %}
-        <div class="card">
-            <p><strong>Estancias sin unidad asignada</strong></p>
-            <p class="unit-browser-note">Se muestran aparte para no ocultar datos ya existentes en la visita.</p>
-        </div>
-        {% for estancia in estancias_sin_unidad %}
-        <section class="form-section {% if estancia.esta_rellena %}collapsed{% endif %}" data-collapsible data-collapse-id="estancia-{{ estancia.id }}">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="{% if estancia.esta_rellena %}false{% else %}true{% endif %}">
-                <div class="estancia-summary">
-                    {% if estancia.foto_principal_url %}
-                    <img class="estancia-thumb" src="{{ estancia.foto_principal_url }}" alt="Miniatura de {{ estancia.nombre }}">
-                    {% else %}
-                    <span class="estancia-thumb-placeholder" aria-hidden="true"></span>
-                    {% endif %}
-                    <div class="estancia-summary-text">
-                        <p class="form-section-title">{{ estancia.nombre }}</p>
-                        <p class="estancia-summary-meta">{{ estancia.tipo_estancia }} · {{ estancia.planta or 'Sin planta' }}</p>
-                        <span class="estancia-status {% if estancia.esta_rellena %}complete{% else %}incomplete{% endif %}">
-                            {% if estancia.esta_rellena %}Rellenada{% else %}Pendiente{% endif %}
-                        </span>
-                    </div>
-                </div>
-                <span class="form-section-arrow" aria-hidden="true">▾</span>
-            </button>
+                        {% if grupo.unidades %}
+                        <ul class="summary-unit-list">
+                            {% for unidad in grupo.unidades %}
+                            <li class="summary-unit">
+                                <p class="summary-item-title summary-unit-title">
+                                    <span class="summary-label">Unidad</span> · {{ unidad.identificador or 'Unidad sin identificar' }}
+                                </p>
+                                <p class="summary-item-meta">
+                                    {% if unidad.nivel_nombre %}
+                                    Nivel: {{ unidad.nivel_nombre }}
+                                    {% else %}
+                                    Nivel sin asignar
+                                    {% endif %}
+                                    {% if unidad.tipo_unidad_label %}
+                                    · {{ unidad.tipo_unidad_label }}
+                                    {% endif %}
+                                    {% if unidad.uso %}
+                                    · Uso: {{ unidad.uso }}
+                                    {% endif %}
+                                </p>
 
-            <div class="form-section-body" data-collapsible-body>
-                <div class="card inner-card">
-                    <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
-                    <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
-                    {% if estancia.unidad_identificador %}
-                    <p><strong>Unidad:</strong> {{ estancia.unidad_identificador }}</p>
-                    {% endif %}
-                    {% if estancia.nivel_nombre %}
-                    <p><strong>Nivel:</strong> {{ estancia.nivel_nombre }}</p>
-                    {% endif %}
-                    <p><strong>Ventilación:</strong> {{ estancia.ventilacion or '-' }}</p>
-                    <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
-                    <p><strong>Pavimento:</strong> {{ estancia.acabado_pavimento or '-' }}</p>
-                    <p><strong>Paramento:</strong> {{ estancia.acabado_paramento or '-' }}</p>
-                    <p><strong>Techo:</strong> {{ estancia.acabado_techo or '-' }}</p>
-                    <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
-                </div>
-
-                <div class="actions">
-                    <a class="boton" href="/editar-estancia/{{ estancia.id }}">Editar estancia</a>
-                    <form method="post" action="/borrar-estancia/{{ estancia.id }}">
-                        <button class="boton secundario boton-peligro" type="submit">Borrar</button>
-                    </form>
-                </div>
-            </div>
-        </section>
-        {% endfor %}
-        {% endif %}
-        {% elif estancias %}
-        {% for estancia in estancias %}
-        <section class="form-section {% if estancia.esta_rellena %}collapsed{% endif %}" data-collapsible data-collapse-id="estancia-{{ estancia.id }}">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="{% if estancia.esta_rellena %}false{% else %}true{% endif %}">
-                <div class="estancia-summary">
-                    {% if estancia.foto_principal_url %}
-                    <img class="estancia-thumb" src="{{ estancia.foto_principal_url }}" alt="Miniatura de {{ estancia.nombre }}">
-                    {% else %}
-                    <span class="estancia-thumb-placeholder" aria-hidden="true"></span>
-                    {% endif %}
-                    <div class="estancia-summary-text">
-                        <p class="form-section-title">{{ estancia.nombre }}</p>
-                        <p class="estancia-summary-meta">{{ estancia.tipo_estancia }} · {{ estancia.planta or 'Sin planta' }}</p>
-                        <span class="estancia-status {% if estancia.esta_rellena %}complete{% else %}incomplete{% endif %}">
-                            {% if estancia.esta_rellena %}Rellenada{% else %}Pendiente{% endif %}
-                        </span>
-                    </div>
-                </div>
-                <span class="form-section-arrow" aria-hidden="true">▾</span>
-            </button>
-
-            <div class="form-section-body" data-collapsible-body>
-                <div class="card inner-card">
-                    <p><strong>Nombre:</strong> {{ estancia.nombre }}</p>
-                    <p><strong>Tipo:</strong> {{ estancia.tipo_estancia }}</p>
-                    {% if estancia.unidad_identificador %}
-                    <p><strong>Unidad:</strong> {{ estancia.unidad_identificador }}</p>
-                    {% endif %}
-                    {% if estancia.nivel_nombre %}
-                    <p><strong>Nivel:</strong> {{ estancia.nivel_nombre }}</p>
-                    {% endif %}
-                    <p><strong>Ventilación:</strong> {{ estancia.ventilacion or '-' }}</p>
-                    <p><strong>Planta:</strong> {{ estancia.planta or '-' }}</p>
-                    <p><strong>Pavimento:</strong> {{ estancia.acabado_pavimento or '-' }}</p>
-                    <p><strong>Paramento:</strong> {{ estancia.acabado_paramento or '-' }}</p>
-                    <p><strong>Techo:</strong> {{ estancia.acabado_techo or '-' }}</p>
-                    <p><strong>Observaciones:</strong> {{ estancia.observaciones or '-' }}</p>
-                </div>
-
-                <div class="actions">
-                    <a class="boton" href="/editar-estancia/{{ estancia.id }}{% if unidad_seleccionada %}?unidad_id_contexto={{ unidad_seleccionada.id }}{% endif %}">Editar estancia</a>
-                    <form method="post" action="/borrar-estancia/{{ estancia.id }}">
-                        {% if unidad_seleccionada %}
-                        <input type="hidden" name="unidad_id_contexto" value="{{ unidad_seleccionada.id }}">
+                                {% if unidad.estancias %}
+                                <ul class="summary-stay-list">
+                                    {% for estancia in unidad.estancias %}
+                                    <li class="summary-stay">
+                                        <div class="summary-stay-header">
+                                            <p class="summary-item-title summary-stay-title">
+                                                <span class="summary-label">Estancia</span> · {{ estancia.nombre }}
+                                            </p>
+                                            <a class="summary-tag edit-link" href="/editar-estancia/{{ estancia.id }}?next={{ next_definir_url | urlencode }}">Editar</a>
+                                            <a class="summary-tag edit-link photo-summary-link camera-button-inline" href="/editar-estancia/{{ estancia.id }}?next={{ next_definir_url | urlencode }}" aria-label="Añadir foto a {{ estancia.nombre }}"><span aria-hidden="true">📷</span><span class="sr-only">Añadir foto a {{ estancia.nombre }}</span></a>
+                                        </div>
+                                        <div class="summary-tags">
+                                            {% if estancia.esta_pendiente %}
+                                            <span class="summary-tag pending">Pendiente</span>
+                                            {% endif %}
+                                            <a class="summary-tag pathology-link" href="/registrar-patologias/{{ visita.id }}?estancia_id={{ estancia.id }}#formulario_patologia_interior" aria-label="{% if estancia.total_patologias %}Ver o añadir patologías en {{ estancia.nombre }}{% else %}Registrar patologías en {{ estancia.nombre }}{% endif %}">
+                                                {% if estancia.total_patologias %}
+                                                {{ estancia.total_patologias }} patología{% if estancia.total_patologias != 1 %}s{% endif %} registradas
+                                                {% else %}
+                                                Sin patologías registradas
+                                                {% endif %}
+                                            </a>
+                                        </div>
+                                        {% if estancia.total_patologias %}
+                                        <ul class="summary-pathology-list">
+                                            {% for patologia in estancia.patologias %}
+                                            <li class="summary-pathology-row">
+                                                <span class="summary-pathology-text">{{ patologia.patologia }}</span>
+                                                <a class="summary-tag edit-link" href="/editar-registro/{{ patologia.id }}?next={{ next_definir_url | urlencode }}">Editar</a>
+                                                <a class="summary-tag edit-link photo-summary-link camera-button-inline" href="/editar-registro/{{ patologia.id }}?next={{ next_definir_url | urlencode }}" aria-label="Añadir foto a {{ patologia.patologia }}"><span aria-hidden="true">📷</span><span class="sr-only">Añadir foto a {{ patologia.patologia }}</span></a>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% else %}
+                                        <p class="summary-inline-list summary-empty">Sin patologías registradas</p>
+                                        {% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <p class="summary-inline-list summary-empty">No hay estancias definidas en esta unidad.</p>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="empty">No hay unidades registradas en este nivel.</p>
                         {% endif %}
-                        <button class="boton secundario boton-peligro" type="submit">Borrar</button>
-                    </form>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </section>
-        {% endfor %}
-        {% else %}
-        <div class="card">
-            <p class="empty">
+        {% endif %}
+
+        {% if not mostrar_navegacion_multiunidad or unidad_seleccionada %}
+        <div class="card unit-context-card estancias-base-card quick-stays-card" id="estancias-habituales">
+            <h2>Crear estancias habituales</h2>
+            <p class="helper-text">Añade solo las estancias que compruebes durante la visita. Esta acción no se ejecuta automáticamente.</p>
+            {% if unidad_seleccionada %}
+            <p><strong>Unidad en edición:</strong> {{ unidad_seleccionada.identificador }}</p>
+            <p><strong>Nivel:</strong> {{ unidad_seleccionada.nombre_nivel or 'Sin nivel asignado' }}</p>
+            {% if unidad_muestra_planta %}
+            <p class="unit-floor-badge">Varias plantas · {{ unidad_seleccionada.numero_plantas }} plantas</p>
+            {% endif %}
+            {% endif %}
+
+            <form class="unit-context-form" method="post" action="/generar-estancias-base">
+                <input type="hidden" name="visita_id" value="{{ visita.id }}">
                 {% if unidad_seleccionada %}
-                Todavía no hay estancias registradas para esta unidad en esta visita.
-                {% else %}
-                Todavía no hay estancias registradas para esta visita.
+                <input type="hidden" name="unidad_id_objetivo" value="{{ unidad_seleccionada.id }}">
                 {% endif %}
-            </p>
+
+                <div class="unit-context-grid quick-stays-grid">
+                    <div>
+                        <label for="num_salones">Salón</label>
+                        <select id="num_salones" name="num_salones">
+                            {% for valor in range(0, 4) %}
+                            <option value="{{ valor }}">{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="num_cocinas">Cocina</label>
+                        <select id="num_cocinas" name="num_cocinas">
+                            {% for valor in range(0, 4) %}
+                            <option value="{{ valor }}">{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="num_dormitorios">Dormitorios</label>
+                        <select id="num_dormitorios" name="num_dormitorios">
+                            {% for valor in range(0, 11) %}
+                            <option value="{{ valor }}">{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="num_banos">Baños</label>
+                        <select id="num_banos" name="num_banos">
+                            {% for valor in range(0, 11) %}
+                            <option value="{{ valor }}">{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="num_aseos">Aseos</label>
+                        <select id="num_aseos" name="num_aseos">
+                            {% for valor in range(0, 6) %}
+                            <option value="{{ valor }}">{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="num_escaleras">Escaleras</label>
+                        <select id="num_escaleras" name="num_escaleras">
+                            {% for valor in range(0, 4) %}
+                            <option value="{{ valor }}">{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="num_distribuidores">Distribuidor</label>
+                        <select id="num_distribuidores" name="num_distribuidores">
+                            {% for valor in range(0, 4) %}
+                            <option value="{{ valor }}">{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                {% if unidad_muestra_planta %}
+                <div class="unit-floor-count">
+                    <label for="planta_estancias_base">Planta para estas estancias</label>
+                    <select id="planta_estancias_base" name="planta">
+                        {% for opcion_planta in opciones_planta_estancia %}
+                        <option value="{{ opcion_planta }}">{{ opcion_planta }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="actions">
+                    <button class="boton" type="submit">Crear estancias seleccionadas</button>
+                    {% if unidad_seleccionada %}
+                    <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Ver todas las unidades</a>
+                    {% endif %}
+                </div>
+            </form>
         </div>
         {% endif %}
 
-        <div class="card">
-            <h2>Añadir estancia</h2>
-            <p class="subtitle">Las estancias de esta visita se han copiado de la visita anterior más reciente o, si no existían, se han generado desde las características de la unidad.</p>
+        <div class="card estancias-manual-card" id="anadir-estancia-manual">
+            <h2>Añadir estancia manual</h2>
+            <p class="subtitle">Las estancias de esta visita se definen manualmente durante la visita. Puedes usar el selector rápido o añadir una estancia concreta.</p>
             {% if visita.ambito_visita and visita.ambito_visita != 'unidad' %}
             <p class="helper-text">En visitas asociadas a {{ objeto_visita_label or 'este ámbito' }}, las estancias interiores no se generan automáticamente por defecto, pero puedes añadirlas manualmente si las necesitas.</p>
             {% endif %}
 
             {% if mostrar_navegacion_multiunidad and not unidad_seleccionada %}
-            <p class="helper-text">Selecciona antes una unidad para que la estancia quede bien asociada dentro del edificio completo.</p>
+            <p class="helper-text">Selecciona una unidad para añadir estancias.</p>
             {% else %}
             <form method="post" action="/guardar-estancia">
                 <input type="hidden" name="visita_id" value="{{ visita.id }}">
@@ -585,7 +825,9 @@
                     <option value="Baño">Baño</option>
                     <option value="Aseo">Aseo</option>
                     <option value="Pasillo">Pasillo</option>
+                    <option value="Distribuidor">Distribuidor</option>
                     <option value="Recibidor">Recibidor</option>
+                    <option value="Escalera">Escalera</option>
                     <option value="Terraza">Terraza</option>
                     <option value="Lavadero">Lavadero</option>
                     <option value="Trastero">Trastero</option>
@@ -602,8 +844,15 @@
                     <option value="No">No</option>
                 </select>
 
+                {% if unidad_muestra_planta %}
                 <label for="planta">Planta</label>
-                <input type="text" id="planta" name="planta" placeholder="Ej. Baja, 1ª, sótano">
+                <select id="planta" name="planta">
+                    <option value="">Seleccionar planta</option>
+                    {% for opcion_planta in opciones_planta_estancia %}
+                    <option value="{{ opcion_planta }}">{{ opcion_planta }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
 
                 <label for="acabado_pavimento">Pavimento</label>
                 <input type="text" id="acabado_pavimento" name="acabado_pavimento" placeholder="Ej. Gres">
@@ -620,6 +869,10 @@
                 <button class="boton" type="submit">Guardar estancia</button>
             </form>
             {% endif %}
+        </div>
+
+        <div class="actions estancias-final-actions">
+            <a class="boton" href="/registrar-patologias/{{ visita.id }}">Continuar a patologías</a>
         </div>
     </div>
     {% include "partials/_app_shell_end.html" %}

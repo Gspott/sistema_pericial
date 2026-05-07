@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <title>Editar visita</title>
@@ -19,23 +19,91 @@
 
 <body>
     {% include "partials/_app_shell_start.html" %}
-<div class="page"><h1>Editar visita</h1>
+<div class="page">
+        <section class="card visita-header">
+            <div class="visita-header-main">
+                <p class="visita-eyebrow">Expediente {{ visita.numero_expediente }}</p>
+                <h1>Editar visita</h1>
+                <p class="visita-header-meta">{{ visita.direccion }}</p>
+                <p class="visita-header-meta">Fecha: {{ visita.fecha }} · Técnico: {{ visita.tecnico }}</p>
+            </div>
+            <div class="actions visita-header-actions">
+                <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+                <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Ver estancias</a>
+            </div>
+        </section>
 
-        <div class="actions">
-            <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
-            <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Ver estancias</a>
-        </div>
+        <section class="card visita-exterior-card" id="exterior-edificio">
+            <div>
+                <p class="visita-eyebrow">Primer paso de campo</p>
+                <h2>Exterior del edificio</h2>
+                <p class="helper-text">Añade fotografías descriptivas del exterior del edificio.</p>
+                {% if not visita_fotos_exteriores %}
+                <p class="empty">Todavía no hay fotos exteriores.</p>
+                {% endif %}
+            </div>
+            <form class="visita-exterior-form" method="post" action="/visitas/{{ visita.id }}/fotos" enctype="multipart/form-data">
+                <input type="hidden" name="categoria" value="exterior">
+                <input type="hidden" name="next" value="/editar-visita/{{ visita.id }}#exterior-edificio">
 
-        <div class="card">
-            <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
-            <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
-        </div>
+                <label for="descripcion_foto_exterior">Descripción</label>
+                <input type="text" id="descripcion_foto_exterior" name="descripcion" placeholder="Ej. Fachada principal, acceso, medianera">
 
-        <div class="card">
+                <label class="photo-capture-label" for="fotos_exteriores_visita">Añadir fotos exteriores</label>
+                <input class="photo-input" type="file" id="fotos_exteriores_visita" name="fotos" accept="image/*" capture="environment" multiple>
+
+                <button class="boton" type="submit">Guardar fotos exteriores</button>
+            </form>
+            <form class="visita-exterior-form" method="post" action="/expedientes/{{ visita.expediente_id }}/reforma">
+                <input type="hidden" name="next" value="/editar-visita/{{ visita.id }}#exterior-edificio">
+                <h3>Reforma observada</h3>
+
+                <label for="reformado">¿Reformado?</label>
+                <select id="reformado" name="reformado">
+                    <option value="No" {% if visita.reformado == "No" or not visita.reformado %}selected{% endif %}>No</option>
+                    <option value="Sí" {% if visita.reformado == "Sí" %}selected{% endif %}>Sí</option>
+                </select>
+
+                <label for="fecha_reforma">Fecha de reforma</label>
+                <select id="fecha_reforma" name="fecha_reforma">
+                    <option value="">Sin reforma / no aplica</option>
+                    {% for anio in anios_disponibles %}
+                    <option value="{{ anio }}" {% if visita.fecha_reforma == anio|string %}selected{% endif %}>{{ anio }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="observaciones_reforma">Observaciones de la reforma</label>
+                <textarea id="observaciones_reforma" name="observaciones_reforma">{{ visita.observaciones_reforma or '' }}</textarea>
+
+                <button class="boton secundario" type="submit">Guardar datos de reforma</button>
+            </form>
+            {% if visita_fotos_exteriores %}
+            <div class="visita-fotos-grid">
+                {% for foto in visita_fotos_exteriores %}
+                <figure class="visita-foto-item">
+                    <img src="{{ foto.url }}" alt="Foto exterior de la visita">
+                    {% if foto.descripcion %}
+                    <figcaption>{{ foto.descripcion }}</figcaption>
+                    {% endif %}
+                </figure>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="actions visita-exterior-actions">
+                {% if permite_patologias_exteriores %}
+                <a class="boton" href="/registrar-patologias/{{ visita.id }}?exterior=1#formulario_patologia_exterior">Registrar patología exterior</a>
+                {% endif %}
+                <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Continuar a estancias</a>
+            </div>
+        </section>
+
+        <div class="card visita-primary-card">
             {% if error %}
             <p class="error">{{ error }}</p>
             {% endif %}
             <form method="post" action="/actualizar-visita/{{ visita.id }}">
+                <p class="visita-primary-label">Datos esenciales</p>
+
                 <label for="fecha">Fecha</label>
                 <input type="date" id="fecha" name="fecha" value="{{ visita.fecha }}" required>
 
@@ -93,7 +161,9 @@
                 <label for="observaciones_visita">Observaciones de la visita</label>
                 <textarea id="observaciones_visita" name="observaciones_visita">{{ visita.observaciones_visita or '' }}</textarea>
 
-                <button class="boton" type="submit">Guardar cambios</button>
+                <div class="actions visita-form-actions">
+                    <button class="boton" type="submit">Guardar cambios</button>
+                </div>
             </form>
         </div>
     </div>

@@ -62,6 +62,36 @@ def get_owned_tarea(cur, tarea_id: int, lead_id: int, owner_user_id: int):
     ).fetchone()
 
 
+def buscar_cliente_similar(cur, lead, owner_user_id: int):
+    email = limpiar_texto(lead["email"])
+    telefono = limpiar_texto(lead["telefono"])
+    if email:
+        cliente = cur.execute(
+            """
+            SELECT *
+            FROM clientes
+            WHERE owner_user_id = ? AND lower(email) = lower(?)
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (owner_user_id, email),
+        ).fetchone()
+        if cliente:
+            return cliente
+    if telefono:
+        return cur.execute(
+            """
+            SELECT *
+            FROM clientes
+            WHERE owner_user_id = ? AND telefono = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (owner_user_id, telefono),
+        ).fetchone()
+    return None
+
+
 @router.get("/leads", response_class=HTMLResponse)
 def listar_leads(request: Request, estado: str = Query("", max_length=40)):
     current_user = get_current_user(request)
@@ -199,6 +229,76 @@ def crear_lead(
         conn.close()
 
     return RedirectResponse(url=f"/leads/{lead_id}", status_code=303)
+
+
+@router.post("/leads/{lead_id}/convertir-cliente")
+def convertir_lead_en_cliente(request: Request, lead_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        lead = get_owned_lead(cur, lead_id, current_user["id"])
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead no encontrado")
+
+        cliente_id = lead["cliente_id"]
+        if cliente_id:
+            cliente = cur.execute(
+                """
+                SELECT id
+                FROM clientes
+                WHERE id = ? AND owner_user_id = ?
+                """,
+                (cliente_id, current_user["id"]),
+            ).fetchone()
+            if cliente:
+                return RedirectResponse(url=f"/clientes/{cliente_id}", status_code=303)
+
+        cliente = buscar_cliente_similar(cur, lead, current_user["id"])
+        if cliente:
+            cliente_id = cliente["id"]
+        else:
+            notas = "\n".join(
+                parte
+                for parte in (
+                    f"Convertido desde lead #{lead_id}.",
+                    f"Servicio solicitado: {lead['servicio_solicitado']}" if limpiar_texto(lead["servicio_solicitado"]) else "",
+                    f"Mensaje inicial: {lead['mensaje']}" if limpiar_texto(lead["mensaje"]) else "",
+                    f"Notas lead: {lead['notas']}" if limpiar_texto(lead["notas"]) else "",
+                )
+                if parte
+            )
+            cur.execute(
+                """
+                INSERT INTO clientes (
+                    nombre, email, telefono, origen, notas, owner_user_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    limpiar_texto(lead["nombre"]) or "Cliente sin nombre",
+                    limpiar_texto(lead["email"]),
+                    limpiar_texto(lead["telefono"]),
+                    limpiar_texto(lead["origen"]) or "lead",
+                    notas,
+                    current_user["id"],
+                ),
+            )
+            cliente_id = cur.lastrowid
+
+        cur.execute(
+            """
+            UPDATE leads
+            SET cliente_id = ?, estado = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND owner_user_id = ?
+            """,
+            (cliente_id, "aceptado", lead_id, current_user["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(url=f"/clientes/{cliente_id}", status_code=303)
 
 
 @router.get("/leads/{lead_id}", response_class=HTMLResponse)

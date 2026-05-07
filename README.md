@@ -115,6 +115,14 @@ Funciones:
 - Vista imprimible.
 - Conversión manual de propuesta aceptada a expediente.
 
+### 🧠 Mejoras recientes en propuestas
+
+- Mejora del flujo inicial desde lead → propuesta.
+- Mayor coherencia en la conversión a expediente.
+- Mejora en renderizado y estructura visual de la propuesta.
+- Base preparada para automatización futura del flujo comercial.
+- Mejor alineación con el módulo de facturación.
+
 Tablas: `propuestas`, `propuesta_lineas`.
 
 ### Expedientes Periciales
@@ -221,6 +229,190 @@ Funciones:
 
 Tabla: `gastos`.
 
+### Importación automática de tickets y facturas
+
+Flujo general:
+
+```text
+iPhone / email / PDF / imagen
+→ iCloud Drive
+→ carpeta Pendientes
+→ scripts/importar_gastos_icloud.py
+→ OCR local en Mac
+→ extracción local por reglas
+→ inserción en tabla gastos
+→ revisión en /gastos
+```
+
+Ruta de trabajo:
+
+```text
+/Users/carlosblanco/Library/Mobile Documents/com~apple~CloudDocs/Casa/Trabajo Arquitecto Técnico/Facturas/Pendientes
+```
+
+Carpetas usadas:
+
+- `Pendientes`: entrada de imágenes, PDFs y JSON de Shortcuts.
+- `Procesadas`: archivos importados correctamente.
+- `Error`: duplicados, errores o entradas no importables.
+
+Entrada desde iPhone/Mac:
+
+- El Atajo captura foto o documento.
+- Genera un JSON asociado.
+- Incluye OCR inicial de Shortcuts.
+- Guarda imagen + JSON en `Pendientes`.
+- Separa ámbito `trabajo` / `casa`.
+
+Ejemplo de JSON:
+
+```json
+{
+  "fecha_captura": "2026-05-05_125556",
+  "origen": "shortcut_mac",
+  "ambito": "trabajo",
+  "estado": "pendiente",
+  "archivo_imagen": "2026-05-05_125556_factura.jpg",
+  "ocr_text": "...",
+  "proveedor": "",
+  "nif_proveedor": "",
+  "numero_factura": "",
+  "concepto": "",
+  "base_imponible": "",
+  "iva_porcentaje": "",
+  "iva_importe": "",
+  "total": "",
+  "deducible": true,
+  "es_factura_probable": ""
+}
+```
+
+Entrada por email/PDF:
+
+- Si se deja un PDF o imagen en `Pendientes` sin JSON, el script autocrea un JSON mínimo.
+- Esto permite importar adjuntos de email sin crear metadatos manualmente.
+
+OCR local:
+
+El sistema combina:
+
+- OCR de Shortcuts.
+- OCR local en Mac con Tesseract, pytesseract y Pillow.
+- Texto extraído de PDFs con pdfplumber.
+
+Dependencias Python:
+
+```bash
+pip install pytesseract pillow pdfplumber
+```
+
+Dependencias Homebrew:
+
+```bash
+brew install tesseract
+brew install tesseract-lang
+```
+
+Extracción local sin IA:
+
+- No usa OpenAI.
+- No usa Ollama.
+- El extractor está en `app/services/rule_based_invoice_extractor.py`.
+
+Detecta:
+
+- Proveedor.
+- CIF/NIF.
+- Fecha fiscal.
+- Número de factura, ticket o pedido.
+- Concepto.
+- Categoría.
+- Base imponible.
+- Porcentaje IVA.
+- Cuota IVA.
+- Total.
+- Tipo documental.
+
+Patrones soportados:
+
+- Factura completa.
+- Factura simplificada.
+- Tickets de gasolinera.
+- Supermercados.
+- Recibos tipo plataforma/pago online.
+- PDFs con texto embebido.
+- Imágenes con OCR parcial.
+- Patrones `Subtotal / IVA / Total`.
+- Tablas `BASE / % / CUOTA`.
+- Tickets donde se reconstruye IVA con base + tipo.
+- Tickets con total cerca de etiquetas como `IMPORTE` o `TOTAL EUROS`.
+
+Categorías automáticas:
+
+- `combustible`
+- `suscripciones`
+- `material_oficina`
+- `informatica`
+- `telefonia_internet`
+- `transporte`
+- `alojamiento`
+- `comidas`
+- `suministros`
+- `herramientas`
+- `parking_peajes`
+- `otros`
+
+La categoría se infiere por proveedor, concepto y texto OCR.
+
+Duplicados:
+
+- Se calcula SHA256 del archivo original.
+- Se evita reimportar el mismo justificante.
+- También se usan pistas como proveedor + número de factura cuando existen.
+
+Estados de revisión en `/gastos`:
+
+- `OK`
+- `Revisar`
+- `Rechazar`
+- `Sin estado`
+
+Criterios habituales:
+
+- Validación matemática `base + IVA ≈ total`.
+- Datos incompletos.
+- OCR poco fiable.
+- Documento no fiscal.
+- Error de importación.
+
+Importación manual desde interfaz:
+
+- En `/gastos` existe el botón `Importar recibos`.
+- Ejecuta manualmente `scripts/importar_gastos_icloud.py`.
+- Muestra resumen de importados, duplicados y errores.
+
+Previsualización:
+
+- En la edición del gasto se muestra previsualización del justificante.
+- Soporta imagen, PDF y enlace de apertura en nueva pestaña.
+
+Comando manual:
+
+```bash
+cd /Users/carlosblanco/sistema_pericial
+./.venv/bin/python scripts/importar_gastos_icloud.py
+```
+
+Filosofía del sistema:
+
+- Local.
+- Privado.
+- Sin APIs de pago.
+- Auditable.
+- Pensado para revisión humana.
+- No sustituye asesoramiento fiscal.
+- Ante duda marca `REVISAR`.
+
 ### Resumen IVA
 
 Ruta: `/facturacion/iva`
@@ -309,6 +501,30 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+## ⚙️ Configuración `.env`
+
+La aplicación utiliza un archivo `.env` para configuración local.
+
+### ⚠️ Regla crítica
+
+Si un valor contiene:
+
+- espacios
+- texto libre
+- símbolos
+
+👉 debe ir entre comillas.
+
+### ✅ Correcto
+
+````env
+SMTP_FROM_NAME="Carlos Blanco"
+BASE_URL="http://localhost:8000"
+
+### ❌ Incorrecto
+
+SMTP_FROM_NAME=Carlos Blanco
+
 La base de datos local se crea/migra desde `app/database.py` sobre `data/pericial.db`.
 
 ## Control Manual del Servidor
@@ -320,6 +536,30 @@ El proyecto conserva scripts de operación local:
 - `./stop_all.sh`: detiene FastAPI, Caddy y `caffeinate`.
 - `./status.sh`: devuelve `RUNNING` o `STOPPED`.
 - `./run_app.sh`: abre la app local `control_app.py`.
+
+```md
+
+### 🖥️ App local "Control Servidor"
+
+La app `control_app.py` proporciona una interfaz gráfica para gestionar el servidor desde macOS.
+
+Funciones:
+
+- Iniciar / detener servidor con un clic
+
+- Estado en tiempo real:
+
+  - FastAPI
+
+  - Caddy
+
+  - caffeinate
+
+  - DuckDNS
+
+- Detección de errores en scripts
+
+- Feedback visual inmediato
 
 En Apple Silicon, ejecutar en `arm64` nativo si se reutiliza una `.venv` arm64.
 
@@ -338,7 +578,7 @@ Resumen: clonar el repo, crear `.venv`, copiar `.env.example` a `.env`, restaura
 python3 -m py_compile app/main.py app/database.py app/config.py
 python3 -m py_compile app/routers/*.py app/services/*.py
 python3 -c "import app.main"
-```
+````
 
 ## Estado Actual
 

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -218,6 +218,79 @@
                 <p><strong>Tipo de informe:</strong> {{ expediente.tipo_informe_label or '-' }}</p>
             </section>
 
+            <section class="card next-pending-card" aria-labelledby="next-pending-title">
+                <div>
+                    <p class="next-pending-eyebrow">Siguiente acción recomendada</p>
+                    <h2 id="next-pending-title">{{ revision_informe.siguiente_accion.titulo }}</h2>
+                    <p class="next-pending-desc">{{ revision_informe.siguiente_accion.descripcion }}</p>
+                </div>
+                <div class="actions next-pending-actions">
+                    <a class="boton" href="{{ revision_informe.siguiente_accion.url }}">{% if revision_informe.pendientes %}Continuar{% else %}Volver al expediente{% endif %}</a>
+                </div>
+            </section>
+
+            <section class="card revision-informe-card" aria-labelledby="revision-informe-title">
+                <div class="revision-informe-header">
+                    <div>
+                        <h2 id="revision-informe-title">Revisión antes del informe</h2>
+                        {% if revision_informe.total %}
+                        <p class="helper-text">{{ revision_informe.total }} pendiente{% if revision_informe.total != 1 %}s{% endif %} de revisión probatoria detectado{% if revision_informe.total != 1 %}s{% endif %}.</p>
+                        {% else %}
+                        <p class="helper-text">No se han detectado pendientes probatorios principales.</p>
+                        {% endif %}
+                    </div>
+                    <span class="revision-informe-count {% if revision_informe.total %}pending{% else %}ok{% endif %}">
+                        {{ revision_informe.total }}
+                    </span>
+                </div>
+
+                {% if revision_informe.pendientes %}
+                <div class="revision-pendientes-list">
+                    {% for pendiente in revision_informe.pendientes %}
+                    <article class="revision-pendiente-item">
+                        <div>
+                            <p class="revision-pendiente-title">{{ pendiente.titulo }}</p>
+                            <p class="revision-pendiente-desc">{{ pendiente.descripcion }}</p>
+                        </div>
+                        <a class="boton secundario" href="{{ pendiente.url }}">{{ pendiente.accion }}</a>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="revision-ok-message">Revisión completa. No hay pendientes críticos detectados.</p>
+                {% endif %}
+
+                <div class="actions informe-actions revision-final-actions">
+                    {% if revision_informe.pendientes %}
+                    <a class="boton secundario" href="/generar-informe/{{ expediente.id }}">Generar informe de todos modos</a>
+                    {% else %}
+                    <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+                    <a class="boton" href="/generar-informe/{{ expediente.id }}">Generar informe</a>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="form-section">
+                <div class="form-section-body" style="padding-top: 16px;">
+                    <h2>Fotos exteriores de visita</h2>
+
+                    {% if visita_fotos_exteriores %}
+                    <div class="visita-fotos-grid">
+                        {% for foto in visita_fotos_exteriores %}
+                        <figure class="visita-foto-item">
+                            <img src="{{ foto.url }}" alt="Foto exterior de la visita {{ foto.visita_fecha }}">
+                            <figcaption>
+                                Visita {{ foto.visita_fecha }}{% if foto.descripcion %} · {{ foto.descripcion }}{% endif %}
+                            </figcaption>
+                        </figure>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="empty">No hay fotografías exteriores descriptivas registradas.</p>
+                    {% endif %}
+                </div>
+            </section>
+
             <section class="form-section">
                 <div class="form-section-body" style="padding-top: 16px;">
                     <h2>Patologías exteriores</h2>
@@ -245,6 +318,9 @@
                             {% if registro.observaciones %}
                             <p class="summary-inline-list"><strong>Observaciones:</strong> {{ registro.observaciones }}</p>
                             {% endif %}
+                            <div class="summary-photo-actions">
+                                <a class="boton secundario photo-quick-link camera-button-inline" href="/editar-registro-exterior/{{ registro.id }}?next={{ ('/resumen-registro/' ~ expediente.id) | urlencode }}" aria-label="Añadir foto a patología exterior"><span aria-hidden="true">📷</span><span class="sr-only">Añadir foto a patología exterior</span></a>
+                            </div>
                         </div>
                         {% endfor %}
                     </div>
@@ -299,6 +375,7 @@
                                                     <span class="summary-label">Estancia</span> · {{ estancia.nombre }}
                                                 </p>
                                                 <a class="summary-tag edit-link" href="/editar-estancia/{{ estancia.id }}?next={{ ('/resumen-registro/' ~ expediente.id) | urlencode }}">Editar</a>
+                                                <a class="summary-tag edit-link photo-summary-link camera-button-inline" href="/editar-estancia/{{ estancia.id }}?next={{ ('/resumen-registro/' ~ expediente.id) | urlencode }}" aria-label="Añadir foto a {{ estancia.nombre }}"><span aria-hidden="true">📷</span><span class="sr-only">Añadir foto a {{ estancia.nombre }}</span></a>
                                             </div>
                                             <div class="summary-tags">
                                                 {% if estancia.esta_pendiente %}
@@ -318,6 +395,7 @@
                                                 <li class="summary-pathology-row">
                                                     <span class="summary-pathology-text">{{ patologia.patologia }}</span>
                                                     <a class="summary-tag edit-link" href="/editar-registro/{{ patologia.id }}?next={{ ('/resumen-registro/' ~ expediente.id) | urlencode }}">Editar</a>
+                                                    <a class="summary-tag edit-link photo-summary-link camera-button-inline" href="/editar-registro/{{ patologia.id }}?next={{ ('/resumen-registro/' ~ expediente.id) | urlencode }}" aria-label="Añadir foto a {{ patologia.patologia }}"><span aria-hidden="true">📷</span><span class="sr-only">Añadir foto a {{ patologia.patologia }}</span></a>
                                                 </li>
                                                 {% endfor %}
                                             </ul>

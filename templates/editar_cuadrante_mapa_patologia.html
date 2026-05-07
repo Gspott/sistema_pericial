@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <title>Editar cuadrante</title>
@@ -58,9 +58,16 @@
                     {% endfor %}
                 </select>
 
-                <label for="fotos_detalle">Añadir fotos detalle</label>
-                <input id="fotos_detalle" name="fotos_detalle" type="file" accept="image/*" multiple>
+                <div class="photo-capture-box {% if not cuadrante.fotos %}missing{% endif %}">
+                    {% if cuadrante.fotos %}
+                    <label class="photo-capture-label" for="fotos_detalle">Añadir otra foto</label>
+                    {% else %}
+                    <p class="photo-required-warning">Falta al menos una fotografía</p>
+                    <label class="photo-capture-label" for="fotos_detalle">Añadir foto (requerido)</label>
+                    {% endif %}
+                <input class="photo-input" id="fotos_detalle" name="fotos_detalle" type="file" accept="image/*" capture="environment" multiple>
                 <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez. Puedes seguir añadiendo más fotos aquí sin perder las actuales.</p>
+                </div>
 
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ cuadrante.observaciones or '' }}</textarea>

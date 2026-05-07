@@ -786,6 +786,20 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS visita_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            visita_id INTEGER NOT NULL,
+            categoria TEXT NOT NULL DEFAULT 'exterior',
+            ruta TEXT NOT NULL,
+            descripcion TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (visita_id) REFERENCES visitas (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS registros_patologias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             visita_id INTEGER NOT NULL,
@@ -1207,6 +1221,8 @@ def init_db():
             unidad_principal_id INTEGER,
             tipo_anejo TEXT,
             vinculo_unidad TEXT,
+            tiene_varias_plantas INTEGER NOT NULL DEFAULT 0,
+            numero_plantas INTEGER NOT NULL DEFAULT 1,
             observaciones TEXT,
             FOREIGN KEY (expediente_id) REFERENCES expedientes (id),
             FOREIGN KEY (nivel_id) REFERENCES niveles_edificio (id),
@@ -1225,6 +1241,8 @@ def init_db():
     asegurar_columna(cur, "unidades_expediente", "unidad_principal_id", "INTEGER")
     asegurar_columna(cur, "unidades_expediente", "tipo_anejo", "TEXT")
     asegurar_columna(cur, "unidades_expediente", "vinculo_unidad", "TEXT")
+    asegurar_columna(cur, "unidades_expediente", "tiene_varias_plantas", "INTEGER NOT NULL DEFAULT 0")
+    asegurar_columna(cur, "unidades_expediente", "numero_plantas", "INTEGER NOT NULL DEFAULT 1")
     asegurar_columna(cur, "unidades_expediente", "observaciones", "TEXT")
 
     cur.execute(

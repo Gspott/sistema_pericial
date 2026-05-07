@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <title>Cliente {{ cliente.nombre }}</title>
 </head>
 <body>
@@ -15,6 +15,7 @@
             <div class="actions">
                 <a class="boton" href="/clientes/{{ cliente.id }}/editar">Editar cliente</a>
                 <a class="boton secundario" href="/propuestas/nueva?cliente_id={{ cliente.id }}">Crear propuesta</a>
+                <a class="boton secundario" href="/nuevo-expediente?cliente_id={{ cliente.id }}">Crear expediente</a>
                 <a class="boton secundario" href="/clientes">Volver al listado</a>
                 <a class="boton secundario" href="/leads">Leads</a>
             </div>

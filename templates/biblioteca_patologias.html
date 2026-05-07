@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -35,10 +35,6 @@
 <body>
     {% include "partials/_app_shell_start.html" %}
 <div class="page"><h1>Biblioteca de patologías</h1>
-
-        <div class="actions">
-            <a class="boton secundario" href="/">Volver al inicio</a>
-        </div>
 
         <div class="card">
             <h2>{% if patologia_edicion %}Editar patología{% else %}Nueva patología{% endif %}</h2>

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -180,141 +180,70 @@
 
 <body>
     {% include "partials/_app_shell_start.html" %}
-<div class="page"><h1>Registrar patologías</h1>
-
-        <div class="actions">
-            <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Volver a estancias</a>
-            <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
-        </div>
-
-        <div class="card">
-            <p><strong>Expediente:</strong> {{ visita.numero_expediente }}</p>
-            <p><strong>Dirección:</strong> {{ visita.direccion }}</p>
-            <p><strong>Fecha visita:</strong> {{ visita.fecha }}</p>
-            <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
-            <p><strong>Observaciones:</strong> {{ visita.observaciones_visita or '-' }}</p>
-            {% if objeto_visita_label %}
-            <p><strong>Objeto de la visita:</strong> {{ objeto_visita_label }}</p>
-            {% endif %}
-        </div>
-
-        {% if visita.ambito_patologias == 'exterior' or visita.ambito_patologias == 'interior_exterior' %}
-        <section class="form-section" data-collapsible data-collapse-id="patologias_exteriores">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
-                <span class="form-section-title">Patologías exteriores</span>
-                <span class="form-section-arrow" aria-hidden="true">▾</span>
-            </button>
-            <div class="form-section-body" data-collapsible-body>
+<div class="page">
+        <section class="card patologias-header">
+            <div class="patologias-header-main">
+                <p class="patologias-eyebrow">Expediente {{ visita.numero_expediente }}</p>
+                <h1>Registrar patologías</h1>
+                <p class="patologias-header-meta">{{ visita.direccion }}</p>
+                <p class="patologias-header-meta">Visita: {{ visita.fecha }} · Técnico: {{ visita.tecnico }}</p>
                 {% if objeto_visita_label %}
-                <p class="helper-text">{{ objeto_visita_label }}</p>
+                <p class="patologias-header-meta">{{ objeto_visita_label }}</p>
                 {% endif %}
+            </div>
+            <div class="actions patologias-header-actions">
+                <a class="boton secundario" href="/definir-estancias/{{ visita.id }}">Volver a estancias</a>
+                <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+            </div>
+        </section>
 
-                <form method="post" action="/guardar-registro-exterior" enctype="multipart/form-data">
-                    <input type="hidden" name="visita_id" value="{{ visita.id }}">
+        {% if visita.observaciones_visita %}
+        <div class="card patologias-note">
+            <p><strong>Observaciones de la visita:</strong> {{ visita.observaciones_visita }}</p>
+        </div>
+        {% endif %}
 
-                    <label for="zona_exterior">Zona exterior</label>
-                    <select id="zona_exterior" name="zona_exterior" required>
-                        <option value="">Seleccionar...</option>
-                        <option value="fachada">Fachada</option>
-                        <option value="cubierta">Cubierta</option>
-                        <option value="medianera">Medianera</option>
-                        <option value="patio">Patio</option>
-                        <option value="terraza">Terraza</option>
-                        <option value="exterior_general">Exterior general</option>
-                    </select>
-
-                    <label for="elemento_exterior">Elemento exterior</label>
-                    <select id="elemento_exterior" name="elemento_exterior" required>
-                        <option value="">Seleccionar...</option>
-                        <option value="revestimiento">Revestimiento</option>
-                        <option value="cerramiento">Cerramiento</option>
-                        <option value="cornisa">Cornisa</option>
-                        <option value="alero">Alero</option>
-                        <option value="peto">Peto</option>
-                        <option value="impermeabilizacion">Impermeabilizacion</option>
-                        <option value="carpinteria_exterior">Carpinteria exterior</option>
-                        <option value="barandilla">Barandilla</option>
-                        <option value="bajante">Bajante</option>
-                        <option value="canalon">Canalon</option>
-                        <option value="forjado">Forjado</option>
-                        <option value="otro">Otro</option>
-                    </select>
-
-                    <label for="localizacion_dano_exterior">Localización del daño exterior</label>
-                    <select id="localizacion_dano_exterior" name="localizacion_dano_exterior" required>
-                        <option value="">Seleccionar...</option>
-                        <option value="horizontal">Horizontal</option>
-                        <option value="vertical">Vertical</option>
-                        <option value="encuentro">Encuentro</option>
-                        <option value="puntual">Puntual</option>
-                    </select>
-
-                    <label for="patologia_exterior">Patología</label>
-                    <select id="patologia_exterior" name="patologia" required>
-                        <option value="">Seleccionar...</option>
-                        {% for item in patologias %}
-                        <option value="{{ item.nombre }}">{{ item.nombre }}</option>
-                        {% endfor %}
-                    </select>
-
-                    <label for="observaciones_exterior">Observaciones</label>
-                    <textarea id="observaciones_exterior" name="observaciones"></textarea>
-
-                    <label for="fotos_exterior">Fotos</label>
-                    <input type="file" id="fotos_exterior" name="fotos" accept="image/*" multiple>
-                    <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez; después podrás incorporar más desde editar.</p>
-
-                    <button class="boton" type="submit">Guardar registro exterior</button>
-                </form>
+        {% if modo_inspector %}
+        <section class="card inspector-header">
+            <p class="inspector-kicker">Modo inspector · Estancia {{ modo_inspector.posicion }} de {{ modo_inspector.total }}</p>
+            <h2>Estancia actual: {{ modo_inspector.actual.nombre }}</h2>
+            <div class="inspector-status">
+                <span class="inspector-status-item {% if modo_inspector.actual.total_fotos %}ok{% else %}warning{% endif %}">
+                    {% if modo_inspector.actual.total_fotos %}Con foto{% else %}Sin foto{% endif %}
+                </span>
+                <span class="inspector-status-item">
+                    {{ modo_inspector.actual.total_patologias }} patología{% if modo_inspector.actual.total_patologias != 1 %}s{% endif %}
+                </span>
+            </div>
+            <div class="inspector-actions">
+                <a class="boton secundario camera-button-inline" href="/editar-estancia/{{ modo_inspector.actual.id }}?next={{ ('/registrar-patologias/' ~ visita.id ~ '?estancia_id=' ~ modo_inspector.actual.id ~ '#formulario_patologia_interior') | urlencode }}" aria-label="Añadir foto de estancia"><span aria-hidden="true">📷</span><span class="sr-only">Añadir foto de estancia</span></a>
             </div>
         </section>
         {% endif %}
 
-        {% if visita.ambito_patologias == 'exterior' or visita.ambito_patologias == 'interior_exterior' %}
-        <section class="form-section" data-collapsible data-collapse-id="registros_exteriores">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
-                <span class="form-section-title">Registros exteriores guardados</span>
-                <span class="form-section-arrow" aria-hidden="true">▾</span>
-            </button>
-            <div class="form-section-body" data-collapsible-body>
-                {% if registros_exteriores %}
-                {% for registro in registros_exteriores %}
-                <div class="card card-clickable">
-                    <a class="card-link-cover" href="/editar-registro-exterior/{{ registro.id }}"
-                        aria-label="Editar patología exterior {{ registro.patologia }}"></a>
-
-                    <div class="card-content">
-                        <p><strong>Zona exterior:</strong> {{ {'fachada':'Fachada','cubierta':'Cubierta','medianera':'Medianera','patio':'Patio','terraza':'Terraza','exterior_general':'Exterior general'}.get(registro.zona_exterior, registro.zona_exterior or '-') }}</p>
-                        <p><strong>Elemento exterior:</strong> {{ {'revestimiento':'Revestimiento','cerramiento':'Cerramiento','cornisa':'Cornisa','alero':'Alero','peto':'Peto','impermeabilizacion':'Impermeabilizacion','carpinteria_exterior':'Carpinteria exterior','barandilla':'Barandilla','bajante':'Bajante','canalon':'Canalon','forjado':'Forjado','otro':'Otro'}.get(registro.elemento_exterior, registro.elemento_exterior or '-') }}</p>
-                        <p><strong>Localización del daño exterior:</strong> {{ {'horizontal':'Horizontal','vertical':'Vertical','encuentro':'Encuentro','puntual':'Puntual'}.get(registro.localizacion_dano_exterior, registro.localizacion_dano_exterior or '-') }}</p>
-                        <p><strong>Patología:</strong> {{ registro.patologia }}</p>
-                        <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
-
-                        {% if registro.fotos %}
-                        {% for foto in registro.fotos %}
-                        <img src="{{ foto.url }}" alt="Foto patología exterior">
-                        {% endfor %}
-                        {% endif %}
-                    </div>
-
-                    <div class="card-actions">
-                        <form method="post" action="/borrar-registro-exterior/{{ registro.id }}">
-                            <button class="boton secundario" type="submit">Borrar</button>
-                        </form>
-                    </div>
-                </div>
-                {% endfor %}
+        {% if modo_inspector and guardado %}
+        <section class="card post-save-card inspector-post-save" id="patologia-guardada">
+            <p class="post-save-kicker">Guardado</p>
+            <h2>Patología guardada</h2>
+            <p>Puedes añadir otra patología a esta estancia o pasar a la siguiente.</p>
+            <div class="post-save-actions">
+                <a class="boton" href="/registrar-patologias/{{ visita.id }}?estancia_id={{ estancia_seleccionada.id }}#formulario_patologia_interior">Añadir otra patología</a>
+                {% if modo_inspector.siguiente %}
+                <a class="boton secundario" href="/editar-estancia/{{ modo_inspector.siguiente.id }}?next={{ ('/definir-estancias/' ~ visita.id ~ '#estructura-interior') | urlencode }}">Siguiente estancia</a>
                 {% else %}
-                <p class="empty">Todavía no hay patologías exteriores registradas para esta visita.</p>
+                <a class="boton secundario" href="/definir-estancias/{{ visita.id }}#estructura-interior">Ir a revisión</a>
                 {% endif %}
+                <a class="boton secundario" href="/definir-estancias/{{ visita.id }}#estructura-interior">Volver a estructura interior</a>
             </div>
         </section>
         {% endif %}
 
-        {% if visita.ambito_patologias != 'exterior' %}
-        <section class="form-section" data-collapsible data-collapse-id="patologias_interiores">
+        <p class="patologias-primary-label">Acción principal</p>
+
+        {% if modo_inspector and visita.ambito_patologias != 'exterior' %}
+        <section class="form-section patologias-primary-card" id="formulario_patologia_interior" data-collapsible data-collapse-id="patologias_interiores">
             <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
-                <span class="form-section-title">Patologías interiores</span>
+                <span class="form-section-title">Registrar patología interior</span>
                 <span class="form-section-arrow" aria-hidden="true">▾</span>
             </button>
             <div class="form-section-body" data-collapsible-body>
@@ -325,6 +254,7 @@
                 {% if estancias %}
                 <form id="formulario_patologia" method="post" action="/guardar-registro" enctype="multipart/form-data">
                     <input type="hidden" name="visita_id" value="{{ visita.id }}">
+                    <input type="hidden" name="next" value="{{ next_url or '' }}">
 
                     <label for="estancia_id">Estancia</label>
                     <select id="estancia_id" name="estancia_id" required>
@@ -348,19 +278,19 @@
                             </p>
                             {% if registros_estancia_seleccionada %}
                             <p><strong>Patologías ya registradas en esta estancia:</strong></p>
-                            <ul>
+                            <ul class="patologia-resumen-list">
                                 {% for registro in registros_estancia_seleccionada %}
-                                <li style="display: flex; justify-content: space-between; align-items: center;">
+                                <li class="patologia-resumen-item">
                                     <span>
                                         {{ registro.patologia }}{% if registro.localizacion_dano %} · {{ registro.localizacion_dano }}{% endif %}
                                     </span>
 
-                                    <span style="display: flex; gap: 8px;">
+                                    <span class="patologia-registro-actions">
                                         <button class="boton secundario" type="button" data-registro-action="editar"
                                             data-registro-id="{{ registro.id }}">Editar</button>
                                         <button class="boton secundario" type="button" data-registro-action="duplicar"
                                             data-registro-id="{{ registro.id }}">Duplicar</button>
-                                        <button class="boton secundario" type="button" data-registro-action="eliminar"
+                                        <button class="boton secundario boton-peligro" type="button" data-registro-action="eliminar"
                                             data-registro-id="{{ registro.id }}">Eliminar</button>
                                     </span>
                                 </li>
@@ -429,9 +359,274 @@
                     <label for="observaciones">Observaciones</label>
                     <textarea id="observaciones" name="observaciones"></textarea>
 
-                    <label for="fotos">Fotos</label>
-                    <input type="file" id="fotos" name="fotos" accept="image/*" multiple>
-                    <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez; después podrás incorporar más desde editar.</p>
+                    <div class="photo-capture-box missing">
+                    <p class="photo-required-warning">Falta fotografía</p>
+                    <label class="camera-button camera-button-required" for="fotos" aria-label="Añadir foto requerida">
+                        <span aria-hidden="true">📷</span>
+                        <span class="sr-only">Añadir foto requerida</span>
+                    </label>
+                    <input class="photo-input camera-input" type="file" id="fotos" name="fotos" accept="image/*" capture="environment" multiple>
+                    <p class="helper-text">Puedes añadir varias fotos; si usas la cámara, normalmente se añade una por vez.</p>
+                    </div>
+
+                    <button class="boton" type="submit">Guardar registro</button>
+                </form>
+                {% else %}
+                <p class="empty">Primero debes crear al menos una estancia para poder registrar patologías.</p>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if visita.ambito_patologias == 'exterior' or visita.ambito_patologias == 'interior_exterior' %}
+        <section class="form-section {% if modo_inspector %}collapsed patologias-secondary-section{% else %}patologias-primary-card{% endif %}" id="formulario_patologia_exterior" data-collapsible data-collapse-id="patologias_exteriores">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="{% if modo_inspector %}false{% else %}true{% endif %}">
+                <span class="form-section-title">Registrar patología exterior</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+            {% if objeto_visita_label %}
+                <p class="helper-text">{{ objeto_visita_label }}</p>
+            {% endif %}
+
+                <form method="post" action="/guardar-registro-exterior" enctype="multipart/form-data">
+                    <input type="hidden" name="visita_id" value="{{ visita.id }}">
+                    <input type="hidden" name="next" value="{{ next_url or '' }}">
+                    <input type="hidden" name="estancia_id_contexto" value="{{ estancia_seleccionada.id if modo_inspector and estancia_seleccionada else '' }}">
+
+                    <label for="zona_exterior">Zona exterior</label>
+                    <select id="zona_exterior" name="zona_exterior" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="fachada">Fachada</option>
+                        <option value="cubierta">Cubierta</option>
+                        <option value="medianera">Medianera</option>
+                        <option value="patio">Patio</option>
+                        <option value="terraza">Terraza</option>
+                        <option value="exterior_general">Exterior general</option>
+                    </select>
+
+                    <label for="elemento_exterior">Elemento exterior</label>
+                    <select id="elemento_exterior" name="elemento_exterior" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="revestimiento">Revestimiento</option>
+                        <option value="cerramiento">Cerramiento</option>
+                        <option value="cornisa">Cornisa</option>
+                        <option value="alero">Alero</option>
+                        <option value="peto">Peto</option>
+                        <option value="impermeabilizacion">Impermeabilizacion</option>
+                        <option value="carpinteria_exterior">Carpinteria exterior</option>
+                        <option value="barandilla">Barandilla</option>
+                        <option value="bajante">Bajante</option>
+                        <option value="canalon">Canalon</option>
+                        <option value="forjado">Forjado</option>
+                        <option value="otro">Otro</option>
+                    </select>
+
+                    <label for="localizacion_dano_exterior">Localización del daño exterior</label>
+                    <select id="localizacion_dano_exterior" name="localizacion_dano_exterior" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="horizontal">Horizontal</option>
+                        <option value="vertical">Vertical</option>
+                        <option value="encuentro">Encuentro</option>
+                        <option value="puntual">Puntual</option>
+                    </select>
+
+                    <label for="patologia_exterior">Patología</label>
+                    <select id="patologia_exterior" name="patologia" required>
+                        <option value="">Seleccionar...</option>
+                        {% for item in patologias %}
+                        <option value="{{ item.nombre }}">{{ item.nombre }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="observaciones_exterior">Observaciones</label>
+                    <textarea id="observaciones_exterior" name="observaciones"></textarea>
+
+                    <div class="photo-capture-box missing">
+                    <p class="photo-required-warning">Falta fotografía</p>
+                    <label class="camera-button camera-button-required" for="fotos_exterior" aria-label="Añadir foto requerida">
+                        <span aria-hidden="true">📷</span>
+                        <span class="sr-only">Añadir foto requerida</span>
+                    </label>
+                    <input class="photo-input camera-input" type="file" id="fotos_exterior" name="fotos" accept="image/*" capture="environment" multiple>
+                    <p class="helper-text">Puedes añadir varias fotos; si usas la cámara, normalmente se añade una por vez.</p>
+                    </div>
+
+                    <button class="boton" type="submit">Guardar registro exterior</button>
+                </form>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if visita.ambito_patologias == 'exterior' or visita.ambito_patologias == 'interior_exterior' %}
+        <section class="form-section collapsed patologias-secondary-section" data-collapsible data-collapse-id="registros_exteriores">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="false">
+                <span class="form-section-title">Registros exteriores guardados</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                {% if registros_exteriores %}
+                {% for registro in registros_exteriores %}
+                <div class="card card-clickable patologia-registro-card">
+                    <a class="card-link-cover" href="/editar-registro-exterior/{{ registro.id }}"
+                        aria-label="Editar patología exterior {{ registro.patologia }}"></a>
+
+                    <div class="card-content">
+                        <p><strong>Zona exterior:</strong> {{ {'fachada':'Fachada','cubierta':'Cubierta','medianera':'Medianera','patio':'Patio','terraza':'Terraza','exterior_general':'Exterior general'}.get(registro.zona_exterior, registro.zona_exterior or '-') }}</p>
+                        <p><strong>Elemento exterior:</strong> {{ {'revestimiento':'Revestimiento','cerramiento':'Cerramiento','cornisa':'Cornisa','alero':'Alero','peto':'Peto','impermeabilizacion':'Impermeabilizacion','carpinteria_exterior':'Carpinteria exterior','barandilla':'Barandilla','bajante':'Bajante','canalon':'Canalon','forjado':'Forjado','otro':'Otro'}.get(registro.elemento_exterior, registro.elemento_exterior or '-') }}</p>
+                        <p><strong>Localización del daño exterior:</strong> {{ {'horizontal':'Horizontal','vertical':'Vertical','encuentro':'Encuentro','puntual':'Puntual'}.get(registro.localizacion_dano_exterior, registro.localizacion_dano_exterior or '-') }}</p>
+                        <p><strong>Patología:</strong> {{ registro.patologia }}</p>
+                        <p><strong>Observaciones:</strong> {{ registro.observaciones or '-' }}</p>
+
+                        {% if registro.fotos %}
+                        {% for foto in registro.fotos %}
+                        <img src="{{ foto.url }}" alt="Foto patología exterior">
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <div class="card-actions">
+                        <form method="post" action="/borrar-registro-exterior/{{ registro.id }}">
+                            <button class="boton secundario boton-peligro" type="submit">Borrar</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="empty">Todavía no hay patologías exteriores registradas para esta visita.</p>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if visita.ambito_patologias != 'exterior' and not modo_inspector %}
+        <section class="form-section patologias-primary-card" id="formulario_patologia_interior" data-collapsible data-collapse-id="patologias_interiores">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Registrar patología interior</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                {% if objeto_visita_label %}
+                <p class="helper-text">{{ objeto_visita_label }}</p>
+                {% endif %}
+
+                {% if estancias %}
+                <form id="formulario_patologia" method="post" action="/guardar-registro" enctype="multipart/form-data">
+                    <input type="hidden" name="visita_id" value="{{ visita.id }}">
+                    <input type="hidden" name="next" value="{{ next_url or '' }}">
+
+                    <label for="estancia_id">Estancia</label>
+                    <select id="estancia_id" name="estancia_id" required>
+                        <option value="">Seleccionar...</option>
+                        {% for estancia in estancias %}
+                        <option value="{{ estancia.id }}" {% if estancia_seleccionada and estancia.id == estancia_seleccionada.id %}selected{% endif %}>
+                            {{ estancia.nombre }}{% if estancia.identificador_unidad_estancia %} · {{ estancia.identificador_unidad_estancia }}{% endif %}{% if estancia.nombre_nivel_estancia %} · {{ estancia.nombre_nivel_estancia }}{% elif estancia.planta %} ({{ estancia.planta }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+
+                    <div class="card inner-card">
+                        <div id="resumen_estancia_actual">
+                            {% if estancia_seleccionada %}
+                            <p><strong>Estancia actual:</strong> {{ estancia_seleccionada.nombre or '-' }}</p>
+                            <p>
+                                <strong>Contexto:</strong>
+                                {% if estancia_seleccionada.identificador_unidad_estancia %}Unidad: {{ estancia_seleccionada.identificador_unidad_estancia }}{% else %}Unidad: -{% endif %}
+                                {% if estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita %} · {% endif %}
+                                {% if estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita %}Nivel: {{ estancia_seleccionada.nombre_nivel_estancia or estancia_seleccionada.nombre_nivel_visita }}{% endif %}
+                            </p>
+                            {% if registros_estancia_seleccionada %}
+                            <p><strong>Patologías ya registradas en esta estancia:</strong></p>
+                            <ul class="patologia-resumen-list">
+                                {% for registro in registros_estancia_seleccionada %}
+                                <li class="patologia-resumen-item">
+                                    <span>
+                                        {{ registro.patologia }}{% if registro.localizacion_dano %} · {{ registro.localizacion_dano }}{% endif %}
+                                    </span>
+
+                                    <span class="patologia-registro-actions">
+                                        <button class="boton secundario" type="button" data-registro-action="editar"
+                                            data-registro-id="{{ registro.id }}">Editar</button>
+                                        <button class="boton secundario" type="button" data-registro-action="duplicar"
+                                            data-registro-id="{{ registro.id }}">Duplicar</button>
+                                        <button class="boton secundario boton-peligro" type="button" data-registro-action="eliminar"
+                                            data-registro-id="{{ registro.id }}">Eliminar</button>
+                                    </span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="helper-text">Todavía no hay patologías registradas en esta estancia.</p>
+                            {% endif %}
+                            {% else %}
+                            <p class="helper-text">Selecciona una estancia para ver si ya tiene patologías registradas.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <label for="patologia">Patología</label>
+                    <select id="patologia" name="patologia" required>
+                        <option value="">Seleccionar...</option>
+                        {% for item in patologias %}
+                        <option value="{{ item.nombre }}"
+                            data-elemento-afectado="{{ item.elemento_afectado or '' }}"
+                            data-categoria="{{ item.categoria or '' }}"
+                            data-mecanismo="{{ item.mecanismo or '' }}"
+                            data-rol-patologia="{{ item.rol_patologia or '' }}"
+                            data-activo="{{ item.activo if item.activo is not none else 1 }}">
+                            {{ item.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div id="patologia_sugerencias" class="patologia-sugerencias" hidden>
+                        <p class="helper-text">Sugerencias relacionadas</p>
+                        <div id="patologia_sugerencias_lista" class="patologia-sugerencias-lista"></div>
+                    </div>
+                    <div id="revision_tecnica" hidden>
+                        <p class="helper-text">Revisión técnica</p>
+                        <ul id="revision_tecnica_lista"></ul>
+                    </div>
+                    <div id="rol_patologia_observado_box" hidden>
+                        <label for="rol_patologia_observado">Rol en este caso</label>
+                        <select id="rol_patologia_observado" name="rol_patologia_observado">
+                            <option value="">Sin definir</option>
+                            <option value="causa">Causa</option>
+                            <option value="efecto">Efecto</option>
+                            <option value="mixta">Mixta</option>
+                        </select>
+                    </div>
+
+                    <label for="elemento">Elemento afectado</label>
+                    <select id="elemento" name="elemento" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="pavimento">pavimento</option>
+                        <option value="paramento">paramento</option>
+                        <option value="techo">techo</option>
+                    </select>
+
+                    <label for="localizacion_dano">Localización observada</label>
+                    <select id="localizacion_dano" name="localizacion_dano" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="pavimento">pavimento</option>
+                        <option value="paramento">paramento</option>
+                        <option value="techo">techo</option>
+                    </select>
+
+                    <label for="detalle_localizacion">Detalle de localización observado</label>
+                    <input type="text" id="detalle_localizacion" name="detalle_localizacion">
+
+                    <label for="observaciones">Observaciones</label>
+                    <textarea id="observaciones" name="observaciones"></textarea>
+
+                    <div class="photo-capture-box missing">
+                    <p class="photo-required-warning">Falta fotografía</p>
+                    <label class="camera-button camera-button-required" for="fotos" aria-label="Añadir foto requerida">
+                        <span aria-hidden="true">📷</span>
+                        <span class="sr-only">Añadir foto requerida</span>
+                    </label>
+                    <input class="photo-input camera-input" type="file" id="fotos" name="fotos" accept="image/*" capture="environment" multiple>
+                    <p class="helper-text">Puedes añadir varias fotos; si usas la cámara, normalmente se añade una por vez.</p>
+                    </div>
 
                     <button class="boton" type="submit">Guardar registro</button>
                 </form>
@@ -443,15 +638,15 @@
         {% endif %}
 
         {% if visita.ambito_patologias != 'exterior' %}
-        <section class="form-section" data-collapsible data-collapse-id="registros_interiores">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+        <section class="form-section collapsed patologias-secondary-section" data-collapsible data-collapse-id="registros_interiores">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="false">
                 <span class="form-section-title">Registros interiores guardados</span>
                 <span class="form-section-arrow" aria-hidden="true">▾</span>
             </button>
             <div class="form-section-body" data-collapsible-body>
                 {% if registros %}
                 {% for registro in registros %}
-                <div class="card card-clickable">
+                <div class="card card-clickable patologia-registro-card">
                     <a class="card-link-cover" href="/editar-registro/{{ registro.id }}"
                         aria-label="Editar patología {{ registro.patologia }}"></a>
 
@@ -482,7 +677,7 @@
 
                     <div class="card-actions">
                         <form method="post" action="/borrar-registro/{{ registro.id }}">
-                            <button class="boton secundario" type="submit">Borrar</button>
+                            <button class="boton secundario boton-peligro" type="submit">Borrar</button>
                         </form>
                     </div>
                 </div>
@@ -494,8 +689,8 @@
         </section>
         {% endif %}
 
-        <section class="form-section" data-collapsible data-collapse-id="mapas_cuadrantes">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+        <section class="form-section collapsed patologias-secondary-section" data-collapsible data-collapse-id="mapas_cuadrantes">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="false">
                 <span class="form-section-title">Mapas / cuadrantes</span>
                 <span class="form-section-arrow" aria-hidden="true">▾</span>
             </button>
@@ -528,7 +723,7 @@
                     <input id="columnas_mapa" name="columnas" type="number" min="1" value="4" required>
 
                     <label for="imagen_base_mapa">Imagen base</label>
-                    <input id="imagen_base_mapa" name="imagen_base" type="file" accept="image/*">
+                    <input id="imagen_base_mapa" name="imagen_base" type="file" accept="image/*" capture="environment">
 
                     <label for="observaciones_mapa">Observaciones</label>
                     <textarea id="observaciones_mapa" name="observaciones"></textarea>
@@ -570,7 +765,7 @@
                             <a class="boton secundario" href="/editar-mapa-patologia/{{ mapa.id }}">Editar mapa</a>
                             <form method="post" action="/borrar-mapa-patologia/{{ mapa.id }}"
                                 onsubmit="return confirm('¿Seguro que quieres borrar este mapa y todos sus cuadrantes?');">
-                                <button class="boton secundario" type="submit">Borrar mapa</button>
+                                <button class="boton secundario boton-peligro" type="submit">Borrar mapa</button>
                             </form>
                         </div>
 
@@ -613,8 +808,8 @@
         </section>
 
         {% if clima %}
-        <section class="form-section" data-collapsible data-collapse-id="climatologia">
-            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+        <section class="form-section collapsed patologias-secondary-section" data-collapsible data-collapse-id="climatologia">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="false">
                 <span class="form-section-title">Climatología</span>
                 <span class="form-section-arrow" aria-hidden="true">▾</span>
             </button>
@@ -637,6 +832,29 @@
             </div>
         </section>
         {% endif %}
+
+        <div class="card patologias-final-actions">
+            {% if modo_inspector %}
+            <div class="inspector-navigation">
+                {% if modo_inspector.siguiente %}
+                <p class="helper-text">Siguiente estancia: {{ modo_inspector.siguiente.nombre }}</p>
+                <a class="boton" href="{{ modo_inspector.siguiente_url }}">Siguiente estancia</a>
+                {% else %}
+                <p><strong>Última estancia</strong></p>
+                <a class="boton" href="{{ modo_inspector.revision_url }}">Ir a revisión</a>
+                {% endif %}
+                {% if modo_inspector.anterior %}
+                <a class="boton secundario" href="{{ modo_inspector.anterior_url }}">Estancia anterior</a>
+                {% endif %}
+            </div>
+            {% endif %}
+            <div class="actions">
+                <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+                {% if not modo_inspector %}
+                <a class="boton secundario" href="/generar-informe/{{ visita.expediente_id }}">Generar informe</a>
+                {% endif %}
+            </div>
+        </div>
     </div>
     {% include "partials/_app_shell_end.html" %}
 
@@ -702,6 +920,15 @@
         }
 
         configurarSeccionesColapsables();
+
+        {% if modo_inspector %}
+        document.querySelectorAll("[data-collapse-id='patologias_exteriores'], [data-collapse-id='registros_exteriores'], [data-collapse-id='registros_interiores'], [data-collapse-id='mapas_cuadrantes'], [data-collapse-id='climatologia']").forEach((seccion) => {
+            aplicarEstadoColapso(seccion, true);
+        });
+        document.querySelectorAll("[data-collapse-id='patologias_interiores']").forEach((seccion) => {
+            aplicarEstadoColapso(seccion, false);
+        });
+        {% endif %}
 
         const selectorPatologiaInterior = document.getElementById("patologia");
         const selectorElementoInterior = document.getElementById("elemento");
@@ -785,7 +1012,7 @@
 
         function construirBotonResumen(texto, accion, registroId) {
             const boton = document.createElement("button");
-            boton.className = "boton secundario";
+            boton.className = accion === "eliminar" ? "boton secundario boton-peligro" : "boton secundario";
             boton.type = "button";
             boton.textContent = texto;
             boton.dataset.registroAction = accion;
@@ -876,11 +1103,10 @@
             resumenEstanciaActual.appendChild(tituloRegistros);
 
             const lista = document.createElement("ul");
+            lista.className = "patologia-resumen-list";
             registrosEstancia.forEach((registro) => {
                 const item = document.createElement("li");
-                item.style.display = "flex";
-                item.style.justifyContent = "space-between";
-                item.style.alignItems = "center";
+                item.className = "patologia-resumen-item";
 
                 const descripcion = document.createElement("span");
                 descripcion.textContent = registro.localizacionDano
@@ -888,8 +1114,7 @@
                     : registro.patologia;
 
                 const acciones = document.createElement("span");
-                acciones.style.display = "flex";
-                acciones.style.gap = "8px";
+                acciones.className = "patologia-registro-actions";
                 acciones.appendChild(
                     construirBotonResumen("Editar", "editar", registro.id)
                 );
@@ -1075,8 +1300,8 @@
         actualizarRolPatologiaObservado();
         actualizarRevisionTecnica();
 
-        if (window.location.hash === "#formulario_patologia") {
-            const form = document.getElementById("formulario_patologia");
+        if (window.location.hash === "#formulario_patologia" || window.location.hash === "#formulario_patologia_interior") {
+            const form = document.getElementById("formulario_patologia_interior") || document.getElementById("formulario_patologia");
             if (form) {
                 form.scrollIntoView({ behavior: "smooth", block: "start" });
             }

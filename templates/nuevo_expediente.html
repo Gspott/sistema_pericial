@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
@@ -82,6 +82,8 @@
         <div class="card">
             <form method="post" action="/guardar-expediente">
                 <input type="hidden" id="imagen_catastro" name="imagen_catastro" value="">
+                <input type="hidden" name="cliente_id" value="{{ prefill.cliente_id or '' }}">
+                <input type="hidden" name="propuesta_id" value="{{ prefill.propuesta_id or '' }}">
 
                 <section class="form-section" data-collapsible data-collapse-id="informacion">
                     <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
@@ -94,10 +96,10 @@
 
                         <label for="tipo_informe">Tipo de informe</label>
                         <select id="tipo_informe" name="tipo_informe">
-                            <option value="patologias" selected>Patologías</option>
-                            <option value="inspeccion">Inspección del inmueble</option>
-                            <option value="valoracion">Valoración inmobiliaria</option>
-                            <option value="habitabilidad">Habitabilidad</option>
+                            <option value="patologias" {% if prefill.tipo_informe == 'patologias' %}selected{% endif %}>Patologías</option>
+                            <option value="inspeccion" {% if prefill.tipo_informe == 'inspeccion' %}selected{% endif %}>Inspección del inmueble</option>
+                            <option value="valoracion" {% if prefill.tipo_informe == 'valoracion' %}selected{% endif %}>Valoración inmobiliaria</option>
+                            <option value="habitabilidad" {% if prefill.tipo_informe == 'habitabilidad' %}selected{% endif %}>Habitabilidad</option>
                         </select>
 
                         <label for="destinatario">Destinatario</label>
@@ -119,8 +121,8 @@
                             <label for="parte_solicitante">Parte solicitante</label>
                             <input type="text" id="parte_solicitante" name="parte_solicitante">
 
-                            <label for="objeto_pericia">Objeto de la pericia</label>
-                            <textarea id="objeto_pericia" name="objeto_pericia"></textarea>
+                        <label for="objeto_pericia">Objeto de la pericia</label>
+                            <textarea id="objeto_pericia" name="objeto_pericia">{{ prefill.objeto_pericia or '' }}</textarea>
 
                             <label for="alcance_limitaciones">Alcance y limitaciones</label>
                             <textarea id="alcance_limitaciones" name="alcance_limitaciones"></textarea>
@@ -130,7 +132,7 @@
                         </div>
 
                         <label for="cliente">Cliente</label>
-                        <input type="text" id="cliente" name="cliente" required>
+                        <input type="text" id="cliente" name="cliente" value="{{ prefill.cliente or '' }}" required>
 
                         <label for="referencia_catastral">Referencia catastral</label>
                         <input type="text" id="referencia_catastral" name="referencia_catastral" autocomplete="off">
@@ -138,17 +140,17 @@
                         <p id="catastro_estado" class="helper-text"></p>
 
                         <label for="direccion">Dirección</label>
-                        <input type="text" id="direccion" name="direccion" autocomplete="off" required>
+                        <input type="text" id="direccion" name="direccion" value="{{ prefill.direccion or '' }}" autocomplete="off" required>
                         <div id="direccion_sugerencias" class="address-suggestions"></div>
 
                         <label for="codigo_postal">Código postal</label>
-                        <input type="text" id="codigo_postal" name="codigo_postal">
+                        <input type="text" id="codigo_postal" name="codigo_postal" value="{{ prefill.codigo_postal or '' }}">
 
                         <label for="ciudad">Ciudad</label>
-                        <input type="text" id="ciudad" name="ciudad">
+                        <input type="text" id="ciudad" name="ciudad" value="{{ prefill.ciudad or '' }}">
 
                         <label for="provincia">Provincia</label>
-                        <input type="text" id="provincia" name="provincia">
+                        <input type="text" id="provincia" name="provincia" value="{{ prefill.provincia or '' }}">
                     </div>
                 </section>
 
@@ -160,16 +162,16 @@
                     <div class="form-section-body" data-collapsible-body>
                         <label for="tipo_inmueble">Tipo de inmueble</label>
                         <select id="tipo_inmueble" name="tipo_inmueble">
-                            <option value="">Seleccionar...</option>
-                            <option value="Vivienda unifamiliar">Vivienda unifamiliar</option>
-                            <option value="Vivienda plurifamiliar">Vivienda plurifamiliar</option>
-                            <option value="Piso">Piso</option>
-                            <option value="Local">Local</option>
-                            <option value="Oficina">Oficina</option>
-                            <option value="Nave">Nave</option>
-                            <option value="Garaje">Garaje</option>
-                            <option value="Trastero">Trastero</option>
-                            <option value="Otro">Otro</option>
+                            <option value="" {% if not prefill.tipo_inmueble %}selected{% endif %}>Seleccionar...</option>
+                            <option value="Vivienda unifamiliar" {% if prefill.tipo_inmueble == 'Vivienda unifamiliar' %}selected{% endif %}>Vivienda unifamiliar</option>
+                            <option value="Vivienda plurifamiliar" {% if prefill.tipo_inmueble == 'Vivienda plurifamiliar' %}selected{% endif %}>Vivienda plurifamiliar</option>
+                            <option value="Piso" {% if prefill.tipo_inmueble == 'Piso' %}selected{% endif %}>Piso</option>
+                            <option value="Local" {% if prefill.tipo_inmueble == 'Local' %}selected{% endif %}>Local</option>
+                            <option value="Oficina" {% if prefill.tipo_inmueble == 'Oficina' %}selected{% endif %}>Oficina</option>
+                            <option value="Nave" {% if prefill.tipo_inmueble == 'Nave' %}selected{% endif %}>Nave</option>
+                            <option value="Garaje" {% if prefill.tipo_inmueble == 'Garaje' %}selected{% endif %}>Garaje</option>
+                            <option value="Trastero" {% if prefill.tipo_inmueble == 'Trastero' %}selected{% endif %}>Trastero</option>
+                            <option value="Otro" {% if prefill.tipo_inmueble == 'Otro' %}selected{% endif %}>Otro</option>
                         </select>
 
                         <label for="orientacion_inmueble">Orientación</label>
@@ -203,7 +205,7 @@
                         <input type="text" id="uso_inmueble" name="uso_inmueble">
 
                         <label for="observaciones_generales">Observaciones generales</label>
-                        <textarea id="observaciones_generales" name="observaciones_generales"></textarea>
+                        <textarea id="observaciones_generales" name="observaciones_generales">{{ prefill.observaciones_generales or '' }}</textarea>
                     </div>
                 </section>
 
@@ -253,11 +255,13 @@
                         </select>
 
                         <div id="bloque_unidad_simple">
+                        <div data-unit-location-fields {% if prefill.tipo_inmueble not in ['Vivienda plurifamiliar', 'Piso'] %}hidden{% endif %}>
                         <label for="planta_unidad">Planta de la unidad</label>
                         <input type="text" id="planta_unidad" name="planta_unidad">
 
                         <label for="puerta_unidad">Puerta / unidad</label>
                         <input type="text" id="puerta_unidad" name="puerta_unidad">
+                        </div>
 
                         <label for="superficie_construida">Superficie construida</label>
                         <input type="text" id="superficie_construida" name="superficie_construida">
@@ -265,36 +269,17 @@
                         <label for="superficie_util">Superficie útil</label>
                         <input type="text" id="superficie_util" name="superficie_util">
 
-                        <label for="dormitorios_unidad">Dormitorios de la unidad</label>
-                        <input type="text" id="dormitorios_unidad" name="dormitorios_unidad">
-
-                        <label for="banos_unidad">Baños de la unidad</label>
-                        <input type="text" id="banos_unidad" name="banos_unidad">
-
-                        <p class="unit-hint">Si el expediente tiene visitas previas, la nueva visita copiará esas estancias; si no, se generarán estancias base desde dormitorios y baños.</p>
-
-                        <label for="observaciones_bloque">Observaciones del bloque</label>
+                        <label for="observaciones_bloque">Observaciones del edificio</label>
                         <textarea id="observaciones_bloque" name="observaciones_bloque"></textarea>
 
+                        <div data-unit-observations-field {% if prefill.tipo_inmueble == 'Vivienda unifamiliar' %}hidden{% endif %}>
                         <label for="observaciones_unidad">Observaciones de la unidad</label>
                         <textarea id="observaciones_unidad" name="observaciones_unidad"></textarea>
+                        </div>
 
-                        <label for="reformado">¿Reformado?</label>
-                        <select id="reformado" name="reformado">
-                            <option value="No" selected>No</option>
-                            <option value="Sí">Sí</option>
-                        </select>
-
-                        <label for="fecha_reforma">Fecha de reforma</label>
-                        <select id="fecha_reforma" name="fecha_reforma">
-                            <option value="">Sin reforma / no aplica</option>
-                            {% for anio in anios_disponibles %}
-                            <option value="{{ anio }}">{{ anio }}</option>
-                            {% endfor %}
-                        </select>
-
-                        <label for="observaciones_reforma">Observaciones de la reforma</label>
-                        <textarea id="observaciones_reforma" name="observaciones_reforma"></textarea>
+                        <input type="hidden" name="reformado" value="No">
+                        <input type="hidden" name="fecha_reforma" value="">
+                        <input type="hidden" name="observaciones_reforma" value="">
                         </div>
 
                         <div id="bloque_unidad_multiple" hidden>
@@ -324,6 +309,7 @@
         const botonCatastro = document.getElementById("boton_catastro");
         const catastroEstado = document.getElementById("catastro_estado");
         const tipoInformeInput = document.getElementById("tipo_informe");
+        const tipoInmuebleInput = document.getElementById("tipo_inmueble");
         const destinatarioInput = document.getElementById("destinatario");
         const bloqueJudicial = document.getElementById("bloque_judicial");
         const bloquePatologias = document.getElementById("bloque_patologias");
@@ -331,6 +317,8 @@
         const analisisUnidadesInput = document.getElementById("analisis_unidades");
         const bloqueUnidadSimple = document.getElementById("bloque_unidad_simple");
         const bloqueUnidadMultiple = document.getElementById("bloque_unidad_multiple");
+        const unitLocationFields = document.querySelector("[data-unit-location-fields]");
+        const unitObservationsField = document.querySelector("[data-unit-observations-field]");
         const usoInput = document.getElementById("uso_inmueble");
         const anioInput = document.getElementById("anio_construccion");
         const superficieConstruidaInput = document.getElementById("superficie_construida");
@@ -539,6 +527,19 @@
             bloqueUnidadMultiple.hidden = !variasUnidades;
         }
 
+        function actualizarCamposPorTipoInmueble() {
+            const tipo = (tipoInmuebleInput.value || "").toLowerCase();
+            const esUnifamiliar = tipo.includes("unifamiliar");
+            const muestraPlantaPuerta = tipo.includes("plurifamiliar") || tipo === "piso";
+
+            if (unitLocationFields) {
+                unitLocationFields.hidden = !muestraPlantaPuerta;
+            }
+            if (unitObservationsField) {
+                unitObservationsField.hidden = esUnifamiliar;
+            }
+        }
+
         function obtenerClaveColapso(seccion) {
             const collapseId = seccion.dataset.collapseId;
             if (!collapseId) {
@@ -597,6 +598,7 @@
 
         botonCatastro.addEventListener("click", autocompletarDesdeCatastro);
         tipoInformeInput.addEventListener("change", actualizarBloquePatologias);
+        tipoInmuebleInput.addEventListener("change", actualizarCamposPorTipoInmueble);
         destinatarioInput.addEventListener("change", actualizarBloqueJudicial);
         analisisUnidadesInput.addEventListener("change", actualizarAnalisisUnidades);
         direccionInput.addEventListener("input", () => {
@@ -614,6 +616,7 @@
         actualizarBloqueJudicial();
         actualizarBloquePatologias();
         actualizarAnalisisUnidades();
+        actualizarCamposPorTipoInmueble();
     </script>
     {% include "partials/_app_shell_end.html" %}
 </body>

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <title>Editar estancia</title>
@@ -19,14 +19,52 @@
 
 <body>
     {% include "partials/_app_shell_start.html" %}
-<div class="page"><h1>Editar estancia</h1>
+<div class="page">
+        {% set definir_estancias_url = '/definir-estancias/' ~ estancia.visita_id ~ ('?unidad_id=' ~ unidad_id_contexto if unidad_id_contexto else '') %}
+        {% set estructura_interior_url = definir_estancias_url ~ '#estructura-interior' %}
+        <h1>Editar estancia</h1>
+
+        {% if modo_inspector %}
+        <section class="card inspector-header">
+            <p class="inspector-kicker">Estancia {{ modo_inspector.posicion }} de {{ modo_inspector.total }}</p>
+            <h2>{{ estancia.nombre }}</h2>
+            <div class="inspector-status">
+                <span class="inspector-status-item {% if estancia.fotos %}ok{% else %}warning{% endif %}">
+                    {% if estancia.fotos %}Con foto{% else %}Sin foto{% endif %}
+                </span>
+                <span class="inspector-status-item">
+                    {{ modo_inspector.actual.total_patologias }} patología{% if modo_inspector.actual.total_patologias != 1 %}s{% endif %}
+                </span>
+            </div>
+            <div class="inspector-actions">
+                <button class="boton" type="submit" form="estancia-form" name="redirect_after_save" value="/registrar-patologias/{{ estancia.visita_id }}?estancia_id={{ estancia.id }}#formulario_patologia_interior">Registrar patologías de esta estancia</button>
+            </div>
+        </section>
+        {% endif %}
 
         <div class="actions">
-            <a class="boton secundario" href="{{ next_url or ('/definir-estancias/' ~ estancia.visita_id ~ ('?unidad_id=' ~ unidad_id_contexto if unidad_id_contexto else '')) }}">Volver a estancias</a>
+            <button class="boton secundario" type="submit" form="estancia-form" name="redirect_after_save" value="{{ next_url or estructura_interior_url }}">Volver a estancias</button>
         </div>
 
+        {% if post_save %}
+        <section class="card post-save-card" aria-labelledby="post-save-title">
+            <p class="post-save-kicker">Guardado</p>
+            <h2 id="post-save-title">Estancia guardada</h2>
+            <p class="helper-text">Continúa con esta estancia o vuelve a la estructura interior para seguir la visita.</p>
+            <div class="post-save-actions">
+                <button class="boton" type="submit" form="estancia-form" name="redirect_after_save" value="/registrar-patologias/{{ estancia.visita_id }}?estancia_id={{ estancia.id }}#formulario_patologia_interior">Registrar patologías de esta estancia</button>
+                {% if modo_inspector and modo_inspector.siguiente %}
+                <button class="boton secundario" type="submit" form="estancia-form" name="redirect_after_save" value="/editar-estancia/{{ modo_inspector.siguiente.id }}?next={{ estructura_interior_url | urlencode }}">Siguiente estancia</button>
+                {% else %}
+                <button class="boton secundario" type="submit" form="estancia-form" name="redirect_after_save" value="{{ modo_inspector.revision_url if modo_inspector else estructura_interior_url }}">Ir a revisión</button>
+                {% endif %}
+                <button class="boton secundario" type="submit" form="estancia-form" name="redirect_after_save" value="{{ estructura_interior_url }}">Volver a estructura interior</button>
+            </div>
+        </section>
+        {% endif %}
+
         <div class="card">
-            <form method="post" action="/actualizar-estancia/{{ estancia.id }}" enctype="multipart/form-data">
+            <form id="estancia-form" method="post" action="/actualizar-estancia/{{ estancia.id }}" enctype="multipart/form-data">
                 <input type="hidden" name="unidad_id_contexto" value="{{ unidad_id_contexto or '' }}">
                 <input type="hidden" name="next" value="{{ next_url or '' }}">
                 {% if estancia.identificador_unidad_estancia or estancia.nombre_nivel_estancia %}
@@ -62,8 +100,15 @@
                     <option value="No" {% if estancia.ventilacion=="No" %}selected{% endif %}>No</option>
                 </select>
 
+                {% if mostrar_planta_estancia %}
                 <label for="planta">Planta</label>
-                <input type="text" id="planta" name="planta" value="{{ estancia.planta or '' }}">
+                <select id="planta" name="planta">
+                    <option value="">Seleccionar planta</option>
+                    {% for opcion_planta in opciones_planta_estancia %}
+                    <option value="{{ opcion_planta }}" {% if estancia.planta==opcion_planta %}selected{% endif %}>{{ opcion_planta }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
 
                 <fieldset class="field-group">
                     <legend>Acabados</legend>
@@ -84,15 +129,19 @@
                 <label for="observaciones">Observaciones</label>
                 <textarea id="observaciones" name="observaciones">{{ estancia.observaciones or '' }}</textarea>
 
-                <label for="fotos">Añadir fotos</label>
-                <input type="file" id="fotos" name="fotos" accept="image/*" multiple>
-                <p class="helper-text">En iPhone puedes seleccionar varias fotos desde la Fototeca. Si usas la cámara, normalmente se añade una por vez. Puedes seguir añadiendo más fotos aquí sin perder las actuales.</p>
-
-                <label for="siguiente">Después de guardar</label>
-                <select id="siguiente" name="siguiente">
-                    <option value="estancias">Volver a estancias</option>
-                    <option value="patologias">Ir a patologías</option>
-                </select>
+                <div class="photo-capture-box {% if not estancia.fotos %}missing{% endif %}">
+                    {% if estancia.fotos %}
+                    <p class="photo-capture-title">Añadir otra foto</p>
+                    {% else %}
+                    <p class="photo-required-warning">Falta fotografía</p>
+                    {% endif %}
+                    <label class="camera-button {% if not estancia.fotos %}camera-button-required{% endif %}" for="fotos" aria-label="{% if estancia.fotos %}Añadir otra foto{% else %}Añadir foto requerida{% endif %}">
+                        <span aria-hidden="true">📷</span>
+                        <span class="sr-only">{% if estancia.fotos %}Añadir otra foto{% else %}Añadir foto requerida{% endif %}</span>
+                    </label>
+                <input class="photo-input camera-input" type="file" id="fotos" name="fotos" accept="image/*" capture="environment" multiple>
+                <p class="helper-text">Puedes añadir varias fotos; si usas la cámara, normalmente se añade una por vez.</p>
+                </div>
 
                 <div class="actions">
                     <button class="boton" type="submit">Guardar cambios</button>
@@ -115,6 +164,21 @@
             </div>
             {% endif %}
         </div>
+
+        {% if modo_inspector %}
+        <section class="card inspector-navigation">
+            {% if modo_inspector.siguiente %}
+            <p class="helper-text">Siguiente estancia: {{ modo_inspector.siguiente.nombre }}</p>
+            <button class="boton" type="submit" form="estancia-form" name="redirect_after_save" value="/editar-estancia/{{ modo_inspector.siguiente.id }}?next={{ estructura_interior_url | urlencode }}">Siguiente estancia</button>
+            {% else %}
+            <p><strong>Última estancia</strong></p>
+            <button class="boton" type="submit" form="estancia-form" name="redirect_after_save" value="{{ modo_inspector.revision_url }}">Ir a revisión</button>
+            {% endif %}
+            {% if modo_inspector.anterior %}
+            <button class="boton secundario" type="submit" form="estancia-form" name="redirect_after_save" value="/editar-estancia/{{ modo_inspector.anterior.id }}?next={{ estructura_interior_url | urlencode }}">Estancia anterior</button>
+            {% endif %}
+        </section>
+        {% endif %}
     </div>
     {% include "partials/_app_shell_end.html" %}
 </body>

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/favicon.ico">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="/static/mobile.css?v=8">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
     <title>Editar unidad</title>
@@ -49,6 +49,22 @@
                     <option value="{{ valor }}" {% if unidad.tipo_unidad==valor %}selected{% endif %}>{{ etiqueta }}</option>
                     {% endfor %}
                 </select>
+
+                <div class="unit-floor-settings">
+                    <label class="checkbox-row" for="tiene_varias_plantas">
+                        <input id="tiene_varias_plantas" name="tiene_varias_plantas" type="checkbox" value="1" data-toggle-floor-count {% if unidad.tiene_varias_plantas %}checked{% endif %}>
+                        <span>Esta unidad tiene varias plantas</span>
+                    </label>
+
+                    <div class="unit-floor-count" data-floor-count-block>
+                        <label for="numero_plantas">Número de plantas</label>
+                        <select id="numero_plantas" name="numero_plantas">
+                            {% for valor in range(1, 6) %}
+                            <option value="{{ valor }}" {% if unidad.numero_plantas|string == valor|string %}selected{% endif %}>{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
 
                 <label for="vinculo_unidad">Vínculo de la unidad</label>
                 <select id="vinculo_unidad" name="vinculo_unidad">
@@ -105,10 +121,24 @@
             bloqueAnejo.hidden = vinculoUnidadInput.value !== "anejo";
         }
 
+        function configurarCamposVariasPlantas() {
+            document.querySelectorAll("[data-toggle-floor-count]").forEach((control) => {
+                const bloque = control.closest(".unit-floor-settings")?.querySelector("[data-floor-count-block]");
+                const actualizar = () => {
+                    if (bloque) {
+                        bloque.hidden = !control.checked;
+                    }
+                };
+                control.addEventListener("change", actualizar);
+                actualizar();
+            });
+        }
+
         if (vinculoUnidadInput) {
             vinculoUnidadInput.addEventListener("change", actualizarBloqueAnejo);
             actualizarBloqueAnejo();
         }
+        configurarCamposVariasPlantas();
     </script>
 </body>
 
