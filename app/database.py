@@ -412,8 +412,12 @@ def init_db():
         CREATE TABLE IF NOT EXISTS propuesta_lineas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             propuesta_id INTEGER NOT NULL,
+            categoria_servicio TEXT,
             concepto TEXT NOT NULL,
             descripcion TEXT,
+            incluye TEXT,
+            no_incluye TEXT,
+            condiciones TEXT,
             cantidad REAL NOT NULL DEFAULT 1,
             precio_unitario REAL NOT NULL DEFAULT 0,
             iva_porcentaje REAL NOT NULL DEFAULT 21,
@@ -424,7 +428,11 @@ def init_db():
         )
         """
     )
+    asegurar_columna(cur, "propuesta_lineas", "categoria_servicio", "TEXT")
     asegurar_columna(cur, "propuesta_lineas", "descripcion", "TEXT")
+    asegurar_columna(cur, "propuesta_lineas", "incluye", "TEXT")
+    asegurar_columna(cur, "propuesta_lineas", "no_incluye", "TEXT")
+    asegurar_columna(cur, "propuesta_lineas", "condiciones", "TEXT")
     asegurar_columna(cur, "propuesta_lineas", "cantidad", "REAL NOT NULL DEFAULT 1")
     asegurar_columna(cur, "propuesta_lineas", "precio_unitario", "REAL NOT NULL DEFAULT 0")
     asegurar_columna(cur, "propuesta_lineas", "iva_porcentaje", "REAL NOT NULL DEFAULT 21")

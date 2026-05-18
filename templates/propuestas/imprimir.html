@@ -57,6 +57,14 @@
             box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
         }
 
+        .document-note {
+            background: #f6f8fa;
+            border-left: 3px solid #1f2933;
+            color: #374151;
+            margin: 14px 0 0;
+            padding: 9px 12px;
+        }
+
         .header {
             border-bottom: 2px solid #1f2933;
             margin-bottom: 24px;
@@ -140,6 +148,87 @@
             white-space: pre-line;
         }
 
+        .scope-grid {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .scope-box {
+            border: 1px solid #d8dee6;
+            padding: 12px;
+        }
+
+        .scope-box h3 {
+            color: #374151;
+            font-size: 13px;
+            margin: 0 0 8px;
+        }
+
+        .scope-box ul,
+        .conditions-subblock ul {
+            margin: 6px 0 8px 18px;
+            padding: 0;
+        }
+
+        .scope-box li,
+        .conditions-subblock li {
+            margin-bottom: 4px;
+        }
+
+        .fees-table {
+            border-collapse: collapse;
+            margin: 8px 0 12px;
+            width: 100%;
+        }
+
+        .fees-table th,
+        .fees-table td {
+            border: 1px solid #d8dee6;
+            padding: 7px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .fees-table th {
+            background: #f3f6f8;
+            color: #374151;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .fees-table .number {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .service-category {
+            border: 1px solid #d8dee6;
+            border-radius: 3px;
+            color: #4b5563;
+            display: inline-block;
+            font-size: 11px;
+            margin-bottom: 4px;
+            padding: 1px 5px;
+            text-transform: uppercase;
+        }
+
+        .service-description {
+            color: #374151;
+            display: block;
+            margin-top: 3px;
+        }
+
+        .service-notes {
+            color: #374151;
+            font-size: 12px;
+            margin-top: 7px;
+        }
+
+        .service-notes p {
+            margin: 3px 0;
+        }
+
         .amounts {
             border: 1px solid #d8dee6;
             margin-top: 8px;
@@ -189,15 +278,6 @@
             margin: 0 0 6px;
         }
 
-        .conditions-subblock ul {
-            margin: 6px 0 8px 18px;
-            padding: 0;
-        }
-
-        .conditions-subblock li {
-            margin-bottom: 4px;
-        }
-
         @page {
             size: A4;
             margin: 16mm;
@@ -224,9 +304,43 @@
                 width: auto;
             }
         }
+
+        @media screen and (max-width: 760px) {
+            .toolbar {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .document {
+                margin: 0;
+                min-height: auto;
+                padding: 18px;
+                width: auto;
+            }
+
+            .row,
+            .issuer-row {
+                display: block;
+            }
+
+            .col.right {
+                margin-top: 8px;
+                text-align: left;
+            }
+
+            .scope-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .fees-table {
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
+    {% set lineas = lineas | default([]) %}
+    {% set servicio_categoria_labels = servicio_categoria_labels | default({}) %}
     {% set cliente_nombre_base = (propuesta.cliente_nombre ~ ' ' ~ (propuesta.cliente_apellidos or '')) | trim if propuesta.cliente_nombre else '' %}
     {% set cliente_nombre = cliente_nombre_base or propuesta.cliente_razon_social or propuesta.lead_nombre %}
     {% set cliente_email = propuesta.cliente_email or propuesta.lead_email %}
@@ -234,6 +348,13 @@
     {% set iva_porcentaje = propuesta.iva_porcentaje if propuesta.iva_porcentaje is defined and propuesta.iva_porcentaje is not none else 21 %}
     {% set importe_iva = propuesta.importe_iva if propuesta.importe_iva is defined and propuesta.importe_iva is not none else propuesta.iva %}
     {% set total_propuesta = propuesta.total_propuesta if propuesta.total_propuesta is defined and propuesta.total_propuesta is not none else propuesta.total %}
+    {% set categorias_detalle_extendido = ['ratificacion_judicial', 'desplazamientos', 'extras'] %}
+    {% set propuesta_flags = namespace(tiene_ratificacion=false) %}
+    {% for linea in lineas %}
+        {% if linea.categoria_servicio == 'ratificacion_judicial' %}
+            {% set propuesta_flags.tiene_ratificacion = true %}
+        {% endif %}
+    {% endfor %}
 
     <div class="toolbar no-print">
         <button class="button" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
@@ -271,6 +392,7 @@
                     <div class="value">{{ propuesta.fecha or '-' }}</div>
                 </div>
             </div>
+            <p class="document-note">Documento de propuesta económica y alcance profesional previo a la aceptación del encargo.</p>
         </header>
 
         <section>
@@ -291,16 +413,89 @@
             </div>
         </section>
 
-        <section>
-            <h2>Datos del encargo</h2>
+        <section class="section">
+            <h2>Objeto del encargo</h2>
             <p><span class="label">Tipo de trabajo</span><br>{{ propuesta.tipo_trabajo or '-' }}</p>
             <p><span class="label">Dirección del inmueble</span><br>{{ propuesta.direccion_inmueble or '-' }}</p>
-            <p><span class="label">Alcance</span><br><span class="pre-line">{{ propuesta.alcance or '-' }}</span></p>
             <p><span class="label">Plazo estimado</span><br>{{ propuesta.plazo_estimado or '-' }}</p>
         </section>
 
-        <section>
+        <section class="section">
+            <h2>Alcance de los servicios</h2>
+            <p class="conditions-text">{{ propuesta.alcance or 'El alcance concreto del encargo no se ha detallado en la propuesta.' }}</p>
+            <div class="scope-grid">
+                <div class="scope-box">
+                    <h3>Incluye</h3>
+                    <ul>
+                        {% if propuesta.alcance %}
+                        <li>Las actuaciones descritas en el alcance del encargo.</li>
+                        {% endif %}
+                        {% if lineas %}
+                        <li>Los servicios e importes indicados expresamente en la tabla de honorarios.</li>
+                        {% else %}
+                        <li>Los trabajos profesionales presupuestados en el importe global indicado.</li>
+                        {% endif %}
+                        <li>Entrega del resultado profesional en formato digital PDF, salvo pacto expreso distinto.</li>
+                    </ul>
+                </div>
+                <div class="scope-box">
+                    <h3>No incluye</h3>
+                    <ul>
+                        <li>Ensayos destructivos, catas, pruebas de laboratorio o actuaciones invasivas no contratadas expresamente.</li>
+                        {% if propuesta_flags.tiene_ratificacion %}
+                        <li>Asistencia a juicio, mediación, reuniones adicionales o contrainformes distintos de la ratificación judicial expresamente incluida en la tabla de honorarios.</li>
+                        {% else %}
+                        <li>Ratificación judicial, asistencia a juicio, mediación, reuniones adicionales o contrainformes salvo que figuren expresamente como línea incluida en la tabla de honorarios.</li>
+                        {% endif %}
+                        <li>Segundas visitas, desplazamientos extraordinarios, dietas o trabajos fuera de provincia no recogidos en los honorarios.</li>
+                        <li>Ampliaciones por nueva documentación, cambios de alcance o circunstancias sobrevenidas.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
             <h2>Honorarios</h2>
+            {% if lineas %}
+            <table class="fees-table">
+                <thead>
+                    <tr>
+                        <th>Concepto</th>
+                        <th class="number">Cantidad</th>
+                        <th class="number">Precio</th>
+                        <th class="number">IVA</th>
+                        <th class="number">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for linea in lineas %}
+                    <tr>
+                        <td>
+                            {% if linea.categoria_servicio %}
+                            <span class="service-category">{{ servicio_categoria_labels.get(linea.categoria_servicio, linea.categoria_servicio) }}</span>
+                            {% endif %}
+                            <strong>{{ linea.concepto }}</strong>
+                            {% if linea.descripcion %}<span class="service-description pre-line">{{ linea.descripcion }}</span>{% endif %}
+                            {% set mostrar_detalle_extendido = linea.categoria_servicio in categorias_detalle_extendido %}
+                            {% if mostrar_detalle_extendido and (linea.incluye or linea.no_incluye or linea.condiciones) %}
+                            <div class="service-notes">
+                                {% if linea.incluye %}<p><strong>Incluye:</strong> <span class="pre-line">{{ linea.incluye }}</span></p>{% endif %}
+                                {% if linea.no_incluye %}<p><strong>No incluye:</strong> <span class="pre-line">{{ linea.no_incluye }}</span></p>{% endif %}
+                                {% if linea.condiciones %}<p><strong>Condiciones:</strong> <span class="pre-line">{{ linea.condiciones }}</span></p>{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="number">{{ format_money(linea.cantidad) }}</td>
+                        <td class="number">{{ format_money(linea.precio_unitario) }} €</td>
+                        <td class="number">{{ format_money(linea.iva_porcentaje) }} %</td>
+                        <td class="number">{{ format_money(linea.total) }} €</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>La propuesta se emite con importe global de honorarios profesionales.</p>
+            {% endif %}
             <div class="amounts">
                 <div class="amount-row">
                     <span>Honorarios profesionales / base imponible</span>
@@ -318,8 +513,10 @@
         </section>
 
         <section class="section">
-            <h2>Condiciones de contratación</h2>
-            <p class="conditions-text">{{ propuesta.condiciones or '-' }}</p>
+            <h2>Condiciones económicas</h2>
+            {% if propuesta.condiciones %}
+            <p class="conditions-text">{{ propuesta.condiciones }}</p>
+            {% endif %}
             <div class="conditions-subblock">
                 <h3>Forma de pago</h3>
                 <p>Los honorarios profesionales se abonarán de la siguiente forma:</p>
@@ -334,12 +531,23 @@
                 <h3>Impago o demora en el pago</h3>
                 <p>En caso de incumplimiento de las condiciones de pago, el técnico se reserva el derecho a suspender los trabajos o la entrega del informe hasta la regularización de los importes pendientes.</p>
             </div>
+        </section>
+
+        <section class="section">
+            <h2>Exclusiones generales</h2>
             <div class="conditions-subblock">
-                <h3>Alcance del encargo</h3>
-                <p>El presente encargo se limita exclusivamente a las actuaciones descritas en el apartado “Alcance”. Cualquier trabajo adicional no contemplado en dicho apartado deberá ser objeto de nuevo presupuesto o aceptación expresa por ambas partes.</p>
+                <ul>
+                    <li>No se incluyen trabajos adicionales no contemplados en el objeto, alcance o tabla de honorarios de esta propuesta.</li>
+                    <li>No se incluyen tasas, aranceles, gastos de terceros, costes de laboratorio, trabajos auxiliares ni reparaciones.</li>
+                    <li>Las visitas adicionales, suspensiones judiciales, desplazamientos extraordinarios, dietas o actuaciones fuera de provincia se presupuestarán aparte salvo pacto expreso.</li>
+                    <li>Cualquier modificación motivada por nueva documentación, cambio de estrategia o ampliación del encargo requerirá aceptación económica independiente.</li>
+                </ul>
             </div>
+        </section>
+
+        <section class="section">
+            <h2>Limitaciones del encargo</h2>
             <div class="conditions-subblock">
-                <h3>Limitación de responsabilidad técnica</h3>
                 <p>Las conclusiones del informe se basarán en la inspección visual, en la documentación disponible y en la información facilitada por el cliente en la fecha de la visita o del análisis técnico. No se realizarán ensayos destructivos, catas, pruebas de laboratorio ni actuaciones invasivas salvo contratación expresa.</p>
                 <p>El técnico no responderá por daños ocultos, defectos no visibles o circunstancias no detectables mediante una inspección ordinaria en el momento de la intervención.</p>
             </div>
@@ -351,6 +559,12 @@
                 <h3>Validez de las conclusiones</h3>
                 <p>Las conclusiones reflejarán el estado del inmueble, documentación o circunstancias analizadas en la fecha de la inspección o emisión del informe, pudiendo variar por el transcurso del tiempo, nuevas patologías, intervenciones posteriores o información no disponible inicialmente.</p>
             </div>
+        </section>
+
+        <section class="section">
+            <h2>Validez de la propuesta</h2>
+            <p>La presente propuesta tendrá una validez de 30 días naturales desde su fecha de emisión, salvo indicación expresa distinta por escrito.</p>
+            <p>Transcurrido dicho plazo, los honorarios, disponibilidad y condiciones podrán ser revisados antes de la aceptación del encargo.</p>
         </section>
 
         <section class="section">

@@ -56,31 +56,71 @@
         <div class="card">
             <h2>Líneas de propuesta</h2>
             {% if lineas %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Concepto</th>
-                        <th>Cantidad</th>
-                        <th>Precio</th>
-                        <th>IVA</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for linea in lineas %}
-                    <tr>
-                        <td>
-                            <strong>{{ linea.concepto }}</strong>
-                            {% if linea.descripcion %}<br>{{ linea.descripcion }}{% endif %}
-                        </td>
-                        <td>{{ format_money(linea.cantidad) }}</td>
-                        <td>{{ format_money(linea.precio_unitario) }} €</td>
-                        <td>{{ format_money(linea.iva_porcentaje) }} %</td>
-                        <td>{{ format_money(linea.total) }} €</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                {% for linea in lineas %}
+                <div class="inner-card">
+                    <h3>{{ linea.concepto }}</h3>
+                    {% if linea.categoria_servicio %}
+                    <p><strong>Categoría:</strong> {{ servicio_categoria_labels.get(linea.categoria_servicio, linea.categoria_servicio) }}</p>
+                    {% endif %}
+                    {% if linea.descripcion %}<p><strong>Descripción:</strong> {{ linea.descripcion }}</p>{% endif %}
+                    {% if linea.incluye %}<p><strong>Incluye:</strong> {{ linea.incluye }}</p>{% endif %}
+                    {% if linea.no_incluye %}<p><strong>No incluye:</strong> {{ linea.no_incluye }}</p>{% endif %}
+                    {% if linea.condiciones %}<p><strong>Condiciones:</strong> {{ linea.condiciones }}</p>{% endif %}
+                    <p><strong>Cantidad:</strong> {{ format_money(linea.cantidad) }} · <strong>Precio:</strong> {{ format_money(linea.precio_unitario) }} € · <strong>IVA:</strong> {{ format_money(linea.iva_porcentaje) }} % · <strong>Total:</strong> {{ format_money(linea.total) }} €</p>
+                    <p><strong>Orden:</strong> {{ linea.orden or 0 }}</p>
+
+                    {% if not print_mode %}
+                    <details>
+                        <summary>Editar línea</summary>
+                        <form method="post" action="/propuestas/{{ propuesta.id }}/lineas/{{ linea.id }}/editar">
+                            <label for="categoria_servicio_{{ linea.id }}">Categoría</label>
+                            <select id="categoria_servicio_{{ linea.id }}" name="categoria_servicio">
+                                {% for categoria_valor, categoria_label in servicio_categorias %}
+                                <option value="{{ categoria_valor }}" {% if linea.categoria_servicio == categoria_valor %}selected{% endif %}>{{ categoria_label }}</option>
+                                {% endfor %}
+                            </select>
+
+                            <label for="concepto_{{ linea.id }}">Concepto</label>
+                            <input id="concepto_{{ linea.id }}" name="concepto" type="text" value="{{ linea.concepto }}" required>
+
+                            <label for="descripcion_{{ linea.id }}">Descripción</label>
+                            <textarea id="descripcion_{{ linea.id }}" name="descripcion">{{ linea.descripcion or '' }}</textarea>
+
+                            <label for="incluye_{{ linea.id }}">Incluye</label>
+                            <textarea id="incluye_{{ linea.id }}" name="incluye">{{ linea.incluye or '' }}</textarea>
+
+                            <label for="no_incluye_{{ linea.id }}">No incluye</label>
+                            <textarea id="no_incluye_{{ linea.id }}" name="no_incluye">{{ linea.no_incluye or '' }}</textarea>
+
+                            <label for="condiciones_linea_{{ linea.id }}">Condiciones de esta línea</label>
+                            <textarea id="condiciones_linea_{{ linea.id }}" name="condiciones">{{ linea.condiciones or '' }}</textarea>
+
+                            <label for="cantidad_{{ linea.id }}">Cantidad</label>
+                            <input id="cantidad_{{ linea.id }}" name="cantidad" type="number" step="0.01" min="0" value="{{ linea.cantidad }}">
+
+                            <label for="precio_unitario_{{ linea.id }}">Precio unitario</label>
+                            <input id="precio_unitario_{{ linea.id }}" name="precio_unitario" type="number" step="0.01" value="{{ linea.precio_unitario }}">
+
+                            <label for="iva_porcentaje_{{ linea.id }}">IVA %</label>
+                            <input id="iva_porcentaje_{{ linea.id }}" name="iva_porcentaje" type="number" step="0.01" min="0" value="{{ linea.iva_porcentaje }}">
+
+                            <label for="orden_{{ linea.id }}">Orden</label>
+                            <input id="orden_{{ linea.id }}" name="orden" type="number" step="1" value="{{ linea.orden or 0 }}">
+
+                            <button class="boton" type="submit">Guardar línea</button>
+                        </form>
+                    </details>
+
+                    <form method="post" action="/propuestas/{{ propuesta.id }}/lineas/{{ linea.id }}/eliminar">
+                        <label class="checkbox-row">
+                            <input name="confirmar_eliminar" type="checkbox" required>
+                            Confirmo que quiero borrar esta línea
+                        </label>
+                        <button class="boton secundario" type="submit">Borrar línea</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
             {% else %}
             <p class="empty">Todavía no hay líneas en esta propuesta.</p>
             {% endif %}
@@ -89,18 +129,103 @@
                 <p><strong>Base imponible:</strong> {{ format_money(propuesta.base_imponible) }} €</p>
                 <p><strong>IVA:</strong> {{ format_money(propuesta.iva) }} €</p>
                 <p><strong>Total:</strong> {{ format_money(propuesta.total) }} €</p>
+                {% if lineas %}
+                <p class="subtitle">Esta propuesta tiene líneas de servicio: los importes anteriores se calculan desde el desglose de líneas.</p>
+                {% endif %}
             </div>
         </div>
 
         {% if not print_mode %}
         <div class="card">
+            <h2>Servicios rápidos</h2>
+            <details>
+                <summary>Añadir ratificación judicial</summary>
+                <form method="post" action="/propuestas/{{ propuesta.id }}/lineas/ratificacion-judicial">
+                    <p class="subtitle">Se añadirá como una línea independiente, editable y eliminable como el resto de servicios.</p>
+                    <label for="ratificacion_precio_unitario">Honorarios de ratificación judicial (€)</label>
+                    <input id="ratificacion_precio_unitario" name="precio_unitario" type="number" step="0.01" min="0" required>
+                    <button class="boton" type="submit">Añadir ratificación judicial</button>
+                </form>
+            </details>
+            <details>
+                <summary>Añadir desplazamiento / dietas</summary>
+                <form method="post" action="/propuestas/{{ propuesta.id }}/lineas/desplazamiento">
+                    <p class="subtitle">Crea una línea normal de desplazamientos con cálculo por kilómetros.</p>
+                    <label for="desplazamiento_concepto">Concepto</label>
+                    <input id="desplazamiento_concepto" name="concepto" type="text" value="Desplazamiento">
+
+                    <label for="desplazamiento_km">Kilómetros</label>
+                    <input id="desplazamiento_km" name="km" type="number" step="0.01" min="0" required>
+
+                    <label for="desplazamiento_precio_km">Precio por km (€)</label>
+                    <input id="desplazamiento_precio_km" name="precio_km" type="number" step="0.01" min="0" required>
+
+                    <label for="desplazamiento_iva">IVA %</label>
+                    <input id="desplazamiento_iva" name="iva_porcentaje" type="number" step="0.01" min="0" value="21">
+
+                    <button class="boton" type="submit">Añadir desplazamiento</button>
+                </form>
+            </details>
+            <details>
+                <summary>Añadir recargo por urgencia</summary>
+                <form method="post" action="/propuestas/{{ propuesta.id }}/lineas/recargo-urgencia">
+                    <p class="subtitle">Calcula el recargo sobre la base imponible actual, sin IVA, y lo añade como línea editable.</p>
+                    <label for="urgencia_porcentaje">Recargo %</label>
+                    <input id="urgencia_porcentaje" name="porcentaje" type="number" step="0.01" min="0" required>
+
+                    <label for="urgencia_iva">IVA %</label>
+                    <input id="urgencia_iva" name="iva_porcentaje" type="number" step="0.01" min="0" value="21">
+
+                    <button class="boton" type="submit">Añadir urgencia</button>
+                </form>
+            </details>
+            <details>
+                <summary>Añadir suplemento por complejidad</summary>
+                <form method="post" action="/propuestas/{{ propuesta.id }}/lineas/suplemento-complejidad">
+                    <p class="subtitle">Calcula el suplemento sobre la base imponible actual, sin IVA, y lo añade como línea editable.</p>
+                    <label for="complejidad_nivel">Complejidad</label>
+                    <select id="complejidad_nivel" name="complejidad">
+                        <option value="baja">Baja</option>
+                        <option value="media">Media</option>
+                        <option value="alta">Alta</option>
+                    </select>
+
+                    <label for="complejidad_porcentaje">Suplemento %</label>
+                    <input id="complejidad_porcentaje" name="porcentaje" type="number" step="0.01" min="0" required>
+
+                    <label for="complejidad_iva">IVA %</label>
+                    <input id="complejidad_iva" name="iva_porcentaje" type="number" step="0.01" min="0" value="21">
+
+                    <button class="boton" type="submit">Añadir complejidad</button>
+                </form>
+            </details>
+        </div>
+
+        <div class="card">
             <h2>Añadir línea</h2>
-            <form method="post" action="/propuestas/{{ propuesta.id }}/lineas">
+            <form method="post" action="/propuestas/{{ propuesta.id }}/lineas" data-line-template-form>
+                <label for="categoria_servicio">Categoría</label>
+                <select id="categoria_servicio" name="categoria_servicio">
+                    {% for categoria_valor, categoria_label in servicio_categorias %}
+                    <option value="{{ categoria_valor }}">{{ categoria_label }}</option>
+                    {% endfor %}
+                </select>
+                <button class="boton secundario" type="button" data-apply-line-template>Aplicar plantilla de categoría</button>
+
                 <label for="concepto">Concepto</label>
                 <input id="concepto" name="concepto" type="text" required>
 
                 <label for="descripcion">Descripción</label>
                 <textarea id="descripcion" name="descripcion"></textarea>
+
+                <label for="incluye">Incluye</label>
+                <textarea id="incluye" name="incluye"></textarea>
+
+                <label for="no_incluye">No incluye</label>
+                <textarea id="no_incluye" name="no_incluye"></textarea>
+
+                <label for="condiciones_linea">Condiciones de esta línea</label>
+                <textarea id="condiciones_linea" name="condiciones"></textarea>
 
                 <label for="cantidad">Cantidad</label>
                 <input id="cantidad" name="cantidad" type="number" step="0.01" min="0" value="1">
@@ -110,6 +235,9 @@
 
                 <label for="iva_porcentaje">IVA %</label>
                 <input id="iva_porcentaje" name="iva_porcentaje" type="number" step="0.01" value="21">
+
+                <label for="orden">Orden</label>
+                <input id="orden" name="orden" type="number" step="1" placeholder="Automático si se deja vacío">
 
                 <button class="boton" type="submit">Guardar línea</button>
             </form>
@@ -132,6 +260,7 @@
 
     {% if not print_mode %}
     {% include "partials/_app_shell_end.html" %}
+    <script src="/static/propuestas_detalle.js"></script>
     {% endif %}
 </body>
 </html>

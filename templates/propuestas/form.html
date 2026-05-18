@@ -80,11 +80,14 @@
 
                 <div class="inner-card">
                     <h2>Honorarios</h2>
+                    {% if tiene_lineas|default(false) %}
+                    <p class="subtitle">Esta propuesta tiene líneas de servicio. Los importes económicos se mantienen desde el desglose de líneas para evitar divergencias.</p>
+                    {% endif %}
                     <label for="base_imponible">Honorarios profesionales (€)</label>
-                    <input id="base_imponible" name="base_imponible" type="number" step="0.01" min="0" value="{{ propuesta.base_imponible or 0 }}">
+                    <input id="base_imponible" name="base_imponible" type="number" step="0.01" min="0" value="{{ propuesta.base_imponible or 0 }}" {% if tiene_lineas|default(false) %}readonly{% endif %}>
 
                     <label for="iva_porcentaje">IVA (%)</label>
-                    <input id="iva_porcentaje" name="iva_porcentaje" type="number" step="0.01" min="0" value="{{ propuesta.iva_porcentaje if propuesta.iva_porcentaje is defined and propuesta.iva_porcentaje is not none else 21 }}">
+                    <input id="iva_porcentaje" name="iva_porcentaje" type="number" step="0.01" min="0" value="{{ propuesta.iva_porcentaje if propuesta.iva_porcentaje is defined and propuesta.iva_porcentaje is not none else 21 }}" {% if tiene_lineas|default(false) %}readonly{% endif %}>
 
                     <label for="importe_iva">Importe IVA (€)</label>
                     <input id="importe_iva" name="importe_iva" type="number" step="0.01" readonly value="{{ propuesta.importe_iva if propuesta.importe_iva is defined and propuesta.importe_iva is not none else propuesta.iva or 0 }}">

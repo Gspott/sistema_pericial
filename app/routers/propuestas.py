@@ -1,5 +1,6 @@
 import re
 import smtplib
+from decimal import Decimal, ROUND_HALF_UP
 from email.message import EmailMessage
 from email.utils import formataddr
 from datetime import date
@@ -22,6 +23,44 @@ from app.database import get_connection
 router = APIRouter()
 
 PROPUESTA_ESTADOS = ("borrador", "enviada", "aceptada", "rechazada", "caducada")
+SERVICIO_CATEGORIAS = (
+    ("", "Sin categoría"),
+    ("estudio_documental", "Estudio preliminar y análisis documental"),
+    ("visita_tecnica", "Visita técnica"),
+    ("informe_pericial", "Redacción de informe pericial"),
+    ("ratificacion_judicial", "Ratificación judicial"),
+    ("desplazamientos", "Desplazamientos y dietas"),
+    ("extras", "Servicios adicionales"),
+)
+SERVICIO_CATEGORIA_LABELS = dict(SERVICIO_CATEGORIAS)
+RATIFICACION_JUDICIAL_PRESET = {
+    "categoria_servicio": "ratificacion_judicial",
+    "concepto": "Ratificación judicial",
+    "descripcion": "Asistencia del perito para ratificación del informe pericial en sede judicial.",
+    "incluye": "Preparación previa y asistencia a una única vista o señalamiento.",
+    "no_incluye": "Suspensiones, nuevos señalamientos, ampliaciones, desplazamientos, dietas, reuniones adicionales ni nueva documentación no prevista.",
+    "condiciones": "Cualquier suspensión judicial, nueva vista o actuación adicional será presupuestada aparte.",
+    "cantidad": 1.0,
+    "iva_porcentaje": 21.0,
+}
+DESPLAZAMIENTO_TEXTOS = {
+    "incluye": "Desplazamiento profesional asociado a las actuaciones descritas en esta propuesta.",
+    "no_incluye": "Peajes, aparcamientos, dietas, pernoctas u otros gastos extraordinarios salvo indicación expresa.",
+    "condiciones": "Los desplazamientos adicionales, actuaciones fuera de la zona prevista o dietas se presupuestarán aparte.",
+}
+URGENCIA_TEXTOS = {
+    "condiciones": "Recargo asociado a la priorización del encargo y reducción de plazos respecto del flujo ordinario de trabajo.",
+}
+COMPLEJIDAD_NIVELES = {
+    "baja": "baja",
+    "media": "media",
+    "alta": "alta",
+}
+COMPLEJIDAD_TEXTOS = {
+    "incluye": "Ajuste de honorarios por mayor dedicación técnica, revisión documental o análisis adicional dentro del alcance de la propuesta.",
+    "no_incluye": "Trabajos fuera del alcance, nueva documentación no prevista, visitas adicionales, ensayos, catas o contrainformes independientes.",
+    "condiciones": "El suplemento responde al nivel de complejidad estimado con la información disponible al presupuestar el encargo.",
+}
 
 
 def get_current_user(request: Request):
@@ -65,16 +104,43 @@ def parse_float(valor: str | None, default: float = 0.0) -> float:
         return default
 
 
+def parse_float_no_negativo(valor: str | None) -> float | None:
+    valor_limpio = limpiar_texto(valor)
+    if not valor_limpio:
+        return None
+    try:
+        numero = float(valor_limpio.replace(",", "."))
+    except ValueError:
+        return None
+    return numero if numero >= 0 else None
+
+
+def normalizar_categoria_servicio(valor: str | None) -> str:
+    categoria = limpiar_texto(valor)
+    return categoria if categoria in SERVICIO_CATEGORIA_LABELS else ""
+
+
 def format_money(valor: float | int | None) -> str:
     return f"{float(valor or 0):.2f}"
 
 
+def redondear_importe(valor: float | int | str | Decimal) -> float:
+    return float(Decimal(str(valor)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
 def calcular_honorarios(base_imponible: float, iva_porcentaje: float):
-    base = round(max(base_imponible, 0), 2)
-    iva_pct = round(max(iva_porcentaje, 0), 2)
-    importe_iva = round(base * iva_pct / 100, 2)
-    total_propuesta = round(base + importe_iva, 2)
+    base = redondear_importe(max(base_imponible, 0))
+    iva_pct = redondear_importe(max(iva_porcentaje, 0))
+    importe_iva = redondear_importe(base * iva_pct / 100)
+    total_propuesta = redondear_importe(base + importe_iva)
     return base, iva_pct, importe_iva, total_propuesta
+
+
+def calcular_importes_linea(cantidad: float, precio_unitario: float, iva_porcentaje: float):
+    base_linea = redondear_importe(cantidad * precio_unitario)
+    iva_linea = redondear_importe(base_linea * iva_porcentaje / 100)
+    total_linea = redondear_importe(base_linea + iva_linea)
+    return base_linea, iva_linea, total_linea
 
 
 def construir_mailto_propuesta(request: Request, propuesta) -> str:
@@ -125,7 +191,7 @@ def nombre_archivo_pdf_propuesta(propuesta) -> str:
     return f"Propuesta-{limpiar_nombre_pdf(propuesta['numero_propuesta'])}.pdf"
 
 
-def generar_pdf_propuesta_bytes(request: Request, propuesta) -> bytes:
+def generar_pdf_propuesta_bytes(request: Request, propuesta, lineas=None) -> bytes:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
@@ -141,6 +207,8 @@ def generar_pdf_propuesta_bytes(request: Request, propuesta) -> bytes:
             "request": request,
             "current_user": getattr(request.state, "current_user", None),
             "propuesta": propuesta,
+            "lineas": lineas or [],
+            "servicio_categoria_labels": SERVICIO_CATEGORIA_LABELS,
             "format_money": format_money,
             "mailto_url": "",
         }
@@ -265,6 +333,18 @@ def obtener_lineas_propuesta(cur, propuesta_id: int):
     ).fetchall()
 
 
+def get_owned_linea_propuesta(cur, propuesta_id: int, linea_id: int, owner_user_id: int):
+    return cur.execute(
+        """
+        SELECT pl.*
+        FROM propuesta_lineas pl
+        INNER JOIN propuestas p ON p.id = pl.propuesta_id
+        WHERE pl.id = ? AND pl.propuesta_id = ? AND p.owner_user_id = ?
+        """,
+        (linea_id, propuesta_id, owner_user_id),
+    ).fetchone()
+
+
 def recalcular_totales_propuesta(cur, propuesta_id: int):
     lineas = obtener_lineas_propuesta(cur, propuesta_id)
     base_imponible = 0.0
@@ -275,9 +355,9 @@ def recalcular_totales_propuesta(cur, propuesta_id: int):
         cantidad = float(linea["cantidad"] or 0)
         precio_unitario = float(linea["precio_unitario"] or 0)
         iva_porcentaje = float(linea["iva_porcentaje"] or 0)
-        base_linea = cantidad * precio_unitario
-        iva_linea = base_linea * iva_porcentaje / 100
-        total_linea = base_linea + iva_linea
+        base_linea, iva_linea, total_linea = calcular_importes_linea(
+            cantidad, precio_unitario, iva_porcentaje
+        )
 
         cur.execute(
             """
@@ -288,9 +368,13 @@ def recalcular_totales_propuesta(cur, propuesta_id: int):
             (total_linea, linea["id"]),
         )
 
-        base_imponible += base_linea
-        iva += iva_linea
-        total += total_linea
+        base_imponible = redondear_importe(base_imponible + base_linea)
+        iva = redondear_importe(iva + iva_linea)
+        total = redondear_importe(total + total_linea)
+
+    base_imponible = redondear_importe(base_imponible)
+    iva = redondear_importe(iva)
+    total = redondear_importe(total)
 
     cur.execute(
         """
@@ -631,6 +715,8 @@ def detalle_propuesta(
             "propuesta": propuesta,
             "lineas": lineas,
             "estados_propuesta": PROPUESTA_ESTADOS,
+            "servicio_categorias": SERVICIO_CATEGORIAS,
+            "servicio_categoria_labels": SERVICIO_CATEGORIA_LABELS,
             "format_money": format_money,
             "print_mode": bool(print),
             "mailto_url": construir_mailto_propuesta(request, propuesta),
@@ -650,6 +736,7 @@ def imprimir_propuesta(request: Request, propuesta_id: int):
         propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
         if not propuesta:
             raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        lineas = obtener_lineas_propuesta(cur, propuesta_id)
     finally:
         conn.close()
 
@@ -658,6 +745,8 @@ def imprimir_propuesta(request: Request, propuesta_id: int):
         "propuestas/imprimir.html",
         {
             "propuesta": propuesta,
+            "lineas": lineas,
+            "servicio_categoria_labels": SERVICIO_CATEGORIA_LABELS,
             "format_money": format_money,
             "mailto_url": construir_mailto_propuesta(request, propuesta),
             "email_disponible": bool(obtener_email_propuesta(propuesta)),
@@ -674,10 +763,11 @@ def descargar_pdf_propuesta(request: Request, propuesta_id: int):
         propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
         if not propuesta:
             raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        lineas = obtener_lineas_propuesta(cur, propuesta_id)
     finally:
         conn.close()
 
-    pdf_bytes = generar_pdf_propuesta_bytes(request, propuesta)
+    pdf_bytes = generar_pdf_propuesta_bytes(request, propuesta, lineas=lineas)
     filename = nombre_archivo_pdf_propuesta(propuesta)
     return StreamingResponse(
         BytesIO(pdf_bytes),
@@ -695,6 +785,7 @@ def enviar_propuesta_email(request: Request, propuesta_id: int):
         propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
         if not propuesta:
             raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        lineas = obtener_lineas_propuesta(cur, propuesta_id)
     finally:
         conn.close()
 
@@ -706,7 +797,7 @@ def enviar_propuesta_email(request: Request, propuesta_id: int):
         )
 
     try:
-        pdf_bytes = generar_pdf_propuesta_bytes(request, propuesta)
+        pdf_bytes = generar_pdf_propuesta_bytes(request, propuesta, lineas=lineas)
         enviar_email_propuesta(destinatario, propuesta, pdf_bytes)
     except RuntimeError:
         return RedirectResponse(
@@ -739,6 +830,7 @@ def editar_propuesta(request: Request, propuesta_id: int):
         propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
         if not propuesta:
             raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        tiene_lineas = bool(obtener_lineas_propuesta(cur, propuesta_id))
         leads, clientes, lead, cliente = cargar_contexto_formulario(
             cur,
             current_user["id"],
@@ -762,6 +854,7 @@ def editar_propuesta(request: Request, propuesta_id: int):
             "clientes": clientes,
             "lead_relacionado": lead,
             "cliente_relacionado": cliente,
+            "tiene_lineas": tiene_lineas,
         },
     )
 
@@ -812,6 +905,12 @@ def actualizar_propuesta(
         propuesta_existente = get_owned_propuesta(cur, propuesta_id, current_user["id"])
         if not propuesta_existente:
             raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        tiene_lineas = bool(obtener_lineas_propuesta(cur, propuesta_id))
+        if tiene_lineas:
+            propuesta["base_imponible"] = propuesta_existente["base_imponible"]
+            propuesta["iva_porcentaje"] = propuesta_existente["iva_porcentaje"]
+            propuesta["importe_iva"] = propuesta_existente["importe_iva"]
+            propuesta["total_propuesta"] = propuesta_existente["total_propuesta"]
 
         leads, clientes, lead, cliente = cargar_contexto_formulario(
             cur,
@@ -846,6 +945,7 @@ def actualizar_propuesta(
                     "clientes": clientes,
                     "lead_relacionado": lead,
                     "cliente_relacionado": cliente,
+                    "tiene_lineas": tiene_lineas,
                 },
             )
 
@@ -890,22 +990,102 @@ def actualizar_propuesta(
 def crear_linea_propuesta(
     request: Request,
     propuesta_id: int,
+    categoria_servicio: str = Form(""),
     concepto: str = Form(...),
     descripcion: str = Form(""),
+    incluye: str = Form(""),
+    no_incluye: str = Form(""),
+    condiciones: str = Form(""),
     cantidad: str = Form("1"),
     precio_unitario: str = Form("0"),
     iva_porcentaje: str = Form("21"),
+    orden: str = Form(""),
 ):
     current_user = get_current_user(request)
     concepto_limpio = limpiar_texto(concepto)
     if not concepto_limpio:
         return RedirectResponse(url=f"/propuestas/{propuesta_id}", status_code=303)
 
-    cantidad_valor = parse_float(cantidad, default=1.0)
-    precio_unitario_valor = parse_float(precio_unitario, default=0.0)
-    iva_porcentaje_valor = parse_float(iva_porcentaje, default=21.0)
-    base_linea = cantidad_valor * precio_unitario_valor
-    total_linea = base_linea + (base_linea * iva_porcentaje_valor / 100)
+    categoria_limpia = normalizar_categoria_servicio(categoria_servicio)
+    cantidad_valor = parse_float_no_negativo(cantidad)
+    precio_unitario_valor = parse_float_no_negativo(precio_unitario)
+    iva_porcentaje_valor = parse_float_no_negativo(iva_porcentaje)
+    if cantidad_valor is None or precio_unitario_valor is None or iva_porcentaje_valor is None:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Cantidad, precio unitario e IVA deben ser valores válidos y no negativos.')}",
+            status_code=303,
+        )
+    _, _, total_linea = calcular_importes_linea(
+        cantidad_valor, precio_unitario_valor, iva_porcentaje_valor
+    )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+        siguiente_orden = cur.execute(
+            """
+            SELECT COALESCE(MAX(orden), 0) + 1
+            FROM propuesta_lineas
+            WHERE propuesta_id = ?
+            """,
+            (propuesta_id,),
+        ).fetchone()[0]
+        orden_valor = parse_optional_int(orden) or siguiente_orden
+
+        cur.execute(
+            """
+            INSERT INTO propuesta_lineas (
+                propuesta_id, categoria_servicio, concepto, descripcion, incluye,
+                no_incluye, condiciones, cantidad, precio_unitario,
+                iva_porcentaje, total, orden
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                propuesta_id,
+                categoria_limpia,
+                concepto_limpio,
+                limpiar_texto(descripcion),
+                limpiar_texto(incluye),
+                limpiar_texto(no_incluye),
+                limpiar_texto(condiciones),
+                cantidad_valor,
+                precio_unitario_valor,
+                iva_porcentaje_valor,
+                total_linea,
+                orden_valor,
+            ),
+        )
+        recalcular_totales_propuesta(cur, propuesta_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(url=f"/propuestas/{propuesta_id}", status_code=303)
+
+
+@router.post("/propuestas/{propuesta_id}/lineas/ratificacion-judicial")
+def crear_ratificacion_judicial_propuesta(
+    request: Request,
+    propuesta_id: int,
+    precio_unitario: str = Form(...),
+):
+    current_user = get_current_user(request)
+    precio_unitario_valor = parse_float_no_negativo(precio_unitario)
+    if precio_unitario_valor is None:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Indica un importe válido y no negativo para la ratificación judicial.')}",
+            status_code=303,
+        )
+
+    preset = RATIFICACION_JUDICIAL_PRESET
+    _, _, total_linea = calcular_importes_linea(
+        preset["cantidad"], precio_unitario_valor, preset["iva_porcentaje"]
+    )
 
     conn = get_connection()
     cur = conn.cursor()
@@ -926,21 +1106,400 @@ def crear_linea_propuesta(
         cur.execute(
             """
             INSERT INTO propuesta_lineas (
-                propuesta_id, concepto, descripcion, cantidad, precio_unitario,
+                propuesta_id, categoria_servicio, concepto, descripcion, incluye,
+                no_incluye, condiciones, cantidad, precio_unitario,
                 iva_porcentaje, total, orden
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 propuesta_id,
-                concepto_limpio,
-                limpiar_texto(descripcion),
-                cantidad_valor,
+                preset["categoria_servicio"],
+                preset["concepto"],
+                preset["descripcion"],
+                preset["incluye"],
+                preset["no_incluye"],
+                preset["condiciones"],
+                preset["cantidad"],
                 precio_unitario_valor,
+                preset["iva_porcentaje"],
+                total_linea,
+                siguiente_orden,
+            ),
+        )
+        recalcular_totales_propuesta(cur, propuesta_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/propuestas/{propuesta_id}?mensaje={quote('Ratificación judicial añadida como línea independiente.')}",
+        status_code=303,
+    )
+
+
+@router.post("/propuestas/{propuesta_id}/lineas/desplazamiento")
+def crear_desplazamiento_propuesta(
+    request: Request,
+    propuesta_id: int,
+    concepto: str = Form("Desplazamiento"),
+    km: str = Form(...),
+    precio_km: str = Form(...),
+    iva_porcentaje: str = Form("21"),
+):
+    current_user = get_current_user(request)
+    concepto_limpio = limpiar_texto(concepto) or "Desplazamiento"
+    km_valor = parse_float_no_negativo(km)
+    precio_km_valor = parse_float_no_negativo(precio_km)
+    iva_porcentaje_valor = parse_float_no_negativo(iva_porcentaje)
+    if km_valor is None or precio_km_valor is None or iva_porcentaje_valor is None:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Indica km, precio por km e IVA válidos y no negativos para el desplazamiento.')}",
+            status_code=303,
+        )
+
+    _, _, total_linea = calcular_importes_linea(
+        km_valor, precio_km_valor, iva_porcentaje_valor
+    )
+    descripcion = (
+        f"Cálculo de desplazamiento: {format_money(km_valor)} km x "
+        f"{format_money(precio_km_valor)} €/km."
+    )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+        siguiente_orden = cur.execute(
+            """
+            SELECT COALESCE(MAX(orden), 0) + 1
+            FROM propuesta_lineas
+            WHERE propuesta_id = ?
+            """,
+            (propuesta_id,),
+        ).fetchone()[0]
+
+        cur.execute(
+            """
+            INSERT INTO propuesta_lineas (
+                propuesta_id, categoria_servicio, concepto, descripcion, incluye,
+                no_incluye, condiciones, cantidad, precio_unitario,
+                iva_porcentaje, total, orden
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                propuesta_id,
+                "desplazamientos",
+                concepto_limpio,
+                descripcion,
+                DESPLAZAMIENTO_TEXTOS["incluye"],
+                DESPLAZAMIENTO_TEXTOS["no_incluye"],
+                DESPLAZAMIENTO_TEXTOS["condiciones"],
+                km_valor,
+                precio_km_valor,
                 iva_porcentaje_valor,
                 total_linea,
                 siguiente_orden,
             ),
+        )
+        recalcular_totales_propuesta(cur, propuesta_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/propuestas/{propuesta_id}?mensaje={quote('Desplazamiento añadido como línea independiente.')}",
+        status_code=303,
+    )
+
+
+@router.post("/propuestas/{propuesta_id}/lineas/recargo-urgencia")
+def crear_recargo_urgencia_propuesta(
+    request: Request,
+    propuesta_id: int,
+    porcentaje: str = Form(...),
+    iva_porcentaje: str = Form("21"),
+):
+    current_user = get_current_user(request)
+    porcentaje_valor = parse_float_no_negativo(porcentaje)
+    iva_porcentaje_valor = parse_float_no_negativo(iva_porcentaje)
+    if porcentaje_valor is None or iva_porcentaje_valor is None:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Indica porcentaje de urgencia e IVA válidos y no negativos.')}",
+            status_code=303,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+        base_sin_iva = redondear_importe(propuesta["base_imponible"] or 0)
+        if base_sin_iva <= 0:
+            return RedirectResponse(
+                url=f"/propuestas/{propuesta_id}?error={quote('No se puede calcular urgencia sin base imponible previa.')}",
+                status_code=303,
+            )
+
+        importe_recargo = redondear_importe(base_sin_iva * porcentaje_valor / 100)
+        _, _, total_linea = calcular_importes_linea(
+            1.0, importe_recargo, iva_porcentaje_valor
+        )
+        descripcion = (
+            f"Recargo del {format_money(porcentaje_valor)} % aplicado sobre "
+            f"base imponible sin IVA de {format_money(base_sin_iva)} €."
+        )
+
+        siguiente_orden = cur.execute(
+            """
+            SELECT COALESCE(MAX(orden), 0) + 1
+            FROM propuesta_lineas
+            WHERE propuesta_id = ?
+            """,
+            (propuesta_id,),
+        ).fetchone()[0]
+
+        cur.execute(
+            """
+            INSERT INTO propuesta_lineas (
+                propuesta_id, categoria_servicio, concepto, descripcion, incluye,
+                no_incluye, condiciones, cantidad, precio_unitario,
+                iva_porcentaje, total, orden
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                propuesta_id,
+                "extras",
+                "Recargo por urgencia",
+                descripcion,
+                "",
+                "",
+                URGENCIA_TEXTOS["condiciones"],
+                1.0,
+                importe_recargo,
+                iva_porcentaje_valor,
+                total_linea,
+                siguiente_orden,
+            ),
+        )
+        recalcular_totales_propuesta(cur, propuesta_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/propuestas/{propuesta_id}?mensaje={quote('Recargo por urgencia añadido como línea independiente.')}",
+        status_code=303,
+    )
+
+
+@router.post("/propuestas/{propuesta_id}/lineas/suplemento-complejidad")
+def crear_suplemento_complejidad_propuesta(
+    request: Request,
+    propuesta_id: int,
+    complejidad: str = Form(...),
+    porcentaje: str = Form(...),
+    iva_porcentaje: str = Form("21"),
+):
+    current_user = get_current_user(request)
+    complejidad_limpia = limpiar_texto(complejidad).lower()
+    if complejidad_limpia not in COMPLEJIDAD_NIVELES:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Selecciona una complejidad válida.')}",
+            status_code=303,
+        )
+
+    porcentaje_valor = parse_float_no_negativo(porcentaje)
+    iva_porcentaje_valor = parse_float_no_negativo(iva_porcentaje)
+    if porcentaje_valor is None or iva_porcentaje_valor is None:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Indica porcentaje de complejidad e IVA válidos y no negativos.')}",
+            status_code=303,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+        base_sin_iva = redondear_importe(propuesta["base_imponible"] or 0)
+        if base_sin_iva <= 0:
+            return RedirectResponse(
+                url=f"/propuestas/{propuesta_id}?error={quote('No se puede calcular complejidad sin base imponible previa.')}",
+                status_code=303,
+            )
+
+        importe_suplemento = redondear_importe(
+            base_sin_iva * porcentaje_valor / 100
+        )
+        _, _, total_linea = calcular_importes_linea(
+            1.0, importe_suplemento, iva_porcentaje_valor
+        )
+        nivel = COMPLEJIDAD_NIVELES[complejidad_limpia]
+        descripcion = (
+            f"Suplemento por complejidad {nivel}: "
+            f"{format_money(porcentaje_valor)} % aplicado sobre base imponible "
+            f"sin IVA de {format_money(base_sin_iva)} €."
+        )
+
+        siguiente_orden = cur.execute(
+            """
+            SELECT COALESCE(MAX(orden), 0) + 1
+            FROM propuesta_lineas
+            WHERE propuesta_id = ?
+            """,
+            (propuesta_id,),
+        ).fetchone()[0]
+
+        cur.execute(
+            """
+            INSERT INTO propuesta_lineas (
+                propuesta_id, categoria_servicio, concepto, descripcion, incluye,
+                no_incluye, condiciones, cantidad, precio_unitario,
+                iva_porcentaje, total, orden
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                propuesta_id,
+                "extras",
+                "Suplemento por complejidad",
+                descripcion,
+                COMPLEJIDAD_TEXTOS["incluye"],
+                COMPLEJIDAD_TEXTOS["no_incluye"],
+                COMPLEJIDAD_TEXTOS["condiciones"],
+                1.0,
+                importe_suplemento,
+                iva_porcentaje_valor,
+                total_linea,
+                siguiente_orden,
+            ),
+        )
+        recalcular_totales_propuesta(cur, propuesta_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/propuestas/{propuesta_id}?mensaje={quote('Suplemento por complejidad añadido como línea independiente.')}",
+        status_code=303,
+    )
+
+
+@router.post("/propuestas/{propuesta_id}/lineas/{linea_id}/editar")
+def editar_linea_propuesta(
+    request: Request,
+    propuesta_id: int,
+    linea_id: int,
+    categoria_servicio: str = Form(""),
+    concepto: str = Form(...),
+    descripcion: str = Form(""),
+    incluye: str = Form(""),
+    no_incluye: str = Form(""),
+    condiciones: str = Form(""),
+    cantidad: str = Form("1"),
+    precio_unitario: str = Form("0"),
+    iva_porcentaje: str = Form("21"),
+    orden: str = Form("0"),
+):
+    current_user = get_current_user(request)
+    concepto_limpio = limpiar_texto(concepto)
+    if not concepto_limpio:
+        return RedirectResponse(url=f"/propuestas/{propuesta_id}", status_code=303)
+
+    categoria_limpia = normalizar_categoria_servicio(categoria_servicio)
+    cantidad_valor = parse_float_no_negativo(cantidad)
+    precio_unitario_valor = parse_float_no_negativo(precio_unitario)
+    iva_porcentaje_valor = parse_float_no_negativo(iva_porcentaje)
+    if cantidad_valor is None or precio_unitario_valor is None or iva_porcentaje_valor is None:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Cantidad, precio unitario e IVA deben ser valores válidos y no negativos.')}",
+            status_code=303,
+        )
+    _, _, total_linea = calcular_importes_linea(
+        cantidad_valor, precio_unitario_valor, iva_porcentaje_valor
+    )
+    orden_valor = parse_optional_int(orden) or 0
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        linea = get_owned_linea_propuesta(
+            cur, propuesta_id, linea_id, current_user["id"]
+        )
+        if not linea:
+            raise HTTPException(status_code=404, detail="Línea no encontrada")
+
+        cur.execute(
+            """
+            UPDATE propuesta_lineas
+            SET categoria_servicio = ?, concepto = ?, descripcion = ?,
+                incluye = ?, no_incluye = ?, condiciones = ?, cantidad = ?,
+                precio_unitario = ?, iva_porcentaje = ?, total = ?, orden = ?
+            WHERE id = ? AND propuesta_id = ?
+            """,
+            (
+                categoria_limpia,
+                concepto_limpio,
+                limpiar_texto(descripcion),
+                limpiar_texto(incluye),
+                limpiar_texto(no_incluye),
+                limpiar_texto(condiciones),
+                cantidad_valor,
+                precio_unitario_valor,
+                iva_porcentaje_valor,
+                total_linea,
+                orden_valor,
+                linea_id,
+                propuesta_id,
+            ),
+        )
+        recalcular_totales_propuesta(cur, propuesta_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(url=f"/propuestas/{propuesta_id}", status_code=303)
+
+
+@router.post("/propuestas/{propuesta_id}/lineas/{linea_id}/eliminar")
+def eliminar_linea_propuesta(
+    request: Request,
+    propuesta_id: int,
+    linea_id: int,
+    confirmar_eliminar: str = Form(""),
+):
+    current_user = get_current_user(request)
+    if limpiar_texto(confirmar_eliminar) != "on":
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Confirma el borrado de la línea antes de eliminarla.')}",
+            status_code=303,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        linea = get_owned_linea_propuesta(
+            cur, propuesta_id, linea_id, current_user["id"]
+        )
+        if not linea:
+            raise HTTPException(status_code=404, detail="Línea no encontrada")
+
+        cur.execute(
+            """
+            DELETE FROM propuesta_lineas
+            WHERE id = ? AND propuesta_id = ?
+            """,
+            (linea_id, propuesta_id),
         )
         recalcular_totales_propuesta(cur, propuesta_id)
         conn.commit()
