@@ -19,6 +19,10 @@ from app.config import (
     SMTP_USER,
 )
 from app.database import get_connection
+from app.services.propuestas_catalogo import (
+    SERVICIOS_CATALOGO,
+    SERVICIOS_CATALOGO_OPCIONES,
+)
 
 router = APIRouter()
 
@@ -33,6 +37,26 @@ SERVICIO_CATEGORIAS = (
     ("extras", "Servicios adicionales"),
 )
 SERVICIO_CATEGORIA_LABELS = dict(SERVICIO_CATEGORIAS)
+
+
+def construir_catalogo_preview():
+    return {
+        clave: {
+            "clave": clave,
+            "concepto": servicio.get("concepto", ""),
+            "categoria": SERVICIO_CATEGORIA_LABELS.get(
+                servicio.get("categoria_servicio", ""),
+                servicio.get("categoria_servicio", ""),
+            ),
+            "descripcion": servicio.get("descripcion", ""),
+            "incluye": servicio.get("incluye", ""),
+            "no_incluye": servicio.get("no_incluye", ""),
+            "condiciones": servicio.get("condiciones", ""),
+        }
+        for clave, servicio in SERVICIOS_CATALOGO.items()
+    }
+
+
 RATIFICACION_JUDICIAL_PRESET = {
     "categoria_servicio": "ratificacion_judicial",
     "concepto": "Ratificación judicial",
@@ -141,6 +165,69 @@ def calcular_importes_linea(cantidad: float, precio_unitario: float, iva_porcent
     iva_linea = redondear_importe(base_linea * iva_porcentaje / 100)
     total_linea = redondear_importe(base_linea + iva_linea)
     return base_linea, iva_linea, total_linea
+
+
+def inferir_linea_base_propuesta(tipo_trabajo: str | None) -> dict:
+    tipo = limpiar_texto(tipo_trabajo).lower()
+    if "tasaci" in tipo or "valoraci" in tipo:
+        return {
+            "categoria_servicio": "informe_pericial",
+            "concepto": "Informe de valoración inmobiliaria",
+            "descripcion": "Elaboración de informe de valoración conforme al objeto del encargo.",
+        }
+    if "inspecci" in tipo or "inspeccion" in tipo:
+        return {
+            "categoria_servicio": "visita_tecnica",
+            "concepto": "Inspección técnica de vivienda",
+            "descripcion": "Inspección técnica y emisión de resumen o informe de observaciones.",
+        }
+    if "informe" in tipo:
+        return {
+            "categoria_servicio": "informe_pericial",
+            "concepto": "Redacción de informe pericial",
+            "descripcion": "Elaboración de informe pericial técnico conforme al objeto del encargo.",
+        }
+    return {
+        "categoria_servicio": "extras",
+        "concepto": "Honorarios profesionales",
+        "descripcion": "Honorarios profesionales correspondientes al objeto de la propuesta.",
+    }
+
+
+def crear_linea_base_inicial_propuesta(cur, propuesta_id: int, propuesta: dict):
+    base_imponible = redondear_importe(propuesta["base_imponible"] or 0)
+    if base_imponible <= 0:
+        return
+
+    iva_porcentaje = redondear_importe(propuesta["iva_porcentaje"] or 0)
+    _, _, total_linea = calcular_importes_linea(1.0, base_imponible, iva_porcentaje)
+    linea_base = inferir_linea_base_propuesta(propuesta["tipo_trabajo"])
+
+    cur.execute(
+        """
+        INSERT INTO propuesta_lineas (
+            propuesta_id, categoria_servicio, concepto, descripcion, incluye,
+            no_incluye, condiciones, cantidad, precio_unitario,
+            iva_porcentaje, total, orden
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            propuesta_id,
+            linea_base["categoria_servicio"],
+            linea_base["concepto"],
+            linea_base["descripcion"],
+            "",
+            "",
+            "",
+            1.0,
+            base_imponible,
+            iva_porcentaje,
+            total_linea,
+            1,
+        ),
+    )
+    recalcular_totales_propuesta(cur, propuesta_id)
 
 
 def construir_mailto_propuesta(request: Request, propuesta) -> str:
@@ -682,6 +769,7 @@ def crear_propuesta(
             ),
         )
         propuesta_id = cur.lastrowid
+        crear_linea_base_inicial_propuesta(cur, propuesta_id, propuesta)
         conn.commit()
     finally:
         conn.close()
@@ -717,6 +805,8 @@ def detalle_propuesta(
             "estados_propuesta": PROPUESTA_ESTADOS,
             "servicio_categorias": SERVICIO_CATEGORIAS,
             "servicio_categoria_labels": SERVICIO_CATEGORIA_LABELS,
+            "servicios_catalogo": SERVICIOS_CATALOGO_OPCIONES,
+            "servicios_catalogo_preview": construir_catalogo_preview(),
             "format_money": format_money,
             "print_mode": bool(print),
             "mailto_url": construir_mailto_propuesta(request, propuesta),
@@ -1066,6 +1156,93 @@ def crear_linea_propuesta(
         conn.close()
 
     return RedirectResponse(url=f"/propuestas/{propuesta_id}", status_code=303)
+
+
+@router.post("/propuestas/{propuesta_id}/lineas/catalogo")
+def crear_linea_catalogo_propuesta(
+    request: Request,
+    propuesta_id: int,
+    servicio_catalogo: str = Form(...),
+    cantidad: str = Form("1"),
+    precio_unitario: str = Form("0"),
+    iva_porcentaje: str = Form("21"),
+):
+    current_user = get_current_user(request)
+    servicio = SERVICIOS_CATALOGO.get(limpiar_texto(servicio_catalogo))
+    if not servicio:
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Selecciona un servicio del catálogo válido.')}",
+            status_code=303,
+        )
+
+    cantidad_valor = parse_float_no_negativo(cantidad)
+    precio_unitario_valor = parse_float_no_negativo(precio_unitario)
+    iva_porcentaje_valor = parse_float_no_negativo(iva_porcentaje)
+    if (
+        cantidad_valor is None
+        or precio_unitario_valor is None
+        or iva_porcentaje_valor is None
+        or cantidad_valor <= 0
+        or precio_unitario_valor <= 0
+    ):
+        return RedirectResponse(
+            url=f"/propuestas/{propuesta_id}?error={quote('Cantidad y precio deben ser positivos, e IVA debe ser válido y no negativo.')}",
+            status_code=303,
+        )
+
+    _, _, total_linea = calcular_importes_linea(
+        cantidad_valor, precio_unitario_valor, iva_porcentaje_valor
+    )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+        siguiente_orden = cur.execute(
+            """
+            SELECT COALESCE(MAX(orden), 0) + 1
+            FROM propuesta_lineas
+            WHERE propuesta_id = ?
+            """,
+            (propuesta_id,),
+        ).fetchone()[0]
+
+        cur.execute(
+            """
+            INSERT INTO propuesta_lineas (
+                propuesta_id, categoria_servicio, concepto, descripcion, incluye,
+                no_incluye, condiciones, cantidad, precio_unitario,
+                iva_porcentaje, total, orden
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                propuesta_id,
+                servicio["categoria_servicio"],
+                servicio["concepto"],
+                servicio["descripcion"],
+                servicio["incluye"],
+                servicio["no_incluye"],
+                servicio["condiciones"],
+                cantidad_valor,
+                precio_unitario_valor,
+                iva_porcentaje_valor,
+                total_linea,
+                siguiente_orden,
+            ),
+        )
+        recalcular_totales_propuesta(cur, propuesta_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/propuestas/{propuesta_id}?mensaje={quote('Servicio del catálogo añadido como línea independiente.')}",
+        status_code=303,
+    )
 
 
 @router.post("/propuestas/{propuesta_id}/lineas/ratificacion-judicial")

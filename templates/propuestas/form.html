@@ -25,7 +25,7 @@
             </div>
             {% endif %}
 
-            <form method="post" action="{{ form_action }}">
+            <form method="post" action="{{ form_action }}" data-proposal-template-form>
                 <label for="numero_propuesta">Número de propuesta</label>
                 <input id="numero_propuesta" name="numero_propuesta" type="text" value="{{ propuesta.numero_propuesta or '' }}" required>
 
@@ -41,6 +41,8 @@
                     <option value="informe_judicial">Informe judicial</option>
                     <option value="informe_aseguradora">Informe para aseguradora</option>
                     <option value="inspeccion_previa">Inspección técnica / visita previa</option>
+                    <option value="tasacion_inmobiliaria">Tasación inmobiliaria</option>
+                    <option value="inspeccion_vivienda">Inspección de vivienda</option>
                 </select>
                 <button id="aplicar_plantilla" class="boton secundario" type="button">Aplicar plantilla</button>
                 {% endif %}
@@ -147,49 +149,11 @@
         })();
     </script>
     {% if form_action == '/propuestas/nueva' %}
+    <script src="/static/propuestas_templates.js"></script>
     <script>
-        const plantillasRapidas = {
-            danos_agua: {
-                tipo_trabajo: "Informe pericial por daños de agua",
-                alcance: "Inspección técnica del inmueble.\nIdentificación de daños y zonas afectadas.\nAnálisis de posibles causas: fugas, filtraciones, condensaciones u otros aportes de humedad.\nReportaje fotográfico.\nRedacción de informe pericial con conclusiones técnicas.",
-                plazo_estimado: "5-7 días desde la visita",
-                condiciones: "El informe se entrega en formato digital PDF.\nNo incluye ensayos destructivos, catas ni pruebas de laboratorio.\nVisitas adicionales o actuaciones complementarias se presupuestarán aparte."
-            },
-            humedades: {
-                tipo_trabajo: "Informe pericial de humedades",
-                alcance: "Inspección visual del inmueble.\nIdentificación de tipología de humedad: capilaridad, filtración, condensación u otras.\nAnálisis de daños observados y posibles causas.\nReportaje fotográfico.\nRedacción de informe técnico-pericial con diagnóstico y conclusiones.",
-                plazo_estimado: "5-7 días desde la visita",
-                condiciones: "El informe se entrega en formato digital PDF.\nNo incluye catas, ensayos destructivos ni mediciones especializadas no disponibles durante la visita.\nActuaciones adicionales se presupuestarán aparte."
-            },
-            informe_judicial: {
-                tipo_trabajo: "Informe pericial para procedimiento judicial",
-                alcance: "Análisis técnico de la documentación facilitada.\nInspección del inmueble, si resulta necesaria.\nIdentificación y valoración técnica de los daños o patologías objeto del encargo.\nRedacción de informe pericial estructurado para su aportación al procedimiento.",
-                plazo_estimado: "7-10 días desde la visita y recepción de la documentación necesaria",
-                condiciones: "El informe se entrega en formato digital PDF.\nNo incluye asistencia a juicio, ratificación judicial ni reuniones adicionales, salvo contratación expresa.\nLa documentación necesaria deberá ser aportada por el cliente antes de iniciar la redacción."
-            },
-            informe_aseguradora: {
-                tipo_trabajo: "Informe pericial para reclamación ante aseguradora",
-                alcance: "Inspección técnica de los daños comunicados.\nAnálisis del origen probable y alcance de los daños.\nReportaje fotográfico.\nRedacción de informe pericial orientado a reclamación frente a compañía aseguradora.",
-                plazo_estimado: "5-7 días desde la visita",
-                condiciones: "El informe se entrega en formato digital PDF.\nNo incluye gestiones directas con la compañía aseguradora, salvo pacto expreso.\nNo incluye ensayos destructivos ni actuaciones de reparación."
-            },
-            inspeccion_previa: {
-                tipo_trabajo: "Visita técnica de inspección previa",
-                alcance: "Visita técnica al inmueble.\nInspección visual de las zonas indicadas por el cliente.\nToma de datos básicos y fotografías.\nOrientación técnica inicial sobre las actuaciones recomendables.",
-                plazo_estimado: "Según disponibilidad de agenda",
-                condiciones: "La visita no incluye informe pericial completo salvo contratación posterior.\nLas conclusiones iniciales tendrán carácter orientativo.\nEn caso de contratar posteriormente el informe, podrá descontarse total o parcialmente el importe de la visita si así se acuerda."
-            }
-        };
-
-        function setIfEmpty(selector, value) {
-            const field = document.querySelector(selector);
-            if (!field) return;
-            if (!field.value || field.value.trim() === "") {
-                field.value = value;
-            }
-        }
-
         document.getElementById("aplicar_plantilla").addEventListener("click", function () {
+            const sharedTemplates = window.SistemaPericialPropuestasTemplates || {};
+            const plantillasRapidas = sharedTemplates.proposalTemplates || {};
             const plantillaSeleccionada = document.getElementById("plantilla_rapida").value;
             const plantilla = plantillasRapidas[plantillaSeleccionada];
 
@@ -198,10 +162,13 @@
                 return;
             }
 
-            setIfEmpty("#tipo_trabajo", plantilla.tipo_trabajo);
-            setIfEmpty("#alcance", plantilla.alcance);
-            setIfEmpty("#plazo_estimado", plantilla.plazo_estimado);
-            setIfEmpty("#condiciones", plantilla.condiciones);
+            if (sharedTemplates.fillEmptyFields) {
+                sharedTemplates.fillEmptyFields(
+                    document.querySelector("[data-proposal-template-form]"),
+                    plantilla,
+                    ["tipo_trabajo", "alcance", "plazo_estimado", "condiciones"]
+                );
+            }
         });
     </script>
     {% endif %}

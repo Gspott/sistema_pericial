@@ -202,6 +202,44 @@
         </div>
 
         <div class="card">
+            <h2>Añadir servicio del catálogo</h2>
+            <form method="post" action="/propuestas/{{ propuesta.id }}/lineas/catalogo" data-catalog-service-form>
+                <p class="subtitle">Crea una línea normal a partir de un servicio reutilizable. Podrás editarla o borrarla después.</p>
+                <script id="catalogo-servicios-preview-data" type="application/json">
+                    {{ servicios_catalogo_preview | default({}) | tojson }}
+                </script>
+                <label for="servicio_catalogo">Servicio</label>
+                <select id="servicio_catalogo" name="servicio_catalogo" required data-catalog-service-select>
+                    <option value="">Selecciona un servicio</option>
+                    {% for servicio_valor, servicio_label in servicios_catalogo %}
+                    <option value="{{ servicio_valor }}">{{ servicio_label }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="catalogo_cantidad">Cantidad</label>
+                <input id="catalogo_cantidad" name="cantidad" type="number" step="0.01" min="0" value="1" required>
+
+                <label for="catalogo_precio_unitario">Precio unitario (€)</label>
+                <input id="catalogo_precio_unitario" name="precio_unitario" type="number" step="0.01" min="0" value="0" required data-catalog-price>
+                <p class="subtitle" data-catalog-price-help>Introduce el importe antes de añadir. El servidor rechazará importes 0 o negativos.</p>
+
+                <label for="catalogo_iva">IVA %</label>
+                <input id="catalogo_iva" name="iva_porcentaje" type="number" step="0.01" min="0" value="21" required>
+
+                <div class="inner-card" data-catalog-service-preview hidden>
+                    <h3 data-catalog-preview-concepto></h3>
+                    <p><strong>Categoría:</strong> <span data-catalog-preview-categoria></span></p>
+                    <p><strong>Descripción:</strong> <span data-catalog-preview-descripcion></span></p>
+                    <p><strong>Incluye:</strong> <span data-catalog-preview-incluye></span></p>
+                    <p><strong>No incluye:</strong> <span data-catalog-preview-no-incluye></span></p>
+                    <p><strong>Condiciones:</strong> <span data-catalog-preview-condiciones></span></p>
+                </div>
+
+                <button class="boton" type="submit">Añadir servicio</button>
+            </form>
+        </div>
+
+        <div class="card">
             <h2>Añadir línea</h2>
             <form method="post" action="/propuestas/{{ propuesta.id }}/lineas" data-line-template-form>
                 <label for="categoria_servicio">Categoría</label>
@@ -260,6 +298,7 @@
 
     {% if not print_mode %}
     {% include "partials/_app_shell_end.html" %}
+    <script src="/static/propuestas_templates.js"></script>
     <script src="/static/propuestas_detalle.js"></script>
     {% endif %}
 </body>
