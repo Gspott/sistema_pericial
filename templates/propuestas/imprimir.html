@@ -78,12 +78,25 @@
         }
 
         h2 {
-            border-bottom: 1px solid #d8dee6;
             color: #2f3a45;
-            font-size: 15px;
-            margin: 24px 0 12px;
-            padding-bottom: 6px;
+            font-size: 13px;
+            margin: 0 0 8px;
             text-transform: uppercase;
+        }
+
+        .part-title {
+            border-bottom: 2px solid #1f2933;
+            color: #111827;
+            font-size: 12px;
+            letter-spacing: 0.04em;
+            margin: 26px 0 14px;
+            padding-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .legal-part {
+            break-before: page;
+            page-break-before: always;
         }
 
         p {
@@ -94,6 +107,62 @@
             break-inside: avoid;
             line-height: 1.45;
             page-break-inside: avoid;
+        }
+
+        .doc-card {
+            border: 1px solid #d8dee6;
+            margin: 10px 0;
+            padding: 11px 12px;
+        }
+
+        .doc-card.soft {
+            background: #fbfcfd;
+        }
+
+        .doc-card.compact {
+            padding: 9px 10px;
+        }
+
+        .doc-card.legal {
+            color: #374151;
+            font-size: 12px;
+            margin: 9px 0;
+        }
+
+        .doc-card.highlight {
+            border-color: #b8c1cc;
+            background: #f7f9fb;
+        }
+
+        .doc-card h2 {
+            border-bottom: 1px solid #e5e9ef;
+            padding-bottom: 5px;
+        }
+
+        .doc-card.compact h2 {
+            margin-bottom: 6px;
+        }
+
+        .summary-card {
+            align-items: end;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr auto;
+        }
+
+        .summary-total {
+            color: #111827;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.1;
+            text-align: right;
+        }
+
+        .summary-meta {
+            color: #4b5563;
+            font-size: 12px;
+            margin-top: 4px;
+            text-align: right;
         }
 
         .meta,
@@ -150,19 +219,23 @@
 
         .scope-grid {
             display: grid;
-            gap: 14px;
+            gap: 8px;
             grid-template-columns: 1fr 1fr;
         }
 
         .scope-box {
-            border: 1px solid #d8dee6;
-            padding: 12px;
+            background: #fdfefe;
+            border: 1px solid #edf0f3;
+            color: #374151;
+            font-size: 11px;
+            line-height: 1.3;
+            padding: 7px 8px;
         }
 
         .scope-box h3 {
             color: #374151;
-            font-size: 13px;
-            margin: 0 0 8px;
+            font-size: 11.5px;
+            margin: 0 0 4px;
         }
 
         .scope-box ul,
@@ -173,7 +246,7 @@
 
         .scope-box li,
         .conditions-subblock li {
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }
 
         .fees-table {
@@ -185,7 +258,7 @@
         .fees-table th,
         .fees-table td {
             border: 1px solid #d8dee6;
-            padding: 7px 8px;
+            padding: 6px 8px;
             text-align: left;
             vertical-align: top;
         }
@@ -194,7 +267,6 @@
             background: #f3f6f8;
             color: #374151;
             font-size: 11px;
-            text-transform: uppercase;
         }
 
         .fees-table .number {
@@ -207,26 +279,76 @@
             border-radius: 3px;
             color: #4b5563;
             display: inline-block;
-            font-size: 11px;
-            margin-bottom: 4px;
+            font-size: 10px;
+            margin-top: 4px;
             padding: 1px 5px;
-            text-transform: uppercase;
         }
 
         .service-description {
             color: #374151;
             display: block;
+            font-size: 12px;
+            line-height: 1.35;
             margin-top: 3px;
         }
 
-        .service-notes {
-            color: #374151;
-            font-size: 12px;
-            margin-top: 7px;
+        .service-conditions {
+            margin: 0;
         }
 
-        .service-notes p {
+        .service-conditions h3 {
+            border-top: 1px solid #edf0f3;
+            color: #374151;
+            font-size: 12px;
+            margin: 6px 0 3px;
+            padding-top: 6px;
+        }
+
+        .service-conditions h3:first-child {
+            border-top: 0;
+            margin-top: 0;
+            padding-top: 0;
+        }
+
+        .service-conditions p {
+            font-size: 12px;
             margin: 3px 0;
+        }
+
+        .service-condition-item {
+            margin-top: 4px;
+        }
+
+        .service-condition-item:first-child {
+            margin-top: 0;
+        }
+
+        .service-condition-item h4 {
+            color: #4b5563;
+            font-size: 12px;
+            margin: 0 0 2px;
+        }
+
+        .service-condition-item .compact-list {
+            margin: 2px 0 4px 0;
+            list-style: none;
+        }
+
+        .service-condition-item .compact-list li {
+            margin-bottom: 2px;
+        }
+
+        .condition-label {
+            border: 1px solid #d8dee6;
+            border-radius: 3px;
+            color: #4b5563;
+            display: inline-block;
+            font-size: 9.5px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-right: 4px;
+            padding: 1px 4px;
+            text-transform: uppercase;
         }
 
         .amounts {
@@ -256,14 +378,15 @@
         }
 
         .conditions-text {
+            font-size: 12px;
             line-height: 1.45;
-            margin: 0 0 10px;
+            margin: 0 0 8px;
             white-space: pre-line;
         }
 
         .conditions-subblock {
             line-height: 1.45;
-            margin-top: 10px;
+            margin-top: 7px;
         }
 
         .conditions-subblock h3 {
@@ -276,6 +399,34 @@
 
         .conditions-subblock p {
             margin: 0 0 6px;
+        }
+
+        .legal .conditions-subblock,
+        .legal p,
+        .legal li {
+            line-height: 1.38;
+        }
+
+        .compact-list {
+            margin: 6px 0 8px 18px;
+            padding: 0;
+        }
+
+        .compact-list li {
+            margin-bottom: 3px;
+        }
+
+        .acceptance-box {
+            border-left: 3px solid #1f2933;
+            background: #f7f9fb;
+            padding: 8px 11px;
+        }
+
+        .acceptance-quote {
+            color: #111827;
+            font-size: 14px;
+            font-weight: 700;
+            margin: 7px 0;
         }
 
         @page {
@@ -332,6 +483,16 @@
                 grid-template-columns: 1fr;
             }
 
+            .summary-card {
+                display: block;
+            }
+
+            .summary-total,
+            .summary-meta {
+                margin-top: 8px;
+                text-align: left;
+            }
+
             .fees-table {
                 font-size: 12px;
             }
@@ -349,12 +510,47 @@
     {% set importe_iva = propuesta.importe_iva if propuesta.importe_iva is defined and propuesta.importe_iva is not none else propuesta.iva %}
     {% set total_propuesta = propuesta.total_propuesta if propuesta.total_propuesta is defined and propuesta.total_propuesta is not none else propuesta.total %}
     {% set categorias_detalle_extendido = ['ratificacion_judicial', 'desplazamientos', 'extras'] %}
-    {% set propuesta_flags = namespace(tiene_ratificacion=false) %}
+    {% set categoria_badges = {
+        'estudio_documental': 'Estudio documental',
+        'visita_tecnica': 'Visita técnica',
+        'informe_pericial': 'Servicio principal',
+        'ratificacion_judicial': 'Actuación judicial',
+        'desplazamientos': 'Desplazamiento',
+        'extras': 'Servicio adicional'
+    } %}
+    {% set propuesta_flags = namespace(tiene_ratificacion=false, tiene_condiciones_particulares=false) %}
     {% for linea in lineas %}
         {% if linea.categoria_servicio == 'ratificacion_judicial' %}
             {% set propuesta_flags.tiene_ratificacion = true %}
         {% endif %}
+        {% if linea.categoria_servicio in categorias_detalle_extendido and (linea.incluye or linea.no_incluye or linea.condiciones) %}
+            {% set propuesta_flags.tiene_condiciones_particulares = true %}
+        {% endif %}
     {% endfor %}
+    {% macro es_numero(valor, mostrar_decimales=true) -%}
+        {%- set bruto = format_money(valor) -%}
+        {%- set signo = '-' if bruto.startswith('-') else '' -%}
+        {%- set limpio = bruto[1:] if signo else bruto -%}
+        {%- set partes = limpio.split('.') -%}
+        {%- set entero = partes[0] -%}
+        {%- set decimal = partes[1] if partes | length > 1 else '00' -%}
+        {%- set largo = entero | length -%}
+        {%- if largo > 6 -%}
+            {%- set entero_es = entero[:-6] ~ '.' ~ entero[-6:-3] ~ '.' ~ entero[-3:] -%}
+        {%- elif largo > 3 -%}
+            {%- set entero_es = entero[:-3] ~ '.' ~ entero[-3:] -%}
+        {%- else -%}
+            {%- set entero_es = entero -%}
+        {%- endif -%}
+        {%- if mostrar_decimales or decimal != '00' -%}
+            {{- signo ~ entero_es ~ ',' ~ decimal -}}
+        {%- else -%}
+            {{- signo ~ entero_es -}}
+        {%- endif -%}
+    {%- endmacro %}
+    {% macro dinero(valor) -%}{{ es_numero(valor, true) }} €{%- endmacro %}
+    {% macro porcentaje(valor) -%}{{ es_numero(valor, false) }} %{%- endmacro %}
+    {% macro cantidad(valor) -%}{{ es_numero(valor, false) }}{%- endmacro %}
 
     <div class="toolbar no-print">
         <button class="button" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
@@ -395,7 +591,9 @@
             <p class="document-note">Documento de propuesta económica y alcance profesional previo a la aceptación del encargo.</p>
         </header>
 
-        <section>
+        <div class="part-title">Parte 1 — Propuesta</div>
+
+        <section class="section">
             <h2>Datos del cliente</h2>
             <div class="row">
                 <div class="col">
@@ -413,20 +611,33 @@
             </div>
         </section>
 
-        <section class="section">
+        <section class="section doc-card highlight">
             <h2>Objeto del encargo</h2>
             <p><span class="label">Tipo de trabajo</span><br>{{ propuesta.tipo_trabajo or '-' }}</p>
             <p><span class="label">Dirección del inmueble</span><br>{{ propuesta.direccion_inmueble or '-' }}</p>
             <p><span class="label">Plazo estimado</span><br>{{ propuesta.plazo_estimado or '-' }}</p>
         </section>
 
-        <section class="section">
+        <section class="section doc-card highlight">
+            <div class="summary-card">
+                <div>
+                    <h2>Resumen económico</h2>
+                    <p class="conditions-text">Importe total de la propuesta, impuestos incluidos.</p>
+                </div>
+                <div>
+                    <div class="summary-total">{{ dinero(total_propuesta) }}</div>
+                    <div class="summary-meta">Base {{ dinero(propuesta.base_imponible) }} · IVA {{ dinero(importe_iva) }}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section doc-card soft compact">
             <h2>Alcance de los servicios</h2>
             <p class="conditions-text">{{ propuesta.alcance or 'El alcance concreto del encargo no se ha detallado en la propuesta.' }}</p>
             <div class="scope-grid">
                 <div class="scope-box">
                     <h3>Incluye</h3>
-                    <ul>
+                    <ul class="compact-list">
                         {% if propuesta.alcance %}
                         <li>Las actuaciones descritas en el alcance del encargo.</li>
                         {% endif %}
@@ -440,10 +651,10 @@
                 </div>
                 <div class="scope-box">
                     <h3>No incluye</h3>
-                    <ul>
+                    <ul class="compact-list">
                         <li>Ensayos destructivos, catas, pruebas de laboratorio o actuaciones invasivas no contratadas expresamente.</li>
                         {% if propuesta_flags.tiene_ratificacion %}
-                        <li>Asistencia a juicio, mediación, reuniones adicionales o contrainformes distintos de la ratificación judicial expresamente incluida en la tabla de honorarios.</li>
+                        <li>Las actuaciones judiciales se limitan a las expresamente recogidas en la tabla de honorarios.</li>
                         {% else %}
                         <li>Ratificación judicial, asistencia a juicio, mediación, reuniones adicionales o contrainformes salvo que figuren expresamente como línea incluida en la tabla de honorarios.</li>
                         {% endif %}
@@ -454,13 +665,13 @@
             </div>
         </section>
 
-        <section class="section">
+        <section class="section doc-card highlight">
             <h2>Honorarios</h2>
             {% if lineas %}
             <table class="fees-table">
                 <thead>
                     <tr>
-                        <th>Concepto</th>
+                        <th>Servicio</th>
                         <th class="number">Cantidad</th>
                         <th class="number">Precio</th>
                         <th class="number">IVA</th>
@@ -471,24 +682,28 @@
                     {% for linea in lineas %}
                     <tr>
                         <td>
-                            {% if linea.categoria_servicio %}
-                            <span class="service-category">{{ servicio_categoria_labels.get(linea.categoria_servicio, linea.categoria_servicio) }}</span>
-                            {% endif %}
                             <strong>{{ linea.concepto }}</strong>
-                            {% if linea.descripcion %}<span class="service-description pre-line">{{ linea.descripcion }}</span>{% endif %}
-                            {% set mostrar_detalle_extendido = linea.categoria_servicio in categorias_detalle_extendido %}
-                            {% if mostrar_detalle_extendido and (linea.incluye or linea.no_incluye or linea.condiciones) %}
-                            <div class="service-notes">
-                                {% if linea.incluye %}<p><strong>Incluye:</strong> <span class="pre-line">{{ linea.incluye }}</span></p>{% endif %}
-                                {% if linea.no_incluye %}<p><strong>No incluye:</strong> <span class="pre-line">{{ linea.no_incluye }}</span></p>{% endif %}
-                                {% if linea.condiciones %}<p><strong>Condiciones:</strong> <span class="pre-line">{{ linea.condiciones }}</span></p>{% endif %}
-                            </div>
+                            {% set concepto_normalizado = (linea.concepto or '') | lower %}
+                            {% set categoria_visible = categoria_badges.get(linea.categoria_servicio, servicio_categoria_labels.get(linea.categoria_servicio, linea.categoria_servicio)) %}
+                            {% if categoria_visible and categoria_visible | lower != concepto_normalizado %}
+                            <br><span class="service-category">{{ categoria_visible }}</span>
+                            {% endif %}
+                            {% if linea.categoria_servicio == 'ratificacion_judicial' %}
+                            <span class="service-description">Ratificación del informe en sede judicial.</span>
+                            {% elif linea.categoria_servicio == 'desplazamientos' %}
+                            <span class="service-description">Desplazamiento profesional asociado a la actuación técnica{% if linea.cantidad %}: {{ cantidad(linea.cantidad) }} km{% endif %}.</span>
+                            {% elif linea.categoria_servicio == 'extras' and 'urgencia' in concepto_normalizado %}
+                            <span class="service-description">Recargo por tramitación urgente y reducción de plazos.</span>
+                            {% elif linea.categoria_servicio == 'extras' and 'complejidad' in concepto_normalizado %}
+                            <span class="service-description">Suplemento por complejidad técnica y análisis adicional.</span>
+                            {% elif linea.descripcion %}
+                            <span class="service-description pre-line">{{ linea.descripcion }}</span>
                             {% endif %}
                         </td>
-                        <td class="number">{{ format_money(linea.cantidad) }}</td>
-                        <td class="number">{{ format_money(linea.precio_unitario) }} €</td>
-                        <td class="number">{{ format_money(linea.iva_porcentaje) }} %</td>
-                        <td class="number">{{ format_money(linea.total) }} €</td>
+                        <td class="number">{{ cantidad(linea.cantidad) }}</td>
+                        <td class="number">{{ dinero(linea.precio_unitario) }}</td>
+                        <td class="number">{{ porcentaje(linea.iva_porcentaje) }}</td>
+                        <td class="number">{{ dinero(linea.total) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -499,53 +714,121 @@
             <div class="amounts">
                 <div class="amount-row">
                     <span>Honorarios profesionales / base imponible</span>
-                    <strong>{{ format_money(propuesta.base_imponible) }} €</strong>
+                    <strong>{{ dinero(propuesta.base_imponible) }}</strong>
                 </div>
                 <div class="amount-row">
-                    <span>IVA {{ format_money(iva_porcentaje) }} %</span>
-                    <strong>{{ format_money(importe_iva) }} €</strong>
+                    <span>IVA {{ porcentaje(iva_porcentaje) }}</span>
+                    <strong>{{ dinero(importe_iva) }}</strong>
                 </div>
                 <div class="amount-row total-row">
                     <span>Total honorarios</span>
-                    <strong class="total">{{ format_money(total_propuesta) }} €</strong>
+                    <strong class="total">{{ dinero(total_propuesta) }}</strong>
                 </div>
             </div>
         </section>
 
-        <section class="section">
+        {% if propuesta_flags.tiene_condiciones_particulares %}
+        <section class="section doc-card soft compact">
+            <h2>Condiciones particulares de los servicios</h2>
+            <div class="service-conditions">
+                {% set textos_particulares = namespace(seen='') %}
+                {% for categoria_grupo, titulo_grupo in [('ratificacion_judicial', 'Actuación judicial'), ('desplazamientos', 'Desplazamientos y dietas'), ('extras', 'Servicios adicionales')] %}
+                    {% set grupo = namespace(tiene=false) %}
+                    {% for linea in lineas %}
+                        {% set concepto_grupo = (linea.concepto or '') | lower %}
+                        {% set es_extra_generico = categoria_grupo == 'extras' and concepto_grupo in ['servicio adicional', 'servicios adicionales', 'extra', 'extras'] %}
+                        {% if linea.categoria_servicio == categoria_grupo and (linea.incluye or linea.no_incluye or linea.condiciones) and not es_extra_generico %}
+                            {% set grupo.tiene = true %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if grupo.tiene %}
+                    <h3>{{ titulo_grupo }}</h3>
+                        {% for linea in lineas %}
+                            {% set concepto_extra = (linea.concepto or '') | lower %}
+                            {% set es_extra_generico = categoria_grupo == 'extras' and concepto_extra in ['servicio adicional', 'servicios adicionales', 'extra', 'extras'] %}
+                            {% if linea.categoria_servicio == categoria_grupo and (linea.incluye or linea.no_incluye or linea.condiciones) and not es_extra_generico %}
+                            {% set linea_particular = namespace(tiene=false) %}
+                            {% if linea.incluye and linea.incluye not in textos_particulares.seen %}{% set linea_particular.tiene = true %}{% endif %}
+                            {% if linea.no_incluye and linea.no_incluye not in textos_particulares.seen %}{% set linea_particular.tiene = true %}{% endif %}
+                            {% if linea.condiciones and linea.condiciones not in textos_particulares.seen %}{% set linea_particular.tiene = true %}{% endif %}
+                            {% if linea_particular.tiene %}
+                            <div class="service-condition-item">
+                                {% if categoria_grupo == 'extras' and concepto_extra not in ['servicio adicional', 'servicios adicionales', 'extra', 'extras'] %}<h4>{{ linea.concepto }}</h4>{% endif %}
+                                <ul class="compact-list">
+                                {% if linea.incluye and linea.incluye not in textos_particulares.seen %}
+                                <li><span class="condition-label">Incluye</span><span class="pre-line">{{ linea.incluye }}</span></li>
+                                {% set textos_particulares.seen = textos_particulares.seen ~ '||' ~ linea.incluye %}
+                                {% endif %}
+                                {% if linea.no_incluye and linea.no_incluye not in textos_particulares.seen %}
+                                <li><span class="condition-label">No incluye</span><span class="pre-line">{{ linea.no_incluye }}</span></li>
+                                {% set textos_particulares.seen = textos_particulares.seen ~ '||' ~ linea.no_incluye %}
+                                {% endif %}
+                                {% if linea.condiciones and linea.condiciones not in textos_particulares.seen %}
+                                <li><span class="condition-label">Condiciones</span><span class="pre-line">{{ linea.condiciones }}</span></li>
+                                {% set textos_particulares.seen = textos_particulares.seen ~ '||' ~ linea.condiciones %}
+                                {% endif %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="section doc-card soft compact">
             <h2>Condiciones económicas</h2>
             {% if propuesta.condiciones %}
+            {% set condiciones_normalizadas = propuesta.condiciones | lower %}
+            {% if propuesta_flags.tiene_ratificacion and 'asistencia a juicio' in condiciones_normalizadas and 'ratificaci' in condiciones_normalizadas %}
+            <p class="conditions-text">Las actuaciones judiciales se limitarán a las expresamente recogidas en la tabla de honorarios.</p>
+            {% else %}
             <p class="conditions-text">{{ propuesta.condiciones }}</p>
+            {% endif %}
+            {% elif propuesta_flags.tiene_ratificacion %}
+            <p class="conditions-text">Las actuaciones judiciales se limitarán a las expresamente recogidas en la tabla de honorarios.</p>
             {% endif %}
             <div class="conditions-subblock">
                 <h3>Forma de pago</h3>
-                <p>Los honorarios profesionales se abonarán de la siguiente forma:</p>
-                <ul>
+                <ul class="compact-list">
                     <li>50% del importe total en concepto de provisión de fondos, previo al inicio de los trabajos.</li>
                     <li>50% restante a la entrega del informe pericial.</li>
+                    <li>La entrega del informe queda condicionada al abono completo de los honorarios.</li>
                 </ul>
-                <p>La entrega del informe queda condicionada al abono completo de los honorarios.</p>
-                <p>El inicio de los trabajos se realizará una vez recibida la aceptación de la propuesta y la provisión de fondos indicada.</p>
             </div>
             <div class="conditions-subblock">
                 <h3>Impago o demora en el pago</h3>
-                <p>En caso de incumplimiento de las condiciones de pago, el técnico se reserva el derecho a suspender los trabajos o la entrega del informe hasta la regularización de los importes pendientes.</p>
+                <p>El técnico podrá suspender los trabajos o la entrega del informe hasta la regularización de los importes pendientes.</p>
             </div>
         </section>
 
-        <section class="section">
+        <section class="section doc-card highlight">
+            <h2>Aceptación de la propuesta</h2>
+            <div class="acceptance-box">
+                <p>Para aceptar esta propuesta será suficiente con responder al correo electrónico indicando expresamente:</p>
+                <p class="acceptance-quote">“Acepto la propuesta enviada.”</p>
+                <p>La aceptación por correo electrónico se considerará confirmación suficiente del encargo profesional y de las condiciones indicadas.</p>
+            </div>
+        </section>
+
+        <div class="part-title legal-part">Parte 2 — Condiciones y limitaciones</div>
+
+        <section class="section doc-card legal">
             <h2>Exclusiones generales</h2>
             <div class="conditions-subblock">
                 <ul>
                     <li>No se incluyen trabajos adicionales no contemplados en el objeto, alcance o tabla de honorarios de esta propuesta.</li>
                     <li>No se incluyen tasas, aranceles, gastos de terceros, costes de laboratorio, trabajos auxiliares ni reparaciones.</li>
-                    <li>Las visitas adicionales, suspensiones judiciales, desplazamientos extraordinarios, dietas o actuaciones fuera de provincia se presupuestarán aparte salvo pacto expreso.</li>
+                    <li>Las segundas visitas, desplazamientos extraordinarios, dietas o actuaciones fuera de provincia se presupuestarán aparte salvo pacto expreso.</li>
+                    <li>Las suspensiones judiciales, nuevos señalamientos o ampliaciones de ratificación se presupuestarán aparte salvo que consten expresamente en la tabla de honorarios.</li>
                     <li>Cualquier modificación motivada por nueva documentación, cambio de estrategia o ampliación del encargo requerirá aceptación económica independiente.</li>
                 </ul>
             </div>
         </section>
 
-        <section class="section">
+        <section class="section doc-card legal">
             <h2>Limitaciones del encargo</h2>
             <div class="conditions-subblock">
                 <p>Las conclusiones del informe se basarán en la inspección visual, en la documentación disponible y en la información facilitada por el cliente en la fecha de la visita o del análisis técnico. No se realizarán ensayos destructivos, catas, pruebas de laboratorio ni actuaciones invasivas salvo contratación expresa.</p>
@@ -561,17 +844,10 @@
             </div>
         </section>
 
-        <section class="section">
+        <section class="section doc-card legal">
             <h2>Validez de la propuesta</h2>
             <p>La presente propuesta tendrá una validez de 30 días naturales desde su fecha de emisión, salvo indicación expresa distinta por escrito.</p>
             <p>Transcurrido dicho plazo, los honorarios, disponibilidad y condiciones podrán ser revisados antes de la aceptación del encargo.</p>
-        </section>
-
-        <section class="section">
-            <h2>Aceptación de la propuesta</h2>
-            <p>Para aceptar esta propuesta será suficiente con responder al correo electrónico en el que se remita este documento indicando expresamente:</p>
-            <p>“Acepto la propuesta enviada.”</p>
-            <p>La aceptación por correo electrónico se considerará confirmación suficiente del encargo profesional y de las condiciones indicadas.</p>
         </section>
     </main>
 </body>

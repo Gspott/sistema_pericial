@@ -1,0 +1,15 @@
+name: Docs Audit
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  docs-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run documentation audit
+        run: python3 scripts/audit_docs.py
