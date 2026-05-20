@@ -442,6 +442,28 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS emails_enviados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha_envio TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            tipo TEXT NOT NULL,
+            destinatario TEXT NOT NULL,
+            asunto TEXT NOT NULL,
+            cuerpo_texto TEXT,
+            nombre_adjunto TEXT,
+            tiene_adjunto INTEGER NOT NULL DEFAULT 0,
+            estado TEXT NOT NULL DEFAULT 'enviado',
+            error_mensaje TEXT,
+            referencia_entidad_tipo TEXT,
+            referencia_entidad_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            owner_user_id INTEGER,
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS configuracion_fiscal (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre_fiscal TEXT,

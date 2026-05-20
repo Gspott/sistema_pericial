@@ -119,3 +119,21 @@ Impacto: Cambios en canon, invariantes o anti-patrones requieren ADR, changelog,
 Cambio: Documentacion de propuestas con lineas de servicio estructuradas.
 Motivo: Reflejar las Fases 1, 2 y 3 del generador de propuestas ya implementadas.
 Impacto: Las lineas de `propuesta_lineas` son fuente economica de verdad cuando existen; se documentan categorias, servicios rapidos, PDF/imprimible, redondeo, validaciones no negativas, compatibilidad con propuestas antiguas y confirmacion server-side de borrado.
+
+### EMAIL-001
+
+Cambio: Documentacion de correo corporativo y envio HTML de propuestas.
+Motivo: Reflejar el SMTP corporativo con SSL en puerto 465 y el email de propuestas con texto plano, HTML profesional y PDF adjunto.
+Impacto: `.env.example`, despliegue, backend e informes documentan `contacto@carlosblancoperito.es`, `623 829 228`, `SMTP_SSL` para puerto 465 y `SMTP` + `STARTTLS` para otros puertos.
+
+### EMAIL-002
+
+Cambio: Modulo de email corporativo manual.
+Motivo: Permitir envio desde `/emails/nuevo` con estilo HTML corporativo, fallback texto plano y adjunto opcional.
+Impacto: El envio SMTP y la plantilla corporativa quedan centralizados en servicios reutilizables; propuestas reutiliza el helper comun sin cambiar su flujo.
+
+### EMAIL-003
+
+Cambio: Registro interno de emails enviados.
+Motivo: Trazar emails manuales, propuestas y futuros emails corporativos enviados desde el sistema sin implementar bandeja IMAP.
+Impacto: Se crea `emails_enviados`, se registra estado `enviado`/`error`, metadatos, resumen limitado y referencia opcional, sin almacenar adjuntos binarios ni MIME completo.

@@ -60,6 +60,38 @@ Patron aprobado:
 - Importador existente.
 - Incorporacion documental al modulo correspondiente.
 
+## Correo y SMTP
+
+El contacto corporativo oficial es `contacto@carlosblancoperito.es` y el telefono visible profesional es `623 829 228`.
+
+Configuracion SMTP recomendada en `.env`:
+
+```env
+SMTP_HOST=mail.carlosblancoperito.es
+SMTP_PORT=465
+SMTP_USER=contacto@carlosblancoperito.es
+SMTP_PASSWORD=...
+SMTP_FROM_EMAIL=contacto@carlosblancoperito.es
+```
+
+Reglas activas:
+
+- `.env` no debe commitearse.
+- Usar credenciales reales del buzon configurado en `SMTP_USER`.
+- Reiniciar FastAPI tras cambiar variables SMTP.
+- `SMTP_PORT=465` usa `smtplib.SMTP_SSL`.
+- Otros puertos usan `smtplib.SMTP` con `starttls()`.
+- El envio SMTP comun vive en `app/services/email_sender.py`.
+- La base visual corporativa vive en `app/services/email_templates.py`.
+- Si falla el envio, probar primero una conexion manual con `smtplib.SMTP_SSL(...).login(...)` o `SMTP(...).starttls().login(...)` segun puerto.
+
+Troubleshooting rapido:
+
+- `WRONG_VERSION_NUMBER` suele indicar mezcla de STARTTLS con puerto 465; usar `SMTP_SSL`.
+- Puerto 587 suele requerir `SMTP` + `STARTTLS`.
+- Variables de entorno cargadas en terminal pueden quedar cacheadas; reiniciar el proceso FastAPI y revisar `.env`.
+- Revisar logs del router de propuestas para el error SMTP real, sin exponer contrasenas.
+
 ## SQLite
 
 - No modificar la base de datos salvo necesidad real.
@@ -84,6 +116,8 @@ Reglas activas:
 
 - `/propuestas/{id}/imprimir`, `/pdf` y `/enviar-email` usan la plantilla imprimible con el desglose de lineas cuando existe.
 - `generar_pdf_propuesta_bytes()` acepta lineas y renderiza el mismo HTML actualizado que la vista imprimible.
+- El email de propuesta se envia con texto plano, alternativa HTML con estilos inline y PDF adjunto.
+- El envio por email debe conservar compatibilidad con clientes moviles y Gmail; no usar imagenes externas, scripts ni CSS remoto.
 - Los servicios rapidos son endpoints POST clasicos que crean lineas normales en `propuesta_lineas` y redirigen con 303.
 - Ratificacion judicial, desplazamientos/dietas, recargo por urgencia y suplemento por complejidad no son tablas ni catalogos independientes.
 - Urgencia y complejidad calculan siempre sobre `base_imponible` sin IVA; no deben calcular sobre total con IVA.
@@ -91,6 +125,20 @@ Reglas activas:
 - La validacion de importes no negativos es server-side para alta/edicion manual y servicios rapidos.
 - El borrado de lineas exige `confirmar_eliminar` en servidor antes de borrar y recalcular.
 - Los endpoints deben conservar validacion por `owner_user_id` mediante helpers `get_owned_*`.
+
+## Emails corporativos manuales
+
+El router `app/routers/emails.py` expone `/emails/nuevo` para enviar emails corporativos manuales desde la app y `/emails` como registro interno de envios.
+
+Reglas activas:
+
+- Mantener version texto plano y alternativa HTML corporativa.
+- Escapar el cuerpo escrito por el usuario antes de insertarlo en HTML.
+- Permitir solo adjuntos subidos desde el formulario, sin rutas arbitrarias.
+- Limitar adjuntos a 10 MB.
+- Reutilizar `app/services/email_sender.py` y `app/services/email_templates.py`.
+- Registrar emails manuales, propuestas y futuros emails corporativos en `emails_enviados`.
+- No guardar contrasenas, adjuntos binarios ni MIME completo; solo metadatos, resumen limitado, nombre de adjunto y estado.
 
 Anti-patrones especificos:
 

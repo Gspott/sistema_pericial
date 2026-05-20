@@ -155,8 +155,19 @@ El generador de propuestas mantiene compatibilidad con propuestas antiguas sin l
 - Categorias: estudio documental, visita tecnica, informe pericial, ratificacion judicial, desplazamientos/dietas y servicios adicionales.
 - Ratificacion judicial, desplazamientos/dietas, recargo por urgencia y suplemento por complejidad se crean como lineas normales.
 - El PDF/imprimible muestra tabla de honorarios y campos `incluye`, `no_incluye` y `condiciones` cuando existen.
+- El envio por email usa el contacto corporativo `contacto@carlosblancoperito.es` y adjunta el PDF con version texto plano y HTML profesional.
+- El telefono profesional visible es `623 829 228`.
 - Los importes se redondean a 2 decimales y se validan como no negativos en servidor.
 - El borrado de lineas exige confirmacion server-side.
+
+## Email corporativo
+
+El sistema incluye una pantalla `Nuevo email corporativo` en `/emails/nuevo` para enviar correos manuales desde el buzon corporativo configurado.
+
+- Usa el mismo estilo HTML corporativo que las propuestas y mantiene version texto plano.
+- Permite un adjunto opcional con limite de 10 MB.
+- Reutiliza la configuracion SMTP de `.env`.
+- Registra los envios internos en `/emails` sin guardar adjuntos binarios ni MIME completo.
 
 ## Estado actual de la documentacion
 

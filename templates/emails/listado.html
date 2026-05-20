@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Emails enviados</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <div class="card">
+            <h1>Emails enviados</h1>
+            <p class="subtitle">Registro interno de correos enviados desde Sistema Pericial. No almacena adjuntos ni MIME completo.</p>
+
+            <form method="get" action="/emails">
+                <label for="estado">Filtrar por estado</label>
+                <select id="estado" name="estado">
+                    <option value="">Todos</option>
+                    {% for estado in estados_email %}
+                    <option value="{{ estado }}" {% if estado_actual == estado %}selected{% endif %}>{{ estado }}</option>
+                    {% endfor %}
+                </select>
+                <button class="boton secundario" type="submit">Aplicar filtro</button>
+            </form>
+
+            <div class="actions">
+                <a class="boton" href="/emails/nuevo">Nuevo email corporativo</a>
+            </div>
+        </div>
+
+        {% if emails %}
+            {% for email in emails %}
+            <div class="card">
+                <h2>{{ email.asunto }}</h2>
+                <p><strong>Fecha:</strong> {{ email.fecha_envio }}</p>
+                <p><strong>Tipo:</strong> {{ email.tipo }}</p>
+                <p><strong>Destinatario:</strong> {{ email.destinatario }}</p>
+                {% set email_estado_clase = 'estado-aceptada' if email.estado == 'enviado' else 'estado-rechazada' %}
+                <p><strong>Estado:</strong> <span class="estado-badge {{ email_estado_clase }}">{{ email.estado }}</span></p>
+                <p><strong>Adjunto:</strong> {% if email.tiene_adjunto %}Sí{% if email.nombre_adjunto %} · {{ email.nombre_adjunto }}{% endif %}{% else %}No{% endif %}</p>
+                {% if email.referencia_entidad_tipo and email.referencia_entidad_id %}
+                <p><strong>Referencia:</strong> {{ email.referencia_entidad_tipo }} #{{ email.referencia_entidad_id }}</p>
+                {% endif %}
+                {% if email.estado == 'error' and email.error_mensaje %}
+                <p class="error"><strong>Error:</strong> {{ email.error_mensaje }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p class="empty">Todavía no hay emails registrados.</p>
+            </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

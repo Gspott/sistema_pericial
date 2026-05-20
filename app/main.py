@@ -50,6 +50,7 @@ from app.database import init_db
 from app.routers import backups as backups_router
 from app.routers import clientes as clientes_router
 from app.routers import dashboard as dashboard_router
+from app.routers import emails as emails_router
 from app.routers import facturacion as facturacion_router
 from app.routers import gastos as gastos_router
 from app.routers import leads as leads_router
@@ -3901,6 +3902,7 @@ async def auth_middleware(request: Request, call_next):
 app.include_router(backups_router.router)
 app.include_router(clientes_router.router)
 app.include_router(dashboard_router.router)
+app.include_router(emails_router.router)
 app.include_router(facturacion_router.router)
 app.include_router(gastos_router.router)
 app.include_router(leads_router.router)

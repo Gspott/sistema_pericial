@@ -169,6 +169,8 @@ Reglas activas:
 - Si no existen lineas, el documento mantiene fallback de importe global para propuestas antiguas.
 - Los totales mostrados deben venir de `propuestas`; no recalcular importes dentro de Jinja.
 - El PDF descargado y el PDF enviado por email deben usar la misma plantilla imprimible actualizada.
+- El email de envio de propuesta incluye texto plano, version HTML profesional con estilos inline y el PDF como adjunto.
+- El HTML del email debe ser compatible con clientes moviles y Gmail, sin imagenes remotas, scripts ni CSS externo.
 
 Checklist especifico:
 
@@ -176,3 +178,4 @@ Checklist especifico:
 - Probar `/propuestas/{id}/imprimir` con lineas categorizadas y servicios rapidos.
 - Generar `/propuestas/{id}/pdf` y verificar que el desglose coincide con el detalle.
 - Enviar email solo si el PDF adjunto usa la misma plantilla actualizada.
+- Verificar que el email recibido contiene version HTML, fallback texto plano y adjunto PDF.

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>{{ titulo }}</title>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <div class="card">
+            <h1>{{ titulo }}</h1>
+            <p class="subtitle">Envía correos profesionales desde contacto@carlosblancoperito.es con formato corporativo.</p>
+            {% if mensaje %}<p class="success">{{ mensaje }}</p>{% endif %}
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+            <form method="post" action="{{ form_action }}" enctype="multipart/form-data">
+                <label for="destinatario">Destinatario</label>
+                <div class="email-autocomplete" data-email-autocomplete>
+                    <input id="destinatario" name="destinatario" type="email" value="{{ form_data.destinatario or '' }}" autocomplete="off" aria-autocomplete="list" aria-controls="destinatario-sugerencias" aria-expanded="false" required data-email-autocomplete-input>
+                    <div id="destinatario-sugerencias" class="email-autocomplete-results" role="listbox" hidden data-email-autocomplete-results></div>
+                </div>
+
+                <label for="asunto">Asunto</label>
+                <input id="asunto" name="asunto" type="text" value="{{ form_data.asunto or '' }}" required>
+
+                <label for="cuerpo">Cuerpo</label>
+                <textarea id="cuerpo" name="cuerpo" rows="10" required>{{ form_data.cuerpo or '' }}</textarea>
+
+                <label for="adjunto">Adjunto opcional</label>
+                <input id="adjunto" name="adjunto" type="file">
+                <p class="subtitle">Límite: 10 MB. No se admiten rutas externas; solo el archivo seleccionado.</p>
+
+                <div class="actions">
+                    <button class="boton" type="submit">Enviar email</button>
+                    <a class="boton secundario" href="/emails">Ver emails enviados</a>
+                    <a class="boton secundario" href="/dashboard">Volver al dashboard</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+    <script src="/static/emails.js?v=1"></script>
+</body>
+</html>

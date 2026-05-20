@@ -22,6 +22,38 @@ FOTOS_DIR=fotos
 LOGS_DIR=logs
 ```
 
+## Correo corporativo
+
+Para enviar propuestas por email, configura el SMTP corporativo en `.env`:
+
+```env
+SMTP_HOST=mail.carlosblancoperito.es
+SMTP_PORT=465
+SMTP_USER=contacto@carlosblancoperito.es
+SMTP_PASSWORD=...
+SMTP_FROM_EMAIL=contacto@carlosblancoperito.es
+SMTP_FROM_NAME=Carlos Blanco
+```
+
+Reglas operativas:
+
+- `.env` nunca debe commitearse.
+- Usa las credenciales reales del buzon corporativo.
+- Reinicia FastAPI despues de cambiar variables SMTP.
+- El puerto `465` usa `SMTP_SSL`.
+- Otros puertos mantienen `SMTP` + `STARTTLS`.
+- La misma configuracion se usa para propuestas y para emails corporativos manuales desde `/emails/nuevo`.
+- Si aparece `WRONG_VERSION_NUMBER`, revisa que no se este usando STARTTLS contra el puerto 465.
+
+Prueba manual recomendada ante incidencias:
+
+```python
+import smtplib
+
+with smtplib.SMTP_SSL("mail.carlosblancoperito.es", 465, timeout=20) as smtp:
+    smtp.login("contacto@carlosblancoperito.es", "PASSWORD")
+```
+
 ## Arranque local
 
 Desde la raíz del proyecto:

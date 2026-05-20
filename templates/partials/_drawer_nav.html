@@ -8,6 +8,8 @@
     <a class="drawer-link {% if path.startswith('/dashboard') or path == '/' %}active{% endif %}" href="/dashboard">Dashboard</a>
     <a class="drawer-link {% if path.startswith('/leads') %}active{% endif %}" href="/leads">Leads</a>
     <a class="drawer-link {% if path.startswith('/propuestas') %}active{% endif %}" href="/propuestas">Propuestas</a>
+    <a class="drawer-link {% if path == '/emails' %}active{% endif %}" href="/emails">Emails enviados</a>
+    <a class="drawer-link {% if path.startswith('/emails/nuevo') %}active{% endif %}" href="/emails/nuevo">Email corporativo</a>
     <a class="drawer-link {% if path.startswith('/clientes') %}active{% endif %}" href="/clientes">Clientes</a>
     <a class="drawer-link {% if path.startswith('/expedientes') or path.startswith('/detalle-expediente') or path.startswith('/nuevo-expediente') or path.startswith('/editar-expediente') or path.startswith('/nueva-visita') or path.startswith('/editar-visita') or path.startswith('/definir-estancias') or path.startswith('/editar-estancia') or path.startswith('/registrar-patologias') or path.startswith('/editar-registro') or path.startswith('/editar-nivel-expediente') or path.startswith('/editar-unidad-expediente') or path.startswith('/editar-mapa-patologia') or path.startswith('/editar-cuadrante-mapa-patologia') or path.startswith('/crear-patologia-desde-cuadrante') %}active{% endif %}" href="/expedientes">Expedientes</a>
     <a class="drawer-link {% if path.startswith('/biblioteca-patologias') %}active{% endif %}" href="/biblioteca-patologias">Biblioteca de patologías</a>
@@ -23,6 +25,7 @@
     </div>
     <a class="drawer-link quick-drawer-link" href="/leads/nuevo">Nuevo lead</a>
     <a class="drawer-link quick-drawer-link" href="/propuestas/nueva">Nueva propuesta</a>
+    <a class="drawer-link quick-drawer-link" href="/emails/nuevo">Nuevo email corporativo</a>
     <a class="drawer-link quick-drawer-link" href="/clientes/nuevo">Nuevo cliente</a>
     <a class="drawer-link quick-drawer-link" href="/nuevo-expediente">Nuevo expediente</a>
     <a class="drawer-link quick-drawer-link" href="/facturacion/facturas/nueva">Nueva factura</a>
