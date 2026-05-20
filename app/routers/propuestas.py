@@ -1,3 +1,4 @@
+import logging
 import re
 import smtplib
 from decimal import Decimal, ROUND_HALF_UP
@@ -25,6 +26,7 @@ from app.services.propuestas_catalogo import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 PROPUESTA_ESTADOS = ("borrador", "enviada", "aceptada", "rechazada", "caducada")
 SERVICIO_CATEGORIAS = (
@@ -256,7 +258,7 @@ Quedo a tu disposición para cualquier aclaración.
 Un saludo,
 Carlos Blanco
 Arquitecto Técnico
-647033915"""
+623 829 228"""
 
     return (
         f"mailto:{quote(email)}"
@@ -332,7 +334,7 @@ def enviar_email_propuesta(destinatario: str, propuesta, pdf_bytes: bytes):
         raise RuntimeError("smtp_not_configured")
 
     asunto = f"Propuesta {propuesta['numero_propuesta']} - Servicios profesionales"
-    cuerpo = """Hola,
+    body_text = """Hola,
 
 Te remito adjunta la propuesta de servicios profesionales correspondiente.
 
@@ -345,13 +347,51 @@ Quedo a tu disposición para cualquier aclaración.
 Un saludo,
 Carlos Blanco
 Arquitecto Técnico
-647033915"""
+623 829 228
+contacto@carlosblancoperito.es
+
+Documento adjunto en PDF."""
+
+    body_html = """\
+<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#f7f5f0;font-family:Arial,Helvetica,sans-serif;color:#10233f;">
+  <div style="width:100%;background:#f7f5f0;padding:24px 12px;">
+    <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e4e0d8;border-radius:8px;overflow:hidden;">
+      <div style="background:#10233f;color:#ffffff;padding:24px 28px;border-bottom:4px solid #b89b68;">
+        <div style="font-size:22px;font-weight:700;line-height:1.2;">Carlos Blanco</div>
+        <div style="font-size:14px;line-height:1.5;color:#f7f5f0;">Arquitecto Técnico</div>
+        <div style="margin-top:14px;font-size:16px;font-weight:700;color:#b89b68;">Propuesta de servicios profesionales</div>
+      </div>
+      <div style="padding:28px;">
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Hola,</p>
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.6;">Te remito adjunta la propuesta de servicios profesionales correspondiente.</p>
+        <div style="margin:22px 0;padding:18px;border:1px solid #e4e0d8;border-left:4px solid #b89b68;background:#f7f5f0;border-radius:6px;">
+          <div style="margin-bottom:8px;font-size:13px;font-weight:700;color:#10233f;">Para aceptar la propuesta, responde indicando:</div>
+          <div style="font-size:17px;font-weight:700;color:#10233f;">“Acepto la propuesta enviada.”</div>
+        </div>
+        <p style="margin:0 0 24px;font-size:15px;line-height:1.6;">Quedo a tu disposición para cualquier aclaración.</p>
+        <div style="padding-top:18px;border-top:1px solid #e4e0d8;font-size:14px;line-height:1.6;color:#10233f;">
+          <div style="font-weight:700;">Carlos Blanco</div>
+          <div>Arquitecto Técnico</div>
+          <div>623 829 228</div>
+          <div>contacto@carlosblancoperito.es</div>
+        </div>
+      </div>
+      <div style="padding:14px 28px;background:#f7f5f0;border-top:1px solid #e4e0d8;font-size:12px;line-height:1.5;color:#6f6a60;">
+        Documento adjunto en PDF.
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
 
     mensaje = EmailMessage()
     mensaje["Subject"] = asunto
     mensaje["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM_EMAIL))
     mensaje["To"] = destinatario
-    mensaje.set_content(cuerpo)
+    mensaje.set_content(body_text)
+    mensaje.add_alternative(body_html, subtype="html")
     mensaje.add_attachment(
         pdf_bytes,
         maintype="application",
@@ -359,10 +399,27 @@ Arquitecto Técnico
         filename=nombre_archivo_pdf_propuesta(propuesta),
     )
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASSWORD)
-        smtp.send_message(mensaje)
+    try:
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+                smtp.login(SMTP_USER, SMTP_PASSWORD)
+                smtp.send_message(mensaje)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+                smtp.starttls()
+                smtp.login(SMTP_USER, SMTP_PASSWORD)
+                smtp.send_message(mensaje)
+    except Exception:
+        logger.exception(
+            "Error SMTP enviando propuesta %s a %s con host=%s puerto=%s usuario=%s remitente=%s",
+            propuesta["numero_propuesta"],
+            destinatario,
+            SMTP_HOST,
+            SMTP_PORT,
+            SMTP_USER,
+            SMTP_FROM_EMAIL,
+        )
+        raise
 
 
 def get_owned_lead(cur, lead_id: int, owner_user_id: int):
