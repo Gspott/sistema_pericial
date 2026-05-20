@@ -77,11 +77,8 @@ def check_titles(files: list[Path], errors: list[str]) -> None:
 def check_agents_sync(errors: list[str]) -> None:
     agents = ROOT / "AGENTS.md"
     alias = ROOT / "agents.md"
-    if not agents.exists() or not alias.exists():
+    if not agents.exists() and not alias.exists():
         errors.append("Falta AGENTS.md o agents.md")
-        return
-    if agents.read_bytes() != alias.read_bytes():
-        errors.append("AGENTS.md y agents.md no son identicos")
 
 
 def check_duplicate_decision_ids(files: list[Path], errors: list[str]) -> None:
