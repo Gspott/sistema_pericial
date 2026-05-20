@@ -11,12 +11,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug repository files
-        run: |
-          pwd
-          git rev-parse HEAD
-          ls -la
-          find . -maxdepth 1 -iname '*agents*' -print
-
       - name: Run documentation audit
         run: python3 scripts/audit_docs.py
