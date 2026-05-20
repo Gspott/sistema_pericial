@@ -361,3 +361,5 @@ Ejemplos de commits:
 - `fix(propuestas): remove redundant action buttons`
 - `improve(control-app): show startup errors`
 - `docs: update Codex agent guide`
+
+<!-- audit sync -->
