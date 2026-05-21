@@ -135,6 +135,65 @@
             </div>
         </div>
 
+        <div class="card">
+            <h2>Facturación vinculada</h2>
+            {% if facturas_vinculadas_resumen.borradores %}
+            <p class="error">Ya existe una factura en borrador asociada a esta propuesta.</p>
+            {% endif %}
+            {% if facturas_vinculadas_resumen.emitidas_cobradas %}
+            <p class="error">Esta propuesta ya tiene facturación vinculada. Revisa antes de crear nuevas facturas.</p>
+            {% endif %}
+
+            <div class="inner-card">
+                <p><strong>Borradores vinculados:</strong> {{ facturas_vinculadas_resumen.borradores }}</p>
+                <p><strong>Emitidas/cobradas vinculadas:</strong> {{ facturas_vinculadas_resumen.emitidas_cobradas }}</p>
+                <p><strong>Total emitido/cobrado vinculado:</strong> {{ format_money(facturas_vinculadas_resumen.total_emitido_cobrado) }} €</p>
+            </div>
+
+            {% if not print_mode %}
+                {% if facturas_vinculadas_resumen.borradores %}
+                    {% for factura in facturas_vinculadas %}
+                        {% if factura.estado == 'borrador' %}
+                        <div class="actions">
+                            <a class="boton" href="/facturacion/facturas/{{ factura.id }}">Abrir factura borrador</a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% elif facturas_vinculadas_resumen.emitidas_cobradas %}
+                <p class="subtitle">En esta fase no se crean nuevas facturas si ya existe facturación emitida o cobrada vinculada.</p>
+                {% else %}
+                    {% if not propuesta.cliente_id %}
+                    <p class="subtitle">La propuesta no tiene cliente vinculado. Se creará un borrador, pero no podrá emitirse hasta completar el cliente.</p>
+                    {% endif %}
+                    <form method="post" action="/propuestas/{{ propuesta.id }}/crear-factura">
+                        <button class="boton" type="submit">Crear factura desde propuesta</button>
+                    </form>
+                {% endif %}
+            {% endif %}
+
+            {% if facturas_vinculadas %}
+                {% for factura in facturas_vinculadas %}
+                <div class="inner-card">
+                    <h3>{{ factura.numero_factura or ('Borrador #' ~ factura.id) }}</h3>
+                    {% set factura_estado_clase = 'estado-' ~ factura.estado if factura.estado in ['borrador', 'emitida', 'cobrada', 'anulada'] else 'estado-pendiente' %}
+                    <p><strong>Estado:</strong> <span class="estado-badge {{ factura_estado_clase }}">{{ factura.estado }}</span></p>
+                    <p><strong>Fecha:</strong> {{ factura.fecha }}</p>
+                    {% if factura.cliente_id %}
+                    <p><strong>Cliente:</strong> {{ factura.cliente_razon_social or factura.cliente_nombre or 'Cliente sin nombre' }}{% if factura.cliente_apellidos and not factura.cliente_razon_social %} {{ factura.cliente_apellidos }}{% endif %}</p>
+                    {% endif %}
+                    <p><strong>Total:</strong> {{ format_money(factura.total) }} €</p>
+                    {% if not print_mode %}
+                    <div class="actions">
+                        <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}">Ver factura</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="empty">No hay facturas vinculadas a esta propuesta.</p>
+            {% endif %}
+        </div>
+
         {% if not print_mode %}
         <div class="card">
             <h2>Servicios rápidos</h2>

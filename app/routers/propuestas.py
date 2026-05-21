@@ -21,6 +21,14 @@ from app.services.email_templates import (
     construir_email_html,
     construir_email_texto,
 )
+from app.routers.facturacion import (
+    calcular_irpf_sugerido as calcular_irpf_factura,
+    calcular_linea as calcular_linea_factura,
+    configuracion_fiscal_para_formulario,
+    obtener_configuracion_fiscal,
+    recalcular_totales_factura,
+    registrar_evento_factura,
+)
 from app.services.propuestas_catalogo import (
     SERVICIOS_CATALOGO,
     SERVICIOS_CATALOGO_OPCIONES,
@@ -475,6 +483,98 @@ def obtener_lineas_propuesta(cur, propuesta_id: int):
     ).fetchall()
 
 
+def obtener_facturas_vinculadas_propuesta(cur, propuesta_id: int, owner_user_id: int):
+    return cur.execute(
+        """
+        SELECT f.id, f.numero_factura, f.fecha, f.estado, f.total,
+               f.cliente_id,
+               c.nombre AS cliente_nombre,
+               c.apellidos AS cliente_apellidos,
+               c.razon_social AS cliente_razon_social
+        FROM facturas_emitidas f
+        LEFT JOIN clientes c ON c.id = f.cliente_id
+        WHERE f.propuesta_id = ? AND f.owner_user_id = ?
+        ORDER BY f.id DESC
+        """,
+        (propuesta_id, owner_user_id),
+    ).fetchall()
+
+
+def resumir_facturas_vinculadas(facturas):
+    borradores = sum(1 for factura in facturas if factura["estado"] == "borrador")
+    emitidas_cobradas = sum(
+        1 for factura in facturas if factura["estado"] in ("emitida", "cobrada")
+    )
+    total_emitido_cobrado = sum(
+        float(factura["total"] or 0)
+        for factura in facturas
+        if factura["estado"] in ("emitida", "cobrada")
+    )
+    return {
+        "borradores": borradores,
+        "emitidas_cobradas": emitidas_cobradas,
+        "total_emitido_cobrado": total_emitido_cobrado,
+    }
+
+
+def obtener_factura_borrador_vinculada(facturas):
+    for factura in facturas:
+        if factura["estado"] == "borrador":
+            return factura
+    return None
+
+
+def tiene_facturacion_emitida_o_cobrada(facturas) -> bool:
+    return any(factura["estado"] in ("emitida", "cobrada") for factura in facturas)
+
+
+def descripcion_factura_desde_propuesta(linea) -> str:
+    return limpiar_texto(linea["descripcion"])
+
+
+def crear_linea_factura_desde_datos(
+    cur,
+    factura_id: int,
+    concepto: str,
+    descripcion: str,
+    cantidad: float,
+    precio_unitario: float,
+    iva_porcentaje: float,
+    irpf_porcentaje: float,
+    orden: int,
+):
+    subtotal, iva_importe, irpf_importe, total = calcular_linea_factura(
+        cantidad,
+        precio_unitario,
+        iva_porcentaje,
+        irpf_porcentaje,
+    )
+    cur.execute(
+        """
+        INSERT INTO factura_lineas (
+            factura_id, concepto, descripcion, cantidad, precio_unitario,
+            iva_porcentaje, irpf_porcentaje, subtotal, iva_importe,
+            irpf_importe, total, orden
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            factura_id,
+            limpiar_texto(concepto) or "Honorarios profesionales",
+            limpiar_texto(descripcion),
+            cantidad,
+            precio_unitario,
+            iva_porcentaje,
+            irpf_porcentaje,
+            subtotal,
+            iva_importe,
+            irpf_importe,
+            total,
+            orden,
+        ),
+    )
+
+
 def get_owned_linea_propuesta(cur, propuesta_id: int, linea_id: int, owner_user_id: int):
     return cur.execute(
         """
@@ -848,6 +948,10 @@ def detalle_propuesta(
         if not propuesta:
             raise HTTPException(status_code=404, detail="Propuesta no encontrada")
         lineas = obtener_lineas_propuesta(cur, propuesta_id)
+        facturas_vinculadas = obtener_facturas_vinculadas_propuesta(
+            cur, propuesta_id, current_user["id"]
+        )
+        facturas_vinculadas_resumen = resumir_facturas_vinculadas(facturas_vinculadas)
     finally:
         conn.close()
 
@@ -862,6 +966,8 @@ def detalle_propuesta(
             "servicio_categoria_labels": SERVICIO_CATEGORIA_LABELS,
             "servicios_catalogo": SERVICIOS_CATALOGO_OPCIONES,
             "servicios_catalogo_preview": construir_catalogo_preview(),
+            "facturas_vinculadas": facturas_vinculadas,
+            "facturas_vinculadas_resumen": facturas_vinculadas_resumen,
             "format_money": format_money,
             "print_mode": bool(print),
             "mailto_url": construir_mailto_propuesta(request, propuesta),
@@ -897,6 +1003,137 @@ def imprimir_propuesta(request: Request, propuesta_id: int):
             "email_disponible": bool(obtener_email_propuesta(propuesta)),
         },
     )
+
+
+@router.post("/propuestas/{propuesta_id}/crear-factura")
+def crear_factura_desde_propuesta(request: Request, propuesta_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    factura_id = None
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+        facturas_vinculadas = obtener_facturas_vinculadas_propuesta(
+            cur, propuesta_id, current_user["id"]
+        )
+        factura_borrador = obtener_factura_borrador_vinculada(facturas_vinculadas)
+        if factura_borrador:
+            return RedirectResponse(
+                url=f"/facturacion/facturas/{factura_borrador['id']}",
+                status_code=303,
+            )
+        if tiene_facturacion_emitida_o_cobrada(facturas_vinculadas):
+            return RedirectResponse(
+                url=f"/propuestas/{propuesta_id}?error={quote('Esta propuesta ya tiene facturación emitida o cobrada vinculada. Revisa antes de crear nuevas facturas.')}",
+                status_code=303,
+            )
+
+        lineas_propuesta = obtener_lineas_propuesta(cur, propuesta_id)
+        if not lineas_propuesta and float(propuesta["base_imponible"] or 0) <= 0:
+            return RedirectResponse(
+                url=f"/propuestas/{propuesta_id}?error={quote('No se puede crear factura: la propuesta no tiene líneas ni base imponible positiva.')}",
+                status_code=303,
+            )
+
+        cliente_id = propuesta["cliente_id"]
+        cliente = get_owned_cliente(cur, cliente_id, current_user["id"]) if cliente_id else None
+        config = obtener_configuracion_fiscal(cur, current_user["id"])
+        config_form = configuracion_fiscal_para_formulario(config)
+        irpf_sugerido = calcular_irpf_factura(cliente, config)
+        concepto_general = limpiar_texto(propuesta["tipo_trabajo"]) or propuesta["numero_propuesta"]
+
+        cur.execute(
+            """
+            INSERT INTO facturas_emitidas (
+                serie, fecha, estado, cliente_id, propuesta_id, expediente_id,
+                concepto_general, irpf_porcentaje_defecto, notas, tipo_factura,
+                owner_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                config_form["serie_factura"] or "F",
+                str(date.today()),
+                "borrador",
+                cliente_id,
+                propuesta_id,
+                propuesta["expediente_id"],
+                concepto_general,
+                irpf_sugerido,
+                "",
+                "ordinaria",
+                current_user["id"],
+            ),
+        )
+        factura_id = cur.lastrowid
+
+        registrar_evento_factura(
+            cur,
+            factura_id,
+            current_user["id"],
+            "creada_desde_propuesta",
+            f"Factura borrador creada desde propuesta {propuesta['numero_propuesta']}.",
+        )
+        if not cliente_id:
+            registrar_evento_factura(
+                cur,
+                factura_id,
+                current_user["id"],
+                "aviso",
+                "La propuesta no tiene cliente vinculado; completa el cliente antes de emitir.",
+            )
+
+        lineas_importadas = 0
+        if lineas_propuesta:
+            for indice, linea in enumerate(lineas_propuesta, start=1):
+                crear_linea_factura_desde_datos(
+                    cur,
+                    factura_id,
+                    linea["concepto"],
+                    descripcion_factura_desde_propuesta(linea),
+                    float(linea["cantidad"] or 0),
+                    float(linea["precio_unitario"] or 0),
+                    float(linea["iva_porcentaje"] or 0),
+                    irpf_sugerido,
+                    int(linea["orden"] or indice),
+                )
+                lineas_importadas += 1
+        else:
+            crear_linea_factura_desde_datos(
+                cur,
+                factura_id,
+                limpiar_texto(propuesta["tipo_trabajo"]) or "Honorarios profesionales",
+                limpiar_texto(propuesta["alcance"])[:500],
+                1.0,
+                float(propuesta["base_imponible"] or 0),
+                float(propuesta["iva_porcentaje"] or 0),
+                irpf_sugerido,
+                1,
+            )
+            lineas_importadas = 1
+
+        recalcular_totales_factura(cur, factura_id)
+        registrar_evento_factura(
+            cur,
+            factura_id,
+            current_user["id"],
+            "lineas_importadas_desde_propuesta",
+            f"Importadas {lineas_importadas} línea(s) desde propuesta {propuesta['numero_propuesta']}.",
+        )
+        conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return RedirectResponse(url=f"/facturacion/facturas/{factura_id}", status_code=303)
 
 
 @router.get("/propuestas/{propuesta_id}/pdf")
