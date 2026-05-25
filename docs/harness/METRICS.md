@@ -4,7 +4,7 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 
 | Metrica | Valor actual | Fuente | Cadencia |
 |---|---:|---|---|
-| Smoke tests | 15 | `pytest tests/smoke -q` | Semanal |
+| Smoke tests | 20 | `pytest tests/smoke -q` | Semanal |
 | Tiempo aproximado de `validate_harness.sh` | < 5 s en entorno local habitual | `bash scripts/validate_harness.sh` | Semanal |
 | Warnings activos | 1 | `python3 scripts/audit_docs.py` | Semanal |
 | Tamano `app/main.py` | > 8000 lineas | `scripts/audit_docs.py` | Mensual |
@@ -14,7 +14,7 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 | Deuda tecnica abierta | Revisar tabla | `docs/harness/PLANS/tech_debt_tracker.md` | Mensual |
 | Failures documentados | 3 | `docs/harness/FAILURES/` | Mensual |
 | Patrones reutilizables | 5 | `docs/harness/PATTERNS/` | Mensual |
-| Backlog por prioridad | critical: 0, high: 1, medium: 2, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
+| Backlog por prioridad | critical: 0, high: 1, medium: 1, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
 | Warnings activos documentados | 1 | `docs/harness/STATE/known_risks.md` | Semanal |
 
 ## Warnings conocidos
