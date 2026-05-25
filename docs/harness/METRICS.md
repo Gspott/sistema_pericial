@@ -8,9 +8,9 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 | Tiempo aproximado de `validate_harness.sh` | < 5 s en entorno local habitual | `bash scripts/validate_harness.sh` | Semanal |
 | Warnings activos | 1 | `python3 scripts/audit_docs.py` | Semanal |
 | Tamano `app/main.py` | > 8000 lineas | `scripts/audit_docs.py` | Mensual |
-| Task Packs existentes | 9 | `docs/harness/TASK_PACKS/` | Mensual |
+| Task Packs existentes | 8 | `docs/harness/TASK_PACKS/` | Mensual |
 | Docs normativos principales | 10 | `docs/SOURCE_OF_TRUTH.md` | Mensual |
-| Planes activos | 1 | `docs/harness/PLANS/active/` | Semanal |
+| Planes activos | 2 | `docs/harness/PLANS/active/` | Semanal |
 | Deuda tecnica abierta | Revisar tabla | `docs/harness/PLANS/tech_debt_tracker.md` | Mensual |
 | Failures documentados | 3 | `docs/harness/FAILURES/` | Mensual |
 | Patrones reutilizables | 5 | `docs/harness/PATTERNS/` | Mensual |
@@ -26,3 +26,16 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 - Actualizar valores cuando una fase cambie tests, warnings, planes o deuda.
 - No perseguir metricas cosmeticas: medir solo lo que ayuda a operar con seguridad.
 - Si una metrica requiere mucho mantenimiento manual, simplificarla.
+
+## Métricas generadas
+
+| Metrica | Valor |
+|---|---|
+| Smoke tests | 20 |
+| Planes activos | 2 |
+| Planes completados | 12 |
+| Failures documentados | 3 |
+| Patterns reutilizables | 5 |
+| Task Packs | 8 |
+| Warning monolito | WARNING: app/main.py tiene 9222 lineas |
+| Warning PWA | OK |

@@ -172,16 +172,12 @@ TASK_PACK_SOURCE_LINKS = {
     "docs/harness/TASK_PACKS/backup_restore_change.md": "docs/RESTORE.md",
 }
 MAIN_MONOLITH_WARNING_LINES = 8000
-ACTIVE_PLAN_CLOSED_MARKERS = {
-    "estado: cerrado",
-    "estado: completado",
-    "estado: completed",
-    "estado: validado",
-    "tarea cerrada",
-    "validaciones pasan",
-    "validaciones pasaron",
-    "validado y cerrado",
-}
+ACTIVE_PLAN_CLOSED_PATTERNS = [
+    re.compile(r"^estado:\s*(cerrado|completado|completed|validado)\s*$", re.MULTILINE),
+    re.compile(r"\btarea cerrada\b"),
+    re.compile(r"\bvalidaciones (pasan|pasaron)\b"),
+    re.compile(r"\bvalidado y cerrado\b"),
+]
 
 
 def markdown_files() -> list[Path]:
@@ -399,7 +395,7 @@ def check_active_plan_drift(warnings: list[str]) -> None:
         if path.name == "README.md":
             continue
         text = path.read_text(encoding="utf-8").lower()
-        if any(marker in text for marker in ACTIVE_PLAN_CLOSED_MARKERS):
+        if any(pattern.search(text) for pattern in ACTIVE_PLAN_CLOSED_PATTERNS):
             warnings.append(
                 "Plan activo parece cerrado/completado/validado: "
                 f"{relative(path)}"

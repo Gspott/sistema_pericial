@@ -4,6 +4,23 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+CLOSE_PLAN=""
+if [ "$#" -gt 0 ]; then
+    case "${1:-}" in
+        --close-plan)
+            if [ "$#" -ne 2 ]; then
+                printf '[FAIL] Uso: %s --close-plan NOMBRE.md\n' "$0" >&2
+                exit 2
+            fi
+            CLOSE_PLAN="$2"
+            ;;
+        *)
+            printf '[FAIL] Opcion no reconocida: %s\n' "$1" >&2
+            exit 2
+            ;;
+    esac
+fi
+
 step() {
     printf '\n[STEP] %s\n' "$1"
 }
@@ -52,5 +69,10 @@ else
 fi
 
 run_step "Diff whitespace check" git diff --check
+
+if [ -n "$CLOSE_PLAN" ]; then
+    run_step "Close harness plan" python3 scripts/harness_close_plan.py "$CLOSE_PLAN"
+    run_step "Update harness metrics" python3 scripts/harness_metrics.py
+fi
 
 printf '\n[OK] Harness validation finished\n'

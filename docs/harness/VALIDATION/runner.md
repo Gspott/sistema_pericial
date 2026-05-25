@@ -6,6 +6,22 @@
 
 No arranca servidor persistente, no instala paquetes, no envia emails, no usa Playwright real y no debe tocar datos reales.
 
+## Uso
+
+Validacion normal:
+
+```bash
+bash scripts/validate_harness.sh
+```
+
+Validacion y cierre mecanico de plan, solo si todo pasa:
+
+```bash
+bash scripts/validate_harness.sh --close-plan nombre-del-plan.md
+```
+
+El cierre con `--close-plan` mueve el plan desde `docs/harness/PLANS/active/` a `docs/harness/PLANS/completed/` y despues actualiza metricas con `scripts/harness_metrics.py`.
+
 ## Comandos ejecutados
 
 ```bash
@@ -21,6 +37,31 @@ git diff --check
 ```
 
 Si `pytest` no esta instalado, el runner marca los smoke tests como `[SKIP]` y explica como habilitarlos mediante dependencias del proyecto.
+
+## Automatizacion de planes y metricas
+
+Crear plan activo:
+
+```bash
+python3 scripts/harness_new_plan.py smoke-tests-emails email_change
+make new-plan NAME=smoke-tests-emails PACK=email_change
+```
+
+Actualizar metricas:
+
+```bash
+python3 scripts/harness_metrics.py
+make metrics
+```
+
+Cerrar plan manualmente, sin ejecutar validaciones:
+
+```bash
+python3 scripts/harness_close_plan.py smoke-tests-emails.md
+make close-plan PLAN=smoke-tests-emails.md
+```
+
+Preferir `bash scripts/validate_harness.sh --close-plan ...` cuando una tarea queda validada.
 
 ## Que detecta
 
@@ -48,6 +89,7 @@ Si `pytest` no esta instalado, el runner marca los smoke tests como `[SKIP]` y e
 - No arrancar servicios persistentes.
 - No usar red salvo autorizacion explicita.
 - Mantener los tests de persistencia sobre DB temporal.
+- No automatizar aprobaciones humanas ni cerrar tareas incompletas.
 
 ## Reglas para nuevas validaciones
 
