@@ -16,6 +16,7 @@
 ## Reglas de conocimiento
 
 - `AGENTS.md` es indice, no enciclopedia.
+- Antes de tareas relevantes, leer `docs/harness/GOLDEN_PRINCIPLES.md`.
 - Antes de modificar un area funcional, consultar `docs/SOURCE_OF_TRUTH.md`.
 - Si hay conflicto entre docs, aplicar la jerarquia de `docs/SOURCE_OF_TRUTH.md`.
 - Los planes activos viven en `docs/harness/PLANS/active/`.
@@ -24,6 +25,8 @@
 - Los mapas para agentes viven en `docs/harness/AGENT_MAPS/` y deben ser indices legibles, no copias completas del codigo.
 - Antes de planificar una tarea real, elegir un `TASK_PACK` o justificar por que no aplica.
 - Antes de cerrar tareas relevantes, ejecutar `bash scripts/validate_harness.sh`.
+- Si una tarea contradice un Golden Principle, pedir aprobacion humana antes de continuar.
+- Ejecutar mantenimiento mensual del harness siguiendo `docs/harness/MAINTENANCE/monthly_review.md`.
 
 ## Reglas de actuacion
 

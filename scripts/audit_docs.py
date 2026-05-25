@@ -70,7 +70,14 @@ HARNESS_REQUIRED_PATHS = {
     "docs/harness/CONTEXT_STRATEGY.md",
     "docs/harness/RISK_MAP.md",
     "docs/harness/CODEX_OPERATING_MANUAL.md",
+    "docs/harness/GOLDEN_PRINCIPLES.md",
     "docs/harness/VALIDATION/minimal_checks.md",
+    "docs/harness/METRICS.md",
+    "docs/harness/MAINTENANCE",
+    "docs/harness/MAINTENANCE/README.md",
+    "docs/harness/MAINTENANCE/weekly_cleanup.md",
+    "docs/harness/MAINTENANCE/monthly_review.md",
+    "docs/harness/MAINTENANCE/dead_docs_policy.md",
     "docs/harness/PLANS",
     "docs/harness/PLANS/active/README.md",
     "docs/harness/PLANS/completed/README.md",
@@ -87,6 +94,7 @@ AGENTS_REQUIRED_LINKS = {
     "docs/harness/CONTEXT_STRATEGY.md",
     "docs/harness/RISK_MAP.md",
     "docs/harness/CODEX_OPERATING_MANUAL.md",
+    "docs/harness/GOLDEN_PRINCIPLES.md",
 }
 CRITICAL_PLAYBOOKS = {
     "docs/harness/PLAYBOOKS/facturacion.md",

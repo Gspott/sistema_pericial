@@ -18,8 +18,9 @@ Antes de tocar archivos, leer en este orden:
 4. [docs/harness/RISK_MAP.md](docs/harness/RISK_MAP.md)
 5. [docs/harness/CODEX_OPERATING_MANUAL.md](docs/harness/CODEX_OPERATING_MANUAL.md)
 6. [docs/harness/VALIDATION/minimal_checks.md](docs/harness/VALIDATION/minimal_checks.md)
-7. Playbook aplicable en `docs/harness/PLAYBOOKS/`.
-8. Documento tematico afectado en `docs/`.
+7. [docs/harness/GOLDEN_PRINCIPLES.md](docs/harness/GOLDEN_PRINCIPLES.md)
+8. Playbook aplicable en `docs/harness/PLAYBOOKS/`.
+9. Documento tematico afectado en `docs/`.
 
 ## Reglas criticas
 
