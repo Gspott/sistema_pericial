@@ -19,6 +19,7 @@
 - El conocimiento que Codex deba usar debe estar versionado en repo.
 - Cuando una tarea revele una regla nueva, actualizar `docs/harness/` o proponerlo.
 - Los mapas para agentes viven en `docs/harness/AGENT_MAPS/` y deben ser indices legibles, no copias completas del codigo.
+- Antes de cerrar tareas relevantes, ejecutar `bash scripts/validate_harness.sh`.
 
 ## Reglas de actuacion
 

@@ -8,6 +8,12 @@ Primer check documental obligatorio:
 python3 scripts/audit_docs.py
 ```
 
+Comando principal recomendado:
+
+```bash
+bash scripts/validate_harness.sh
+```
+
 Checks generales:
 
 ```bash
