@@ -92,6 +92,7 @@ def generated_section() -> str:
     failures_dir = ROOT / "docs" / "harness" / "FAILURES"
     patterns_dir = ROOT / "docs" / "harness" / "PATTERNS"
     task_packs_dir = ROOT / "docs" / "harness" / "TASK_PACKS"
+    episodes_dir = ROOT / "docs" / "harness" / "EPISODES"
 
     rows = [
         ("Smoke tests", str(count_smoke_tests())),
@@ -100,6 +101,7 @@ def generated_section() -> str:
         ("Failures documentados", str(count_markdown_files(failures_dir))),
         ("Patterns reutilizables", str(count_markdown_files(patterns_dir))),
         ("Task Packs", str(count_markdown_files(task_packs_dir))),
+        ("Episodios", str(count_markdown_files(episodes_dir))),
         ("Warning monolito", main_warning()),
         ("Warning PWA", pwa_warning()),
     ]

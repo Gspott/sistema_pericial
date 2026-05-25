@@ -38,6 +38,8 @@
 - Si una tarea queda incompleta, dejar el plan en `active/` con estado pendiente claro y siguiente accion.
 - Si fallan validaciones, el runner no cierra ningun plan.
 - No usar cierre automatico si la tarea queda incompleta o requiere aprobacion humana pendiente; limpiar o corregir `current_plan.txt` antes de validar si hace falta.
+- Al cerrar tareas relevantes con cambio real, crear un episodio breve con `python3 scripts/harness_episode.py <slug> --plan <plan.md>`.
+- No crear episodio para cambios triviales sin valor historico.
 
 ## Reglas de actuacion
 

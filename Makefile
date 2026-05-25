@@ -1,4 +1,4 @@
-.PHONY: validate metrics new-plan close-plan
+.PHONY: validate metrics new-plan close-plan episode
 
 validate:
 	@if [ -n "$(CLOSE_PLAN)" ]; then \
@@ -21,3 +21,11 @@ new-plan:
 close-plan:
 	@if [ -z "$(PLAN)" ]; then echo "PLAN is required"; exit 2; fi
 	python3 scripts/harness_close_plan.py "$(PLAN)"
+
+episode:
+	@if [ -z "$(NAME)" ]; then echo "NAME is required"; exit 2; fi
+	@if [ -n "$(PLAN)" ]; then \
+		python3 scripts/harness_episode.py "$(NAME)" --plan "$(PLAN)"; \
+	else \
+		python3 scripts/harness_episode.py "$(NAME)"; \
+	fi

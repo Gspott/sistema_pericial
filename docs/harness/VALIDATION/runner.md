@@ -68,6 +68,15 @@ make close-plan PLAN=smoke-tests-emails.md
 Preferir `bash scripts/validate_harness.sh --close-plan ...` cuando una tarea queda validada.
 Preferir `bash scripts/validate_harness.sh` cuando `current_plan.txt` apunta al plan correcto.
 
+Crear episodio:
+
+```bash
+python3 scripts/harness_episode.py smoke-tests-emails --plan smoke-tests-emails.md
+make episode NAME=smoke-tests-emails PLAN=smoke-tests-emails.md
+```
+
+`validate_harness.sh` no crea episodios automaticamente todavia. El episodio se crea de forma explicita cuando la tarea tiene valor historico.
+
 ## Que detecta
 
 - Drift documental cubierto por `scripts/audit_docs.py`.

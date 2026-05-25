@@ -14,6 +14,7 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 | Deuda tecnica abierta | Revisar tabla | `docs/harness/PLANS/tech_debt_tracker.md` | Mensual |
 | Failures documentados | 3 | `docs/harness/FAILURES/` | Mensual |
 | Patrones reutilizables | 5 | `docs/harness/PATTERNS/` | Mensual |
+| Episodios | 0 | `docs/harness/EPISODES/` | Mensual |
 | Backlog por prioridad | critical: 0, high: 1, medium: 1, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
 | Warnings activos documentados | 1 | `docs/harness/STATE/known_risks.md` | Semanal |
 
@@ -33,9 +34,10 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 |---|---|
 | Smoke tests | 20 |
 | Planes activos | 1 |
-| Planes completados | 14 |
+| Planes completados | 15 |
 | Failures documentados | 3 |
 | Patterns reutilizables | 5 |
 | Task Packs | 8 |
+| Episodios | 0 |
 | Warning monolito | WARNING: app/main.py tiene 9222 lineas |
 | Warning PWA | OK |
