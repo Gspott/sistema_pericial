@@ -21,6 +21,12 @@ git diff --check
 git status --short
 ```
 
+## Smoke tests minimos actuales
+
+```bash
+pytest tests/smoke -q
+```
+
 ## Checks documentales para cambios solo en harness
 
 ```bash
