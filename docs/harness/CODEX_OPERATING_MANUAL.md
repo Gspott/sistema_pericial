@@ -27,15 +27,17 @@
 - Registrar fallos relevantes en `docs/harness/FAILURES/`.
 - Reutilizar `docs/harness/PATTERNS/` antes de inventar estructuras nuevas.
 - Antes de planificar una tarea real, elegir un `TASK_PACK` o justificar por que no aplica.
-- Al iniciar una tarea con plan, preferir `python3 scripts/harness_new_plan.py <slug> [task_pack]`.
+- Al iniciar una tarea con plan, preferir `python3 scripts/harness_new_plan.py <slug> [task_pack]`; el script actualiza `docs/harness/STATE/current_plan.txt`.
 - Antes de cerrar tareas relevantes, ejecutar `bash scripts/validate_harness.sh`.
-- Al cerrar una tarea validada con plan activo, preferir `bash scripts/validate_harness.sh --close-plan <plan.md>`.
+- Al cerrar una tarea validada con plan activo, preferir `bash scripts/validate_harness.sh`; si `current_plan.txt` apunta a un plan activo, el runner lo cierra automaticamente tras validaciones exitosas.
+- Usar `bash scripts/validate_harness.sh --close-plan <plan.md>` solo para cierre explicito; ese flag tiene prioridad sobre `current_plan.txt`.
 - Si una tarea contradice un Golden Principle, pedir aprobacion humana antes de continuar.
 - Ejecutar mantenimiento mensual del harness siguiendo `docs/harness/MAINTENANCE/monthly_review.md`.
 - En toda tarea con plan activo, si las validaciones pasan y la tarea queda cerrada, mover el plan de `docs/harness/PLANS/active/` a `docs/harness/PLANS/completed/`.
 - Actualizar `docs/harness/METRICS.md` cuando cambien planes activos, smoke tests, backlog o warnings.
 - Si una tarea queda incompleta, dejar el plan en `active/` con estado pendiente claro y siguiente accion.
-- No usar cierre automatico si la tarea queda incompleta o requiere aprobacion humana pendiente.
+- Si fallan validaciones, el runner no cierra ningun plan.
+- No usar cierre automatico si la tarea queda incompleta o requiere aprobacion humana pendiente; limpiar o corregir `current_plan.txt` antes de validar si hace falta.
 
 ## Reglas de actuacion
 

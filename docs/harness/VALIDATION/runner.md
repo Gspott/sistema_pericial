@@ -14,13 +14,15 @@ Validacion normal:
 bash scripts/validate_harness.sh
 ```
 
-Validacion y cierre mecanico de plan, solo si todo pasa:
+La validacion normal cierra automaticamente el plan indicado en `docs/harness/STATE/current_plan.txt` si existe en `docs/harness/PLANS/active/` y todas las validaciones pasan. Si las validaciones fallan, no cierra ningun plan.
+
+Validacion y cierre mecanico explicito de plan, solo si todo pasa:
 
 ```bash
 bash scripts/validate_harness.sh --close-plan nombre-del-plan.md
 ```
 
-El cierre con `--close-plan` mueve el plan desde `docs/harness/PLANS/active/` a `docs/harness/PLANS/completed/` y despues actualiza metricas con `scripts/harness_metrics.py`.
+El cierre con `--close-plan` tiene prioridad sobre `current_plan.txt`, mueve el plan desde `docs/harness/PLANS/active/` a `docs/harness/PLANS/completed/` y despues actualiza metricas con `scripts/harness_metrics.py`.
 
 ## Comandos ejecutados
 
@@ -47,6 +49,8 @@ python3 scripts/harness_new_plan.py smoke-tests-emails email_change
 make new-plan NAME=smoke-tests-emails PACK=email_change
 ```
 
+Al crear el plan, el script escribe el nombre del archivo en `docs/harness/STATE/current_plan.txt`.
+
 Actualizar metricas:
 
 ```bash
@@ -62,6 +66,7 @@ make close-plan PLAN=smoke-tests-emails.md
 ```
 
 Preferir `bash scripts/validate_harness.sh --close-plan ...` cuando una tarea queda validada.
+Preferir `bash scripts/validate_harness.sh` cuando `current_plan.txt` apunta al plan correcto.
 
 ## Que detecta
 

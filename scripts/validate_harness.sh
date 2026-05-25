@@ -70,9 +70,28 @@ fi
 
 run_step "Diff whitespace check" git diff --check
 
-if [ -n "$CLOSE_PLAN" ]; then
-    run_step "Close harness plan" python3 scripts/harness_close_plan.py "$CLOSE_PLAN"
-    run_step "Update harness metrics" python3 scripts/harness_metrics.py
+PLAN_TO_CLOSE="$CLOSE_PLAN"
+AUTO_CLOSE="false"
+if [ -z "$PLAN_TO_CLOSE" ] && [ -f "docs/harness/STATE/current_plan.txt" ]; then
+    PLAN_TO_CLOSE="$(tr -d '[:space:]' < docs/harness/STATE/current_plan.txt)"
+    AUTO_CLOSE="true"
+fi
+
+if [ -n "$PLAN_TO_CLOSE" ]; then
+    if [ -f "docs/harness/PLANS/active/$PLAN_TO_CLOSE" ]; then
+        run_step "Close harness plan" python3 scripts/harness_close_plan.py "$PLAN_TO_CLOSE"
+        run_step "Update harness metrics" python3 scripts/harness_metrics.py
+        if [ "$AUTO_CLOSE" = "true" ]; then
+            ok "Active plan closed automatically"
+        fi
+    elif [ "$AUTO_CLOSE" = "true" ]; then
+        skip "Automatic plan close: active plan not found ($PLAN_TO_CLOSE)"
+    else
+        fail "Plan not found in active: $PLAN_TO_CLOSE"
+        exit 1
+    fi
+else
+    skip "Automatic plan close: no current plan"
 fi
 
 printf '\n[OK] Harness validation finished\n'

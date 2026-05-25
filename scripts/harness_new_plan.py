@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_DIR = ROOT / "docs" / "harness" / "PLANS" / "active"
 TEMPLATE_PATH = ROOT / "docs" / "harness" / "templates" / "TASK_ENVELOPE.md"
+CURRENT_PLAN_PATH = ROOT / "docs" / "harness" / "STATE" / "current_plan.txt"
 
 
 def normalize_slug(value: str) -> str:
@@ -56,7 +57,10 @@ def main() -> int:
 
     ACTIVE_DIR.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
+    CURRENT_PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CURRENT_PLAN_PATH.write_text(destination.name + "\n", encoding="utf-8")
     print(destination.relative_to(ROOT))
+    print(f"Current active plan: {destination.name}")
     return 0
 
 

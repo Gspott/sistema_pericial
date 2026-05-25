@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_DIR = ROOT / "docs" / "harness" / "PLANS" / "active"
 COMPLETED_DIR = ROOT / "docs" / "harness" / "PLANS" / "completed"
+CURRENT_PLAN_PATH = ROOT / "docs" / "harness" / "STATE" / "current_plan.txt"
 
 
 def normalize_filename(value: str) -> str:
@@ -60,6 +61,8 @@ def main() -> int:
 
     COMPLETED_DIR.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source), str(destination))
+    if CURRENT_PLAN_PATH.exists() and CURRENT_PLAN_PATH.read_text(encoding="utf-8").strip() == filename:
+        CURRENT_PLAN_PATH.write_text("", encoding="utf-8")
     print(destination.relative_to(ROOT))
     return 0
 

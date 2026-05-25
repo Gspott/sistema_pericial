@@ -17,4 +17,5 @@ Reglas nucleo para mantener a Codex dentro de un margen operativo seguro. Si una
 13. No usar backups reales para pruebas; usar sandbox o copia temporal.
 14. El repo versionado es la fuente de verdad que Codex puede reutilizar.
 15. Plan cerrado y validado no permanece en `PLANS/active/`.
-16. Si aparece una invariante nueva, documentarla o proponerla en la fuente normativa.
+16. Si las validaciones fallan, no se cierra el plan activo.
+17. Si aparece una invariante nueva, documentarla o proponerla en la fuente normativa.

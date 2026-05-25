@@ -19,6 +19,7 @@ ALLOWED_STATES = {
     "Replaced",
     "Legacy",
     "Pending validation",
+    "completado",
 }
 ALLOWED_CATEGORIES = {
     "UX",
@@ -88,6 +89,7 @@ HARNESS_REQUIRED_PATHS = {
     "docs/harness/STATE",
     "docs/harness/STATE/README.md",
     "docs/harness/STATE/current_focus.md",
+    "docs/harness/STATE/current_plan.txt",
     "docs/harness/STATE/known_risks.md",
     "docs/harness/STATE/recent_changes.md",
     "docs/harness/STATE/active_constraints.md",

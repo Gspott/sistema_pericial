@@ -1,7 +1,11 @@
 .PHONY: validate metrics new-plan close-plan
 
 validate:
-	bash scripts/validate_harness.sh
+	@if [ -n "$(CLOSE_PLAN)" ]; then \
+		bash scripts/validate_harness.sh --close-plan "$(CLOSE_PLAN)"; \
+	else \
+		bash scripts/validate_harness.sh; \
+	fi
 
 metrics:
 	python3 scripts/harness_metrics.py
