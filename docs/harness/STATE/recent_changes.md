@@ -1,0 +1,10 @@
+# Recent Changes
+
+- Fase 2: smoke tests minimos para importacion y rutas basicas.
+- Fase 3A: smoke tests de negocio seguros.
+- Fase 3B: runner `scripts/validate_harness.sh`.
+- Fase 3C: drift detection documental y estructural.
+- Fase 4A: Task Packs operativos.
+- Fase 4B: fuentes normativas, invariantes y specs de facturacion/gastos.
+- Fase 4C: Golden Principles, mantenimiento y metricas.
+- Fase 4D: memoria operativa persistente.

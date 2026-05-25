@@ -23,10 +23,14 @@
 - El conocimiento que Codex deba usar debe estar versionado en repo.
 - Cuando una tarea revele una regla nueva, proponerla en la doc fuente correspondiente, no solo en el harness.
 - Los mapas para agentes viven en `docs/harness/AGENT_MAPS/` y deben ser indices legibles, no copias completas del codigo.
+- Antes de tareas grandes, revisar `docs/harness/BACKLOG/` y `docs/harness/STATE/`.
+- Registrar fallos relevantes en `docs/harness/FAILURES/`.
+- Reutilizar `docs/harness/PATTERNS/` antes de inventar estructuras nuevas.
 - Antes de planificar una tarea real, elegir un `TASK_PACK` o justificar por que no aplica.
 - Antes de cerrar tareas relevantes, ejecutar `bash scripts/validate_harness.sh`.
 - Si una tarea contradice un Golden Principle, pedir aprobacion humana antes de continuar.
 - Ejecutar mantenimiento mensual del harness siguiendo `docs/harness/MAINTENANCE/monthly_review.md`.
+- Mover planes completados a `docs/harness/PLANS/completed/` cuando proceda.
 
 ## Reglas de actuacion
 

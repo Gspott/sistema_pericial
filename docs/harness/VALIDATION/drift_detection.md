@@ -18,6 +18,7 @@ El objetivo es avisar pronto cuando la documentacion, el harness o la estructura
 - Docs normativos basicos: `docs/SOURCE_OF_TRUTH.md`, `docs/facturacion.md` y `docs/gastos.md`.
 - Enlaces desde Task Packs criticos a alguna fuente normativa.
 - Principios dorados, mantenimiento y metricas del harness.
+- Memoria operativa persistente: BACKLOG, STATE, FAILURES y PATTERNS.
 - Enlaces obligatorios desde `AGENTS.md` al harness.
 - Existencia de `pytest.ini`, `tests/smoke/` y referencia a smoke tests desde `scripts/validate_harness.sh`.
 - Drift PWA entre version de registro en `static/pwa.js` y cache en `static/sw.js`.
