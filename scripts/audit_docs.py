@@ -172,6 +172,16 @@ TASK_PACK_SOURCE_LINKS = {
     "docs/harness/TASK_PACKS/backup_restore_change.md": "docs/RESTORE.md",
 }
 MAIN_MONOLITH_WARNING_LINES = 8000
+ACTIVE_PLAN_CLOSED_MARKERS = {
+    "estado: cerrado",
+    "estado: completado",
+    "estado: completed",
+    "estado: validado",
+    "tarea cerrada",
+    "validaciones pasan",
+    "validaciones pasaron",
+    "validado y cerrado",
+}
 
 
 def markdown_files() -> list[Path]:
@@ -380,6 +390,22 @@ def check_monolith_size(warnings: list[str]) -> None:
         )
 
 
+def check_active_plan_drift(warnings: list[str]) -> None:
+    active_dir = ROOT / "docs" / "harness" / "PLANS" / "active"
+    if not active_dir.exists():
+        return
+
+    for path in sorted(active_dir.glob("*.md")):
+        if path.name == "README.md":
+            continue
+        text = path.read_text(encoding="utf-8").lower()
+        if any(marker in text for marker in ACTIVE_PLAN_CLOSED_MARKERS):
+            warnings.append(
+                "Plan activo parece cerrado/completado/validado: "
+                f"{relative(path)}"
+            )
+
+
 def check_adr_readme(errors: list[str]) -> None:
     adr_dir = ROOT / "docs" / "adr"
     readme = adr_dir / "README.md"
@@ -432,6 +458,7 @@ def main() -> int:
     check_known_drifts(files, errors)
     check_pwa_version_drift(warnings)
     check_monolith_size(warnings)
+    check_active_plan_drift(warnings)
 
     print("Auditoria documental")
     print(f"- Markdown revisados: {len(files)}")

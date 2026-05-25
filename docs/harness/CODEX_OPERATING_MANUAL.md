@@ -19,7 +19,7 @@
 - Antes de tareas relevantes, leer `docs/harness/GOLDEN_PRINCIPLES.md`.
 - Antes de modificar un area funcional, consultar `docs/SOURCE_OF_TRUTH.md`.
 - Si hay conflicto entre docs, aplicar la jerarquia de `docs/SOURCE_OF_TRUTH.md`.
-- Los planes activos viven en `docs/harness/PLANS/active/`.
+- Los planes activos viven en `docs/harness/PLANS/active/` solo mientras la tarea esta en curso.
 - El conocimiento que Codex deba usar debe estar versionado en repo.
 - Cuando una tarea revele una regla nueva, proponerla en la doc fuente correspondiente, no solo en el harness.
 - Los mapas para agentes viven en `docs/harness/AGENT_MAPS/` y deben ser indices legibles, no copias completas del codigo.
@@ -30,7 +30,9 @@
 - Antes de cerrar tareas relevantes, ejecutar `bash scripts/validate_harness.sh`.
 - Si una tarea contradice un Golden Principle, pedir aprobacion humana antes de continuar.
 - Ejecutar mantenimiento mensual del harness siguiendo `docs/harness/MAINTENANCE/monthly_review.md`.
-- Mover planes completados a `docs/harness/PLANS/completed/` cuando proceda.
+- En toda tarea con plan activo, si las validaciones pasan y la tarea queda cerrada, mover el plan de `docs/harness/PLANS/active/` a `docs/harness/PLANS/completed/`.
+- Actualizar `docs/harness/METRICS.md` cuando cambien planes activos, smoke tests, backlog o warnings.
+- Si una tarea queda incompleta, dejar el plan en `active/` con estado pendiente claro y siguiente accion.
 
 ## Reglas de actuacion
 
