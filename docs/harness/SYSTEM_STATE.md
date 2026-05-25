@@ -43,15 +43,12 @@ Los datos reales quedan fuera de alcance salvo autorizacion humana explicita. Es
 - Deploy, DuckDNS, Caddy, tuneles y acceso remoto.
 - Carpeta anidada `sistema_pericial/`, considerada zona delicada y no editable hasta decision humana.
 
-## Drift conocido
+## PWA
 
-Existe drift PWA documentado:
-
-- `static/pwa.js` registra el service worker con query de version `v=4`.
-- `static/sw.js` usa cache `sistema-pericial-` + `v5`.
-
-No corregir automaticamente sin playbook PWA/mobile y aprobacion si afecta service worker.
+- Registro de service worker y cache estan alineados en `v5`.
+- Mantener sincronizadas la version de registro en `static/pwa.js` y la cache activa en `static/sw.js`.
+- No tocar PWA/service worker junto a cambios no relacionados.
 
 ## Tests
 
-No existe actualmente suite `pytest` ni tests de humo consolidados. Cualquier cambio critico debe proponer o crear validacion minima antes de tocar logica.
+Existe suite de smoke tests bajo `tests/smoke/` y runner unificado `scripts/validate_harness.sh`. Cualquier cambio critico debe ampliar o ejecutar validacion minima antes de tocar logica.

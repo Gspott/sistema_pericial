@@ -35,10 +35,9 @@ El objetivo es avisar pronto cuando la documentacion, el harness o la estructura
 - Calidad semantica completa de informes.
 - Drift en datos reales o bases SQLite.
 
-## Ejemplos reales del proyecto
+## Ejemplos del proyecto
 
-- `static/pwa.js` registra el service worker con `v=4`.
-- `static/sw.js` usa cache `v5`.
+- Historico resuelto: drift entre registro de service worker y cache PWA.
 - `app/main.py` supera el umbral informativo de monolito.
 - Smoke tests existen bajo `tests/smoke/` y el runner debe referenciarlos.
 
