@@ -5,12 +5,13 @@
 1. Leer el harness aplicable.
 2. Clasificar modulo y riesgo.
 3. Rellenar mentalmente `templates/TASK_ENVELOPE.md`.
-4. Elegir playbook.
-5. Inspeccionar solo el contexto necesario.
-6. Hacer plan corto.
-7. Ejecutar diff minimo.
-8. Validar.
-9. Reportar alcance y no tocado.
+4. Elegir un `TASK_PACK` o justificar por que no aplica.
+5. Elegir playbook.
+6. Inspeccionar solo el contexto necesario.
+7. Hacer plan corto.
+8. Ejecutar diff minimo.
+9. Validar.
+10. Reportar alcance y no tocado.
 
 ## Reglas de conocimiento
 
@@ -19,6 +20,7 @@
 - El conocimiento que Codex deba usar debe estar versionado en repo.
 - Cuando una tarea revele una regla nueva, actualizar `docs/harness/` o proponerlo.
 - Los mapas para agentes viven en `docs/harness/AGENT_MAPS/` y deben ser indices legibles, no copias completas del codigo.
+- Antes de planificar una tarea real, elegir un `TASK_PACK` o justificar por que no aplica.
 - Antes de cerrar tareas relevantes, ejecutar `bash scripts/validate_harness.sh`.
 
 ## Reglas de actuacion

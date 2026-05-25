@@ -103,6 +103,17 @@ CRITICAL_VALIDATION_DOCS = {
     "docs/harness/VALIDATION/minimal_checks.md",
     "docs/harness/VALIDATION/runner.md",
 }
+CRITICAL_TASK_PACKS = {
+    "docs/harness/TASK_PACKS/README.md",
+    "docs/harness/TASK_PACKS/bugfix.md",
+    "docs/harness/TASK_PACKS/facturacion_change.md",
+    "docs/harness/TASK_PACKS/informe_change.md",
+    "docs/harness/TASK_PACKS/mobile_ui.md",
+    "docs/harness/TASK_PACKS/safe_refactor.md",
+    "docs/harness/TASK_PACKS/db_change.md",
+    "docs/harness/TASK_PACKS/email_change.md",
+    "docs/harness/TASK_PACKS/backup_restore_change.md",
+}
 MAIN_MONOLITH_WARNING_LINES = 8000
 
 
@@ -226,6 +237,7 @@ def check_harness_contract(errors: list[str]) -> None:
         | CRITICAL_GOALS
         | CRITICAL_WORKFLOWS
         | CRITICAL_VALIDATION_DOCS
+        | CRITICAL_TASK_PACKS
     )
     for rel in sorted(required_paths):
         if not (ROOT / rel).exists():
