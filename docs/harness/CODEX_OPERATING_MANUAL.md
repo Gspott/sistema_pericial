@@ -17,6 +17,7 @@
 
 - `AGENTS.md` es indice, no enciclopedia.
 - Antes de tareas relevantes, leer `docs/harness/GOLDEN_PRINCIPLES.md`.
+- Antes de actuar con autonomia, aplicar `docs/harness/EXECUTION_POLICY.md`.
 - Antes de modificar un area funcional, consultar `docs/SOURCE_OF_TRUTH.md`.
 - Si hay conflicto entre docs, aplicar la jerarquia de `docs/SOURCE_OF_TRUTH.md`.
 - Los planes activos viven en `docs/harness/PLANS/active/` solo mientras la tarea esta en curso.
@@ -32,6 +33,7 @@
 - Al cerrar una tarea validada con plan activo, preferir `bash scripts/validate_harness.sh`; si `current_plan.txt` apunta a un plan activo, el runner lo cierra automaticamente tras validaciones exitosas.
 - Usar `bash scripts/validate_harness.sh --close-plan <plan.md>` solo para cierre explicito; ese flag tiene prioridad sobre `current_plan.txt`.
 - Si una tarea contradice un Golden Principle, pedir aprobacion humana antes de continuar.
+- Si una tarea supera el nivel permitido por `EXECUTION_POLICY.md`, parar y pedir aprobacion humana.
 - Ejecutar mantenimiento mensual del harness siguiendo `docs/harness/MAINTENANCE/monthly_review.md`.
 - En toda tarea con plan activo, si las validaciones pasan y la tarea queda cerrada, mover el plan de `docs/harness/PLANS/active/` a `docs/harness/PLANS/completed/`.
 - Actualizar `docs/harness/METRICS.md` cuando cambien planes activos, smoke tests, backlog o warnings.

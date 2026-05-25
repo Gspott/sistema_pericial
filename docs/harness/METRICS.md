@@ -9,13 +9,14 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 | Warnings activos | 1 | `python3 scripts/audit_docs.py` | Semanal |
 | Tamano `app/main.py` | > 8000 lineas | `scripts/audit_docs.py` | Mensual |
 | Task Packs existentes | 8 | `docs/harness/TASK_PACKS/` | Mensual |
+| Politicas de ejecucion | 1 | `docs/harness/EXECUTION_POLICY.md` | Mensual |
 | Docs normativos principales | 10 | `docs/SOURCE_OF_TRUTH.md` | Mensual |
 | Planes activos | 1 | `docs/harness/PLANS/active/` | Semanal |
 | Deuda tecnica abierta | Revisar tabla | `docs/harness/PLANS/tech_debt_tracker.md` | Mensual |
-| Failures documentados | 4 | `docs/harness/FAILURES/` | Mensual |
+| Failures documentados | 5 | `docs/harness/FAILURES/` | Mensual |
 | Patrones reutilizables | 5 | `docs/harness/PATTERNS/` | Mensual |
-| Episodios | 3 | `docs/harness/EPISODES/` | Mensual |
-| Backlog por prioridad | critical: 1, high: 3, medium: 3, low: 2, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
+| Episodios | 4 | `docs/harness/EPISODES/` | Mensual |
+| Backlog por prioridad | critical: 1, high: 5, medium: 3, low: 3, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
 | Warnings activos documentados | 1 | `docs/harness/STATE/known_risks.md` | Semanal |
 
 ## Warnings conocidos
@@ -34,10 +35,10 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 |---|---|
 | Smoke tests | 22 |
 | Planes activos | 1 |
-| Planes completados | 16 |
-| Failures documentados | 4 |
+| Planes completados | 17 |
+| Failures documentados | 5 |
 | Patterns reutilizables | 5 |
 | Task Packs | 8 |
-| Episodios | 3 |
+| Episodios | 4 |
 | Warning monolito | WARNING: app/main.py tiene 9222 lineas |
 | Warning PWA | OK |

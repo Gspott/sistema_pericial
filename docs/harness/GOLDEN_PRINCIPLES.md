@@ -19,3 +19,4 @@ Reglas nucleo para mantener a Codex dentro de un margen operativo seguro. Si una
 15. Plan cerrado y validado no permanece en `PLANS/active/`.
 16. Si las validaciones fallan, no se cierra el plan activo.
 17. Si aparece una invariante nueva, documentarla o proponerla en la fuente normativa.
+18. La autonomia de Codex queda limitada por `docs/harness/EXECUTION_POLICY.md`.

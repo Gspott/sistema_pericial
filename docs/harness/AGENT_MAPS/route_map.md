@@ -28,3 +28,13 @@ Indice manual inicial de areas de rutas conocidas. No inventar endpoints si no s
 - Verificar con `rg` dirigido antes de editar.
 - Si se confirma una ruta nueva, actualizar este mapa en un cambio documental.
 
+## Nota Sobre Routers Legacy No Incluidos
+
+`app/routers/expedientes.py`, `app/routers/visitas.py`,
+`app/routers/estancias.py` y `app/routers/patologias.py` existen, pero no estan
+incluidos en `app/main.py`.
+
+Tratarlos como extraccion parcial/legacy. No hacer `include_router()` de estos
+routers sin plan, mapa ruta a ruta, smoke tests y aprobacion humana.
+
+Mapa detallado: [main_vs_routers_map.md](main_vs_routers_map.md).

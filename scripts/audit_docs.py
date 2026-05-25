@@ -71,6 +71,7 @@ HARNESS_REQUIRED_PATHS = {
     "docs/harness/CONTEXT_STRATEGY.md",
     "docs/harness/RISK_MAP.md",
     "docs/harness/CODEX_OPERATING_MANUAL.md",
+    "docs/harness/EXECUTION_POLICY.md",
     "docs/harness/GOLDEN_PRINCIPLES.md",
     "docs/harness/VALIDATION/minimal_checks.md",
     "docs/harness/METRICS.md",
