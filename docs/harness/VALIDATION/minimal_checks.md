@@ -27,6 +27,21 @@ git status --short
 pytest tests/smoke -q
 ```
 
+Obligatorios para cambios de harness/testing:
+
+- `tests/smoke/test_app_boot.py`
+- `tests/smoke/test_health_imports.py`
+- `tests/smoke/test_routes_basic.py`
+- `tests/smoke/test_facturacion_calculos.py`
+- `tests/smoke/test_propuestas_flow.py`
+- `tests/smoke/test_informe_context.py`
+- `tests/smoke/test_backup_zip.py`
+
+Requieren entorno extra:
+
+- `pytest` instalado desde `requirements.txt`.
+- No requieren SMTP, Playwright, Catastro, OpenAI, Telegram, clima ni DuckDNS.
+
 ## Checks documentales para cambios solo en harness
 
 ```bash
