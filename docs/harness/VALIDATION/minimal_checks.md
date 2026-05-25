@@ -2,6 +2,14 @@
 
 ## Checks permitidos por defecto
 
+Primer check documental obligatorio:
+
+```bash
+python3 scripts/audit_docs.py
+```
+
+Checks generales:
+
 ```bash
 python3 scripts/audit_docs.py
 python3 -m compileall app

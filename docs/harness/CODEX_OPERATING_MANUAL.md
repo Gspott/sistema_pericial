@@ -12,6 +12,14 @@
 8. Validar.
 9. Reportar alcance y no tocado.
 
+## Reglas de conocimiento
+
+- `AGENTS.md` es indice, no enciclopedia.
+- Los planes activos viven en `docs/harness/PLANS/active/`.
+- El conocimiento que Codex deba usar debe estar versionado en repo.
+- Cuando una tarea revele una regla nueva, actualizar `docs/harness/` o proponerlo.
+- Los mapas para agentes viven en `docs/harness/AGENT_MAPS/` y deben ser indices legibles, no copias completas del codigo.
+
 ## Reglas de actuacion
 
 - No resolver fuera de alcance sin permiso.
@@ -31,4 +39,3 @@ La respuesta final debe incluir:
 - Validaciones ejecutadas y resultado.
 - Riesgos o compatibilidad.
 - Confirmacion de lo que no se ha tocado.
-

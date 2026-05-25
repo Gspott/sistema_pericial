@@ -49,6 +49,24 @@ THEMATIC_DOCS = {
     "docs/ia_workflow.md",
     "docs/changelog.md",
 }
+HARNESS_REQUIRED_PATHS = {
+    "docs/harness",
+    "docs/harness/PROJECT_RULES.md",
+    "docs/harness/PERMISSIONS.md",
+    "docs/harness/CONTEXT_STRATEGY.md",
+    "docs/harness/RISK_MAP.md",
+    "docs/harness/CODEX_OPERATING_MANUAL.md",
+    "docs/harness/VALIDATION/minimal_checks.md",
+    "docs/harness/PLANS",
+    "docs/harness/PLANS/active/README.md",
+    "docs/harness/PLANS/completed/README.md",
+    "docs/harness/PLANS/tech_debt_tracker.md",
+    "docs/harness/AGENT_MAPS",
+    "docs/harness/AGENT_MAPS/README.md",
+    "docs/harness/AGENT_MAPS/route_map.md",
+    "docs/harness/AGENT_MAPS/db_map.md",
+    "docs/harness/AGENT_MAPS/critical_flows.md",
+}
 
 
 def markdown_files() -> list[Path]:
@@ -164,6 +182,12 @@ def check_thematic_contracts(errors: list[str]) -> None:
             errors.append(f"Documento tematico sin Puede impactar: {rel}")
 
 
+def check_harness_contract(errors: list[str]) -> None:
+    for rel in sorted(HARNESS_REQUIRED_PATHS):
+        if not (ROOT / rel).exists():
+            errors.append(f"Ruta harness requerida inexistente: {rel}")
+
+
 def check_adr_readme(errors: list[str]) -> None:
     adr_dir = ROOT / "docs" / "adr"
     readme = adr_dir / "README.md"
@@ -206,6 +230,7 @@ def main() -> int:
     check_decision_metadata(files, errors)
     check_adr_required_fields(errors)
     check_thematic_contracts(errors)
+    check_harness_contract(errors)
     check_adr_readme(errors)
     check_known_drifts(files, errors)
 
