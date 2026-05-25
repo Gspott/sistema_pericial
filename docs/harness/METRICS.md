@@ -4,17 +4,17 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 
 | Metrica | Valor actual | Fuente | Cadencia |
 |---|---:|---|---|
-| Smoke tests | 20 | `pytest tests/smoke -q` | Semanal |
+| Smoke tests | 21 | `pytest tests/smoke -q` | Semanal |
 | Tiempo aproximado de `validate_harness.sh` | < 5 s en entorno local habitual | `bash scripts/validate_harness.sh` | Semanal |
 | Warnings activos | 1 | `python3 scripts/audit_docs.py` | Semanal |
 | Tamano `app/main.py` | > 8000 lineas | `scripts/audit_docs.py` | Mensual |
 | Task Packs existentes | 8 | `docs/harness/TASK_PACKS/` | Mensual |
 | Docs normativos principales | 10 | `docs/SOURCE_OF_TRUTH.md` | Mensual |
-| Planes activos | 2 | `docs/harness/PLANS/active/` | Semanal |
+| Planes activos | 1 | `docs/harness/PLANS/active/` | Semanal |
 | Deuda tecnica abierta | Revisar tabla | `docs/harness/PLANS/tech_debt_tracker.md` | Mensual |
 | Failures documentados | 3 | `docs/harness/FAILURES/` | Mensual |
 | Patrones reutilizables | 5 | `docs/harness/PATTERNS/` | Mensual |
-| Episodios | 0 | `docs/harness/EPISODES/` | Mensual |
+| Episodios | 1 | `docs/harness/EPISODES/` | Mensual |
 | Backlog por prioridad | critical: 0, high: 1, medium: 1, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
 | Warnings activos documentados | 1 | `docs/harness/STATE/known_risks.md` | Semanal |
 
@@ -32,12 +32,12 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 
 | Metrica | Valor |
 |---|---|
-| Smoke tests | 20 |
+| Smoke tests | 21 |
 | Planes activos | 1 |
 | Planes completados | 15 |
 | Failures documentados | 3 |
 | Patterns reutilizables | 5 |
 | Task Packs | 8 |
-| Episodios | 0 |
+| Episodios | 1 |
 | Warning monolito | WARNING: app/main.py tiene 9222 lineas |
 | Warning PWA | OK |

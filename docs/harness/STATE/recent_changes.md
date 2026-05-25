@@ -12,3 +12,4 @@
 - Fix TemplateResponse: llamadas Jinja migradas a firma recomendada de Starlette.
 - Smoke emails: cobertura mock sin SMTP real para servicio, adjunto y fallo simulado.
 - Smoke gastos: cobertura sandbox para calculos, DB temporal, adjunto demo y deduplicado.
+- Smoke flow propuesta-factura: cobertura de propuesta aceptada y factura borrador sin emision fiscal.
