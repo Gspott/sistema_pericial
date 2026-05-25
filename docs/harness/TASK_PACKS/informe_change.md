@@ -35,6 +35,10 @@ Critico.
 
 `docs/harness/PLAYBOOKS/informes.md`.
 
+## Fuente normativa
+
+- [docs/informes.md](../../informes.md)
+
 ## Checklist antes de editar
 
 - Verificar fuente de datos.
@@ -79,4 +83,3 @@ Revertir diff y descartar documentos temporales.
 - Datos de prueba:
 - Validaciones:
 - Rollback:
-

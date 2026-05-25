@@ -29,14 +29,20 @@ Critico.
 
 ## Lectura previa obligatoria
 
+- `docs/facturacion.md`.
+- `docs/modelos_datos.md`.
 - `docs/harness/RISK_MAP.md`.
 - `docs/harness/PLAYBOOKS/facturacion.md`.
 - `docs/backend.md`.
-- `docs/modelos_datos.md`.
 
 ## Playbook relacionado
 
 `docs/harness/PLAYBOOKS/facturacion.md`.
+
+## Fuente normativa
+
+- [docs/facturacion.md](../../facturacion.md)
+- [docs/modelos_datos.md](../../modelos_datos.md)
 
 ## Checklist antes de editar
 
@@ -84,4 +90,3 @@ Revertir diff y descartar DB temporal. No restaurar DB real salvo proceso aproba
 - DB temporal:
 - Smoke obligatorio:
 - Rollback:
-

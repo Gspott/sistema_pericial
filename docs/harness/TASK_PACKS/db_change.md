@@ -34,6 +34,10 @@ Critico.
 
 `docs/harness/PLAYBOOKS/base_datos.md`.
 
+## Fuente normativa
+
+- [docs/modelos_datos.md](../../modelos_datos.md)
+
 ## Checklist antes de editar
 
 - Nunca borrar columnas.
@@ -79,4 +83,3 @@ Revertir diff. Descartar DB temporal.
 - DB temporal:
 - Compatibilidad:
 - Rollback:
-

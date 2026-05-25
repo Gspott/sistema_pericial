@@ -44,10 +44,24 @@ THEMATIC_DOCS = {
     "docs/pwa.md",
     "docs/informes.md",
     "docs/backend.md",
+    "docs/facturacion.md",
+    "docs/gastos.md",
     "docs/revision_probatoria.md",
     "docs/modelos_datos.md",
     "docs/ia_workflow.md",
     "docs/changelog.md",
+}
+NORMATIVE_DOCS = {
+    "docs/SOURCE_OF_TRUTH.md",
+    "docs/backend.md",
+    "docs/modelos_datos.md",
+    "docs/informes.md",
+    "docs/ux.md",
+    "docs/pwa.md",
+    "docs/RESTORE.md",
+    "docs/RECOVERY_CHECKLIST.md",
+    "docs/facturacion.md",
+    "docs/gastos.md",
 }
 HARNESS_REQUIRED_PATHS = {
     "docs/harness",
@@ -113,6 +127,16 @@ CRITICAL_TASK_PACKS = {
     "docs/harness/TASK_PACKS/db_change.md",
     "docs/harness/TASK_PACKS/email_change.md",
     "docs/harness/TASK_PACKS/backup_restore_change.md",
+}
+TASK_PACK_SOURCE_LINKS = {
+    "docs/harness/TASK_PACKS/bugfix.md": "docs/SOURCE_OF_TRUTH.md",
+    "docs/harness/TASK_PACKS/facturacion_change.md": "docs/facturacion.md",
+    "docs/harness/TASK_PACKS/informe_change.md": "docs/informes.md",
+    "docs/harness/TASK_PACKS/mobile_ui.md": "docs/ux.md",
+    "docs/harness/TASK_PACKS/safe_refactor.md": "docs/SOURCE_OF_TRUTH.md",
+    "docs/harness/TASK_PACKS/db_change.md": "docs/modelos_datos.md",
+    "docs/harness/TASK_PACKS/email_change.md": "docs/backend.md",
+    "docs/harness/TASK_PACKS/backup_restore_change.md": "docs/RESTORE.md",
 }
 MAIN_MONOLITH_WARNING_LINES = 8000
 
@@ -244,6 +268,22 @@ def check_harness_contract(errors: list[str]) -> None:
             errors.append(f"Ruta harness requerida inexistente: {rel}")
 
 
+def check_normative_docs(errors: list[str]) -> None:
+    for rel in sorted(NORMATIVE_DOCS):
+        if not (ROOT / rel).exists():
+            errors.append(f"Documento normativo requerido inexistente: {rel}")
+
+
+def check_task_pack_source_links(errors: list[str]) -> None:
+    for pack_rel, source_rel in sorted(TASK_PACK_SOURCE_LINKS.items()):
+        pack = ROOT / pack_rel
+        if not pack.exists():
+            continue
+        text = pack.read_text(encoding="utf-8")
+        if source_rel not in text and Path(source_rel).name not in text:
+            errors.append(f"Task Pack sin enlace a fuente normativa {source_rel}: {pack_rel}")
+
+
 def check_agents_harness_links(errors: list[str]) -> None:
     agents = ROOT / "AGENTS.md"
     if not agents.exists():
@@ -351,6 +391,8 @@ def main() -> int:
     check_adr_required_fields(errors)
     check_thematic_contracts(errors)
     check_harness_contract(errors)
+    check_normative_docs(errors)
+    check_task_pack_source_links(errors)
     check_agents_harness_links(errors)
     check_tests_contract(errors)
     check_adr_readme(errors)

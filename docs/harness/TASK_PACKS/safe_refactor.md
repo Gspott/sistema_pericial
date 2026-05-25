@@ -33,6 +33,10 @@ Alto.
 
 Playbook del modulo afectado.
 
+## Fuente normativa
+
+- [docs/SOURCE_OF_TRUTH.md](../../SOURCE_OF_TRUTH.md)
+
 ## Checklist antes de editar
 
 - Definir comportamiento preservado.
@@ -76,4 +80,3 @@ Revertir diff completo.
 - Tests:
 - Riesgo:
 - Rollback:
-

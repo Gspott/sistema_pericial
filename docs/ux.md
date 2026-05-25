@@ -68,6 +68,15 @@ El sistema es mobile first y debe priorizar continuidad de visita, tap targets c
 - Evitar tablas pesadas, sidebars complejas, modales pesados y flujos multi-step innecesarios.
 - Priorizar no perder evidencia sobre completar campos secundarios.
 
+## Invariantes
+
+- Mobile-first obligatorio.
+- No introducir SPA, React, Vue ni frameworks frontend.
+- No crear navegacion paralela.
+- Mantener drawer/app shell y flujos tactiles.
+- Los formularios deben ser usables en iPhone.
+- Acciones destructivas deben seguir siendo explicitas y separadas.
+
 ## Propuestas
 
 El detalle de propuesta usa formularios server-side y debe seguir siendo usable en movil.
@@ -145,3 +154,11 @@ Patrones recomendados:
 - En piso/vivienda plurifamiliar, mostrar planta de la unidad, puerta/unidad y observaciones de unidad.
 - "Observaciones del bloque" pasa a llamarse "Observaciones del edificio".
 - Reforma se edita desde visita/exterior del edificio y sigue guardandose en expediente por compatibilidad.
+
+## Criterios Done
+
+- `bash scripts/validate_harness.sh` pasa.
+- Cada JS modificado pasa `node --check`.
+- Drawer y acciones rapidas siguen operativos.
+- No se duplican CTAs globales fuera del drawer.
+- La pantalla afectada sigue usable en iPhone.

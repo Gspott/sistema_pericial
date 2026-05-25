@@ -44,6 +44,14 @@ Se permiten endpoints FastAPI minimos para disparar flujos existentes. No crear 
 - Usar funciones auxiliares existentes antes de crear nuevas.
 - Respetar `owner_user_id` y helpers `get_owned_*` para control de acceso.
 
+## Invariantes
+
+- Los POST criticos deben seguir funcionando sin depender exclusivamente de JavaScript.
+- SMTP/email no debe bloquear la operacion principal salvo decision explicita.
+- No introducir APIs paralelas de negocio sin justificar.
+- No cambiar rutas publicas sin actualizar navegacion, tests y docs.
+- Mantener logica critica en backend, no en plantillas ni navegador.
+
 ## Integraciones externas
 
 - El backend actua como coordinador ligero, interfaz web y gestor documental.
@@ -153,3 +161,11 @@ Anti-patrones especificos:
 - Crear endpoints que reimplementen logica ya existente.
 - Introducir colas, workers, microservicios o arquitectura enterprise sin necesidad explicita.
 - Mover reglas de negocio criticas al navegador.
+
+## Criterios Done
+
+- `bash scripts/validate_harness.sh` pasa.
+- Rutas publicas afectadas estan documentadas.
+- No se han creado APIs de negocio paralelas.
+- Si se toca JS, cada archivo modificado pasa `node --check`.
+- No se han usado datos reales ni integraciones externas sin orden explicita.

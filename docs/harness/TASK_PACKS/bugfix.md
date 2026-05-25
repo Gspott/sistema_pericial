@@ -35,6 +35,10 @@ Medio.
 
 Playbook del modulo tocado.
 
+## Fuente normativa
+
+- [docs/SOURCE_OF_TRUTH.md](../../SOURCE_OF_TRUTH.md)
+
 ## Checklist antes de editar
 
 - Bug reproducido o entendido.
@@ -81,4 +85,3 @@ Revertir diff del bug y descartar datos temporales.
 - Playbook:
 - Validaciones:
 - Rollback:
-

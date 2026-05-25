@@ -37,6 +37,11 @@ Medio-alto.
 
 `css_mobile.md` y `jinja.md`.
 
+## Fuente normativa
+
+- [docs/ux.md](../../ux.md)
+- [docs/pwa.md](../../pwa.md)
+
 ## Checklist antes de editar
 
 - Drawer sigue siendo navegacion principal.
@@ -83,4 +88,3 @@ Revertir CSS/Jinja/JS y limpiar cache solo si se toco PWA con aprobacion.
 - JS tocado:
 - Validaciones:
 - Rollback:
-

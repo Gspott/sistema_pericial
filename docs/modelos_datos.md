@@ -58,6 +58,15 @@ Cuando una propuesta tiene lineas en `propuesta_lineas`, esas lineas son la fuen
 - Duplicado/eliminacion exterior: Experimental / condicionado a endpoint o implementacion especifica documentada.
 - Propuestas con lineas de servicio estructuradas: Activo.
 
+## Invariantes
+
+- SQLite-first.
+- Nunca borrar columnas ni datos reales en migraciones automaticas.
+- Mantener compatibilidad hacia atras con bases existentes.
+- Preferir soft delete en biblioteca/catalogos cuando aplique.
+- Campos nuevos mediante patron existente tipo `asegurar_columna()` si aplica.
+- No inventar relaciones nuevas sin migracion planificada.
+
 ## Rol final de patologia
 
 Formula canonica:
@@ -176,3 +185,11 @@ Seguridad y borrado:
 - Alta, edicion y borrado de lineas deben validar ownership de propuesta/linea.
 - El borrado de lineas exige confirmacion server-side mediante `confirmar_eliminar`.
 - El recalculo de totales solo debe ejecutarse cuando la linea se crea, actualiza o borra realmente.
+
+## Criterios Done
+
+- `bash scripts/validate_harness.sh` pasa.
+- Cambios de esquema se prueban solo sobre DB temporal/copia.
+- No hay borrado de columnas ni datos reales.
+- Compatibilidad con registros existentes documentada.
+- Documentos dependientes actualizados si cambia una regla de datos.

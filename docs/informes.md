@@ -53,6 +53,14 @@ Flujo recomendado:
 - Datos expediente -> `build_informe_context()` -> HTML/PDF profesional.
 - Datos expediente -> `build_informe_context()` -> DOCX editable Pages.
 
+## Invariantes
+
+- PDF y DOCX deben compartir fuente de datos.
+- `build_informe_context()` es la fuente principal de composicion.
+- No duplicar logica de informe en plantillas o rutas.
+- Un informe sin visita/fotos debe degradar de forma controlada, no romper.
+- La generacion manual debe seguir disponible aunque existan advertencias.
+
 ## Rutas
 
 - `/informes/{expediente_id}/imprimir`: vista HTML imprimible del informe.
@@ -179,3 +187,11 @@ Checklist especifico:
 - Generar `/propuestas/{id}/pdf` y verificar que el desglose coincide con el detalle.
 - Enviar email solo si el PDF adjunto usa la misma plantilla actualizada.
 - Verificar que el email recibido contiene version HTML, fallback texto plano y adjunto PDF.
+
+## Criterios Done
+
+- `bash scripts/validate_harness.sh` pasa.
+- Smoke de `build_informe_context()` pasa si se toca contexto.
+- PDF y DOCX siguen compartiendo fuente de datos.
+- No se han leido informes/fotos reales salvo orden explicita.
+- Si se toca impresion/PDF, queda documentada revision visual necesaria.

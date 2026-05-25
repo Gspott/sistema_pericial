@@ -37,6 +37,11 @@ Critico.
 
 `docs/harness/PLAYBOOKS/backups_restore.md`.
 
+## Fuente normativa
+
+- [docs/RESTORE.md](../../RESTORE.md)
+- [docs/RECOVERY_CHECKLIST.md](../../RECOVERY_CHECKLIST.md)
+
 ## Checklist antes de editar
 
 - Usar solo sandbox/copia.
@@ -82,4 +87,3 @@ Revertir diff. Conservar backups existentes.
 - Aprobacion humana:
 - Validaciones:
 - Rollback:
-

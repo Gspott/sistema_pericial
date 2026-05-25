@@ -37,6 +37,10 @@ Alto.
 
 `docs/harness/PLAYBOOKS/emails.md`.
 
+## Fuente normativa
+
+- [docs/backend.md](../../backend.md)
+
 ## Checklist antes de editar
 
 - No mostrar credenciales.
@@ -82,4 +86,3 @@ Revertir diff y volver a mock/dry-run.
 - Adjuntos:
 - Validaciones:
 - Rollback:
-

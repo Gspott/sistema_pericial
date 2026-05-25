@@ -16,9 +16,11 @@
 ## Reglas de conocimiento
 
 - `AGENTS.md` es indice, no enciclopedia.
+- Antes de modificar un area funcional, consultar `docs/SOURCE_OF_TRUTH.md`.
+- Si hay conflicto entre docs, aplicar la jerarquia de `docs/SOURCE_OF_TRUTH.md`.
 - Los planes activos viven en `docs/harness/PLANS/active/`.
 - El conocimiento que Codex deba usar debe estar versionado en repo.
-- Cuando una tarea revele una regla nueva, actualizar `docs/harness/` o proponerlo.
+- Cuando una tarea revele una regla nueva, proponerla en la doc fuente correspondiente, no solo en el harness.
 - Los mapas para agentes viven en `docs/harness/AGENT_MAPS/` y deben ser indices legibles, no copias completas del codigo.
 - Antes de planificar una tarea real, elegir un `TASK_PACK` o justificar por que no aplica.
 - Antes de cerrar tareas relevantes, ejecutar `bash scripts/validate_harness.sh`.
