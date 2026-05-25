@@ -2,16 +2,6 @@
 
 Usar esta prioridad para problemas que no son emergencia inmediata, pero condicionan cambios seguros en modulos criticos.
 
-## Drift PWA v4/v5
-
-- Impacto: puede dejar clientes con cache/version de service worker incoherente.
-- Modulos: PWA/mobile.
-- Riesgo: Medio-alto.
-- Task Pack recomendado: `docs/harness/TASK_PACKS/mobile_ui.md`.
-- Validaciones minimas: `node --check ./static/pwa.js`, `node --check ./static/sw.js`, `bash scripts/validate_harness.sh`.
-- Bloqueo/no bloqueo: No bloquea docs; bloquea cambios PWA sin plan.
-- Dependencias: revisar `docs/pwa.md` y playbook CSS/mobile antes de tocar service worker.
-
 ## Warning Starlette TemplateResponse
 
 - Impacto: warning de compatibilidad futura en smoke tests.

@@ -6,7 +6,7 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 |---|---:|---|---|
 | Smoke tests | 10 | `pytest tests/smoke -q` | Semanal |
 | Tiempo aproximado de `validate_harness.sh` | < 5 s en entorno local habitual | `bash scripts/validate_harness.sh` | Semanal |
-| Warnings activos | 2 | `python3 scripts/audit_docs.py` | Semanal |
+| Warnings activos | 1 | `python3 scripts/audit_docs.py` | Semanal |
 | Tamano `app/main.py` | > 8000 lineas | `scripts/audit_docs.py` | Mensual |
 | Task Packs existentes | 9 | `docs/harness/TASK_PACKS/` | Mensual |
 | Docs normativos principales | 10 | `docs/SOURCE_OF_TRUTH.md` | Mensual |
@@ -14,12 +14,11 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 | Deuda tecnica abierta | Revisar tabla | `docs/harness/PLANS/tech_debt_tracker.md` | Mensual |
 | Failures documentados | 3 | `docs/harness/FAILURES/` | Mensual |
 | Patrones reutilizables | 5 | `docs/harness/PATTERNS/` | Mensual |
-| Backlog por prioridad | critical: 0, high: 3, medium: 3, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
-| Warnings activos documentados | 2 | `docs/harness/STATE/known_risks.md` | Semanal |
+| Backlog por prioridad | critical: 0, high: 2, medium: 3, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
+| Warnings activos documentados | 1 | `docs/harness/STATE/known_risks.md` | Semanal |
 
 ## Warnings conocidos
 
-- Drift PWA entre registro de service worker y cache.
 - `app/main.py` supera el umbral informativo de monolito.
 
 ## Uso

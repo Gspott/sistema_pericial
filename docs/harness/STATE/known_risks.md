@@ -1,6 +1,5 @@
 # Known Risks
 
-- Drift PWA entre registro de service worker y cache.
 - `app/main.py` sigue siendo monolito grande.
 - Warning Starlette `TemplateResponse` en smoke tests.
 - Facturacion, backups, auth, DB e informes son modulos criticos.

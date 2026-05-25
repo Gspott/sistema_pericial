@@ -57,6 +57,7 @@ El versionado PWA debe usar `/sw.js?v=<version>` o incremento explicito; no se p
 - Las navegaciones usan `fetch(request)`, no cache-first.
 - Cambiar `CACHE_NAME` cuando se modifiquen assets criticos cacheados.
 - Actualizar version de registro del service worker cuando se modifique `static/sw.js` o assets criticos.
+- La version de registro en `static/pwa.js` debe coincidir con la version de cache activa en `static/sw.js`.
 - No hardcodear versiones fijas u obsoletas de service worker/PWA.
 - Evitar que el service worker interfiera con autenticacion.
 

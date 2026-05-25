@@ -8,3 +8,4 @@
 - Fase 4B: fuentes normativas, invariantes y specs de facturacion/gastos.
 - Fase 4C: Golden Principles, mantenimiento y metricas.
 - Fase 4D: memoria operativa persistente.
+- Fix PWA drift: registro de service worker alineado con cache activa.

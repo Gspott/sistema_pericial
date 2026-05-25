@@ -19,11 +19,12 @@ Puede provocar cache incoherente en clientes y comportamiento movil dificil de d
 
 ## Mitigacion
 
-No tocar PWA en tareas mezcladas. Crear plan especifico y usar `docs/harness/TASK_PACKS/mobile_ui.md`.
+Resuelto alineando la version de registro con la version de cache activa. No se cambio la lista de assets ni la estrategia del service worker.
 
 ## Como Evitar Regresion
 
 - No hardcodear versiones obsoletas.
+- Mantener coincidentes la version de registro en `static/pwa.js` y la version de cache en `static/sw.js`.
 - Validar todos los JS tocados.
 - Mantener audit drift activo.
 
