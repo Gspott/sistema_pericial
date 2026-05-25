@@ -14,7 +14,7 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 | Deuda tecnica abierta | Revisar tabla | `docs/harness/PLANS/tech_debt_tracker.md` | Mensual |
 | Failures documentados | 3 | `docs/harness/FAILURES/` | Mensual |
 | Patrones reutilizables | 5 | `docs/harness/PATTERNS/` | Mensual |
-| Backlog por prioridad | critical: 0, high: 2, medium: 3, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
+| Backlog por prioridad | critical: 0, high: 1, medium: 3, low: 0, icebox: 0 | `docs/harness/BACKLOG/` | Semanal |
 | Warnings activos documentados | 1 | `docs/harness/STATE/known_risks.md` | Semanal |
 
 ## Warnings conocidos

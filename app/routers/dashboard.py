@@ -25,7 +25,7 @@ def render_template(request: Request, template_name: str, context: dict | None =
     }
     if context:
         data.update(context)
-    return request.app.state.templates.TemplateResponse(template_name, data)
+    return request.app.state.templates.TemplateResponse(request, template_name, data)
 
 
 def format_money(valor: float | int | None) -> str:

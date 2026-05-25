@@ -2509,7 +2509,7 @@ def render_template(request: Request, template_name: str, context: dict | None =
     }
     if context:
         data.update(context)
-    return templates.TemplateResponse(template_name, data)
+    return templates.TemplateResponse(request, template_name, data)
 
 
 def normalizar_redirect_interno(destino: str | None) -> str:

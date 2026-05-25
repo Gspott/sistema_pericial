@@ -27,6 +27,7 @@ def nueva_visita(request: Request, expediente_id: int):
         return HTMLResponse("<h1>Expediente no encontrado</h1>", status_code=404)
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "nueva_visita.html",
         {"request": request, "expediente": expediente},
     )

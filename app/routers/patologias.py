@@ -85,6 +85,7 @@ def registrar_patologias(request: Request, visita_id: int):
     conn.close()
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "registrar_patologias.html",
         {
             "request": request,
@@ -189,6 +190,7 @@ def editar_registro(request: Request, registro_id: int):
     conn.close()
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "editar_registro.html",
         {
             "request": request,

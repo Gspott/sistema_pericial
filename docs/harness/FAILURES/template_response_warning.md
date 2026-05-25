@@ -19,12 +19,13 @@ No rompe ahora, pero puede convertirse en error al actualizar dependencias.
 
 ## Mitigacion
 
-Planificar fase pequena para inspeccionar llamadas `TemplateResponse` y cambiar solo firmas necesarias.
+Resuelto migrando llamadas `TemplateResponse` a la firma recomendada `TemplateResponse(request, name, context)` sin cambiar contextos ni logica de rutas.
 
 ## Como Evitar Regresion
 
 - Mantener smoke tests de rutas.
 - No mezclar la correccion con refactors de templates o navegacion.
+- Usar la firma nueva en cualquier renderizado server-side futuro.
 
 ## Smoke Tests Relacionados
 

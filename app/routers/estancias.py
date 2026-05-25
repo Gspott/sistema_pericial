@@ -39,6 +39,7 @@ def definir_estancias(request: Request, visita_id: int):
         return HTMLResponse("<h1>Visita no encontrada</h1>", status_code=404)
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "definir_estancias.html",
         {
             "request": request,

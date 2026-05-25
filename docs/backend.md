@@ -35,6 +35,7 @@ Se permiten endpoints FastAPI minimos para disparar flujos existentes. No crear 
 ## Principios
 
 - FastAPI + Jinja server-side rendering.
+- Usar `TemplateResponse(request, template_name, context)` para evitar firmas deprecadas de Starlette.
 - SQLite con `sqlite3.Row`.
 - Preparar datos en backend y mantener templates simples.
 - No crear APIs de negocio paralelas.

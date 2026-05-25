@@ -9,3 +9,4 @@
 - Fase 4C: Golden Principles, mantenimiento y metricas.
 - Fase 4D: memoria operativa persistente.
 - Fix PWA drift: registro de service worker alineado con cache activa.
+- Fix TemplateResponse: llamadas Jinja migradas a firma recomendada de Starlette.

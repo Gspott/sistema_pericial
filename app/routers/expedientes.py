@@ -33,6 +33,7 @@ def home(request: Request):
         return RedirectResponse(url="/iphone", status_code=302)
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "index.html",
         {"request": request},
     )
@@ -85,6 +86,7 @@ def iphone_panel(request: Request):
     conn.close()
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "iphone_inicio.html",
         {
             "request": request,
@@ -147,6 +149,7 @@ def listar_expedientes(request: Request):
         expedientes_procesados.append(item)
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "expedientes.html",
         {"request": request, "expedientes": expedientes_procesados},
     )
@@ -155,6 +158,7 @@ def listar_expedientes(request: Request):
 @router.get("/nuevo-expediente", response_class=HTMLResponse)
 def nuevo_expediente(request: Request):
     return request.app.state.templates.TemplateResponse(
+        request,
         "nuevo_expediente.html",
         {"request": request},
     )
@@ -326,6 +330,7 @@ def detalle_expediente(request: Request, expediente_id: int):
     )
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "detalle_expediente.html",
         {
             "request": request,
@@ -355,6 +360,7 @@ def editar_expediente(request: Request, expediente_id: int):
         return HTMLResponse("<h1>Expediente no encontrado</h1>", status_code=404)
 
     return request.app.state.templates.TemplateResponse(
+        request,
         "editar_expediente.html",
         {"request": request, "expediente": expediente},
     )
