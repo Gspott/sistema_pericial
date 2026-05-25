@@ -67,6 +67,43 @@ HARNESS_REQUIRED_PATHS = {
     "docs/harness/AGENT_MAPS/db_map.md",
     "docs/harness/AGENT_MAPS/critical_flows.md",
 }
+AGENTS_REQUIRED_LINKS = {
+    "docs/harness/PROJECT_RULES.md",
+    "docs/harness/PERMISSIONS.md",
+    "docs/harness/CONTEXT_STRATEGY.md",
+    "docs/harness/RISK_MAP.md",
+    "docs/harness/CODEX_OPERATING_MANUAL.md",
+}
+CRITICAL_PLAYBOOKS = {
+    "docs/harness/PLAYBOOKS/facturacion.md",
+    "docs/harness/PLAYBOOKS/propuestas.md",
+    "docs/harness/PLAYBOOKS/emails.md",
+    "docs/harness/PLAYBOOKS/informes.md",
+    "docs/harness/PLAYBOOKS/base_datos.md",
+    "docs/harness/PLAYBOOKS/jinja.md",
+    "docs/harness/PLAYBOOKS/css_mobile.md",
+    "docs/harness/PLAYBOOKS/deploy_acceso_remoto.md",
+    "docs/harness/PLAYBOOKS/backups_restore.md",
+    "docs/harness/PLAYBOOKS/secretos.md",
+}
+CRITICAL_GOALS = {
+    "docs/harness/GOALS/activacion_comercial.md",
+    "docs/harness/GOALS/estabilidad_operativa.md",
+    "docs/harness/GOALS/facturacion_segura.md",
+    "docs/harness/GOALS/informes_documentos.md",
+    "docs/harness/GOALS/seguridad_backups.md",
+    "docs/harness/GOALS/ux_movil.md",
+    "docs/harness/GOALS/refactor_gradual.md",
+}
+CRITICAL_WORKFLOWS = {
+    "docs/harness/WORKFLOWS/diff_approval.md",
+    "docs/harness/WORKFLOWS/propuesta_a_factura_a_expediente.md",
+}
+CRITICAL_VALIDATION_DOCS = {
+    "docs/harness/VALIDATION/minimal_checks.md",
+    "docs/harness/VALIDATION/runner.md",
+}
+MAIN_MONOLITH_WARNING_LINES = 8000
 
 
 def markdown_files() -> list[Path]:
@@ -183,9 +220,79 @@ def check_thematic_contracts(errors: list[str]) -> None:
 
 
 def check_harness_contract(errors: list[str]) -> None:
-    for rel in sorted(HARNESS_REQUIRED_PATHS):
+    required_paths = (
+        HARNESS_REQUIRED_PATHS
+        | CRITICAL_PLAYBOOKS
+        | CRITICAL_GOALS
+        | CRITICAL_WORKFLOWS
+        | CRITICAL_VALIDATION_DOCS
+    )
+    for rel in sorted(required_paths):
         if not (ROOT / rel).exists():
             errors.append(f"Ruta harness requerida inexistente: {rel}")
+
+
+def check_agents_harness_links(errors: list[str]) -> None:
+    agents = ROOT / "AGENTS.md"
+    if not agents.exists():
+        errors.append("Falta AGENTS.md")
+        return
+    text = agents.read_text(encoding="utf-8")
+    for rel in sorted(AGENTS_REQUIRED_LINKS):
+        if rel not in text:
+            errors.append(f"AGENTS.md no enlaza harness requerido: {rel}")
+
+
+def check_tests_contract(errors: list[str]) -> None:
+    if not (ROOT / "pytest.ini").exists():
+        errors.append("Falta pytest.ini para smoke tests")
+    if not (ROOT / "tests" / "smoke").is_dir():
+        errors.append("Falta tests/smoke/")
+
+    runner = ROOT / "scripts" / "validate_harness.sh"
+    if not runner.exists():
+        errors.append("Falta scripts/validate_harness.sh")
+        return
+    runner_text = runner.read_text(encoding="utf-8")
+    if "tests/smoke" not in runner_text:
+        errors.append("validate_harness.sh no referencia tests/smoke")
+
+
+def check_pwa_version_drift(warnings: list[str]) -> None:
+    pwa_path = ROOT / "static" / "pwa.js"
+    sw_path = ROOT / "static" / "sw.js"
+    if not pwa_path.exists() or not sw_path.exists():
+        warnings.append("No se puede comprobar drift PWA: falta static/pwa.js o static/sw.js")
+        return
+
+    pwa_text = pwa_path.read_text(encoding="utf-8")
+    sw_text = sw_path.read_text(encoding="utf-8")
+    pwa_match = re.search(r"/sw\.js\?v=(\d+)", pwa_text)
+    cache_match = re.search(r"CACHE_NAME\s*=\s*[\"'][^\"']*v(\d+)[\"']", sw_text)
+
+    if not pwa_match or not cache_match:
+        warnings.append("No se puede comprobar drift PWA: version de registro o cache no reconocida")
+        return
+
+    pwa_version = pwa_match.group(1)
+    cache_version = cache_match.group(1)
+    if pwa_version != cache_version:
+        warnings.append(
+            "Drift PWA: static/pwa.js registra service worker "
+            f"v={pwa_version}, pero static/sw.js usa cache v{cache_version}"
+        )
+
+
+def check_monolith_size(warnings: list[str]) -> None:
+    main_path = ROOT / "app" / "main.py"
+    if not main_path.exists():
+        return
+    line_count = len(main_path.read_text(encoding="utf-8").splitlines())
+    if line_count > MAIN_MONOLITH_WARNING_LINES:
+        warnings.append(
+            f"Monolito estructural: app/main.py tiene {line_count} lineas "
+            f"(umbral informativo {MAIN_MONOLITH_WARNING_LINES})"
+        )
 
 
 def check_adr_readme(errors: list[str]) -> None:
@@ -220,6 +327,7 @@ def check_known_drifts(files: list[Path], errors: list[str]) -> None:
 
 def main() -> int:
     errors: list[str] = []
+    warnings: list[str] = []
     files = markdown_files()
 
     check_empty(files, errors)
@@ -231,11 +339,20 @@ def main() -> int:
     check_adr_required_fields(errors)
     check_thematic_contracts(errors)
     check_harness_contract(errors)
+    check_agents_harness_links(errors)
+    check_tests_contract(errors)
     check_adr_readme(errors)
     check_known_drifts(files, errors)
+    check_pwa_version_drift(warnings)
+    check_monolith_size(warnings)
 
     print("Auditoria documental")
     print(f"- Markdown revisados: {len(files)}")
+
+    if warnings:
+        print("- Warnings:")
+        for warning in warnings:
+            print(f"  - {warning}")
 
     if errors:
         print("- Estado: ERROR")

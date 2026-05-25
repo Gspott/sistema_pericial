@@ -25,6 +25,7 @@ Si `pytest` no esta instalado, el runner marca los smoke tests como `[SKIP]` y e
 ## Que detecta
 
 - Drift documental cubierto por `scripts/audit_docs.py`.
+- Drift estructural indirecto cubierto por `scripts/audit_docs.py`: harness incompleto, enlaces obligatorios de `AGENTS.md`, smoke tests no referenciados, drift PWA y warnings de monolito.
 - Errores sintacticos Python en `app/` y `tests/`.
 - Errores sintacticos JS en shell/PWA/service worker.
 - Fallos de smoke tests cuando `pytest` esta instalado.
