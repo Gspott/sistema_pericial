@@ -298,6 +298,10 @@
                 <a class="boton secundario" href="/nueva-visita/{{ expediente.id }}">Registrar nueva visita</a>
                 {% endif %}
                 <a class="boton secundario" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
+                {% if expediente.es_informe_valoracion %}
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion">Editar datos de valoración</a>
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion/testigos">Testigos de valoración</a>
+                {% endif %}
                 <a class="boton secundario" href="/facturacion/facturas/nueva?expediente_id={{ expediente.id }}">Crear factura</a>
                 <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe PDF</a>
                 <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
@@ -849,6 +853,9 @@
 
                     <div class="actions">
                         <a class="boton secundario" href="/editar-visita/{{ visita.id }}">Editar visita</a>
+                        {% if expediente.es_informe_valoracion %}
+                        <a class="boton secundario" href="/visitas/{{ visita.id }}/valoracion-observaciones">Observaciones de valoración</a>
+                        {% endif %}
                         <a class="boton" href="/definir-estancias/{{ visita.id }}">Ver / editar estancias</a>
                         {% if expediente.es_informe_patologias %}
                         <a class="boton secundario" href="/registrar-patologias/{{ visita.id }}">Registrar patologías</a>

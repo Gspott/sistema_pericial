@@ -49,6 +49,12 @@ Categoria: Datos
 
 Cuando una propuesta tiene lineas en `propuesta_lineas`, esas lineas son la fuente economica de verdad. Los importes agregados de `propuestas` se conservan por compatibilidad y se sincronizan desde el desglose.
 
+Decision ID: VAL-001
+Estado: Active
+Categoria: Datos
+
+La valoracion inmobiliaria evoluciona con tablas especificas y defensivas, no anadiendo todos los datos estables a `expedientes`. `valoracion_visita` y `comparables_valoracion` siguen como legacy/fallback hasta una migracion sandbox aprobada.
+
 ## Madurez
 
 - `rol_final`: Activo.
@@ -57,6 +63,7 @@ Cuando una propuesta tiene lineas en `propuesta_lineas`, esas lineas son la fuen
 - Duplicado/eliminacion interior: Activo.
 - Duplicado/eliminacion exterior: Experimental / condicionado a endpoint o implementacion especifica documentada.
 - Propuestas con lineas de servicio estructuradas: Activo.
+- Modelo defensivo de valoracion inmobiliaria: Activo en esquema; sin migracion ni calculo productivo.
 
 ## Invariantes
 
@@ -133,6 +140,57 @@ Campos internos:
 - Propuesta puede crear/enlazar expediente.
 - `propuestas.expediente_id` se actualiza al crear expediente desde propuesta.
 - `expedientes` aun no tiene `cliente_id`; no inventar relacion sin migracion planificada.
+
+## Valoracion inmobiliaria
+
+El modelo nuevo separa los datos estables del expediente, las observaciones de visita y los testigos reutilizables. La primera fase es defensiva: crea estructura compatible, no migra datos reales y no modifica outputs ni calculos.
+
+Tablas activas:
+
+- `valoracion_expediente`: datos estables 1:1 por expediente, como finalidad, solicitante, documentacion, superficies, situacion legal, entorno, caracteristicas constructivas, metodos previstos, variables de mercado y limitaciones.
+- `valoracion_visita_observaciones`: observaciones puntuales de visita, como estado observado, reforma observada, ocupacion observada, incidencias, comprobaciones fisicas, observaciones del portal, observaciones del cuadro de contadores y notas tecnicas.
+- `testigos_valoracion`: base reutilizable de testigos/comparables con ownership, fuente, fecha, superficies, precio, valor unitario, estado, validacion y marca `reutilizable`.
+- `testigos_valoracion_fotos`: metadatos de fotos o capturas de testigo subidas manualmente desde la biblioteca. No descarga imagenes remotas ni reutiliza uploads reales en smokes.
+- `valoracion_expediente_testigos`: vinculo expediente-testigo con orden, inclusion, snapshot JSON y valores unitarios/resultantes del uso concreto.
+- `valoracion_testigo_ajustes`: coeficientes y justificacion asociados al testigo vinculado, no al testigo reusable.
+- `valoracion_resultados`: resultados versionados por metodo para comparacion, coste u otros metodos futuros.
+
+Compatibilidad:
+
+- `valoracion_visita` permanece como captura legacy y fuente de fallback para informes modernos existentes.
+- `comparables_valoracion` permanece como comparables ligados a visita hasta que exista migracion sandbox y UI de testigos reutilizables.
+- La lectura unificada de informes debe priorizar `valoracion_expediente`,
+  `valoracion_visita_observaciones`, `valoracion_expediente_testigos`,
+  `testigos_valoracion`, `valoracion_testigo_ajustes` y
+  `valoracion_resultados`. Solo si no hay datos nuevos debe usar
+  `valoracion_visita` y `comparables_valoracion`.
+- El formulario inicial de datos estables de valoracion escribe solo en
+  `valoracion_expediente`. Puede mostrar datos legacy como referencia visual,
+  pero no los copia ni migra automaticamente.
+- El formulario inicial de observaciones de visita de valoracion escribe solo
+  en `valoracion_visita_observaciones`: estado observado, reforma observada,
+  ocupacion observada, observaciones de inspeccion, incidencias,
+  comprobaciones fisicas, observaciones del portal y observaciones del cuadro de
+  contadores. Puede mostrar datos legacy como referencia visual, pero no
+  modifica `valoracion_visita`.
+- La base inicial de testigos reutilizables escribe en `testigos_valoracion`
+  con `owner_user_id`. La seleccion de testigos por expediente escribe solo en
+  `valoracion_expediente_testigos`, guarda `snapshot_json`, orden, inclusion y
+  notas de seleccion, y no borra el testigo base al quitarlo del expediente.
+- La biblioteca de testigos reutilizables puede adjuntar fotos manuales en
+  `testigos_valoracion_fotos`; cada foto pertenece al testigo base, no al
+  vinculo de un expediente concreto. La captura automatica desde enlaces,
+  portales u OCR queda fuera del modelo activo hasta fase especifica.
+- El snapshot del vinculo conserva la evidencia usada por la valoracion; editar
+  el testigo reusable no debe reescribir valoraciones historicas.
+- Los ajustes manuales de homogeneizacion se guardan en
+  `valoracion_testigo_ajustes` por vinculo expediente-testigo. Cada coeficiente
+  individual queda limitado a -0.20/+0.20 y debe tener justificacion.
+- El calculo permitido antes del valor final se limita a `coeficiente_total =
+  1 + suma de ajustes` y, si existe `valor_unitario_base`, a
+  `valor_unitario_ajustado` en `valoracion_expediente_testigos`. No calcula
+  promedio, ponderacion global, valor final ni metodo de coste.
+- No se borra ni renombra ninguna columna existente.
 
 ## Propuestas y lineas de servicio
 

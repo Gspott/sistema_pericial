@@ -16,6 +16,14 @@ Cuando PDF, DOCX o plantilla de informe necesitan un dato nuevo o una correccion
 - Añadir o corregir datos en `build_informe_context()` o equivalente.
 - Mantener una fuente compartida para PDF y DOCX.
 - Degradar de forma controlada si faltan visita, fotos o patologias.
+- Para tipos de informe especificos, exponer datos aditivos con flags
+  (`tipo_informe`, `es_<tipo>`) y listas vacias cuando no apliquen, sin
+  modificar primero los outputs.
+- Agrupar datos por secciones renderizables (`titulo`, `campos`,
+  `hay_datos`) para que HTML/PDF y DOCX puedan consumir la misma forma.
+- Para completitud no bloqueante, devolver advertencias estructuradas en el
+  contexto y renderizarlas como ayuda; no convertirlas en bloqueo de
+  generacion.
 
 ## Riesgos
 

@@ -19,6 +19,18 @@
 
 <body>
     {% include "partials/_app_shell_start.html" %}
+{% macro ayudas_valoracion(campo, ayudas) -%}
+    {% if ayudas.get(campo) %}
+    <details class="quick-help">
+        <summary>Ayudas rápidas</summary>
+        <div class="quick-help-options">
+            {% for opcion in ayudas.get(campo) %}
+            <span>{{ opcion }}</span>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+{%- endmacro %}
 <div class="page">
         <section class="card visita-header">
             <div class="visita-header-main">
@@ -36,6 +48,7 @@
             </div>
         </section>
 
+        {% if not es_informe_valoracion %}
         <div class="card">
             <p>La climatología queda vinculada a la visita. Si todavía no existe, al generarla se crea la visita con los datos actuales del formulario y después podrás terminar de guardarla sin duplicados.</p>
         </div>
@@ -43,6 +56,7 @@
         <div class="card" id="clima-error-card" {% if not clima_error %}hidden{% endif %}>
             <p class="error" id="clima-error-text">{{ clima_error or '' }}</p>
         </div>
+        {% endif %}
 
         {% if visita_form.id %}
         <section class="card visita-exterior-card" id="exterior-edificio">
@@ -67,9 +81,11 @@
 
                 <button class="boton" type="submit">Guardar fotos exteriores</button>
             </form>
+            {% if not es_informe_valoracion %}
             <form class="visita-exterior-form" method="post" action="/expedientes/{{ expediente.id }}/reforma">
                 <input type="hidden" name="next" value="/nueva-visita/{{ expediente.id }}?visita_id={{ visita_form.id }}#exterior-edificio">
                 <h3>Reforma observada</h3>
+                <p class="helper-text">Dato observado durante la visita; se conserva en la ficha del expediente.</p>
 
                 <label for="reformado">¿Reformado?</label>
                 <select id="reformado" name="reformado">
@@ -90,6 +106,7 @@
 
                 <button class="boton secundario" type="submit">Guardar datos de reforma</button>
             </form>
+            {% endif %}
             {% if visita_fotos_exteriores %}
             <div class="visita-fotos-grid">
                 {% for foto in visita_fotos_exteriores %}
@@ -106,7 +123,9 @@
                 {% if permite_patologias_exteriores %}
                 <a class="boton" href="/registrar-patologias/{{ visita_form.id }}?exterior=1#formulario_patologia_exterior">Registrar patología exterior</a>
                 {% endif %}
+                {% if not es_informe_valoracion %}
                 <a class="boton secundario" href="/definir-estancias/{{ visita_form.id }}">Continuar a estancias</a>
+                {% endif %}
             </div>
         </section>
         {% else %}
@@ -115,6 +134,88 @@
                 <p class="visita-eyebrow">Siguiente paso</p>
                 <p class="empty">Guarda la visita para registrar fotos exteriores.</p>
             </div>
+        </section>
+        {% endif %}
+
+        {% if es_informe_valoracion and visita_form.id %}
+        <section class="card visita-exterior-card" id="reforma-observada">
+            <form class="visita-exterior-form" method="post" action="/expedientes/{{ expediente.id }}/reforma">
+                <input type="hidden" name="next" value="/nueva-visita/{{ expediente.id }}?visita_id={{ visita_form.id }}#reforma-observada">
+                <p class="visita-eyebrow">Visita física de valoración</p>
+                <h2>Reforma observada</h2>
+                <p class="helper-text">Dato observado durante la visita; se conserva en la ficha del expediente por compatibilidad.</p>
+
+                <label for="reformado">¿Reformado?</label>
+                <select id="reformado" name="reformado">
+                    <option value="No" {% if expediente.reformado == "No" or not expediente.reformado %}selected{% endif %}>No</option>
+                    <option value="Sí" {% if expediente.reformado == "Sí" %}selected{% endif %}>Sí</option>
+                </select>
+
+                <label for="fecha_reforma">Fecha de reforma</label>
+                <select id="fecha_reforma" name="fecha_reforma">
+                    <option value="">Sin reforma / no aplica</option>
+                    {% for anio in anios_disponibles %}
+                    <option value="{{ anio }}" {% if expediente.fecha_reforma == anio|string %}selected{% endif %}>{{ anio }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="observaciones_reforma">Observaciones de la reforma</label>
+                <textarea id="observaciones_reforma" name="observaciones_reforma">{{ expediente.observaciones_reforma or '' }}</textarea>
+
+                <button class="boton secundario" type="submit">Guardar datos de reforma</button>
+            </form>
+        </section>
+
+        <section class="card visita-exterior-card" id="portal-contadores">
+            <div>
+                <p class="visita-eyebrow">Elementos comunes observados</p>
+                <h2>Portal y contadores</h2>
+                <p class="helper-text">Registra observaciones y fotografías del portal y del cuadro de contadores.</p>
+                {% if not visita_fotos_portal_contadores %}
+                <p class="empty">Todavía no hay fotos del portal o contadores.</p>
+                {% endif %}
+            </div>
+            <form class="visita-exterior-form" method="post" action="/guardar-visita/{{ expediente.id }}">
+                <input type="hidden" name="visita_id" value="{{ visita_form.id }}">
+                <input type="hidden" name="fecha" value="{{ visita_form.fecha }}">
+                <input type="hidden" name="tecnico" value="{{ visita_form.tecnico }}">
+                <input type="hidden" name="observaciones_visita" value="{{ visita_form.observaciones_visita or '' }}">
+                <input type="hidden" name="ambito_visita" value="{{ visita_form.ambito_visita or 'edificio_completo' }}">
+                <input type="hidden" name="nivel_id" value="{{ visita_form.nivel_id }}">
+                <input type="hidden" name="unidad_id" value="{{ visita_form.unidad_id }}">
+
+                <label for="observaciones_portal">Observaciones del portal</label>
+                <textarea id="observaciones_portal" name="observaciones_portal">{{ valoracion_visita_observaciones.get('observaciones_portal', '') }}</textarea>
+
+                <label for="observaciones_cuadro_contadores">Observaciones del cuadro de contadores</label>
+                <textarea id="observaciones_cuadro_contadores" name="observaciones_cuadro_contadores">{{ valoracion_visita_observaciones.get('observaciones_cuadro_contadores', '') }}</textarea>
+
+                <button class="boton secundario" type="submit">Guardar observaciones de portal/contadores</button>
+            </form>
+            <form class="visita-exterior-form" method="post" action="/visitas/{{ visita_form.id }}/fotos" enctype="multipart/form-data">
+                <input type="hidden" name="categoria" value="portal_contadores">
+                <input type="hidden" name="next" value="/nueva-visita/{{ expediente.id }}?visita_id={{ visita_form.id }}#portal-contadores">
+
+                <label for="descripcion_foto_portal_contadores">Descripción</label>
+                <input type="text" id="descripcion_foto_portal_contadores" name="descripcion" placeholder="Ej. Portal, buzones, cuadro de contadores">
+
+                <label class="photo-capture-label" for="fotos_portal_contadores_visita">Añadir fotos de portal/contadores</label>
+                <input class="photo-input" type="file" id="fotos_portal_contadores_visita" name="fotos" accept="image/*" capture="environment" multiple>
+
+                <button class="boton" type="submit">Guardar fotos de portal/contadores</button>
+            </form>
+            {% if visita_fotos_portal_contadores %}
+            <div class="visita-fotos-grid">
+                {% for foto in visita_fotos_portal_contadores %}
+                <figure class="visita-foto-item">
+                    <img src="{{ foto.url }}" alt="Foto del portal o cuadro de contadores">
+                    {% if foto.descripcion %}
+                    <figcaption>{{ foto.descripcion }}</figcaption>
+                    {% endif %}
+                </figure>
+                {% endfor %}
+            </div>
+            {% endif %}
         </section>
         {% endif %}
 
@@ -140,6 +241,11 @@
                 <label for="tecnico">Técnico</label>
                 <input type="text" id="tecnico" name="tecnico" value="{{ visita_form.tecnico }}" required>
 
+                {% if es_informe_valoracion %}
+                <input type="hidden" name="ambito_visita" value="{{ visita_form.ambito_visita or 'edificio_completo' }}">
+                <input type="hidden" name="nivel_id" value="{{ visita_form.nivel_id }}">
+                <input type="hidden" name="unidad_id" value="{{ visita_form.unidad_id }}">
+                {% else %}
                 <div class="section-divider"></div>
 
                 <h2>Ámbito de la visita</h2>
@@ -189,6 +295,7 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
 
                 <label for="observaciones_visita">Observaciones de la visita</label>
                 <textarea id="observaciones_visita" name="observaciones_visita">{{ visita_form.observaciones_visita or '' }}</textarea>
@@ -205,6 +312,7 @@
                 </div>
                 {% endif %}
 
+                {% if not es_informe_valoracion %}
                 <div class="section-divider"></div>
 
                 <section class="visita-secondary-section">
@@ -232,6 +340,7 @@
                         </div>
                     </div>
                 </section>
+                {% endif %}
 
                 {% if es_informe_inspeccion %}
                 <div class="section-divider"></div>
@@ -419,157 +528,6 @@
                 {% endif %}
                 {% endif %}
 
-                {% if es_informe_valoracion %}
-                <div class="section-divider"></div>
-                <h2>Valoración inmobiliaria</h2>
-                {% if objeto_visita_label %}
-                <p class="helper-text">{{ objeto_visita_label }}</p>
-                {% endif %}
-
-                {% if not visita_form.id %}
-                <p class="helper-text">Guarda primero la visita para completar los datos de valoración inmobiliaria.</p>
-                {% else %}
-                <div class="card inner-card">
-                    <h3>Encargo</h3>
-                    {% for campo, etiqueta in valoracion_encargo_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Documentación</h3>
-                    {% for campo, etiqueta in valoracion_documentacion_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Datos generales de valoración</h3>
-                    {% for campo, etiqueta in valoracion_datos_generales_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Superficies</h3>
-                    {% for campo, etiqueta in valoracion_superficies_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Situación legal</h3>
-                    {% for campo, etiqueta in valoracion_situacion_legal_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Entorno</h3>
-                    {% for campo, etiqueta in valoracion_entorno_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Edificio</h3>
-                    {% for campo, etiqueta in valoracion_edificio_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Inmueble</h3>
-                    {% for campo, etiqueta in valoracion_inmueble_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Constructivo</h3>
-                    {% for campo, etiqueta in valoracion_constructivo_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Estado</h3>
-                    {% for campo, etiqueta in valoracion_estado_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Fechas</h3>
-                    {% for campo, etiqueta in valoracion_fechas_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Método / mercado</h3>
-                    {% for campo, etiqueta in valoracion_metodo_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Resultado / limitaciones</h3>
-                    {% for campo, etiqueta in valoracion_resultado_items %}
-                    <label for="valoracion__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="valoracion__{{ campo }}" name="valoracion__{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
-                    {% endfor %}
-                </div>
-
-                <div class="card inner-card">
-                    <h3>Comparables / testigos</h3>
-                    {% if objeto_visita_label %}
-                    <p class="helper-text">{{ objeto_visita_label }}</p>
-                    {% endif %}
-                    {% for campo, etiqueta in comparables_valoracion_items %}
-                    <label for="comparable__{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="comparable__{{ campo }}" name="{{ campo }}">{{ comparable_form.get(campo, '') }}</textarea>
-                    {% endfor %}
-                    <div class="actions">
-                        <button class="boton" type="submit" formaction="/guardar-comparable-valoracion" formmethod="post">Añadir comparable</button>
-                    </div>
-
-                    {% if comparables_valoracion %}
-                    {% for comparable in comparables_valoracion %}
-                    <div class="card inner-card">
-                        <p><strong>Dirección:</strong> {{ comparable.direccion_testigo or '-' }}</p>
-                        <p><strong>Fuente:</strong> {{ comparable.fuente_testigo or '-' }}</p>
-                        <p><strong>Precio oferta:</strong> {{ comparable.precio_oferta or '-' }}</p>
-                        <p><strong>Valor unitario:</strong> {{ comparable.valor_unitario or '-' }}</p>
-                        <p><strong>Superficie construida:</strong> {{ comparable.superficie_construida or '-' }}</p>
-                        <p><strong>Tipología:</strong> {{ comparable.tipologia or '-' }}</p>
-                        <p><strong>Estado:</strong> {{ comparable.estado_conservacion or '-' }}</p>
-                        <p><strong>Observaciones:</strong> {{ comparable.observaciones or '-' }}</p>
-                        <div class="actions">
-                            <a class="boton secundario" href="/editar-comparable-valoracion/{{ comparable.id }}">Editar</a>
-                            <button class="boton secundario" type="submit" formaction="/borrar-comparable-valoracion/{{ comparable.id }}" formmethod="post">Borrar</button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                    {% else %}
-                    <p class="empty">No hay comparables guardados todavía en esta visita.</p>
-                    {% endif %}
-                </div>
-                {% endif %}
-                {% endif %}
-
                 <div class="actions visita-form-actions">
                     <button class="boton" type="submit">
                     {% if not es_informe_inspeccion and not es_informe_habitabilidad and not es_informe_valoracion %}
@@ -585,12 +543,25 @@
                 </div>
             </form>
         </div>
+        {% if es_informe_valoracion and visita_form.id %}
+        <section class="card visita-exterior-card" id="registro-estancias">
+            <div>
+                <p class="visita-eyebrow">Siguiente paso de visita</p>
+                <h2>Registro de estancias</h2>
+                <p class="helper-text">Mantén la estructura y estancias para describir lo observado durante la inspección física.</p>
+            </div>
+            <div class="actions visita-exterior-actions">
+                <a class="boton secundario" href="/definir-estancias/{{ visita_form.id }}">Continuar a estancias</a>
+            </div>
+        </section>
+        {% endif %}
     </div>
     {% include "partials/_app_shell_end.html" %}
 
     <script>
-        const climaButton = document.getElementById("boton-clima");
         const visitaForm = document.getElementById("visita-form");
+        {% if not es_informe_valoracion %}
+        const climaButton = document.getElementById("boton-clima");
         const latitudInput = document.getElementById("latitud");
         const longitudInput = document.getElementById("longitud");
         const ubicacionInput = document.getElementById("ubicacion_referencia");
@@ -601,6 +572,10 @@
         const climaResumenDiario = document.getElementById("clima-resumen-diario");
         const climaErrorCard = document.getElementById("clima-error-card");
         const climaErrorText = document.getElementById("clima-error-text");
+        const fallbackDireccion = {{ expediente.direccion | tojson }};
+        const expedienteId = {{ expediente.id }};
+        let climaEnCurso = false;
+        {% endif %}
         const ambitoVisitaInput = document.getElementById("ambito_visita");
         const bloqueNivelVisita = document.getElementById("bloque_nivel_visita");
         const bloqueUnidadVisita = document.getElementById("bloque_unidad_visita");
@@ -610,9 +585,6 @@
         const unidadIdVisita = document.getElementById("unidad_id_visita");
         const unidadIdZonaComunVisita = document.getElementById("unidad_id_zona_comun_visita");
         const unidadIdExteriorVisita = document.getElementById("unidad_id_exterior_visita");
-        const fallbackDireccion = {{ expediente.direccion | tojson }};
-        const expedienteId = {{ expediente.id }};
-        let climaEnCurso = false;
 
         function actualizarAmbitoVisita() {
             if (!ambitoVisitaInput) {
@@ -654,6 +626,7 @@
             }
         }
 
+        {% if not es_informe_valoracion %}
         function limpiarCoordenadas() {
             latitudInput.value = "";
             longitudInput.value = "";
@@ -705,6 +678,7 @@
                 climaResumenDiario.appendChild(item);
             });
         }
+        {% endif %}
 
         if (ambitoVisitaInput) {
             ambitoVisitaInput.addEventListener("change", actualizarAmbitoVisita);
@@ -715,63 +689,67 @@
             visitaForm.addEventListener("submit", sincronizarUnidadAmbitoAntesDeEnviar);
         }
 
-        climaButton.addEventListener("click", async () => {
-            if (climaEnCurso) {
-                return;
-            }
-
-            climaEnCurso = true;
-            climaButton.disabled = true;
-            geoStatus.textContent = "Obteniendo climatología...";
-            limpiarErrorClima();
-
-            const formData = new FormData(visitaForm);
-            formData.set("expediente_id", String(expedienteId));
-            formData.set("municipio", fallbackDireccion);
-
-            try {
-                const coords = await obtenerUbicacionActual();
-                formData.set("latitud", String(coords.latitude));
-                formData.set("longitud", String(coords.longitude));
-                formData.set("ubicacion_referencia", "Geolocalización del dispositivo");
-                geoStatus.textContent = "Ubicación obtenida. Consultando climatología...";
-            } catch (error) {
-                limpiarCoordenadas();
-                formData.set("latitud", "");
-                formData.set("longitud", "");
-                formData.set("ubicacion_referencia", fallbackDireccion);
-                geoStatus.textContent = "No se pudo usar la geolocalización. Se consultará la dirección del expediente.";
-            }
-
-            try {
-                const response = await fetch("/api/climatologia", {
-                    method: "POST",
-                    body: formData,
-                    credentials: "same-origin",
-                });
-                const data = await response.json().catch(() => null);
-
-                if (!response.ok || !data || !data.ok) {
-                    mostrarErrorClima((data && data.clima_error) || "No se pudo obtener la climatología.");
-                    geoStatus.textContent = "No se pudo obtener la climatología.";
+        {% if not es_informe_valoracion %}
+        if (climaButton) {
+            climaButton.addEventListener("click", async () => {
+                if (climaEnCurso) {
                     return;
                 }
 
-                visitaForm.querySelector('input[name="visita_id"]').value = data.visita_id || "";
-                ubicacionInput.value = data.clima.ubicacion || fallbackDireccion;
-                climaUbicacion.textContent = data.clima.ubicacion || fallbackDireccion;
-                climaResumen.textContent = data.clima.resumen || "";
-                renderResumenDiario(data.clima.resumen_diario || []);
-                climaCard.hidden = false;
-                geoStatus.textContent = "Climatología registrada correctamente.";
-            } catch (error) {
-                mostrarErrorClima("No se pudo obtener la climatología. Puedes seguir trabajando y volver a intentarlo.");
-                geoStatus.textContent = "Error al consultar climatología.";
-            } finally {
-                climaEnCurso = false;
-                climaButton.disabled = false;
-            }
-        });
+                climaEnCurso = true;
+                climaButton.disabled = true;
+                geoStatus.textContent = "Obteniendo climatología...";
+                limpiarErrorClima();
+
+                const formData = new FormData(visitaForm);
+                formData.set("expediente_id", String(expedienteId));
+                formData.set("municipio", fallbackDireccion);
+
+                try {
+                    const coords = await obtenerUbicacionActual();
+                    formData.set("latitud", String(coords.latitude));
+                    formData.set("longitud", String(coords.longitude));
+                    formData.set("ubicacion_referencia", "Geolocalización del dispositivo");
+                    geoStatus.textContent = "Ubicación obtenida. Consultando climatología...";
+                } catch (error) {
+                    limpiarCoordenadas();
+                    formData.set("latitud", "");
+                    formData.set("longitud", "");
+                    formData.set("ubicacion_referencia", fallbackDireccion);
+                    geoStatus.textContent = "No se pudo usar la geolocalización. Se consultará la dirección del expediente.";
+                }
+
+                try {
+                    const response = await fetch("/api/climatologia", {
+                        method: "POST",
+                        body: formData,
+                        credentials: "same-origin",
+                    });
+                    const data = await response.json().catch(() => null);
+
+                    if (!response.ok || !data || !data.ok) {
+                        mostrarErrorClima((data && data.clima_error) || "No se pudo obtener la climatología.");
+                        geoStatus.textContent = "No se pudo obtener la climatología.";
+                        return;
+                    }
+
+                    visitaForm.querySelector('input[name="visita_id"]').value = data.visita_id || "";
+                    ubicacionInput.value = data.clima.ubicacion || fallbackDireccion;
+                    climaUbicacion.textContent = data.clima.ubicacion || fallbackDireccion;
+                    climaResumen.textContent = data.clima.resumen || "";
+                    renderResumenDiario(data.clima.resumen_diario || []);
+                    climaCard.hidden = false;
+                    geoStatus.textContent = "Climatología registrada correctamente.";
+                } catch (error) {
+                    mostrarErrorClima("No se pudo obtener la climatología. Puedes seguir trabajando y volver a intentarlo.");
+                    geoStatus.textContent = "Error al consultar climatología.";
+                } finally {
+                    climaEnCurso = false;
+                    climaButton.disabled = false;
+                }
+            });
+        }
+        {% endif %}
     </script>
 </body>
 

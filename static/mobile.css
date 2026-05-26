@@ -153,6 +153,36 @@ p {
     box-shadow: none;
 }
 
+.quick-help {
+    margin: -4px 0 14px 0;
+    color: var(--muted);
+}
+
+.quick-help summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.quick-help-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.quick-help-options span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--text);
+    font-size: 0.86rem;
+}
+
 .field-group {
     margin: 0 0 16px 0;
     padding: 16px;

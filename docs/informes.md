@@ -47,11 +47,27 @@ La generacion de informe es manual y debe seguir disponible, aunque no sea CTA r
 - No convertir PDF a DOCX.
 - No convertir HTML a DOCX de forma directa si compromete compatibilidad.
 - Usar `build_informe_context()` como fuente unica de datos para PDF y DOCX editable.
+- En `tipo_informe='valoracion'`, HTML/PDF y DOCX editable modernos deben
+  renderizar secciones especificas de valoracion inmobiliaria desde
+  `contexto["valoracion"]` y `contexto["comparables_valoracion"]`, sin mostrar
+  secciones de patologias que no apliquen.
 
 Flujo recomendado:
 
 - Datos expediente -> `build_informe_context()` -> HTML/PDF profesional.
 - Datos expediente -> `build_informe_context()` -> DOCX editable Pages.
+- Valoracion inmobiliaria -> `build_informe_context()` -> HTML/PDF y DOCX
+  editable con encargo, documentacion, identificacion, situacion legal,
+  entorno, edificio/inmueble, caracteristicas constructivas, estado, metodo,
+  comparables, resultado y limitaciones.
+- Los comparables de valoracion del modelo nuevo pueden exponer ajustes
+  manuales por testigo vinculado: coeficiente total, valor unitario base,
+  valor unitario ajustado y justificacion. Esto prepara el futuro calculo, pero
+  no equivale a valor final del expediente.
+- Los comparables de valoracion deben renderizar importes y superficies con
+  unidades profesionales (`EUR`, `EUR/m2`, `m2` en la UI final equivalente a
+  euro, euro/m2 y m2), y ocultar campos vacios en el informe imprimible para no
+  mostrar filas tipo `-` sin valor tecnico.
 
 ## Invariantes
 
@@ -60,6 +76,9 @@ Flujo recomendado:
 - No duplicar logica de informe en plantillas o rutas.
 - Un informe sin visita/fotos debe degradar de forma controlada, no romper.
 - La generacion manual debe seguir disponible aunque existan advertencias.
+- La completitud de valoracion es no bloqueante: advierte sobre documentacion,
+  identificacion, superficies, situacion legal, entorno, metodo, comparables,
+  resultado y limitaciones, pero no impide generar el informe manualmente.
 
 ## Rutas
 
@@ -86,6 +105,21 @@ Debe mantener:
 - Pies de foto automaticos.
 - Conclusiones destacadas.
 - Diseno apto para impresion.
+
+En valoracion inmobiliaria debe sustituir las secciones de patologias por:
+
+- Encargo.
+- Documentacion utilizada.
+- Identificacion del bien.
+- Situacion legal.
+- Entorno.
+- Edificio/inmueble.
+- Caracteristicas constructivas.
+- Estado.
+- Metodo de valoracion.
+- Comparables.
+- Resultado.
+- Limitaciones.
 
 ## Indice, portada y paginacion
 
@@ -150,6 +184,8 @@ Debe mantener:
 - Usar fuentes compatibles: Arial, Helvetica o Times New Roman si aplica.
 - Evitar tablas anidadas complejas, cuadros flotantes, formas, layouts fragiles y estilos no compatibles.
 - Usar titulos jerarquicos, tablas simples, imagenes centradas, pies de figura como parrafos normales, sombreados suaves y bloques tipo card simulados con tablas simples.
+- En valoracion inmobiliaria debe usar portada y secciones coherentes con
+  valoracion, reutilizando el mismo contexto moderno que HTML/PDF.
 
 ## Checklist recomendado
 

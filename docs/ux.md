@@ -49,6 +49,9 @@ El sistema es mobile first y debe priorizar continuidad de visita, tap targets c
 
 - La navegacion principal activa es hamburguesa izquierda + drawer.
 - El drawer `+` se usa para altas globales: Nuevo lead, Nueva propuesta, Nuevo cliente, Nuevo expediente, Nueva factura y Nuevo gasto.
+- El drawer izquierdo incluye "Biblioteca de testigos" justo debajo de
+  "Biblioteca de patologias" como acceso global a la base reutilizable de
+  comparables de valoracion.
 - Solo puede haber un drawer activo a la vez.
 - Overlay, Escape y botones `X` cierran drawers.
 - `_top_nav.html` es patron secundario/legacy y solo debe usarse donde ya exista o se indique expresamente.
@@ -105,6 +108,50 @@ Patrones recomendados:
 - Borrar expediente queda separado como accion destructiva.
 - Si un expediente ya tiene visitas, debe seguir existiendo "Registrar nueva visita" como accion secundaria.
 - No recomendar generar informe como siguiente accion automatica durante visita si aun hay pendientes probatorios.
+- En expedientes de valoracion, las advertencias de completitud deben ser
+  orientativas y no bloquear la generacion manual del informe.
+- En expedientes de valoracion, el detalle puede mostrar el CTA contextual
+  "Editar datos de valoracion" porque depende del expediente actual y reduce
+  pasos reales. No debe mostrarse para patologias, inspeccion ni habitabilidad.
+- El formulario de datos estables de valoracion debe ser server-side,
+  mobile-first, sin SPA ni JavaScript obligatorio, y agrupar campos largos en
+  bloques plegables.
+- En visitas de expedientes de valoracion, el CTA contextual "Observaciones de
+  valoracion" puede mostrarse por visita porque recoge datos observados in situ.
+  No debe mostrarse para patologias, inspeccion ni habitabilidad.
+- Las observaciones de valoracion de visita deben separarse de finalidad,
+  documentacion, superficies, entorno, metodo y limitaciones generales.
+- La pantalla `nueva_visita.html` para valoracion debe quedar limitada a visita
+  fisica: exterior del edificio, reforma observada, portal/contadores cuando
+  exista soporte compatible, datos esenciales y acceso a estancias. No debe
+  mostrar finalidad, solicitante, documentacion, identificacion, situacion legal,
+  entorno, metodo, resultado, limitaciones, patologias ni climatologia.
+- En valoracion, el bloque portal/contadores de la visita guarda observaciones
+  textuales en `valoracion_visita_observaciones` y fotografias en
+  `visita_fotos` con categoria `portal_contadores`.
+- En expedientes de valoracion, el CTA contextual "Testigos de valoracion" puede
+  mostrarse en el detalle porque selecciona testigos reutilizables para ese
+  expediente y guarda snapshot historico. No debe mostrarse para patologias,
+  inspeccion ni habitabilidad.
+- Los formularios de testigos y seleccion por expediente deben ser server-side,
+  mobile-first, sin SPA ni JavaScript obligatorio. La recomendacion de 6
+  testigos es orientativa y no bloquea la edicion manual.
+- `/valoracion/testigos` funciona como biblioteca reutilizable: debe permitir
+  busqueda por direccion, fuente, municipio, codigo postal, referencia,
+  tipologia o estado de validacion; mostrar importes, superficies y valores
+  unitarios con unidades; y ofrecer acciones claras de detalle y edicion.
+- La biblioteca y la seleccion de testigos por expediente deben ofrecer filtros
+  server-side por tipologia, municipio, validacion y reutilizable cuando
+  aplique. En la seleccion, `Quitar del expediente` debe diferenciarse como
+  accion secundaria/destructiva.
+- El detalle de testigo puede mostrar fotos o capturas subidas manualmente,
+  fuente/enlace y expedientes donde se ha usado el testigo, respetando
+  ownership. No debe descargar imagenes remotas ni hacer scraping/OCR sin fase
+  especifica.
+- El formulario de ajustes de testigo vinculado debe vivir en el contexto del
+  expediente de valoracion. Debe mostrar valor unitario base, coeficiente total
+  y valor unitario ajustado como ayudas operativas, sin convertirlo en calculo
+  final ni bloquear la edicion manual.
 
 ## Flujo real de visita de patologias
 

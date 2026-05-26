@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import re
 from io import BytesIO
@@ -35,6 +36,72 @@ def valor_o_guion(valor):
 
 def limpiar_texto(valor) -> str:
     return str(valor or "").strip()
+
+
+def parsear_float_valoracion(valor):
+    if valor is None:
+        return None
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    texto = limpiar_texto(valor)
+    if not texto:
+        return None
+    texto = (
+        texto.replace("€", "")
+        .replace("EUR/m2", "")
+        .replace("€/m²", "")
+        .replace("m²", "")
+        .replace("m2", "")
+        .strip()
+    )
+    texto = texto.replace(" ", "")
+    if "," in texto and "." in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    elif "," in texto:
+        texto = texto.replace(",", ".")
+    try:
+        return float(texto)
+    except ValueError:
+        return None
+
+
+def formatear_numero_es(valor, decimales: int = 0) -> str:
+    numero = parsear_float_valoracion(valor)
+    if numero is None:
+        return valor_o_guion(valor)
+    texto = f"{numero:,.{decimales}f}"
+    return texto.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def formatear_moneda_es(valor) -> str:
+    if parsear_float_valoracion(valor) is None:
+        return valor_o_guion(valor)
+    return f"{formatear_numero_es(valor, 0)} €"
+
+
+def formatear_precio_unitario_es(valor) -> str:
+    if parsear_float_valoracion(valor) is None:
+        return valor_o_guion(valor)
+    return f"{formatear_numero_es(valor, 0)} €/m²"
+
+
+def formatear_superficie_es(valor) -> str:
+    if parsear_float_valoracion(valor) is None:
+        return valor_o_guion(valor)
+    return f"{formatear_numero_es(valor, 2)} m²"
+
+
+def formatear_coeficiente_es(valor) -> str:
+    if parsear_float_valoracion(valor) is None:
+        return valor_o_guion(valor)
+    return f"{formatear_numero_es(valor, 2)}x"
+
+
+def formatear_booleano_es(valor) -> str:
+    texto = limpiar_texto(valor).lower()
+    if texto in {"", "-"}:
+        return "-"
+    return "Sí" if texto in {"1", "true", "si", "sí"} else "No"
 
 
 def row_to_dict(row) -> dict:
@@ -348,6 +415,30 @@ COMPARABLES_COLUMNAS = [
     ("visitado", "Visitado"),
     ("observaciones", "Observaciones"),
 ]
+COMPARABLES_FORMATTERS = {
+    "precio_oferta": formatear_moneda_es,
+    "valor_unitario": formatear_precio_unitario_es,
+    "valor_unitario_base": formatear_precio_unitario_es,
+    "valor_unitario_ajustado": formatear_precio_unitario_es,
+    "superficie_construida": formatear_superficie_es,
+    "superficie_util": formatear_superficie_es,
+    "visitado": formatear_booleano_es,
+}
+VALORACION_CAMPOS_CONTEXTO = list(
+    OrderedDict.fromkeys(
+        [campo for campo, _ in VALORACION_ENCARGO_ITEMS]
+        + [campo for campo, _ in VALORACION_DOCUMENTACION_ITEMS]
+        + [campo for campo, _ in VALORACION_IDENTIFICACION_ITEMS]
+        + [campo for campo, _ in VALORACION_SITUACION_LEGAL_ITEMS]
+        + [campo for campo, _ in VALORACION_ENTORNO_ITEMS]
+        + [campo for campo, _ in VALORACION_EDIFICIO_INMUEBLE_ITEMS]
+        + [campo for campo, _ in VALORACION_CONSTRUCTIVO_ITEMS]
+        + [campo for campo, _ in VALORACION_ESTADO_ITEMS]
+        + [campo for campo, _ in VALORACION_METODO_ITEMS]
+        + [campo for campo, _ in VALORACION_RESULTADO_ITEMS]
+        + [campo for campo, _ in VALORACION_LIMITACIONES_ITEMS]
+    )
+)
 GRAVEDAD_CUADRANTE_LABELS = {
     "leve": "Leve",
     "media": "Media",
@@ -487,7 +578,7 @@ def recoger_incidencias_checklist(items, datos):
 def fila_o_dict_vacio(fila, campos):
     if fila is None:
         return {campo: "" for campo in campos}
-    return {campo: fila[campo] for campo in campos}
+    return {campo: get_row_value(fila, campo, "") for campo in campos}
 
 
 def add_titulo(doc: Document, texto: str) -> None:
@@ -1862,19 +1953,6 @@ def add_apartado_conclusion_habitabilidad(
 
 
 def cargar_valoracion_visita(cur, visita_id: int) -> dict:
-    campos = (
-        [campo for campo, _ in VALORACION_ENCARGO_ITEMS]
-        + [campo for campo, _ in VALORACION_DOCUMENTACION_ITEMS]
-        + [campo for campo, _ in VALORACION_IDENTIFICACION_ITEMS]
-        + [campo for campo, _ in VALORACION_SITUACION_LEGAL_ITEMS]
-        + [campo for campo, _ in VALORACION_ENTORNO_ITEMS]
-        + [campo for campo, _ in VALORACION_EDIFICIO_INMUEBLE_ITEMS]
-        + [campo for campo, _ in VALORACION_CONSTRUCTIVO_ITEMS]
-        + [campo for campo, _ in VALORACION_ESTADO_ITEMS]
-        + [campo for campo, _ in VALORACION_METODO_ITEMS]
-        + [campo for campo, _ in VALORACION_RESULTADO_ITEMS]
-        + [campo for campo, _ in VALORACION_LIMITACIONES_ITEMS]
-    )
     return fila_o_dict_vacio(
         cur.execute(
             """
@@ -1884,8 +1962,518 @@ def cargar_valoracion_visita(cur, visita_id: int) -> dict:
             """,
             (visita_id,),
         ).fetchone(),
-        campos,
+        VALORACION_CAMPOS_CONTEXTO,
     )
+
+
+VALORACION_GRUPOS_CONTEXTO = [
+    ("encargo", "Encargo / solicitante", VALORACION_ENCARGO_ITEMS),
+    ("documentacion", "Documentación utilizada", VALORACION_DOCUMENTACION_ITEMS),
+    ("identificacion", "Identificación y superficies", VALORACION_IDENTIFICACION_ITEMS),
+    ("situacion_legal", "Situación legal y urbanística", VALORACION_SITUACION_LEGAL_ITEMS),
+    ("entorno", "Entorno", VALORACION_ENTORNO_ITEMS),
+    ("edificio_inmueble", "Edificio e inmueble", VALORACION_EDIFICIO_INMUEBLE_ITEMS),
+    ("constructivo", "Características constructivas", VALORACION_CONSTRUCTIVO_ITEMS),
+    ("estado", "Estado actual y ocupación", VALORACION_ESTADO_ITEMS),
+    ("metodo", "Método / mercado", VALORACION_METODO_ITEMS),
+    ("resultado", "Resultado de la valoración", VALORACION_RESULTADO_ITEMS),
+    ("limitaciones", "Condicionantes y limitaciones", VALORACION_LIMITACIONES_ITEMS),
+]
+
+
+def construir_grupo_valoracion(clave: str, titulo: str, campos, datos: dict) -> dict:
+    return {
+        "clave": clave,
+        "titulo": titulo,
+        "campos": construir_campos_informe(
+            [(etiqueta, datos.get(campo, "")) for campo, etiqueta in campos]
+        ),
+        "hay_datos": any(limpiar_texto(datos.get(campo, "")) for campo, _ in campos),
+    }
+
+
+def _tiene_datos_valoracion(datos: dict) -> bool:
+    return any(limpiar_texto(datos.get(campo, "")) for campo in VALORACION_CAMPOS_CONTEXTO)
+
+
+def _valoracion_dict_vacio() -> dict:
+    return {campo: "" for campo in VALORACION_CAMPOS_CONTEXTO}
+
+
+def _visita_por_id(visitas, visita_id):
+    for visita in visitas or []:
+        if visita["id"] == visita_id:
+            return visita
+    return None
+
+
+def _visita_sintetica_valoracion(texto: str = "Datos del expediente") -> dict:
+    return {
+        "id": None,
+        "fecha": "",
+        "tecnico": "",
+        "objeto_valoracion": texto,
+    }
+
+
+def _aplicar_observaciones_valoracion(datos: dict, observaciones) -> dict:
+    if observaciones is None:
+        return datos
+    estado_observado = get_row_value(observaciones, "estado_observado")
+    ocupacion_observada = get_row_value(observaciones, "ocupacion_observada")
+    reforma_observada = get_row_value(observaciones, "reforma_observada")
+    observaciones_portal = get_row_value(observaciones, "observaciones_portal")
+    observaciones_cuadro_contadores = get_row_value(
+        observaciones,
+        "observaciones_cuadro_contadores",
+    )
+    if limpiar_texto(estado_observado):
+        datos["estado_inmueble"] = estado_observado
+    if limpiar_texto(ocupacion_observada):
+        datos["regimen_ocupacion"] = ocupacion_observada
+        if not limpiar_texto(datos.get("situacion_ocupacion")):
+            datos["situacion_ocupacion"] = ocupacion_observada
+    if limpiar_texto(reforma_observada) and not limpiar_texto(datos.get("observaciones_valoracion")):
+        datos["observaciones_valoracion"] = f"Reforma observada en visita: {reforma_observada}"
+    if limpiar_texto(observaciones_portal):
+        datos["observaciones_portal"] = observaciones_portal
+    if limpiar_texto(observaciones_cuadro_contadores):
+        datos["observaciones_cuadro_contadores"] = observaciones_cuadro_contadores
+    return datos
+
+
+def _aplicar_resultado_valoracion(datos: dict, resultado) -> dict:
+    if resultado is None:
+        return datos
+    if limpiar_texto(get_row_value(resultado, "valor_unitario")):
+        datos["valor_unitario"] = get_row_value(resultado, "valor_unitario")
+    if limpiar_texto(get_row_value(resultado, "valor_resultante")):
+        datos["valor_resultante"] = get_row_value(resultado, "valor_resultante")
+    if limpiar_texto(get_row_value(resultado, "valor_tasacion_final")):
+        datos["valor_tasacion_final"] = get_row_value(resultado, "valor_tasacion_final")
+    resumen = get_row_value(resultado, "resumen_calculo")
+    if limpiar_texto(resumen) and not limpiar_texto(datos.get("observaciones_valoracion")):
+        datos["observaciones_valoracion"] = resumen
+    return datos
+
+
+def construir_valoracion_visita_contexto(cur, visita, datos: dict | None = None) -> dict:
+    visita_dict = row_to_dict(visita)
+    visita_id = visita_dict.get("id")
+    if datos is None:
+        datos = cargar_valoracion_visita(cur, visita_id)
+    grupos = [
+        construir_grupo_valoracion(clave, titulo, campos, datos)
+        for clave, titulo, campos in VALORACION_GRUPOS_CONTEXTO
+    ]
+    objeto = visita_dict.get("objeto_valoracion")
+    if not objeto and visita_id is not None:
+        objeto = describir_objeto_visita_informe(cur, visita)
+    return {
+        "visita": {
+            "id": visita_id,
+            "fecha": visita_dict.get("fecha", ""),
+            "tecnico": visita_dict.get("tecnico", ""),
+            "objeto": objeto or "Datos del expediente",
+        },
+        "grupos": grupos,
+        "hay_datos": any(grupo["hay_datos"] for grupo in grupos),
+    }
+
+
+def cargar_valoracion_expediente_con_fallback(cur, expediente_id: int, visitas) -> list[dict]:
+    valoracion_expediente = cur.execute(
+        """
+        SELECT *
+        FROM valoracion_expediente
+        WHERE expediente_id = ?
+        """,
+        (expediente_id,),
+    ).fetchone()
+    if valoracion_expediente is not None:
+        datos = {**_valoracion_dict_vacio(), **row_to_dict(valoracion_expediente)}
+        observaciones = cur.execute(
+            """
+            SELECT *
+            FROM valoracion_visita_observaciones
+            WHERE expediente_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (expediente_id,),
+        ).fetchone()
+        resultado = cur.execute(
+            """
+            SELECT *
+            FROM valoracion_resultados
+            WHERE expediente_id = ?
+              AND COALESCE(activo, 1) = 1
+            ORDER BY version DESC, id DESC
+            LIMIT 1
+            """,
+            (expediente_id,),
+        ).fetchone()
+        datos = _aplicar_observaciones_valoracion(datos, observaciones)
+        datos = _aplicar_resultado_valoracion(datos, resultado)
+        visita = _visita_por_id(visitas, get_row_value(observaciones, "visita_id")) if observaciones else None
+        if visita is None:
+            visita = visitas[-1] if visitas else _visita_sintetica_valoracion()
+        return [construir_valoracion_visita_contexto(cur, visita, datos)]
+
+    valoraciones_legacy = []
+    for visita in visitas or []:
+        datos = cargar_valoracion_visita(cur, visita["id"])
+        if _tiene_datos_valoracion(datos):
+            valoraciones_legacy.append((visita, datos))
+
+    if valoraciones_legacy:
+        visita, datos = valoraciones_legacy[-1]
+        observaciones = cur.execute(
+            """
+            SELECT *
+            FROM valoracion_visita_observaciones
+            WHERE visita_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (visita["id"],),
+        ).fetchone()
+        datos = _aplicar_observaciones_valoracion(datos, observaciones)
+        return [construir_valoracion_visita_contexto(cur, visita, datos)]
+
+    if visitas:
+        observaciones = cur.execute(
+            """
+            SELECT *
+            FROM valoracion_visita_observaciones
+            WHERE expediente_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (expediente_id,),
+        ).fetchone()
+        if observaciones is not None:
+            datos = _aplicar_observaciones_valoracion(
+                _valoracion_dict_vacio(),
+                observaciones,
+            )
+            visita = _visita_por_id(visitas, get_row_value(observaciones, "visita_id"))
+            return [
+                construir_valoracion_visita_contexto(
+                    cur,
+                    visita or visitas[-1],
+                    datos,
+                )
+            ]
+        return [construir_valoracion_visita_contexto(cur, visitas[0])]
+    return []
+
+
+def _snapshot_json_valoracion(texto: str) -> dict:
+    if not limpiar_texto(texto):
+        return {}
+    try:
+        datos = json.loads(texto)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return datos if isinstance(datos, dict) else {}
+
+
+def _primer_valor_comparable(row, snapshot: dict, *campos):
+    for campo in campos:
+        valor = get_row_value(row, campo, None)
+        if limpiar_texto(valor):
+            return valor
+        valor_snapshot = snapshot.get(campo)
+        if limpiar_texto(valor_snapshot):
+            return valor_snapshot
+    return ""
+
+
+def _construir_comparable_nuevo(row) -> dict:
+    snapshot = _snapshot_json_valoracion(get_row_value(row, "snapshot_json"))
+    return {
+        "id": get_row_value(row, "expediente_testigo_id"),
+        "visita_id": None,
+        "visita_fecha": "",
+        "origen": "modelo_nuevo",
+        "expediente_testigo_id": get_row_value(row, "expediente_testigo_id"),
+        "testigo_id": get_row_value(row, "testigo_id"),
+        "orden": get_row_value(row, "orden"),
+        "incluido": get_row_value(row, "incluido"),
+        "notas_seleccion": get_row_value(row, "notas_seleccion"),
+        "valor_unitario_base": get_row_value(row, "valor_unitario_base"),
+        "valor_unitario_ajustado": get_row_value(row, "valor_unitario_ajustado"),
+        "coeficiente_total": get_row_value(row, "coeficiente_total"),
+        "justificacion_ajustes": get_row_value(row, "justificacion"),
+        "snapshot": snapshot,
+        "ajustes": {
+            "superficie_construida": get_row_value(row, "ajuste_superficie_construida"),
+            "ubicacion": get_row_value(row, "ajuste_ubicacion"),
+            "antiguedad": get_row_value(row, "ajuste_antiguedad"),
+            "calidades": get_row_value(row, "ajuste_calidades"),
+            "caracteristicas_constructivas": get_row_value(
+                row, "ajuste_caracteristicas_constructivas"
+            ),
+            "coeficiente_total": get_row_value(row, "coeficiente_total"),
+            "justificacion": get_row_value(row, "justificacion"),
+        },
+        **{
+            "direccion_testigo": _primer_valor_comparable(row, snapshot, "direccion_testigo"),
+            "fuente_testigo": _primer_valor_comparable(row, snapshot, "fuente_testigo"),
+            "fecha_testigo": _primer_valor_comparable(row, snapshot, "fecha_testigo"),
+            "precio_oferta": _primer_valor_comparable(row, snapshot, "precio_oferta"),
+            "valor_unitario": _primer_valor_comparable(
+                row,
+                snapshot,
+                "valor_unitario_ajustado",
+                "valor_unitario_base",
+                "valor_unitario",
+            ),
+            "superficie_construida": _primer_valor_comparable(
+                row, snapshot, "superficie_construida"
+            ),
+            "superficie_util": _primer_valor_comparable(row, snapshot, "superficie_util"),
+            "tipologia": _primer_valor_comparable(row, snapshot, "tipologia"),
+            "planta": _primer_valor_comparable(row, snapshot, "planta"),
+            "dormitorios": _primer_valor_comparable(row, snapshot, "dormitorios"),
+            "banos": _primer_valor_comparable(row, snapshot, "banos"),
+            "estado_conservacion": _primer_valor_comparable(
+                row, snapshot, "estado_conservacion"
+            ),
+            "antiguedad": _primer_valor_comparable(row, snapshot, "antiguedad"),
+            "calidad_constructiva": _primer_valor_comparable(
+                row, snapshot, "calidad_constructiva"
+            ),
+            "visitado": _primer_valor_comparable(row, snapshot, "visitado"),
+            "observaciones": _primer_valor_comparable(
+                row, snapshot, "notas_seleccion", "observaciones"
+            ),
+        },
+    }
+
+
+def construir_comparable_valoracion_contexto(comparable, visita=None) -> dict:
+    visita_fecha = get_row_value(comparable, "visita_fecha")
+    if not limpiar_texto(visita_fecha) and visita is not None:
+        visita_fecha = get_row_value(visita, "fecha")
+    campos = []
+    for campo, etiqueta in COMPARABLES_COLUMNAS:
+        valor = get_row_value(comparable, campo)
+        formatter = COMPARABLES_FORMATTERS.get(campo)
+        campos.append((etiqueta, formatter(valor) if formatter else valor))
+    return {
+        "id": get_row_value(comparable, "id"),
+        "visita_id": get_row_value(comparable, "visita_id"),
+        "visita_fecha": visita_fecha,
+        "origen": get_row_value(comparable, "origen", "legacy"),
+        "expediente_testigo_id": get_row_value(comparable, "expediente_testigo_id"),
+        "testigo_id": get_row_value(comparable, "testigo_id"),
+        "orden": get_row_value(comparable, "orden"),
+        "incluido": get_row_value(comparable, "incluido"),
+        "notas_seleccion": get_row_value(comparable, "notas_seleccion"),
+        "valor_unitario_base": get_row_value(comparable, "valor_unitario_base"),
+        "valor_unitario_ajustado": get_row_value(
+            comparable,
+            "valor_unitario_ajustado",
+        ),
+        "coeficiente_total": get_row_value(comparable, "coeficiente_total"),
+        "valor_unitario_base_fmt": formatear_precio_unitario_es(
+            get_row_value(comparable, "valor_unitario_base")
+        ),
+        "valor_unitario_ajustado_fmt": formatear_precio_unitario_es(
+            get_row_value(comparable, "valor_unitario_ajustado")
+        ),
+        "coeficiente_total_fmt": formatear_coeficiente_es(
+            get_row_value(comparable, "coeficiente_total")
+        ),
+        "precio_oferta_fmt": formatear_moneda_es(
+            get_row_value(comparable, "precio_oferta")
+        ),
+        "valor_unitario_fmt": formatear_precio_unitario_es(
+            get_row_value(comparable, "valor_unitario")
+        ),
+        "superficie_construida_fmt": formatear_superficie_es(
+            get_row_value(comparable, "superficie_construida")
+        ),
+        "superficie_util_fmt": formatear_superficie_es(
+            get_row_value(comparable, "superficie_util")
+        ),
+        "justificacion_ajustes": get_row_value(comparable, "justificacion_ajustes"),
+        "snapshot": get_row_value(comparable, "snapshot", {}),
+        "ajustes": get_row_value(comparable, "ajustes", {}),
+        "campos": construir_campos_informe(campos),
+    }
+
+
+def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas) -> list[dict]:
+    comparables_nuevos = cur.execute(
+        """
+        SELECT vet.id AS expediente_testigo_id,
+               vet.expediente_id,
+               vet.testigo_id,
+               vet.orden,
+               vet.incluido,
+               vet.snapshot_json,
+               vet.notas_seleccion,
+               vet.valor_unitario_base,
+               vet.valor_unitario_ajustado,
+               vet.valor_resultante,
+               tv.direccion_testigo,
+               tv.referencia_testigo,
+               tv.fuente_testigo,
+               tv.url_fuente,
+               tv.fecha_testigo,
+               tv.codigo_postal,
+               tv.municipio,
+               tv.provincia,
+               tv.precio_oferta,
+               tv.precio_cierre,
+               tv.superficie_construida,
+               tv.superficie_util,
+               tv.valor_unitario,
+               tv.tipologia,
+               tv.planta,
+               tv.dormitorios,
+               tv.banos,
+               tv.estado_conservacion,
+               tv.antiguedad,
+               tv.calidad_constructiva,
+               tv.caracteristicas_constructivas,
+               tv.ubicacion,
+               tv.visitado,
+               tv.validacion_estado,
+               tv.reutilizable,
+               tv.observaciones,
+               vta.ajuste_superficie_construida,
+               vta.ajuste_ubicacion,
+               vta.ajuste_antiguedad,
+               vta.ajuste_calidades,
+               vta.ajuste_caracteristicas_constructivas,
+               vta.coeficiente_total,
+               vta.justificacion
+        FROM valoracion_expediente_testigos vet
+        LEFT JOIN testigos_valoracion tv ON tv.id = vet.testigo_id
+        LEFT JOIN valoracion_testigo_ajustes vta ON vta.expediente_testigo_id = vet.id
+        WHERE vet.expediente_id = ?
+          AND COALESCE(vet.incluido, 1) = 1
+        ORDER BY COALESCE(vet.orden, 9999) ASC, vet.id ASC
+        """,
+        (expediente_id,),
+    ).fetchall()
+    if comparables_nuevos:
+        return [
+            construir_comparable_valoracion_contexto(_construir_comparable_nuevo(row))
+            for row in comparables_nuevos
+        ]
+
+    comparables_contexto = []
+    for visita in visitas or []:
+        comparables = cur.execute(
+            """
+            SELECT *
+            FROM comparables_valoracion
+            WHERE visita_id = ?
+            ORDER BY id ASC
+            """,
+            (visita["id"],),
+        ).fetchall()
+        comparables_contexto.extend(
+            construir_comparable_valoracion_contexto(comparable, visita)
+            for comparable in comparables
+        )
+    return comparables_contexto
+
+
+def grupo_valoracion_por_clave(valoraciones: list[dict], clave: str) -> list[dict]:
+    grupos = []
+    for bloque in valoraciones or []:
+        grupos.extend(
+            grupo
+            for grupo in bloque.get("grupos", [])
+            if grupo.get("clave") == clave
+        )
+    return grupos
+
+
+def grupo_valoracion_tiene_datos(valoraciones: list[dict], clave: str) -> bool:
+    return any(grupo.get("hay_datos") for grupo in grupo_valoracion_por_clave(valoraciones, clave))
+
+
+def grupo_valoracion_tiene_campo(valoraciones: list[dict], clave: str, etiquetas: set[str]) -> bool:
+    for grupo in grupo_valoracion_por_clave(valoraciones, clave):
+        for campo in grupo.get("campos", []):
+            if campo.get("label") in etiquetas and limpiar_texto(campo.get("value")) not in {"", "-"}:
+                return True
+    return False
+
+
+def grupo_valoracion_tiene_prefijo(valoraciones: list[dict], clave: str, prefijo: str) -> bool:
+    for grupo in grupo_valoracion_por_clave(valoraciones, clave):
+        for campo in grupo.get("campos", []):
+            if str(campo.get("label", "")).startswith(prefijo) and limpiar_texto(campo.get("value")) not in {"", "-"}:
+                return True
+    return False
+
+
+def construir_completitud_valoracion(valoraciones: list[dict], comparables: list[dict]) -> dict:
+    comprobaciones = [
+        (
+            "documentacion",
+            "Falta documentacion utilizada.",
+            grupo_valoracion_tiene_datos(valoraciones, "documentacion"),
+        ),
+        (
+            "identificacion",
+            "Falta identificacion del bien.",
+            grupo_valoracion_tiene_campo(valoraciones, "identificacion", {"Identificación del bien"}),
+        ),
+        (
+            "superficies",
+            "Faltan superficies de referencia.",
+            grupo_valoracion_tiene_prefijo(valoraciones, "identificacion", "Superficie"),
+        ),
+        (
+            "situacion_legal",
+            "Falta situacion legal u ocupacional.",
+            grupo_valoracion_tiene_datos(valoraciones, "situacion_legal"),
+        ),
+        (
+            "entorno",
+            "Falta descripcion del entorno.",
+            grupo_valoracion_tiene_datos(valoraciones, "entorno"),
+        ),
+        (
+            "metodo",
+            "Falta metodo o criterios de valoracion.",
+            grupo_valoracion_tiene_datos(valoraciones, "metodo"),
+        ),
+        (
+            "comparables",
+            "Faltan comparables de mercado.",
+            bool(comparables),
+        ),
+        (
+            "resultado",
+            "Falta resultado de valoracion.",
+            grupo_valoracion_tiene_datos(valoraciones, "resultado"),
+        ),
+        (
+            "limitaciones",
+            "Faltan limitaciones o condicionantes.",
+            grupo_valoracion_tiene_datos(valoraciones, "limitaciones"),
+        ),
+    ]
+    advertencias = [
+        {"clave": clave, "mensaje": mensaje}
+        for clave, mensaje, ok in comprobaciones
+        if not ok
+    ]
+    return {
+        "advertencias": advertencias,
+        "completo": not advertencias,
+        "total_advertencias": len(advertencias),
+    }
 
 
 def add_apartado_valoracion_por_visitas(
@@ -2647,6 +3235,32 @@ def construir_toc_items_informe(contexto: dict, paginas: dict | None = None) -> 
     paginas = paginas or {}
     offset = 1 if contexto.get("bloque_judicial") else 0
     post_mapas = 1 if contexto.get("mapas") else 0
+    if contexto.get("es_valoracion"):
+        items = [
+            ("identificacion", 1, "Identificación del expediente"),
+            ("objeto", 2, "Objeto del informe"),
+            ("valoracion-encargo", 3, "Encargo"),
+            ("valoracion-documentacion", 4, "Documentación utilizada"),
+            ("valoracion-identificacion", 5, "Identificación del bien"),
+            ("valoracion-situacion_legal", 6, "Situación legal"),
+            ("valoracion-entorno", 7, "Entorno"),
+            ("valoracion-edificio_inmueble", 8, "Edificio/inmueble"),
+            ("valoracion-constructivo", 9, "Características constructivas"),
+            ("valoracion-estado", 10, "Estado"),
+            ("valoracion-metodo", 11, "Método de valoración"),
+            ("valoracion-comparables", 12, "Comparables"),
+            ("valoracion-resultado", 13, "Resultado"),
+            ("valoracion-limitaciones", 14, "Limitaciones"),
+        ]
+        return [
+            {
+                "id": item_id,
+                "number": number,
+                "title": title,
+                "page": paginas.get(item_id),
+            }
+            for item_id, number, title in items
+        ]
     items = [
         ("identificacion", 1, "Identificación del expediente"),
         ("objeto", 2, "Objeto del informe"),
@@ -2731,6 +3345,8 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
         if not expediente:
             raise ValueError("Expediente no encontrado")
 
+        tipo_informe = limpiar_texto(expediente["tipo_informe"])
+
         visitas = cur.execute(
             """
             SELECT *
@@ -2780,6 +3396,8 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
         visitas_contexto = []
         estancias_por_id: dict[int, dict] = {}
         bloques_mapas = []
+        valoracion_contexto = []
+        comparables_valoracion_contexto = []
 
         for visita in visitas:
             climatologia = cur.execute(
@@ -2823,7 +3441,6 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
                     "fotos_exteriores": fotos_exteriores_visita,
                 }
             )
-
             for estancia in cur.execute(
                 """
                 SELECT e.*,
@@ -2908,6 +3525,18 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
                     "visita": visita,
                     "mapas": cargar_mapas_patologia_utiles_visita(cur, visita),
                 }
+            )
+
+        if tipo_informe == "valoracion":
+            valoracion_contexto = cargar_valoracion_expediente_con_fallback(
+                cur,
+                expediente_id,
+                visitas,
+            )
+            comparables_valoracion_contexto = cargar_comparables_valoracion_con_fallback(
+                cur,
+                expediente_id,
+                visitas,
             )
 
         for registro in patologias_interiores_rows:
@@ -3058,9 +3687,11 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
             "inspeccion": "Informe de inspección técnica",
             "habitabilidad": "Informe de habitabilidad",
             "valoracion": "Informe de valoración",
-        }.get(limpiar_texto(expediente["tipo_informe"]), "Informe pericial")
+        }.get(tipo_informe, "Informe pericial")
         contexto = {
             "expediente": expediente_dict,
+            "tipo_informe": tipo_informe,
+            "es_valoracion": tipo_informe == "valoracion",
             "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
             "portada": {
                 "tecnico": visitas_contexto[0]["tecnico"] if visitas_contexto else "-",
@@ -3121,6 +3752,14 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
             if limpiar_texto(expediente["destinatario"]) == "judicial"
             else [],
             "visitas": visitas_contexto,
+            "valoracion": valoracion_contexto,
+            "comparables_valoracion": comparables_valoracion_contexto,
+            "completitud_valoracion": construir_completitud_valoracion(
+                valoracion_contexto,
+                comparables_valoracion_contexto,
+            )
+            if tipo_informe == "valoracion"
+            else {"advertencias": [], "completo": True, "total_advertencias": 0},
             "estancias": estancias,
             "patologias_exteriores": patologias_exteriores,
             "mapas": mapas_contexto,
@@ -3481,6 +4120,7 @@ def add_bloque_destacado_docx(doc: Document, titulo: str, texto: str, fill: str 
 def add_portada_editable_docx(doc: Document, contexto: dict) -> None:
     expediente = contexto["expediente"]
     portada = contexto["portada"]
+    es_valoracion = contexto.get("es_valoracion")
 
     for _ in range(3):
         doc.add_paragraph()
@@ -3488,14 +4128,16 @@ def add_portada_editable_docx(doc: Document, contexto: dict) -> None:
     p = doc.add_paragraph(style="Informe Portada Titulo")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(8)
-    run = p.add_run("INFORME PERICIAL")
+    run = p.add_run("INFORME DE VALORACIÓN INMOBILIARIA" if es_valoracion else "INFORME PERICIAL")
     run.font.name = "Arial"
     run.font.size = Pt(26)
     run.bold = True
 
     add_parrafo_editable(
         doc,
-        "Inspección técnica y registro de patologías",
+        "Valoración inmobiliaria según datos registrados"
+        if es_valoracion
+        else "Inspección técnica y registro de patologías",
         italic=True,
         centrado=True,
         espacio_despues=26,
@@ -3593,6 +4235,110 @@ def add_zona_exterior_card_docx(doc: Document, zona: dict, indice: int) -> None:
         add_patologia_card_docx(doc, patologia, indice_patologia)
 
 
+TITULOS_VALORACION_DOCX = {
+    "encargo": "3. Encargo",
+    "documentacion": "4. Documentación utilizada",
+    "identificacion": "5. Identificación del bien",
+    "situacion_legal": "6. Situación legal",
+    "entorno": "7. Entorno",
+    "edificio_inmueble": "8. Edificio/inmueble",
+    "constructivo": "9. Características constructivas",
+    "estado": "10. Estado",
+    "metodo": "11. Método de valoración",
+    "resultado": "13. Resultado",
+    "limitaciones": "14. Limitaciones",
+}
+
+
+def add_grupo_valoracion_docx(doc: Document, grupo: dict, bloque: dict, titulo: str) -> None:
+    add_heading_editable(doc, titulo, level=1)
+    visita = bloque.get("visita", {})
+    add_parrafo_editable(
+        doc,
+        f"Visita de fecha {valor_o_guion(visita.get('fecha'))}. {valor_o_guion(visita.get('objeto'))}",
+        italic=True,
+        espacio_despues=4,
+    )
+    if grupo.get("hay_datos"):
+        add_tabla_campos_editable(doc, grupo.get("campos", []))
+    else:
+        add_parrafo_editable(doc, "No constan datos registrados para este apartado.")
+
+
+def add_comparables_valoracion_docx(doc: Document, comparables: list[dict]) -> None:
+    add_heading_editable(doc, "12. Comparables", level=1)
+    if not comparables:
+        add_parrafo_editable(doc, "No constan comparables de valoración registrados.")
+        return
+
+    for indice, comparable in enumerate(comparables, start=1):
+        add_heading_editable(
+            doc,
+            f"12.{indice} Comparable {indice} · visita {valor_o_guion(comparable.get('visita_fecha'))}",
+            level=2,
+        )
+        add_tabla_campos_editable(doc, comparable.get("campos", []))
+
+
+def add_cuerpo_valoracion_docx(doc: Document, contexto: dict) -> None:
+    add_heading_editable(doc, "2. Objeto del informe", level=1)
+    add_parrafo_editable(
+        doc,
+        "El presente informe tiene por objeto documentar la valoración inmobiliaria del bien identificado en "
+        "el expediente, incorporando el encargo, la documentación disponible, los datos observados en visita, "
+        "los comparables registrados, el método utilizado, el resultado y las limitaciones declaradas.",
+    )
+    advertencias = contexto.get("completitud_valoracion", {}).get("advertencias", [])
+    if advertencias:
+        add_bloque_destacado_docx(
+            doc,
+            "Advertencias de completitud de valoración",
+            "Estas advertencias no bloquean la generación manual del informe.\n"
+            + "\n".join(advertencia["mensaje"] for advertencia in advertencias),
+            fill="FFF8E6",
+        )
+
+    valoraciones = contexto.get("valoracion") or []
+    if valoraciones:
+        for bloque in valoraciones:
+            for grupo in bloque.get("grupos", []):
+                clave = grupo.get("clave")
+                if clave in {"resultado", "limitaciones"}:
+                    continue
+                add_grupo_valoracion_docx(
+                    doc,
+                    grupo,
+                    bloque,
+                    TITULOS_VALORACION_DOCX.get(clave, valor_o_guion(grupo.get("titulo"))),
+                )
+    else:
+        for clave, titulo in TITULOS_VALORACION_DOCX.items():
+            if clave in {"resultado", "limitaciones"}:
+                continue
+            add_heading_editable(doc, titulo, level=1)
+            add_parrafo_editable(doc, "No constan datos de valoración registrados.")
+
+    add_comparables_valoracion_docx(doc, contexto.get("comparables_valoracion") or [])
+
+    if valoraciones:
+        for bloque in valoraciones:
+            for grupo in bloque.get("grupos", []):
+                clave = grupo.get("clave")
+                if clave not in {"resultado", "limitaciones"}:
+                    continue
+                add_grupo_valoracion_docx(
+                    doc,
+                    grupo,
+                    bloque,
+                    TITULOS_VALORACION_DOCX.get(clave, valor_o_guion(grupo.get("titulo"))),
+                )
+    else:
+        add_heading_editable(doc, "13. Resultado", level=1)
+        add_parrafo_editable(doc, "No consta resultado de valoración registrado.")
+        add_heading_editable(doc, "14. Limitaciones", level=1)
+        add_parrafo_editable(doc, "No constan limitaciones de valoración registradas.")
+
+
 def generar_informe_docx_editable_bytes(expediente_id: int) -> bytes:
     contexto = build_informe_context(expediente_id)
     doc = Document()
@@ -3602,6 +4348,13 @@ def generar_informe_docx_editable_bytes(expediente_id: int) -> bytes:
 
     add_heading_editable(doc, "1. Identificación", level=1)
     add_tabla_campos_editable(doc, contexto["identificacion"])
+
+    if contexto.get("es_valoracion"):
+        add_cuerpo_valoracion_docx(doc, contexto)
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
 
     add_heading_editable(doc, "2. Objeto del informe", level=1)
     add_parrafo_editable(

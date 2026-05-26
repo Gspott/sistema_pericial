@@ -291,6 +291,7 @@
                 </div>
             </section>
 
+            {% if expediente.es_informe_patologias %}
             <section class="form-section">
                 <div class="form-section-body" style="padding-top: 16px;">
                     <h2>Patologías exteriores</h2>
@@ -329,6 +330,7 @@
                     {% endif %}
                 </div>
             </section>
+            {% endif %}
 
             <section class="form-section">
                 <div class="form-section-body" style="padding-top: 16px;">
@@ -381,6 +383,7 @@
                                                 {% if estancia.esta_pendiente %}
                                                 <span class="summary-tag pending">Pendiente</span>
                                                 {% endif %}
+                                                {% if expediente.es_informe_patologias %}
                                                 <span class="summary-tag">
                                                     {% if estancia.total_patologias %}
                                                     {{ estancia.total_patologias }} patología{% if estancia.total_patologias != 1 %}s{% endif %}
@@ -388,7 +391,11 @@
                                                     Sin patologías registradas
                                                     {% endif %}
                                                 </span>
+                                                {% else %}
+                                                <span class="summary-tag">Datos de estancia</span>
+                                                {% endif %}
                                             </div>
+                                            {% if expediente.es_informe_patologias %}
                                             {% if estancia.total_patologias %}
                                             <ul class="summary-pathology-list">
                                                 {% for patologia in estancia.patologias %}
@@ -401,6 +408,7 @@
                                             </ul>
                                             {% else %}
                                             <p class="summary-inline-list summary-empty">Sin patologías registradas</p>
+                                            {% endif %}
                                             {% endif %}
                                         </li>
                                         {% endfor %}

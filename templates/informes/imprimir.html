@@ -455,8 +455,8 @@
         {% set post_mapas = 1 if mapas else 0 %}
         <section class="cover">
             <div>
-                <h1>INFORME PERICIAL</h1>
-                <p class="subtitle">Inspección técnica y registro de patologías</p>
+                <h1>{% if es_valoracion %}INFORME DE VALORACIÓN INMOBILIARIA{% else %}INFORME PERICIAL{% endif %}</h1>
+                <p class="subtitle">{% if es_valoracion %}Valoración inmobiliaria según datos registrados{% else %}Inspección técnica y registro de patologías{% endif %}</p>
                 <div class="cover-meta">
                     <div>
                         <div class="label">Expediente</div>
@@ -520,6 +520,142 @@
         </section>
 
         <section class="section" data-toc-id="objeto">
+            {% if es_valoracion %}
+            <h2>2. Objeto del informe</h2>
+            <p>El presente informe tiene por objeto documentar la valoración inmobiliaria del bien identificado en el expediente, incorporando el encargo, la documentación disponible, los datos observados en visita, los comparables registrados, el método utilizado, el resultado y las limitaciones declaradas.</p>
+            {% if completitud_valoracion.advertencias %}
+            <div class="warning technical-note">
+                <strong>Advertencias de completitud de valoración</strong>
+                <p>Estas advertencias no bloquean la generación manual del informe.</p>
+                {% for advertencia in completitud_valoracion.advertencias %}
+                <p>{{ advertencia.mensaje }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        {% set titulos_valoracion = {
+            "encargo": "3. Encargo",
+            "documentacion": "4. Documentación utilizada",
+            "identificacion": "5. Identificación del bien",
+            "situacion_legal": "6. Situación legal",
+            "entorno": "7. Entorno",
+            "edificio_inmueble": "8. Edificio/inmueble",
+            "constructivo": "9. Características constructivas",
+            "estado": "10. Estado",
+            "metodo": "11. Método de valoración",
+            "resultado": "13. Resultado",
+            "limitaciones": "14. Limitaciones"
+        } %}
+
+        {% if valoracion %}
+            {% for bloque in valoracion %}
+                {% for grupo in bloque.grupos %}
+                    {% if grupo.clave not in ["resultado", "limitaciones"] %}
+                    <section class="section" data-toc-id="valoracion-{{ grupo.clave }}">
+                        <h2>{{ titulos_valoracion.get(grupo.clave, grupo.titulo) }}</h2>
+                        <div class="card section-card">
+                            <div class="card-title">
+                                <h3>Visita de fecha {{ bloque.visita.fecha or "-" }}</h3>
+                                <span class="muted">{{ bloque.visita.objeto or "-" }}</span>
+                            </div>
+                            {% if grupo.hay_datos %}
+                            <div class="grid data-table">
+                                {% for campo in grupo.campos %}
+                                {% if campo.value not in ["-", "—", ""] %}
+                                <div>
+                                    <div class="label">{{ campo.label }}</div>
+                                    <div class="value">{{ campo.value }}</div>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p>No constan datos registrados para este apartado.</p>
+                            {% endif %}
+                        </div>
+                    </section>
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        {% else %}
+            {% for clave, titulo in titulos_valoracion.items() %}
+                {% if clave not in ["resultado", "limitaciones"] %}
+                <section class="section" data-toc-id="valoracion-{{ clave }}">
+                    <h2>{{ titulo }}</h2>
+                    <p>No constan datos de valoración registrados.</p>
+                </section>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        <section class="section" data-toc-id="valoracion-comparables">
+            <h2>12. Comparables</h2>
+            {% if comparables_valoracion %}
+                {% for comparable in comparables_valoracion %}
+                <article class="card section-card">
+                    <div class="card-title">
+                        <h3>Comparable {{ loop.index }}</h3>
+                        <span class="muted">Visita {{ comparable.visita_fecha or "-" }}</span>
+                    </div>
+                    <div class="grid data-table">
+                        {% for campo in comparable.campos %}
+                        {% if campo.value not in ["-", "—", ""] %}
+                        <div>
+                            <div class="label">{{ campo.label }}</div>
+                            <div class="value">{{ campo.value }}</div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </article>
+                {% endfor %}
+            {% else %}
+                <p>No constan comparables de valoración registrados.</p>
+            {% endif %}
+        </section>
+
+        {% if valoracion %}
+            {% for bloque in valoracion %}
+                {% for grupo in bloque.grupos %}
+                    {% if grupo.clave in ["resultado", "limitaciones"] %}
+                    <section class="section{% if grupo.clave == 'resultado' %} final-section{% endif %}" data-toc-id="valoracion-{{ grupo.clave }}">
+                        <h2>{{ titulos_valoracion.get(grupo.clave, grupo.titulo) }}</h2>
+                        <div class="conclusion-card">
+                            {% if grupo.hay_datos %}
+                            <div class="grid data-table">
+                                {% for campo in grupo.campos %}
+                                {% if campo.value not in ["-", "—", ""] %}
+                                <div>
+                                    <div class="label">{{ campo.label }}</div>
+                                    <div class="value">{{ campo.value }}</div>
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p>No constan datos registrados para este apartado.</p>
+                            {% endif %}
+                        </div>
+                    </section>
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        {% else %}
+            <section class="section final-section" data-toc-id="valoracion-resultado">
+                <h2>13. Resultado</h2>
+                <div class="conclusion-card">
+                    <p>No consta resultado de valoración registrado.</p>
+                </div>
+            </section>
+            <section class="section" data-toc-id="valoracion-limitaciones">
+                <h2>14. Limitaciones</h2>
+                <div class="conclusion-card">
+                    <p>No constan limitaciones de valoración registradas.</p>
+                </div>
+            </section>
+        {% endif %}
+            {% else %}
             <h2>2. Objeto del informe</h2>
             <p>El presente informe pericial documenta las patologías observadas en el inmueble objeto del expediente, incorporando los antecedentes disponibles, las visitas realizadas y los registros técnicos interiores y/o exteriores existentes en el sistema.</p>
         </section>
@@ -818,6 +954,7 @@
                 <p>{{ conclusion_pericial }}</p>
             </div>
         </section>
+            {% endif %}
     </main>
 </body>
 </html>

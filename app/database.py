@@ -1158,6 +1158,279 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS valoracion_expediente (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL UNIQUE,
+            finalidad_valoracion TEXT,
+            finalidad_valoracion_detallada TEXT,
+            nombre_solicitante TEXT,
+            nif_cif_solicitante TEXT,
+            domicilio_solicitante TEXT,
+            entidad_financiera TEXT,
+            documentacion_utilizada TEXT,
+            datos_registrales TEXT,
+            identificacion_bien TEXT,
+            superficie_valoracion TEXT,
+            superficie_construida TEXT,
+            superficie_util TEXT,
+            superficie_terraza TEXT,
+            superficie_zonas_comunes TEXT,
+            superficie_total TEXT,
+            superficie_comprobada TEXT,
+            situacion_ocupacion TEXT,
+            situacion_urbanistica TEXT,
+            servidumbres TEXT,
+            linderos TEXT,
+            ubicacion_valoracion TEXT,
+            descripcion_entorno TEXT,
+            grado_consolidacion TEXT,
+            antiguedad_entorno TEXT,
+            rasgos_urbanos TEXT,
+            nivel_renta TEXT,
+            uso_predominante TEXT,
+            equipamientos TEXT,
+            infraestructuras TEXT,
+            tipo_edificio TEXT,
+            numero_portales TEXT,
+            numero_escaleras TEXT,
+            numero_ascensores TEXT,
+            estado_conservacion TEXT,
+            antiguedad TEXT,
+            calidades TEXT,
+            vistas TEXT,
+            uso_residencial TEXT,
+            estructura TEXT,
+            cubierta TEXT,
+            cerramientos TEXT,
+            aislamiento TEXT,
+            carpinteria TEXT,
+            acristalamiento TEXT,
+            instalaciones TEXT,
+            metodo_comparacion_activo INTEGER DEFAULT 1,
+            metodo_coste_activo INTEGER DEFAULT 1,
+            criterios_metodo_valoracion TEXT,
+            variables_mercado TEXT,
+            metodo_homogeneizacion TEXT,
+            condicionantes_limitaciones_valoracion TEXT,
+            observaciones_valoracion TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS valoracion_visita_observaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            visita_id INTEGER NOT NULL UNIQUE,
+            expediente_id INTEGER NOT NULL,
+            estado_observado TEXT,
+            reforma_observada TEXT,
+            ocupacion_observada TEXT,
+            observaciones_inspeccion_valoracion TEXT,
+            incidencias_valoracion TEXT,
+            comprobaciones_fisicas TEXT,
+            observaciones_portal TEXT,
+            observaciones_cuadro_contadores TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (visita_id) REFERENCES visitas (id),
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    asegurar_columna(
+        cur,
+        "valoracion_visita_observaciones",
+        "observaciones_portal",
+        "TEXT",
+    )
+    asegurar_columna(
+        cur,
+        "valoracion_visita_observaciones",
+        "observaciones_cuadro_contadores",
+        "TEXT",
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS testigos_valoracion (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id INTEGER,
+            direccion_testigo TEXT,
+            referencia_testigo TEXT,
+            fuente_testigo TEXT,
+            url_fuente TEXT,
+            fecha_testigo TEXT,
+            codigo_postal TEXT,
+            municipio TEXT,
+            provincia TEXT,
+            latitud REAL,
+            longitud REAL,
+            precio_oferta REAL,
+            precio_cierre REAL,
+            superficie_construida REAL,
+            superficie_util REAL,
+            superficie_otros_usos REAL,
+            valor_unitario REAL,
+            tipologia TEXT,
+            planta TEXT,
+            dormitorios INTEGER,
+            banos INTEGER,
+            aseos INTEGER,
+            ascensor INTEGER,
+            garaje INTEGER,
+            trastero INTEGER,
+            terraza INTEGER,
+            estado_conservacion TEXT,
+            antiguedad TEXT,
+            calidad_constructiva TEXT,
+            caracteristicas_constructivas TEXT,
+            ubicacion TEXT,
+            visitado INTEGER DEFAULT 0,
+            validacion_estado TEXT DEFAULT 'pendiente',
+            reutilizable INTEGER NOT NULL DEFAULT 1,
+            observaciones TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (owner_user_id) REFERENCES usuarios (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS testigos_valoracion_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            testigo_id INTEGER NOT NULL,
+            archivo TEXT NOT NULL,
+            descripcion TEXT,
+            origen TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (testigo_id) REFERENCES testigos_valoracion (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS valoracion_expediente_testigos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL,
+            testigo_id INTEGER,
+            orden INTEGER,
+            incluido INTEGER NOT NULL DEFAULT 1,
+            snapshot_json TEXT,
+            notas_seleccion TEXT,
+            valor_unitario_base REAL,
+            valor_unitario_ajustado REAL,
+            valor_resultante REAL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id),
+            FOREIGN KEY (testigo_id) REFERENCES testigos_valoracion (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS valoracion_testigo_ajustes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_testigo_id INTEGER NOT NULL,
+            ajuste_superficie_construida REAL,
+            ajuste_ubicacion REAL,
+            ajuste_antiguedad REAL,
+            ajuste_calidades REAL,
+            ajuste_caracteristicas_constructivas REAL,
+            coeficiente_total REAL,
+            justificacion TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_testigo_id) REFERENCES valoracion_expediente_testigos (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS valoracion_resultados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL,
+            metodo TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            valor_unitario REAL,
+            valor_resultante REAL,
+            valor_tasacion_final REAL,
+            resumen_calculo TEXT,
+            datos_calculo_json TEXT,
+            activo INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_valoracion_expediente_expediente_id
+        ON valoracion_expediente (expediente_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_valoracion_visita_observaciones_visita_id
+        ON valoracion_visita_observaciones (visita_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_valoracion_visita_observaciones_expediente_id
+        ON valoracion_visita_observaciones (expediente_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_testigos_valoracion_owner_user_id
+        ON testigos_valoracion (owner_user_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_testigos_valoracion_fotos_testigo_id
+        ON testigos_valoracion_fotos (testigo_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_valoracion_expediente_testigos_expediente_id
+        ON valoracion_expediente_testigos (expediente_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_valoracion_expediente_testigos_testigo_id
+        ON valoracion_expediente_testigos (testigo_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_valoracion_testigo_ajustes_expediente_testigo_id
+        ON valoracion_testigo_ajustes (expediente_testigo_id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_valoracion_resultados_expediente_id
+        ON valoracion_resultados (expediente_id)
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS mapas_patologia (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             visita_id INTEGER NOT NULL,
