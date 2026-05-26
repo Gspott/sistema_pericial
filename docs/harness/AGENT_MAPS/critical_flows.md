@@ -38,6 +38,25 @@ Controles:
 - `build_informe_context()` debe seguir siendo fuente unica.
 - La visita parcial debe poder continuar.
 
+## Expediente valoracion a informe
+
+1. Expediente con `tipo_informe='valoracion'`.
+2. Visita asociada.
+3. Datos de valoracion en `valoracion_visita`.
+4. Comparables en `comparables_valoracion`.
+5. `build_informe_context()` expone `valoracion`,
+   `comparables_valoracion` y advertencias de completitud no bloqueantes.
+6. HTML/PDF moderno renderiza secciones de valoracion sin bloques de
+   patologias.
+7. DOCX editable moderno usa el mismo contexto de valoracion.
+
+Controles:
+
+- No tocar PDF/DOCX moderno sin `TASK_PACK` de informes y smoke especifico.
+- No crear calculo/homogeneizacion sin plan de modelo de datos.
+- No mover campos estables de visita a expediente sin migracion planificada.
+- El smoke debe usar DB temporal y no datos reales.
+
 ## Gasto a factura/contabilidad
 
 1. Gasto manual o importado.
@@ -60,4 +79,3 @@ Controles:
 
 - No borrar backups.
 - No restaurar sobre DB real.
-

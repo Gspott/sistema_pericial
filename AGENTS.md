@@ -26,6 +26,8 @@ Antes de tocar archivos, leer en este orden:
 
 - Sistema Pericial es una aplicacion local privada, no SaaS.
 - Stack real: FastAPI, SQLite, Jinja2, HTML/CSS mobile-first y JavaScript minimo.
+- Toda tarea relevante con cambios debe empezar con `bash scripts/start_harness_task.sh SLUG TASK_PACK` antes de tocar archivos; no depender de que el prompt lo recuerde.
+- El cierre normal de tareas con cambios debe hacerse con `bash scripts/finish_harness_task.sh` o, si se necesita control explicito, con `bash scripts/validate_harness.sh`.
 - No introducir SPA, React, Vue, Angular, PostgreSQL ni arquitectura SaaS.
 - No tocar datos reales, secretos completos, bases SQLite, backups, uploads, informes, fotos ni logs salvo autorizacion explicita.
 - No modificar la carpeta anidada `sistema_pericial/` sin decision humana.
@@ -72,6 +74,7 @@ Antes de tocar archivos, leer en este orden:
 | Navegacion, drawer, CTAs | [docs/ux.md](docs/ux.md), [docs/harness/PLAYBOOKS/jinja.md](docs/harness/PLAYBOOKS/jinja.md) |
 | PWA, service worker, offline | [docs/pwa.md](docs/pwa.md), [docs/harness/PLAYBOOKS/css_mobile.md](docs/harness/PLAYBOOKS/css_mobile.md) |
 | Informes, PDF, DOCX | [docs/informes.md](docs/informes.md), [docs/harness/PLAYBOOKS/informes.md](docs/harness/PLAYBOOKS/informes.md) |
+| Valoracion inmobiliaria | [docs/modelos_datos.md](docs/modelos_datos.md), [docs/informes.md](docs/informes.md), [docs/ux.md](docs/ux.md), [docs/harness/TASK_PACKS/valoracion_change.md](docs/harness/TASK_PACKS/valoracion_change.md) |
 | Revision probatoria | [docs/revision_probatoria.md](docs/revision_probatoria.md) |
 | Datos, roles, soft delete | [docs/modelos_datos.md](docs/modelos_datos.md), [docs/harness/PLAYBOOKS/base_datos.md](docs/harness/PLAYBOOKS/base_datos.md) |
 | FastAPI, endpoints, subprocess | [docs/backend.md](docs/backend.md) |
@@ -92,6 +95,7 @@ python3 scripts/audit_docs.py
 Checks base:
 
 ```bash
+bash scripts/start_harness_task.sh <slug> <task_pack>
 python3 -m compileall app
 node --check <archivo.js>
 bash -n start_all.sh start_server.sh stop_all.sh status.sh backup.sh backup_now.sh
@@ -103,6 +107,7 @@ Para cambios solo documentales, usar:
 
 ```bash
 python3 scripts/audit_docs.py
+bash scripts/finish_harness_task.sh
 git diff --check
 git status --short
 ```

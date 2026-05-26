@@ -61,8 +61,11 @@ def main() -> int:
 
     COMPLETED_DIR.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source), str(destination))
-    if CURRENT_PLAN_PATH.exists() and CURRENT_PLAN_PATH.read_text(encoding="utf-8").strip() == filename:
-        CURRENT_PLAN_PATH.write_text("", encoding="utf-8")
+    if CURRENT_PLAN_PATH.exists():
+        current_plan = CURRENT_PLAN_PATH.read_text(encoding="utf-8").strip()
+        current_plan_name = Path(current_plan).name
+        if current_plan in {filename, str(source.relative_to(ROOT))} or current_plan_name == filename:
+            CURRENT_PLAN_PATH.write_text("", encoding="utf-8")
     print(destination.relative_to(ROOT))
     return 0
 

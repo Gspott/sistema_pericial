@@ -15,12 +15,16 @@ Los Task Packs son paquetes operativos para elegir rapidamente como trabajar una
 
 1. `facturacion_change.md`
 2. `backup_restore_change.md`
-3. `db_change.md`
-4. `email_change.md`
-5. `informe_change.md`
-6. `mobile_ui.md`
-7. `safe_refactor.md`
-8. `bugfix.md`
+3. `harness_change.md` cuando el cambio afecte wrappers, validadores,
+   lifecycle de planes o politicas del harness.
+4. `valoracion_change.md` cuando el cambio afecte a valoracion inmobiliaria;
+   combinar con `db_change.md` o `informe_change.md` si sube el riesgo.
+5. `db_change.md`
+6. `email_change.md`
+7. `informe_change.md`
+8. `mobile_ui.md`
+9. `safe_refactor.md`
+10. `bugfix.md`
 
 ## Relacion con TASK_ENVELOPE
 
@@ -33,4 +37,3 @@ El pack decide el tipo de tarea y el nivel de riesgo. El playbook explica el pro
 ## Regla
 
 Antes de planificar una tarea real, elegir un Task Pack o justificar por que no aplica.
-

@@ -14,6 +14,25 @@ Comando principal recomendado:
 bash scripts/validate_harness.sh
 ```
 
+Scopes de validacion disponibles:
+
+```bash
+bash scripts/validate_harness.sh --smoke-scope docs
+bash scripts/validate_harness.sh --smoke-scope app
+bash scripts/validate_harness.sh --smoke-scope valoracion
+bash scripts/validate_harness.sh --smoke-scope full
+```
+
+`full` es el valor por defecto. `docs` y `app` reducen coste, pero no saltan
+`audit_docs` ni `git diff --check`. `valoracion` ejecuta la seleccion de smoke
+con `pytest tests/smoke -q -k valoracion`.
+
+El runner calcula un scope minimo por paths modificados y eleva
+automaticamente scopes insuficientes. Ejemplo: pedir `docs` con cambios en
+`templates/valoracion_testigos.html` acaba ejecutando `valoracion`. El override
+`--allow-unsafe-scope` existe, pero debe reservarse para casos justificados y
+documentados.
+
 Checks generales:
 
 ```bash
@@ -51,7 +70,7 @@ Requieren entorno extra:
 ## Checks documentales para cambios solo en harness
 
 ```bash
-python3 scripts/audit_docs.py
+bash scripts/finish_harness_task.sh --smoke-scope docs
 git diff --check
 git status --short
 ```

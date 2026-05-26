@@ -27,7 +27,7 @@ deploy o borrado, Codex debe parar y pedir aprobacion humana.
 
 Codex puede hacer automaticamente:
 
-- Crear planes activos con `scripts/harness_new_plan.py`.
+- Crear planes activos con `bash scripts/start_harness_task.sh SLUG TASK_PACK`.
 - Cerrar planes validados con `scripts/validate_harness.sh` cuando el runner pase.
 - Actualizar `docs/harness/METRICS.md`.
 - Crear episodios para cambios con valor historico.
@@ -113,6 +113,15 @@ Al parar, debe explicar:
 - No encadenar tareas criticas automaticamente.
 - Convertir una tarea de backlog en plan activo solo cuando haya objetivo,
   alcance, task pack y validaciones.
+- Toda fase relevante con cambios debe empezar con
+  `bash scripts/start_harness_task.sh SLUG TASK_PACK` antes de tocar archivos.
+  No se debe depender del prompt ni cerrar la fase solo con episodio, backlog o
+  resumen de chat.
+- Si la fase termina OK, el plan debe quedar en
+  `docs/harness/PLANS/completed/`.
+- Si la fase queda bloqueada, mover el plan a `docs/harness/PLANS/blocked/`
+  solo si existe; si no existe, dejarlo en `docs/harness/PLANS/active/` con
+  estado bloqueado y siguiente decision humana.
 - Si una tarea revela deuda nueva, registrar backlog en la prioridad adecuada,
   no resolverla por impulso.
 
@@ -131,6 +140,16 @@ Al parar, debe explicar:
 
 - `bash scripts/validate_harness.sh` es obligatorio antes de cerrar tareas
   relevantes.
+- `bash scripts/finish_harness_task.sh` es el cierre recomendado cuando hay un
+  plan activo en `docs/harness/STATE/current_plan.txt`.
+- El runner admite `--smoke-scope docs|app|valoracion|full`; `full` es el
+  comportamiento por defecto y debe usarse ante duda, fases criticas o cambios
+  transversales.
+- El runner calcula `required_scope` por paths modificados y eleva
+  automaticamente scopes insuficientes. `--allow-unsafe-scope` solo puede usarse
+  si el plan documenta por que la heuristica sobredimensiona la validacion.
+- `validate_harness.sh` debe fallar si detecta cambios sin plan activo
+  cerrable; no debe autocrear planes silenciosamente.
 - El smoke flow relevante es obligatorio cuando exista.
 - `python3 scripts/audit_docs.py` es el primer check documental.
 - `git diff --check` debe pasar.
