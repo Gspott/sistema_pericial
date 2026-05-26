@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .valoracion-form details {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            margin-bottom: 14px;
+            padding: 0;
+        }
+
+        .valoracion-form summary {
+            cursor: pointer;
+            font-weight: 800;
+            list-style: none;
+            padding: 16px;
+        }
+
+        .valoracion-form summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .valoracion-form details[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .valoracion-fields {
+            padding: 0 16px 16px;
+        }
+
+        .valoracion-checkbox {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            margin: 12px 0;
+        }
+
+        .valoracion-checkbox input {
+            min-height: auto;
+            width: auto;
+        }
+
+        .legacy-hint {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 12px;
+            color: #7c2d12;
+            margin: 10px 0 16px;
+            padding: 12px;
+        }
+
+        .legacy-hint p {
+            margin: 0 0 6px;
+        }
+    </style>
+
+    <title>Datos de valoración</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <h1>Datos de valoración</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+            <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe PDF</a>
+        </div>
+
+        <div class="card">
+            <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+            <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+            <p>Estos datos estables pertenecen al expediente. Las observaciones físicas, reforma observada, ocupación observada, fotos e incidencias quedan en la visita.</p>
+        </div>
+
+        {% set legacy_hay_datos = namespace(valor=false) %}
+        {% for _, campos in valoracion_grupos %}
+            {% for campo, _ in campos %}
+                {% if legacy_valoracion.get(campo) %}
+                    {% set legacy_hay_datos.valor = true %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+        {% if legacy_hay_datos.valor %}
+        <div class="legacy-hint">
+            <p><strong>Hay datos legacy en visitas.</strong></p>
+            <p>Se muestran solo como referencia. Esta pantalla no los copia ni los migra automáticamente.</p>
+        </div>
+        {% endif %}
+
+        <form class="valoracion-form" method="post" action="/expedientes/{{ expediente.id }}/valoracion">
+            {% for titulo, campos in valoracion_grupos %}
+            <details {% if loop.first %}open{% endif %}>
+                <summary>{{ titulo }}</summary>
+                <div class="valoracion-fields">
+                    {% for campo, etiqueta in campos %}
+                        {% if campo in campos_checkbox %}
+                        <label class="valoracion-checkbox" for="{{ campo }}">
+                            <input id="{{ campo }}" name="{{ campo }}" type="checkbox" value="1"
+                                {% if valoracion.get(campo) != '0' %}checked{% endif %}>
+                            <span>{{ etiqueta }}</span>
+                        </label>
+                        {% else %}
+                        <label for="{{ campo }}">{{ etiqueta }}</label>
+                        <textarea id="{{ campo }}" name="{{ campo }}">{{ valoracion.get(campo, '') }}</textarea>
+                        {% if valoracion_ayudas_rapidas.get(campo) %}
+                        <p class="muted">Frecuentes: {{ valoracion_ayudas_rapidas.get(campo, []) | join(', ') }}</p>
+                        {% endif %}
+                        {% if legacy_valoracion.get(campo) %}
+                        <p class="muted">Legacy visita: {{ legacy_valoracion.get(campo) }}</p>
+                        {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </details>
+            {% endfor %}
+
+            <div class="actions sticky-actions">
+                <button class="boton" type="submit">Guardar datos de valoración</button>
+                <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Cancelar</a>
+            </div>
+        </form>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

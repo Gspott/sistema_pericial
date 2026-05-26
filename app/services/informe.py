@@ -374,6 +374,11 @@ VALORACION_ESTADO_ITEMS = [
     ("estado_inmueble", "Estado actual del inmueble"),
     ("regimen_ocupacion", "Régimen de ocupación"),
     ("inmueble_arrendado", "Inmueble arrendado"),
+    ("observaciones_portal", "Observaciones del portal"),
+    (
+        "observaciones_cuadro_contadores",
+        "Observaciones del cuadro de contadores",
+    ),
     ("fecha_visita", "Fecha de visita"),
     ("fecha_emision", "Fecha de emisión"),
     ("fecha_caducidad", "Fecha de caducidad"),

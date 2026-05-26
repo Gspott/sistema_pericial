@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .testigo-vinculo-form {
+            display: grid;
+            gap: 10px;
+        }
+
+        .testigo-inline {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+        }
+
+        .testigo-inline input {
+            min-height: auto;
+            width: auto;
+        }
+
+        .testigo-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .boton.danger-secondary {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            color: #991b1b;
+        }
+    </style>
+
+    <title>Testigos de valoración del expediente</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <h1>Testigos de valoración</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+            <a class="boton secundario" href="/valoracion/testigos">Base de testigos</a>
+            <a class="boton secundario" href="/valoracion/testigos/nuevo">Nuevo testigo</a>
+        </div>
+
+        <div class="card">
+            <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
+            <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
+            <p>La selección guarda un snapshot del testigo. Editar el testigo base después no cambia este expediente.</p>
+            {% if testigos_vinculados|length > 6 %}
+            <p class="error">Hay más de 6 testigos vinculados. Es una advertencia no bloqueante.</p>
+            {% endif %}
+        </div>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if mensaje %}
+        <p>{{ mensaje }}</p>
+        {% endif %}
+
+        <section class="card">
+            <h2>Añadir testigo al expediente</h2>
+            <form method="get" action="/expedientes/{{ expediente.id }}/valoracion/testigos">
+                <label for="q">Buscar disponibles</label>
+                <input id="q" name="q" type="search" value="{{ filtros.q or '' }}" placeholder="Dirección, municipio, fuente o referencia">
+
+                <label for="tipologia">Tipología</label>
+                <select id="tipologia" name="tipologia">
+                    <option value="">Todas</option>
+                    {% for opcion in opciones_filtros.tipologia %}
+                    <option value="{{ opcion }}" {% if filtros.tipologia == opcion %}selected{% endif %}>{{ opcion }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="municipio">Municipio</label>
+                <select id="municipio" name="municipio">
+                    <option value="">Todos</option>
+                    {% for opcion in opciones_filtros.municipio %}
+                    <option value="{{ opcion }}" {% if filtros.municipio == opcion %}selected{% endif %}>{{ opcion }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="validacion">Validación</label>
+                <select id="validacion" name="validacion">
+                    <option value="">Todas</option>
+                    {% for opcion in opciones_filtros.validacion_estado %}
+                    <option value="{{ opcion }}" {% if filtros.validacion == opcion %}selected{% endif %}>{{ opcion }}</option>
+                    {% endfor %}
+                </select>
+
+                <div class="actions">
+                    <button class="boton secundario" type="submit">Filtrar testigos</button>
+                    {% if filtros.q or filtros.tipologia or filtros.municipio or filtros.validacion %}
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion/testigos">Limpiar filtros</a>
+                    {% endif %}
+                </div>
+            </form>
+
+            {% if testigos_disponibles %}
+            <form method="post" action="/expedientes/{{ expediente.id }}/valoracion/testigos/anadir">
+                <label for="testigo_id">Testigo disponible</label>
+                <select id="testigo_id" name="testigo_id" required>
+                    {% for testigo in testigos_disponibles %}
+                    <option value="{{ testigo.id }}">
+                        {{ testigo.direccion_testigo or 'Sin dirección' }} · {{ testigo.fuente_testigo or 'Sin fuente' }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <label for="notas_seleccion">Notas de selección</label>
+                <textarea id="notas_seleccion" name="notas_seleccion"></textarea>
+                <div class="actions">
+                    <button class="boton" type="submit">Vincular testigo</button>
+                </div>
+            </form>
+            {% else %}
+            <p>No hay testigos reutilizables disponibles sin vincular.</p>
+            {% endif %}
+        </section>
+
+        <section>
+            <h2>Testigos vinculados</h2>
+            {% if testigos_vinculados %}
+            {% for vinculo in testigos_vinculados %}
+            <article class="card">
+                <h3>{{ vinculo.direccion_testigo or 'Snapshot sin testigo base visible' }}</h3>
+                <p><strong>Fuente:</strong> {{ vinculo.fuente_testigo or '-' }}</p>
+                <p><strong>Referencia:</strong> {{ vinculo.referencia_testigo or '-' }}</p>
+                <p><strong>Precio oferta:</strong> {{ vinculo.precio_oferta_fmt }}</p>
+                <p><strong>Superficie construida:</strong> {{ vinculo.superficie_construida_fmt }}</p>
+                <p><strong>Superficie útil:</strong> {{ vinculo.superficie_util_fmt }}</p>
+                <p><strong>Valor unitario base:</strong> {{ vinculo.valor_unitario_base_fmt }}</p>
+                <p><strong>Coeficiente total:</strong> {{ vinculo.coeficiente_total_fmt }}</p>
+                <p><strong>Valor unitario ajustado:</strong> {{ vinculo.valor_unitario_ajustado_fmt }}</p>
+                <p><strong>Snapshot:</strong> {% if vinculo.snapshot_json %}guardado{% else %}pendiente{% endif %}</p>
+
+                <form class="testigo-vinculo-form" method="post"
+                    action="/expedientes/{{ expediente.id }}/valoracion/testigos/{{ vinculo.id }}/actualizar">
+                    <label for="orden_{{ vinculo.id }}">Orden</label>
+                    <input id="orden_{{ vinculo.id }}" name="orden" type="number" step="1" min="1" value="{{ vinculo.orden or loop.index }}">
+
+                    <label class="testigo-inline" for="incluido_{{ vinculo.id }}">
+                        <input id="incluido_{{ vinculo.id }}" name="incluido" type="checkbox" value="1"
+                            {% if vinculo.incluido != 0 %}checked{% endif %}>
+                        <span>Incluido en la valoración</span>
+                    </label>
+
+                    <label for="notas_{{ vinculo.id }}">Notas de selección</label>
+                    <textarea id="notas_{{ vinculo.id }}" name="notas_seleccion">{{ vinculo.notas_seleccion or '' }}</textarea>
+
+                    <div class="testigo-actions">
+                        <button class="boton secundario" type="submit">Guardar vínculo</button>
+                        <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion/testigos/{{ vinculo.id }}/ajustes">Ajustes</a>
+                    </div>
+                </form>
+
+                <form method="post" action="/expedientes/{{ expediente.id }}/valoracion/testigos/{{ vinculo.id }}/quitar">
+                    <button class="boton danger-secondary" type="submit">Quitar del expediente</button>
+                </form>
+            </article>
+            {% endfor %}
+            {% else %}
+            <div class="card">
+                <p>Este expediente todavía no tiene testigos vinculados.</p>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+    <style>
+        .testigo-thumb {
+            aspect-ratio: 16 / 9;
+            border-radius: 8px;
+            display: block;
+            margin-bottom: 14px;
+            object-fit: cover;
+            width: 100%;
+        }
+    </style>
+
+    <title>Biblioteca de testigos</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <section class="card">
+            <p class="visita-eyebrow">Valoración inmobiliaria</p>
+            <h1>Biblioteca de testigos</h1>
+            <p class="helper-text">Base reutilizable de comparables para seleccionar en múltiples expedientes de valoración.</p>
+
+            <form method="get" action="/valoracion/testigos">
+                <label for="q">Buscar testigos</label>
+                <input id="q" name="q" type="search" value="{{ busqueda or '' }}" placeholder="Dirección, fuente, municipio, referencia">
+
+                <label for="tipologia">Tipología</label>
+                <select id="tipologia" name="tipologia">
+                    <option value="">Todas</option>
+                    {% for opcion in opciones_filtros.tipologia %}
+                    <option value="{{ opcion }}" {% if filtros.tipologia == opcion %}selected{% endif %}>{{ opcion }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="municipio">Municipio</label>
+                <select id="municipio" name="municipio">
+                    <option value="">Todos</option>
+                    {% for opcion in opciones_filtros.municipio %}
+                    <option value="{{ opcion }}" {% if filtros.municipio == opcion %}selected{% endif %}>{{ opcion }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="validacion">Validación</label>
+                <select id="validacion" name="validacion">
+                    <option value="">Todas</option>
+                    {% for opcion in opciones_filtros.validacion_estado %}
+                    <option value="{{ opcion }}" {% if filtros.validacion == opcion %}selected{% endif %}>{{ opcion }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="reutilizable">Reutilizable</label>
+                <select id="reutilizable" name="reutilizable">
+                    <option value="">Todos</option>
+                    <option value="1" {% if filtros.reutilizable == '1' %}selected{% endif %}>Sí</option>
+                    <option value="0" {% if filtros.reutilizable == '0' %}selected{% endif %}>No</option>
+                </select>
+
+                <div class="actions">
+                    <button class="boton secundario" type="submit">Buscar</button>
+                    {% if busqueda or filtros.tipologia or filtros.municipio or filtros.validacion or filtros.reutilizable %}
+                    <a class="boton secundario" href="/valoracion/testigos">Limpiar</a>
+                    {% endif %}
+                </div>
+            </form>
+
+            <div class="actions">
+                <a class="boton" href="/valoracion/testigos/nuevo">Nuevo testigo</a>
+                <a class="boton secundario" href="/expedientes">Volver a expedientes</a>
+            </div>
+        </section>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if mensaje %}
+        <p>{{ mensaje }}</p>
+        {% endif %}
+
+        {% if testigos %}
+        {% for testigo in testigos %}
+        <article class="card">
+            {% if testigo.foto_url %}
+            <img class="testigo-thumb" src="{{ testigo.foto_url }}" alt="Foto del testigo {{ testigo.direccion_testigo or '' }}">
+            {% endif %}
+            <p class="visita-eyebrow">{{ testigo.validacion_estado or 'pendiente' }} · Reutilizable: {{ testigo.reutilizable_fmt }}</p>
+            <h2>{{ testigo.direccion_testigo or 'Testigo sin dirección' }}</h2>
+            <p class="helper-text">
+                {{ testigo.municipio or 'Municipio no indicado' }}{% if testigo.codigo_postal %} · {{ testigo.codigo_postal }}{% endif %}
+            </p>
+
+            <div class="summary-grid">
+                <p><strong>Oferta:</strong> {{ testigo.precio_oferta_fmt }}</p>
+                <p><strong>Cierre:</strong> {{ testigo.precio_cierre_fmt }}</p>
+                <p><strong>Construida:</strong> {{ testigo.superficie_construida_fmt }}</p>
+                <p><strong>Útil:</strong> {{ testigo.superficie_util_fmt }}</p>
+                <p><strong>Unitario:</strong> {{ testigo.valor_unitario_fmt }}</p>
+                <p><strong>Tipología:</strong> {{ testigo.tipologia or '—' }}</p>
+            </div>
+
+            <p><strong>Estado:</strong> {{ testigo.estado_conservacion or '—' }}</p>
+            <p><strong>Antigüedad:</strong> {{ testigo.antiguedad or '—' }}</p>
+            <p><strong>Calidad:</strong> {{ testigo.calidad_constructiva or '—' }}</p>
+            <p><strong>Fuente:</strong> {{ testigo.fuente_testigo or '—' }}</p>
+            {% if testigo.url_fuente %}
+            <p><a href="{{ testigo.url_fuente }}" target="_blank" rel="noopener noreferrer">Abrir fuente</a></p>
+            {% endif %}
+
+            <div class="actions">
+                <a class="boton secundario" href="/valoracion/testigos/{{ testigo.id }}">Ver detalle</a>
+                <a class="boton secundario" href="/valoracion/testigos/{{ testigo.id }}/editar">Editar</a>
+            </div>
+        </article>
+        {% endfor %}
+        {% else %}
+        <div class="card">
+            <p>No hay testigos reutilizables registrados todavía.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

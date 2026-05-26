@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <title>Detalle de testigo</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <section class="card">
+            <p class="visita-eyebrow">Testigo reutilizable · {{ testigo.validacion_estado or 'pendiente' }}</p>
+            <h1>{{ testigo.direccion_testigo or 'Testigo sin dirección' }}</h1>
+            <p class="helper-text">{{ testigo.municipio or 'Municipio no indicado' }}{% if testigo.codigo_postal %} · {{ testigo.codigo_postal }}{% endif %}</p>
+            <div class="actions">
+                <a class="boton secundario" href="/valoracion/testigos">Volver a biblioteca</a>
+                <a class="boton secundario" href="/valoracion/testigos/{{ testigo.id }}/editar">Editar</a>
+            </div>
+        </section>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if mensaje %}
+        <p>{{ mensaje }}</p>
+        {% endif %}
+
+        <section class="card">
+            <h2>Datos principales</h2>
+            <p><strong>Referencia:</strong> {{ testigo.referencia_testigo or '—' }}</p>
+            <p><strong>Fuente:</strong> {{ testigo.fuente_testigo or '—' }}</p>
+            {% if testigo.url_fuente %}
+            <p><strong>Enlace:</strong> <a href="{{ testigo.url_fuente }}" target="_blank" rel="noopener noreferrer">{{ testigo.url_fuente }}</a></p>
+            {% endif %}
+            <p><strong>Fecha:</strong> {{ testigo.fecha_testigo or '—' }}</p>
+            <p><strong>Precio oferta:</strong> {{ testigo.precio_oferta_fmt }}</p>
+            <p><strong>Precio cierre:</strong> {{ testigo.precio_cierre_fmt }}</p>
+            <p><strong>Valor unitario:</strong> {{ testigo.valor_unitario_fmt }}</p>
+            <p><strong>Superficie construida:</strong> {{ testigo.superficie_construida_fmt }}</p>
+            <p><strong>Superficie útil:</strong> {{ testigo.superficie_util_fmt }}</p>
+            <p><strong>Otros usos:</strong> {{ testigo.superficie_otros_usos_fmt }}</p>
+        </section>
+
+        <section class="card">
+            <h2>Características</h2>
+            <p><strong>Tipología:</strong> {{ testigo.tipologia or '—' }}</p>
+            <p><strong>Planta:</strong> {{ testigo.planta or '—' }}</p>
+            <p><strong>Dormitorios:</strong> {{ testigo.dormitorios if testigo.dormitorios is not none else '—' }}</p>
+            <p><strong>Baños:</strong> {{ testigo.banos if testigo.banos is not none else '—' }}</p>
+            <p><strong>Aseos:</strong> {{ testigo.aseos if testigo.aseos is not none else '—' }}</p>
+            <p><strong>Ascensor:</strong> {{ testigo.ascensor_fmt }}</p>
+            <p><strong>Garaje:</strong> {{ testigo.garaje_fmt }}</p>
+            <p><strong>Trastero:</strong> {{ testigo.trastero_fmt }}</p>
+            <p><strong>Terraza:</strong> {{ testigo.terraza_fmt }}</p>
+            <p><strong>Estado:</strong> {{ testigo.estado_conservacion or '—' }}</p>
+            <p><strong>Antigüedad:</strong> {{ testigo.antiguedad or '—' }}</p>
+            <p><strong>Calidad:</strong> {{ testigo.calidad_constructiva or '—' }}</p>
+            <p><strong>Características constructivas:</strong> {{ testigo.caracteristicas_constructivas or '—' }}</p>
+            <p><strong>Ubicación:</strong> {{ testigo.ubicacion or '—' }}</p>
+            <p><strong>Visitado:</strong> {{ testigo.visitado_fmt }}</p>
+            <p><strong>Reutilizable:</strong> {{ testigo.reutilizable_fmt }}</p>
+            <p><strong>Observaciones:</strong> {{ testigo.observaciones or '—' }}</p>
+        </section>
+
+        <section class="card">
+            <h2>Fotos</h2>
+            <form method="post" action="/valoracion/testigos/{{ testigo.id }}/fotos" enctype="multipart/form-data">
+                <label for="descripcion_foto_testigo">Descripción</label>
+                <input id="descripcion_foto_testigo" name="descripcion" type="text" placeholder="Ej. Captura del anuncio, fachada, interior">
+                <input type="hidden" name="origen" value="manual">
+
+                <label class="photo-capture-label" for="fotos_testigo">Añadir fotos o capturas</label>
+                <input class="photo-input" id="fotos_testigo" name="fotos" type="file" accept="image/*" multiple>
+
+                <button class="boton" type="submit">Guardar fotos</button>
+            </form>
+
+            {% if fotos %}
+            <div class="visita-fotos-grid">
+                {% for foto in fotos %}
+                <figure class="visita-foto-item">
+                    <img src="{{ foto.url }}" alt="Foto de testigo de valoración">
+                    {% if foto.descripcion %}
+                    <figcaption>{{ foto.descripcion }}</figcaption>
+                    {% endif %}
+                </figure>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty">No hay fotos asociadas todavía.</p>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <h2>Uso en expedientes</h2>
+            {% if vinculos %}
+            {% for vinculo in vinculos %}
+            <div class="card inner-card">
+                <p><strong>Expediente:</strong> {{ vinculo.numero_expediente }}</p>
+                <p><strong>Cliente:</strong> {{ vinculo.cliente or '—' }}</p>
+                <p><strong>Dirección:</strong> {{ vinculo.direccion or '—' }}</p>
+                <p><strong>Incluido:</strong> {{ vinculo.incluido_fmt }}</p>
+                <p><strong>Orden:</strong> {{ vinculo.orden or '—' }}</p>
+                <p><strong>Unitario base:</strong> {{ vinculo.valor_unitario_base_fmt }}</p>
+                <p><strong>Unitario ajustado:</strong> {{ vinculo.valor_unitario_ajustado_fmt }}</p>
+                <p><strong>Notas:</strong> {{ vinculo.notas_seleccion or '—' }}</p>
+                <a class="boton secundario" href="/expedientes/{{ vinculo.expediente_id }}/valoracion/testigos">Ver selección</a>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="empty">Este testigo todavía no está vinculado a expedientes.</p>
+            {% endif %}
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

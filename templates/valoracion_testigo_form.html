@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .valoracion-form details {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            margin-bottom: 14px;
+            padding: 0;
+        }
+
+        .valoracion-form summary {
+            cursor: pointer;
+            font-weight: 800;
+            list-style: none;
+            padding: 16px;
+        }
+
+        .valoracion-form summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .valoracion-form details[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .valoracion-fields {
+            padding: 0 16px 16px;
+        }
+
+        .valoracion-checkbox {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            margin: 12px 0;
+        }
+
+        .valoracion-checkbox input {
+            min-height: auto;
+            width: auto;
+        }
+    </style>
+
+    <title>{% if modo == 'editar' %}Editar testigo{% else %}Nuevo testigo{% endif %}</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <h1>{% if modo == 'editar' %}Editar testigo{% else %}Nuevo testigo{% endif %}</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/valoracion/testigos">Volver a testigos</a>
+        </div>
+
+        <div class="card">
+            <p>El testigo base es reutilizable. Al seleccionarlo para un expediente se guardará un snapshot independiente para conservar la valoración histórica.</p>
+        </div>
+
+        <form class="valoracion-form" method="post"
+            action="{% if modo == 'editar' %}/valoracion/testigos/{{ testigo_id }}/editar{% else %}/valoracion/testigos/nuevo{% endif %}">
+            {% for titulo, campos in testigo_grupos %}
+            <details {% if loop.first %}open{% endif %}>
+                <summary>{{ titulo }}</summary>
+                <div class="valoracion-fields">
+                    {% for campo, etiqueta in campos %}
+                    {% if campo in campos_checkbox %}
+                    <label class="valoracion-checkbox" for="{{ campo }}">
+                        <input id="{{ campo }}" name="{{ campo }}" type="checkbox" value="1"
+                            {% if testigo.get(campo) not in ['', '0', 0, none] %}checked{% endif %}>
+                        <span>{{ etiqueta }}</span>
+                    </label>
+                    {% elif campo == 'validacion_estado' %}
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <select id="{{ campo }}" name="{{ campo }}">
+                        {% for valor, label in validacion_options %}
+                        <option value="{{ valor }}" {% if testigo.get(campo) == valor %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% elif campo in campos_numericos %}
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <input id="{{ campo }}" name="{{ campo }}" type="number" step="0.01" value="{{ testigo.get(campo, '') }}">
+                    {% elif campo in campos_enteros %}
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <input id="{{ campo }}" name="{{ campo }}" type="number" step="1" min="0" value="{{ testigo.get(campo, '') }}">
+                    {% elif campo == 'fecha_testigo' %}
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <input id="{{ campo }}" name="{{ campo }}" type="date" value="{{ testigo.get(campo, '') }}">
+                    {% elif campo == 'url_fuente' %}
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <input id="{{ campo }}" name="{{ campo }}" type="url" value="{{ testigo.get(campo, '') }}">
+                    {% else %}
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="{{ campo }}" name="{{ campo }}">{{ testigo.get(campo, '') }}</textarea>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </details>
+            {% endfor %}
+
+            <div class="actions sticky-actions">
+                <button class="boton" type="submit">Guardar testigo</button>
+                <a class="boton secundario" href="/valoracion/testigos">Cancelar</a>
+            </div>
+        </form>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

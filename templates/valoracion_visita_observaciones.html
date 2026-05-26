@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .valoracion-form details {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            margin-bottom: 14px;
+            padding: 0;
+        }
+
+        .valoracion-form summary {
+            cursor: pointer;
+            font-weight: 800;
+            list-style: none;
+            padding: 16px;
+        }
+
+        .valoracion-form summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .valoracion-form details[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .valoracion-fields {
+            padding: 0 16px 16px;
+        }
+
+        .legacy-hint {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 12px;
+            color: #7c2d12;
+            margin: 10px 0 16px;
+            padding: 12px;
+        }
+    </style>
+
+    <title>Observaciones de valoración</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page">
+        <h1>Observaciones de valoración</h1>
+
+        <div class="actions">
+            <a class="boton secundario" href="/nueva-visita/{{ visita.expediente_id }}?visita_id={{ visita.id }}">Volver a la visita</a>
+            <a class="boton secundario" href="/detalle-expediente/{{ visita.expediente_id }}">Volver al expediente</a>
+        </div>
+
+        <div class="card">
+            <p><strong>Visita:</strong> {{ visita.fecha }}</p>
+            <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
+            <p>Esta pantalla recoge solo lo observado durante la inspección. La finalidad, documentación, superficies, entorno, método y limitaciones generales se editan en los datos de valoración del expediente.</p>
+        </div>
+
+        {% set legacy_hay_datos = namespace(valor=false) %}
+        {% for _, campos in observacion_grupos %}
+            {% for campo, _ in campos %}
+                {% if legacy_observaciones.get(campo) %}
+                    {% set legacy_hay_datos.valor = true %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+        {% if legacy_hay_datos.valor %}
+        <div class="legacy-hint">
+            <p><strong>Hay datos legacy en la ficha de visita.</strong></p>
+            <p>Se muestran solo como referencia. Esta pantalla no los copia ni los migra automáticamente.</p>
+        </div>
+        {% endif %}
+
+        <form class="valoracion-form" method="post" action="/visitas/{{ visita.id }}/valoracion-observaciones">
+            {% for titulo, campos in observacion_grupos %}
+            <details {% if loop.first %}open{% endif %}>
+                <summary>{{ titulo }}</summary>
+                <div class="valoracion-fields">
+                    {% for campo, etiqueta in campos %}
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <textarea id="{{ campo }}" name="{{ campo }}">{{ observaciones.get(campo, '') }}</textarea>
+                    {% if valoracion_ayudas_rapidas.get(campo.replace('_observado', '_conservacion')) %}
+                    <p class="muted">Frecuentes: {{ valoracion_ayudas_rapidas.get(campo.replace('_observado', '_conservacion'), []) | join(', ') }}</p>
+                    {% elif valoracion_ayudas_rapidas.get(campo.replace('ocupacion_observada', 'situacion_ocupacion')) %}
+                    <p class="muted">Frecuentes: {{ valoracion_ayudas_rapidas.get('situacion_ocupacion', []) | join(', ') }}</p>
+                    {% endif %}
+                    {% if legacy_observaciones.get(campo) %}
+                    <p class="muted">Legacy visita: {{ legacy_observaciones.get(campo) }}</p>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </details>
+            {% endfor %}
+
+            <div class="actions sticky-actions">
+                <button class="boton" type="submit">Guardar observaciones</button>
+                <a class="boton secundario" href="/nueva-visita/{{ visita.expediente_id }}?visita_id={{ visita.id }}">Cancelar</a>
+            </div>
+        </form>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

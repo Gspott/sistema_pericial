@@ -448,6 +448,205 @@ VALORACION_RESULTADO_ITEMS = [
     ),
     ("observaciones_valoracion", "Observaciones"),
 ]
+VALORACION_EXPEDIENTE_FORM_GROUPS = [
+    (
+        "Encargo",
+        [
+            ("finalidad_valoracion", "Finalidad de la valoración"),
+            ("finalidad_valoracion_detallada", "Finalidad detallada"),
+            ("nombre_solicitante", "Solicitante"),
+            ("nif_cif_solicitante", "NIF/CIF"),
+            ("domicilio_solicitante", "Domicilio"),
+            ("entidad_financiera", "Entidad financiera"),
+        ],
+    ),
+    (
+        "Documentación",
+        [
+            ("documentacion_utilizada", "Documentación utilizada"),
+            ("datos_registrales", "Datos registrales"),
+        ],
+    ),
+    (
+        "Identificación y superficies",
+        [
+            ("identificacion_bien", "Identificación del bien"),
+            ("superficie_valoracion", "Superficie de valoración"),
+            ("superficie_construida", "Superficie construida"),
+            ("superficie_util", "Superficie útil"),
+            ("superficie_terraza", "Superficie de terraza"),
+            ("superficie_zonas_comunes", "Superficie de zonas comunes"),
+            ("superficie_total", "Superficie total"),
+            ("superficie_comprobada", "Superficie comprobada"),
+        ],
+    ),
+    (
+        "Situación legal",
+        [
+            ("situacion_ocupacion", "Situación de ocupación"),
+            ("situacion_urbanistica", "Situación urbanística"),
+            ("servidumbres", "Servidumbres"),
+            ("linderos", "Linderos"),
+        ],
+    ),
+    (
+        "Entorno",
+        [
+            ("ubicacion_valoracion", "Ubicación"),
+            ("descripcion_entorno", "Descripción del entorno"),
+            ("grado_consolidacion", "Grado de consolidación"),
+            ("antiguedad_entorno", "Antigüedad del entorno"),
+            ("rasgos_urbanos", "Rasgos urbanos"),
+            ("nivel_renta", "Nivel de renta"),
+            ("uso_predominante", "Uso predominante"),
+            ("equipamientos", "Equipamientos"),
+            ("infraestructuras", "Infraestructuras"),
+        ],
+    ),
+    (
+        "Edificio/inmueble",
+        [
+            ("tipo_edificio", "Tipo de edificio"),
+            ("numero_portales", "Número de portales"),
+            ("numero_escaleras", "Número de escaleras"),
+            ("numero_ascensores", "Número de ascensores"),
+            ("estado_conservacion", "Estado de conservación"),
+            ("antiguedad", "Antigüedad"),
+            ("calidades", "Calidades"),
+            ("vistas", "Vistas"),
+            ("uso_residencial", "Uso residencial"),
+        ],
+    ),
+    (
+        "Características constructivas",
+        [
+            ("estructura", "Estructura"),
+            ("cubierta", "Cubierta"),
+            ("cerramientos", "Cerramientos"),
+            ("aislamiento", "Aislamiento"),
+            ("carpinteria", "Carpintería"),
+            ("acristalamiento", "Acristalamiento"),
+            ("instalaciones", "Instalaciones"),
+        ],
+    ),
+    (
+        "Métodos",
+        [
+            ("metodo_comparacion_activo", "Método de comparación activo"),
+            ("metodo_coste_activo", "Método de coste activo"),
+            ("criterios_metodo_valoracion", "Criterios / método de valoración"),
+            ("variables_mercado", "Variables de mercado"),
+            ("metodo_homogeneizacion", "Método de homogeneización"),
+        ],
+    ),
+    (
+        "Limitaciones",
+        [
+            (
+                "condicionantes_limitaciones_valoracion",
+                "Condicionantes / limitaciones",
+            ),
+            ("observaciones_valoracion", "Observaciones"),
+        ],
+    ),
+]
+VALORACION_EXPEDIENTE_FORM_FIELDS = list(
+    dict.fromkeys(
+        campo
+        for _, campos in VALORACION_EXPEDIENTE_FORM_GROUPS
+        for campo, _ in campos
+    )
+)
+VALORACION_VISITA_OBSERVACIONES_GROUPS = [
+    (
+        "Estado observado",
+        [("estado_observado", "Estado observado")],
+    ),
+    (
+        "Reforma observada",
+        [("reforma_observada", "Reforma observada")],
+    ),
+    (
+        "Ocupación observada",
+        [("ocupacion_observada", "Ocupación observada")],
+    ),
+    (
+        "Observaciones de inspección",
+        [("observaciones_inspeccion_valoracion", "Observaciones de inspección")],
+    ),
+    (
+        "Incidencias",
+        [("incidencias_valoracion", "Incidencias")],
+    ),
+    (
+        "Comprobaciones físicas",
+        [("comprobaciones_fisicas", "Comprobaciones físicas")],
+    ),
+    (
+        "Portal y contadores",
+        [
+            ("observaciones_portal", "Observaciones del portal"),
+            (
+                "observaciones_cuadro_contadores",
+                "Observaciones del cuadro de contadores",
+            ),
+        ],
+    ),
+]
+VALORACION_VISITA_OBSERVACIONES_FIELDS = [
+    campo
+    for _, campos in VALORACION_VISITA_OBSERVACIONES_GROUPS
+    for campo, _ in campos
+]
+VALORACION_AYUDAS_RAPIDAS = {
+    "finalidad_valoracion": [
+        "Compraventa",
+        "Herencia",
+        "Divorcio",
+        "Garantía",
+        "Asesoramiento",
+        "Judicial",
+        "Otro",
+    ],
+    "situacion_ocupacion": [
+        "Libre",
+        "Ocupado por propietario",
+        "Arrendado",
+        "Desconocido",
+    ],
+    "estado_conservacion": [
+        "Reformado",
+        "Buen estado",
+        "Normal",
+        "A reformar",
+        "Deficiente",
+    ],
+    "documentacion_utilizada": [
+        "Catastro",
+        "Nota simple",
+        "Escritura",
+        "IBI",
+        "Planos",
+        "Certificado energético",
+        "Visita",
+        "Otro",
+    ],
+    "criterios_metodo_valoracion": [
+        "Comparación",
+        "Coste",
+        "Actualización de rentas",
+        "Residual",
+        "Otro",
+    ],
+    "condicionantes_limitaciones_valoracion": [
+        "Sin nota simple",
+        "Sin documentación registral",
+        "Sin acceso completo",
+        "Superficies no comprobadas",
+        "Comparables no visitados",
+        "Otro",
+    ],
+}
 COMPARABLE_VALORACION_ITEMS = [
     ("direccion_testigo", "Dirección testigo"),
     ("fuente_testigo", "Fuente"),
@@ -465,6 +664,107 @@ COMPARABLE_VALORACION_ITEMS = [
     ("calidad_constructiva", "Calidad constructiva"),
     ("visitado", "Visitado"),
     ("observaciones", "Observaciones"),
+]
+TESTIGO_VALORACION_FORM_GROUPS = [
+    (
+        "Identificación y fuente",
+        [
+            ("direccion_testigo", "Dirección"),
+            ("referencia_testigo", "Referencia"),
+            ("fuente_testigo", "Fuente"),
+            ("url_fuente", "URL de fuente"),
+            ("fecha_testigo", "Fecha"),
+        ],
+    ),
+    (
+        "Ubicación",
+        [
+            ("codigo_postal", "Código postal"),
+            ("municipio", "Municipio"),
+            ("provincia", "Provincia"),
+            ("ubicacion", "Ubicación"),
+        ],
+    ),
+    (
+        "Importes y superficies",
+        [
+            ("precio_oferta", "Precio oferta"),
+            ("precio_cierre", "Precio cierre"),
+            ("superficie_construida", "Superficie construida"),
+            ("superficie_util", "Superficie útil"),
+            ("superficie_otros_usos", "Superficie otros usos"),
+            ("valor_unitario", "Valor unitario"),
+        ],
+    ),
+    (
+        "Características",
+        [
+            ("tipologia", "Tipología"),
+            ("planta", "Planta"),
+            ("dormitorios", "Dormitorios"),
+            ("banos", "Baños"),
+            ("aseos", "Aseos"),
+            ("ascensor", "Ascensor"),
+            ("garaje", "Garaje"),
+            ("trastero", "Trastero"),
+            ("terraza", "Terraza"),
+        ],
+    ),
+    (
+        "Estado y validación",
+        [
+            ("estado_conservacion", "Estado de conservación"),
+            ("antiguedad", "Antigüedad"),
+            ("calidad_constructiva", "Calidad constructiva"),
+            ("caracteristicas_constructivas", "Características constructivas"),
+            ("visitado", "Visitado"),
+            ("validacion_estado", "Estado de validación"),
+            ("reutilizable", "Reutilizable"),
+        ],
+    ),
+    (
+        "Observaciones",
+        [("observaciones", "Observaciones")],
+    ),
+]
+TESTIGO_VALORACION_FORM_FIELDS = [
+    campo
+    for _, campos in TESTIGO_VALORACION_FORM_GROUPS
+    for campo, _ in campos
+]
+TESTIGO_VALORACION_NUMERIC_FIELDS = {
+    "precio_oferta",
+    "precio_cierre",
+    "superficie_construida",
+    "superficie_util",
+    "superficie_otros_usos",
+    "valor_unitario",
+}
+TESTIGO_VALORACION_INTEGER_FIELDS = {
+    "dormitorios",
+    "banos",
+    "aseos",
+}
+TESTIGO_VALORACION_CHECKBOX_FIELDS = {
+    "ascensor",
+    "garaje",
+    "trastero",
+    "terraza",
+    "visitado",
+    "reutilizable",
+}
+TESTIGO_VALORACION_VALIDACION_OPTIONS = [
+    ("pendiente", "Pendiente"),
+    ("revisado", "Revisado"),
+    ("validado", "Validado"),
+    ("descartado", "Descartado"),
+]
+VALORACION_TESTIGO_AJUSTES_ITEMS = [
+    ("ajuste_superficie_construida", "Superficie construida"),
+    ("ajuste_ubicacion", "Ubicación"),
+    ("ajuste_antiguedad", "Antigüedad"),
+    ("ajuste_calidades", "Calidades"),
+    ("ajuste_caracteristicas_constructivas", "Características constructivas"),
 ]
 TIPO_NIVEL_OPTIONS = [
     ("bajo_rasante", "Bajo rasante"),
@@ -1180,6 +1480,519 @@ def cargar_datos_valoracion_visita(cur, visita_id: int):
 
 def comparable_valoracion_form_vacio():
     return {campo: "" for campo, _ in COMPARABLE_VALORACION_ITEMS}
+
+
+def valoracion_expediente_form_vacio():
+    return {campo: "" for campo in VALORACION_EXPEDIENTE_FORM_FIELDS}
+
+
+def cargar_valoracion_expediente_form(cur, expediente_id: int):
+    return fila_a_dict(
+        cur.execute(
+            "SELECT * FROM valoracion_expediente WHERE expediente_id=?",
+            (expediente_id,),
+        ).fetchone(),
+        VALORACION_EXPEDIENTE_FORM_FIELDS,
+    )
+
+
+def cargar_valoracion_legacy_expediente_form(cur, expediente_id: int):
+    columnas_legacy = [
+        campo
+        for campo in VALORACION_EXPEDIENTE_FORM_FIELDS
+        if campo not in {"metodo_comparacion_activo", "metodo_coste_activo"}
+    ]
+    visita_legacy = cur.execute(
+        """
+        SELECT vv.*
+        FROM valoracion_visita vv
+        JOIN visitas v ON vv.visita_id = v.id
+        WHERE v.expediente_id = ?
+        ORDER BY vv.id DESC
+        LIMIT 1
+        """,
+        (expediente_id,),
+    ).fetchone()
+    if not visita_legacy:
+        return {columna: "" for columna in columnas_legacy}
+    columnas_fila = set(visita_legacy.keys())
+    return {
+        columna: limpiar_texto(visita_legacy[columna]) if columna in columnas_fila else ""
+        for columna in columnas_legacy
+    }
+
+
+def upsert_valoracion_expediente(cur, expediente_id: int, valores: dict):
+    columnas_disponibles = get_table_columns("valoracion_expediente")
+    columnas = [
+        campo
+        for campo in VALORACION_EXPEDIENTE_FORM_FIELDS
+        if campo in columnas_disponibles
+    ]
+    valores_limpios = {
+        campo: (
+            1
+            if campo in {"metodo_comparacion_activo", "metodo_coste_activo"}
+            and valores.get(campo) == "1"
+            else 0
+            if campo in {"metodo_comparacion_activo", "metodo_coste_activo"}
+            else limpiar_texto(valores.get(campo))
+        )
+        for campo in columnas
+    }
+    insert_columns = ["expediente_id"] + columnas
+    placeholders = ", ".join(["?"] * len(insert_columns))
+    updates = ", ".join(
+        [f"{campo}=excluded.{campo}" for campo in columnas]
+        + ["updated_at=CURRENT_TIMESTAMP"]
+    )
+    cur.execute(
+        f"""
+        INSERT INTO valoracion_expediente ({", ".join(insert_columns)})
+        VALUES ({placeholders})
+        ON CONFLICT(expediente_id) DO UPDATE SET {updates}
+        """,
+        [expediente_id] + [valores_limpios[campo] for campo in columnas],
+    )
+
+
+def valoracion_visita_observaciones_form_vacio():
+    return {campo: "" for campo in VALORACION_VISITA_OBSERVACIONES_FIELDS}
+
+
+def cargar_valoracion_visita_observaciones_form(cur, visita_id: int):
+    return fila_a_dict(
+        cur.execute(
+            "SELECT * FROM valoracion_visita_observaciones WHERE visita_id=?",
+            (visita_id,),
+        ).fetchone(),
+        VALORACION_VISITA_OBSERVACIONES_FIELDS,
+    )
+
+
+def cargar_valoracion_visita_observaciones_legacy(cur, visita_id: int):
+    legacy = cur.execute(
+        """
+        SELECT *
+        FROM valoracion_visita
+        WHERE visita_id = ?
+        """,
+        (visita_id,),
+    ).fetchone()
+    if not legacy:
+        return valoracion_visita_observaciones_form_vacio()
+    columnas = set(legacy.keys())
+    return {
+        "estado_observado": limpiar_texto(legacy["estado_inmueble"])
+        if "estado_inmueble" in columnas
+        else limpiar_texto(legacy["estado_conservacion"])
+        if "estado_conservacion" in columnas
+        else "",
+        "reforma_observada": "",
+        "ocupacion_observada": limpiar_texto(legacy["regimen_ocupacion"])
+        if "regimen_ocupacion" in columnas
+        else limpiar_texto(legacy["situacion_ocupacion"])
+        if "situacion_ocupacion" in columnas
+        else "",
+        "observaciones_inspeccion_valoracion": limpiar_texto(
+            legacy["observaciones_valoracion"]
+        )
+        if "observaciones_valoracion" in columnas
+        else "",
+        "incidencias_valoracion": "",
+        "comprobaciones_fisicas": "",
+    }
+
+
+def upsert_valoracion_visita_observaciones(
+    cur,
+    visita_id: int,
+    expediente_id: int,
+    valores: dict,
+):
+    columnas_disponibles = get_table_columns("valoracion_visita_observaciones")
+    columnas = [
+        campo
+        for campo in VALORACION_VISITA_OBSERVACIONES_FIELDS
+        if campo in columnas_disponibles
+    ]
+    valores_limpios = {campo: limpiar_texto(valores.get(campo)) for campo in columnas}
+    insert_columns = ["visita_id", "expediente_id"] + columnas
+    placeholders = ", ".join(["?"] * len(insert_columns))
+    updates = ", ".join(
+        [f"{campo}=excluded.{campo}" for campo in columnas]
+        + ["expediente_id=excluded.expediente_id", "updated_at=CURRENT_TIMESTAMP"]
+    )
+    cur.execute(
+        f"""
+        INSERT INTO valoracion_visita_observaciones ({", ".join(insert_columns)})
+        VALUES ({placeholders})
+        ON CONFLICT(visita_id) DO UPDATE SET {updates}
+        """,
+        [visita_id, expediente_id] + [valores_limpios[campo] for campo in columnas],
+    )
+
+
+def testigo_valoracion_form_vacio():
+    valores = {campo: "" for campo in TESTIGO_VALORACION_FORM_FIELDS}
+    valores["reutilizable"] = "1"
+    valores["validacion_estado"] = "pendiente"
+    return valores
+
+
+def normalizar_valor_testigo(campo: str, valor):
+    if campo in TESTIGO_VALORACION_CHECKBOX_FIELDS:
+        return 1 if limpiar_texto(valor) == "1" else 0
+    if campo in TESTIGO_VALORACION_INTEGER_FIELDS:
+        return parse_optional_int(valor)
+    if campo in TESTIGO_VALORACION_NUMERIC_FIELDS:
+        return parsear_float(valor)
+    return limpiar_texto(valor)
+
+
+def formatear_numero_es(valor, decimales: int = 0) -> str:
+    numero = parsear_float(valor)
+    if numero is None:
+        return "—"
+    texto = f"{numero:,.{decimales}f}"
+    return texto.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def formatear_moneda_es(valor) -> str:
+    return f"{formatear_numero_es(valor, 0)} €" if parsear_float(valor) is not None else "—"
+
+
+def formatear_precio_unitario_es(valor) -> str:
+    return f"{formatear_numero_es(valor, 0)} €/m²" if parsear_float(valor) is not None else "—"
+
+
+def formatear_superficie_es(valor) -> str:
+    return f"{formatear_numero_es(valor, 2)} m²" if parsear_float(valor) is not None else "—"
+
+
+def formatear_booleano_es(valor) -> str:
+    return "Sí" if str(valor or "").strip() in {"1", "true", "True", "sí", "Sí"} else "No"
+
+
+def formatear_coeficiente_es(valor) -> str:
+    numero = parsear_float(valor)
+    if numero is None:
+        return "—"
+    return f"{formatear_numero_es(numero, 2)}x"
+
+
+def enriquecer_testigo_valoracion(testigo: dict) -> dict:
+    item = dict(testigo)
+    item["precio_oferta_fmt"] = formatear_moneda_es(item.get("precio_oferta"))
+    item["precio_cierre_fmt"] = formatear_moneda_es(item.get("precio_cierre"))
+    item["valor_unitario_fmt"] = formatear_precio_unitario_es(item.get("valor_unitario"))
+    item["superficie_construida_fmt"] = formatear_superficie_es(
+        item.get("superficie_construida")
+    )
+    item["superficie_util_fmt"] = formatear_superficie_es(item.get("superficie_util"))
+    item["superficie_otros_usos_fmt"] = formatear_superficie_es(
+        item.get("superficie_otros_usos")
+    )
+    item["reutilizable_fmt"] = formatear_booleano_es(item.get("reutilizable"))
+    item["visitado_fmt"] = formatear_booleano_es(item.get("visitado"))
+    item["ascensor_fmt"] = formatear_booleano_es(item.get("ascensor"))
+    item["garaje_fmt"] = formatear_booleano_es(item.get("garaje"))
+    item["trastero_fmt"] = formatear_booleano_es(item.get("trastero"))
+    item["terraza_fmt"] = formatear_booleano_es(item.get("terraza"))
+    item["foto_url"] = (
+        f"/uploads/{item['primera_foto']}"
+        if limpiar_texto(item.get("primera_foto"))
+        else ""
+    )
+    return item
+
+
+def enriquecer_vinculo_testigo_valoracion(vinculo: dict) -> dict:
+    item = dict(vinculo)
+    item["valor_unitario_base_fmt"] = formatear_precio_unitario_es(
+        item.get("valor_unitario_base") or item.get("valor_unitario")
+    )
+    item["valor_unitario_ajustado_fmt"] = formatear_precio_unitario_es(
+        item.get("valor_unitario_ajustado")
+    )
+    item["coeficiente_total_fmt"] = formatear_coeficiente_es(
+        item.get("coeficiente_total")
+    )
+    item["precio_oferta_fmt"] = formatear_moneda_es(item.get("precio_oferta"))
+    item["superficie_construida_fmt"] = formatear_superficie_es(
+        item.get("superficie_construida")
+    )
+    item["superficie_util_fmt"] = formatear_superficie_es(item.get("superficie_util"))
+    return item
+
+
+def valores_testigo_desde_form(form) -> dict:
+    return {
+        campo: normalizar_valor_testigo(
+            campo,
+            form.get(campo, "1" if campo == "reutilizable" else ""),
+        )
+        for campo in TESTIGO_VALORACION_FORM_FIELDS
+    }
+
+
+def cargar_testigo_valoracion_form(cur, testigo_id: int, user_id: int):
+    testigo = get_owned_testigo_valoracion(cur, testigo_id, user_id)
+    require_row(testigo, "Testigo no encontrado")
+    return testigo, fila_a_dict(testigo, TESTIGO_VALORACION_FORM_FIELDS)
+
+
+def snapshot_testigo_valoracion(testigo) -> str:
+    datos = {
+        campo: limpiar_texto(testigo[campo])
+        for campo in TESTIGO_VALORACION_FORM_FIELDS
+        if campo in testigo.keys()
+    }
+    return json.dumps(datos, ensure_ascii=False, sort_keys=True)
+
+
+def cargar_testigos_valoracion_usuario(cur, user_id: int, solo_reutilizables: bool = False):
+    filtro_reutilizable = "AND COALESCE(reutilizable, 1) = 1" if solo_reutilizables else ""
+    return cur.execute(
+        f"""
+        SELECT *
+        FROM testigos_valoracion
+        WHERE owner_user_id = ?
+        {filtro_reutilizable}
+        ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+        """,
+        (user_id,),
+    ).fetchall()
+
+
+def cargar_opciones_filtro_testigos_valoracion(cur, user_id: int) -> dict:
+    opciones = {}
+    for campo in ("tipologia", "municipio", "validacion_estado"):
+        opciones[campo] = [
+            row[campo]
+            for row in cur.execute(
+                f"""
+                SELECT DISTINCT {campo}
+                FROM testigos_valoracion
+                WHERE owner_user_id = ?
+                  AND COALESCE({campo}, '') != ''
+                ORDER BY {campo} COLLATE NOCASE ASC
+                """,
+                (user_id,),
+            ).fetchall()
+        ]
+    return opciones
+
+
+def primera_foto_testigo_valoracion(cur, testigo_id: int) -> str:
+    foto = cur.execute(
+        """
+        SELECT archivo
+        FROM testigos_valoracion_fotos
+        WHERE testigo_id = ?
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        (testigo_id,),
+    ).fetchone()
+    return foto["archivo"] if foto is not None else ""
+
+
+def enriquecer_testigos_con_foto(cur, testigos) -> list[dict]:
+    enriquecidos = []
+    for testigo in testigos:
+        item = dict(testigo)
+        item["primera_foto"] = primera_foto_testigo_valoracion(cur, item["id"])
+        enriquecidos.append(enriquecer_testigo_valoracion(item))
+    return enriquecidos
+
+
+def cargar_fotos_testigo_valoracion(cur, testigo_id: int):
+    fotos = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT id, testigo_id, archivo, descripcion, origen, created_at
+            FROM testigos_valoracion_fotos
+            WHERE testigo_id = ?
+            ORDER BY id ASC
+            """,
+            (testigo_id,),
+        ).fetchall()
+    ]
+    for foto in fotos:
+        foto["url"] = f"/uploads/{foto['archivo']}"
+    return fotos
+
+
+def cargar_vinculos_testigo_valoracion(cur, testigo_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT vet.id,
+               vet.expediente_id,
+               vet.orden,
+               vet.incluido,
+               vet.notas_seleccion,
+               vet.valor_unitario_base,
+               vet.valor_unitario_ajustado,
+               e.numero_expediente,
+               e.cliente,
+               e.direccion
+        FROM valoracion_expediente_testigos vet
+        JOIN expedientes e ON e.id = vet.expediente_id
+        WHERE vet.testigo_id = ?
+          AND e.owner_user_id = ?
+        ORDER BY vet.created_at DESC, vet.id DESC
+        """,
+        (testigo_id, user_id),
+    ).fetchall()
+
+
+def cargar_testigos_expediente_valoracion(cur, expediente_id: int):
+    return cur.execute(
+        """
+        SELECT vet.*,
+               tv.direccion_testigo,
+               tv.referencia_testigo,
+               tv.fuente_testigo,
+               tv.fecha_testigo,
+               tv.precio_oferta,
+               tv.valor_unitario,
+               tv.superficie_construida,
+               tv.superficie_util,
+               tv.tipologia,
+               tv.validacion_estado,
+               tv.observaciones,
+               vta.ajuste_superficie_construida,
+               vta.ajuste_ubicacion,
+               vta.ajuste_antiguedad,
+               vta.ajuste_calidades,
+               vta.ajuste_caracteristicas_constructivas,
+               vta.coeficiente_total,
+               vta.justificacion
+        FROM valoracion_expediente_testigos vet
+        LEFT JOIN testigos_valoracion tv ON tv.id = vet.testigo_id
+        LEFT JOIN valoracion_testigo_ajustes vta ON vta.expediente_testigo_id = vet.id
+        WHERE vet.expediente_id = ?
+        ORDER BY COALESCE(vet.orden, 9999) ASC, vet.id ASC
+        """,
+        (expediente_id,),
+    ).fetchall()
+
+
+def siguiente_orden_testigo_expediente(cur, expediente_id: int) -> int:
+    row = cur.execute(
+        """
+        SELECT COALESCE(MAX(orden), 0) + 1 AS siguiente
+        FROM valoracion_expediente_testigos
+        WHERE expediente_id = ?
+        """,
+        (expediente_id,),
+    ).fetchone()
+    return int(row["siguiente"] or 1)
+
+
+def valoracion_testigo_ajustes_vacio():
+    valores = {campo: "0" for campo, _ in VALORACION_TESTIGO_AJUSTES_ITEMS}
+    valores["coeficiente_total"] = ""
+    valores["justificacion"] = ""
+    return valores
+
+
+def cargar_valoracion_testigo_ajustes(cur, vinculo_id: int):
+    fila = cur.execute(
+        """
+        SELECT *
+        FROM valoracion_testigo_ajustes
+        WHERE expediente_testigo_id = ?
+        """,
+        (vinculo_id,),
+    ).fetchone()
+    if not fila:
+        return valoracion_testigo_ajustes_vacio()
+    valores = fila_a_dict(
+        fila,
+        [campo for campo, _ in VALORACION_TESTIGO_AJUSTES_ITEMS]
+        + ["coeficiente_total", "justificacion"],
+    )
+    for campo, _ in VALORACION_TESTIGO_AJUSTES_ITEMS:
+        valores[campo] = valores.get(campo) or "0"
+    return valores
+
+
+def parsear_ajuste_valoracion(campo: str, valor) -> float:
+    texto = limpiar_texto(valor)
+    ajuste = parsear_float(texto) if texto else 0.0
+    if ajuste is None or ajuste < -0.20 or ajuste > 0.20:
+        raise ValueError(f"El ajuste {campo} debe estar entre -0.20 y 0.20.")
+    return ajuste
+
+
+def valores_ajustes_desde_form(form) -> dict:
+    valores = {
+        campo: parsear_ajuste_valoracion(campo, form.get(campo))
+        for campo, _ in VALORACION_TESTIGO_AJUSTES_ITEMS
+    }
+    valores["justificacion"] = limpiar_texto(form.get("justificacion"))
+    valores["coeficiente_total"] = 1 + sum(
+        valores[campo] for campo, _ in VALORACION_TESTIGO_AJUSTES_ITEMS
+    )
+    return valores
+
+
+def upsert_valoracion_testigo_ajustes(cur, vinculo, valores: dict):
+    columnas = [campo for campo, _ in VALORACION_TESTIGO_AJUSTES_ITEMS]
+    existente = cur.execute(
+        """
+        SELECT id
+        FROM valoracion_testigo_ajustes
+        WHERE expediente_testigo_id = ?
+        """,
+        (vinculo["id"],),
+    ).fetchone()
+    if existente:
+        assignments = ", ".join([f"{campo}=?" for campo in columnas])
+        cur.execute(
+            f"""
+            UPDATE valoracion_testigo_ajustes
+            SET {assignments}, coeficiente_total = ?, justificacion = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            [valores[campo] for campo in columnas]
+            + [valores["coeficiente_total"], valores["justificacion"], existente["id"]],
+        )
+    else:
+        insert_columns = ["expediente_testigo_id"] + columnas + [
+            "coeficiente_total",
+            "justificacion",
+        ]
+        placeholders = ", ".join(["?"] * len(insert_columns))
+        cur.execute(
+            f"""
+            INSERT INTO valoracion_testigo_ajustes ({", ".join(insert_columns)})
+            VALUES ({placeholders})
+            """,
+            [vinculo["id"]]
+            + [valores[campo] for campo in columnas]
+            + [valores["coeficiente_total"], valores["justificacion"]],
+        )
+
+    valor_unitario_base = parsear_float(vinculo["valor_unitario_base"])
+    valor_unitario_ajustado = (
+        round(valor_unitario_base * valores["coeficiente_total"], 2)
+        if valor_unitario_base is not None
+        else None
+    )
+    cur.execute(
+        """
+        UPDATE valoracion_expediente_testigos
+        SET valor_unitario_ajustado = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (valor_unitario_ajustado, vinculo["id"]),
+    )
+    return valor_unitario_ajustado
 
 
 def obtener_items_inspeccion_estancia(tipo_estancia: str):
@@ -3662,6 +4475,75 @@ def get_owned_comparable_valoracion(cur, comparable_id: int, user_id: int):
     ).fetchone()
 
 
+def get_owned_testigo_valoracion(cur, testigo_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT *
+        FROM testigos_valoracion
+        WHERE id = ? AND owner_user_id = ?
+        """,
+        (testigo_id, user_id),
+    ).fetchone()
+
+
+def get_owned_valoracion_expediente_testigo(
+    cur,
+    vinculo_id: int,
+    expediente_id: int,
+    user_id: int,
+):
+    return cur.execute(
+        """
+        SELECT vet.*, e.owner_user_id
+        FROM valoracion_expediente_testigos vet
+        JOIN expedientes e ON e.id = vet.expediente_id
+        WHERE vet.id = ?
+          AND vet.expediente_id = ?
+          AND e.owner_user_id = ?
+        """,
+        (vinculo_id, expediente_id, user_id),
+    ).fetchone()
+
+
+def get_owned_valoracion_expediente_testigo_detalle(
+    cur,
+    vinculo_id: int,
+    expediente_id: int,
+    user_id: int,
+):
+    return cur.execute(
+        """
+        SELECT vet.*,
+               e.numero_expediente,
+               e.direccion AS expediente_direccion,
+               e.tipo_informe,
+               e.owner_user_id,
+               tv.direccion_testigo,
+               tv.referencia_testigo,
+               tv.fuente_testigo,
+               tv.valor_unitario,
+               tv.superficie_construida,
+               tv.estado_conservacion,
+               tv.observaciones,
+               vta.ajuste_superficie_construida,
+               vta.ajuste_ubicacion,
+               vta.ajuste_antiguedad,
+               vta.ajuste_calidades,
+               vta.ajuste_caracteristicas_constructivas,
+               vta.coeficiente_total,
+               vta.justificacion
+        FROM valoracion_expediente_testigos vet
+        JOIN expedientes e ON e.id = vet.expediente_id
+        LEFT JOIN testigos_valoracion tv ON tv.id = vet.testigo_id
+        LEFT JOIN valoracion_testigo_ajustes vta ON vta.expediente_testigo_id = vet.id
+        WHERE vet.id = ?
+          AND vet.expediente_id = ?
+          AND e.owner_user_id = ?
+        """,
+        (vinculo_id, expediente_id, user_id),
+    ).fetchone()
+
+
 def get_owned_mapa_patologia(cur, mapa_id: int, user_id: int):
     return cur.execute(
         """
@@ -5105,6 +5987,23 @@ def detalle_expediente(request: Request, expediente_id: int):
             """,
             (expediente_id,),
         ).fetchone()
+        comparables_legacy = cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM comparables_valoracion cv
+            JOIN visitas v ON cv.visita_id = v.id
+            WHERE v.expediente_id = ?
+            """,
+            (expediente_id,),
+        ).fetchone()[0]
+        testigos_vinculados = cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM valoracion_expediente_testigos
+            WHERE expediente_id = ?
+            """,
+            (expediente_id,),
+        ).fetchone()[0]
         resumen_tipo = {
             "visitas_con_valoracion": cur.execute(
                 """
@@ -5115,15 +6014,9 @@ def detalle_expediente(request: Request, expediente_id: int):
                 """,
                 (expediente_id,),
             ).fetchone()[0],
-            "comparables": cur.execute(
-                """
-                SELECT COUNT(*)
-                FROM comparables_valoracion cv
-                JOIN visitas v ON cv.visita_id = v.id
-                WHERE v.expediente_id = ?
-                """,
-                (expediente_id,),
-            ).fetchone()[0],
+            "comparables": comparables_legacy + testigos_vinculados,
+            "comparables_legacy": comparables_legacy,
+            "testigos_vinculados": testigos_vinculados,
             "valor_tasacion_final": (
                 limpiar_texto(ultima_valoracion["valor_tasacion_final"])
                 if ultima_valoracion
@@ -5209,6 +6102,696 @@ def detalle_expediente(request: Request, expediente_id: int):
     )
 
 
+@app.get("/expedientes/{expediente_id}/valoracion", response_class=HTMLResponse)
+def editar_valoracion_expediente(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los datos de valoración solo aplican a expedientes de valoración.",
+            )
+        valoracion = cargar_valoracion_expediente_form(cur, expediente_id)
+        legacy_valoracion = cargar_valoracion_legacy_expediente_form(cur, expediente_id)
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_expediente.html",
+        {
+            "expediente": dict(expediente),
+            "valoracion": valoracion,
+            "legacy_valoracion": legacy_valoracion,
+            "valoracion_grupos": VALORACION_EXPEDIENTE_FORM_GROUPS,
+            "valoracion_ayudas_rapidas": VALORACION_AYUDAS_RAPIDAS,
+            "campos_checkbox": {
+                "metodo_comparacion_activo",
+                "metodo_coste_activo",
+            },
+        },
+    )
+
+
+@app.post("/expedientes/{expediente_id}/valoracion")
+async def guardar_valoracion_expediente(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los datos de valoración solo aplican a expedientes de valoración.",
+            )
+
+        valores = {
+            campo: ("1" if form.get(campo) == "1" else "")
+            if campo in {"metodo_comparacion_activo", "metodo_coste_activo"}
+            else form.get(campo, "")
+            for campo in VALORACION_EXPEDIENTE_FORM_FIELDS
+        }
+        upsert_valoracion_expediente(cur, expediente_id, valores)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_detalle_expediente(
+        expediente_id,
+        mensaje="Datos estables de valoración guardados.",
+    )
+
+
+@app.get("/valoracion/testigos", response_class=HTMLResponse)
+def listar_testigos_valoracion(
+    request: Request,
+    q: str = Query(""),
+    tipologia: str = Query(""),
+    municipio: str = Query(""),
+    validacion: str = Query(""),
+    reutilizable: str = Query(""),
+):
+    current_user = get_current_user(request)
+    filtros = {
+        "q": limpiar_texto(q),
+        "tipologia": limpiar_texto(tipologia),
+        "municipio": limpiar_texto(municipio),
+        "validacion": limpiar_texto(validacion),
+        "reutilizable": limpiar_texto(reutilizable),
+    }
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        condiciones = ["owner_user_id = ?"]
+        parametros = [current_user["id"]]
+        if filtros["q"]:
+            patron = f"%{filtros['q']}%"
+            condiciones.append(
+                """
+                (
+                    direccion_testigo LIKE ?
+                    OR referencia_testigo LIKE ?
+                    OR fuente_testigo LIKE ?
+                    OR municipio LIKE ?
+                    OR codigo_postal LIKE ?
+                    OR provincia LIKE ?
+                    OR tipologia LIKE ?
+                    OR validacion_estado LIKE ?
+                )
+                """
+            )
+            parametros.extend([patron] * 8)
+        if filtros["tipologia"]:
+            condiciones.append("tipologia = ?")
+            parametros.append(filtros["tipologia"])
+        if filtros["municipio"]:
+            condiciones.append("municipio = ?")
+            parametros.append(filtros["municipio"])
+        if filtros["validacion"]:
+            condiciones.append("validacion_estado = ?")
+            parametros.append(filtros["validacion"])
+        if filtros["reutilizable"] in {"0", "1"}:
+            condiciones.append("COALESCE(reutilizable, 1) = ?")
+            parametros.append(int(filtros["reutilizable"]))
+
+        testigos = cur.execute(
+            f"""
+            SELECT *
+            FROM testigos_valoracion
+            WHERE {" AND ".join(condiciones)}
+            ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+            """,
+            parametros,
+        ).fetchall()
+        opciones_filtros = cargar_opciones_filtro_testigos_valoracion(
+            cur,
+            current_user["id"],
+        )
+        testigos_enriquecidos = enriquecer_testigos_con_foto(cur, testigos)
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_testigos.html",
+        {
+            "testigos": testigos_enriquecidos,
+            "busqueda": filtros["q"],
+            "filtros": filtros,
+            "opciones_filtros": opciones_filtros,
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.get("/valoracion/testigos/nuevo", response_class=HTMLResponse)
+def nuevo_testigo_valoracion(request: Request):
+    get_current_user(request)
+    return render_template(
+        request,
+        "valoracion_testigo_form.html",
+        {
+            "testigo": testigo_valoracion_form_vacio(),
+            "testigo_id": None,
+            "modo": "nuevo",
+            "testigo_grupos": TESTIGO_VALORACION_FORM_GROUPS,
+            "campos_checkbox": TESTIGO_VALORACION_CHECKBOX_FIELDS,
+            "campos_numericos": TESTIGO_VALORACION_NUMERIC_FIELDS,
+            "campos_enteros": TESTIGO_VALORACION_INTEGER_FIELDS,
+            "validacion_options": TESTIGO_VALORACION_VALIDACION_OPTIONS,
+        },
+    )
+
+
+@app.post("/valoracion/testigos/nuevo")
+async def crear_testigo_valoracion(request: Request):
+    current_user = get_current_user(request)
+    form = await request.form()
+    valores = valores_testigo_desde_form(form)
+
+    columnas_disponibles = get_table_columns("testigos_valoracion")
+    columnas = [
+        campo
+        for campo in TESTIGO_VALORACION_FORM_FIELDS
+        if campo in columnas_disponibles
+    ]
+    insert_columns = ["owner_user_id"] + columnas
+    placeholders = ", ".join(["?"] * len(insert_columns))
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"""
+            INSERT INTO testigos_valoracion ({", ".join(insert_columns)})
+            VALUES ({placeholders})
+            """,
+            [current_user["id"]] + [valores[campo] for campo in columnas],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url="/valoracion/testigos?mensaje=Testigo%20creado.",
+        status_code=303,
+    )
+
+
+@app.get("/valoracion/testigos/{testigo_id}/editar", response_class=HTMLResponse)
+def editar_testigo_valoracion(request: Request, testigo_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        _, testigo_form = cargar_testigo_valoracion_form(
+            cur,
+            testigo_id,
+            current_user["id"],
+        )
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_testigo_form.html",
+        {
+            "testigo": testigo_form,
+            "testigo_id": testigo_id,
+            "modo": "editar",
+            "testigo_grupos": TESTIGO_VALORACION_FORM_GROUPS,
+            "campos_checkbox": TESTIGO_VALORACION_CHECKBOX_FIELDS,
+            "campos_numericos": TESTIGO_VALORACION_NUMERIC_FIELDS,
+            "campos_enteros": TESTIGO_VALORACION_INTEGER_FIELDS,
+            "validacion_options": TESTIGO_VALORACION_VALIDACION_OPTIONS,
+        },
+    )
+
+
+@app.post("/valoracion/testigos/{testigo_id}/editar")
+async def actualizar_testigo_valoracion(request: Request, testigo_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    valores = valores_testigo_desde_form(form)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        testigo = get_owned_testigo_valoracion(cur, testigo_id, current_user["id"])
+        require_row(testigo, "Testigo no encontrado")
+
+        columnas_disponibles = get_table_columns("testigos_valoracion")
+        columnas = [
+            campo
+            for campo in TESTIGO_VALORACION_FORM_FIELDS
+            if campo in columnas_disponibles
+        ]
+        assignments = ", ".join([f"{campo}=?" for campo in columnas])
+        cur.execute(
+            f"""
+            UPDATE testigos_valoracion
+            SET {assignments}, updated_at=CURRENT_TIMESTAMP
+            WHERE id = ? AND owner_user_id = ?
+            """,
+            [valores[campo] for campo in columnas]
+            + [testigo_id, current_user["id"]],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url="/valoracion/testigos?mensaje=Testigo%20actualizado.",
+        status_code=303,
+    )
+
+
+@app.get("/valoracion/testigos/{testigo_id}", response_class=HTMLResponse)
+def detalle_testigo_valoracion(request: Request, testigo_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        testigo = get_owned_testigo_valoracion(cur, testigo_id, current_user["id"])
+        require_row(testigo, "Testigo no encontrado")
+        fotos = cargar_fotos_testigo_valoracion(cur, testigo_id)
+        vinculos = cargar_vinculos_testigo_valoracion(
+            cur,
+            testigo_id,
+            current_user["id"],
+        )
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_testigo_detalle.html",
+        {
+            "testigo": enriquecer_testigo_valoracion(dict(testigo)),
+            "fotos": fotos,
+            "vinculos": [
+                {
+                    **dict(vinculo),
+                    "valor_unitario_base_fmt": formatear_precio_unitario_es(
+                        vinculo["valor_unitario_base"]
+                    ),
+                    "valor_unitario_ajustado_fmt": formatear_precio_unitario_es(
+                        vinculo["valor_unitario_ajustado"]
+                    ),
+                    "incluido_fmt": formatear_booleano_es(vinculo["incluido"]),
+                }
+                for vinculo in vinculos
+            ],
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.post("/valoracion/testigos/{testigo_id}/fotos")
+def guardar_fotos_testigo_valoracion(
+    request: Request,
+    testigo_id: int,
+    descripcion: str = Form(""),
+    origen: str = Form("manual"),
+    fotos: list[UploadFile] = File([]),
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        testigo = get_owned_testigo_valoracion(cur, testigo_id, current_user["id"])
+        require_row(testigo, "Testigo no encontrado")
+        descripcion_limpia = limpiar_texto(descripcion)
+        origen_limpio = limpiar_texto(origen) or "manual"
+        nombres_fotos = guardar_uploads_contextuales(
+            fotos,
+            "testigo_valoracion",
+            str(testigo_id),
+        )
+        for nombre in nombres_fotos:
+            cur.execute(
+                """
+                INSERT INTO testigos_valoracion_fotos (
+                    testigo_id, archivo, descripcion, origen
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (testigo_id, nombre, descripcion_limpia, origen_limpio),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/valoracion/testigos/{testigo_id}?mensaje=Fotos%20guardadas.",
+        status_code=303,
+    )
+
+
+@app.get("/expedientes/{expediente_id}/valoracion/testigos", response_class=HTMLResponse)
+def seleccionar_testigos_valoracion_expediente(
+    request: Request,
+    expediente_id: int,
+    q: str = Query(""),
+    tipologia: str = Query(""),
+    municipio: str = Query(""),
+    validacion: str = Query(""),
+):
+    current_user = get_current_user(request)
+    filtros = {
+        "q": limpiar_texto(q),
+        "tipologia": limpiar_texto(tipologia),
+        "municipio": limpiar_texto(municipio),
+        "validacion": limpiar_texto(validacion),
+    }
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los testigos solo aplican a expedientes de valoración.",
+            )
+        vinculados = cargar_testigos_expediente_valoracion(cur, expediente_id)
+        ids_vinculados = {
+            row["testigo_id"]
+            for row in vinculados
+            if row["testigo_id"] is not None
+        }
+        disponibles_base = []
+        for testigo in cargar_testigos_valoracion_usuario(
+            cur,
+            current_user["id"],
+            solo_reutilizables=True,
+        ):
+            if testigo["id"] in ids_vinculados:
+                continue
+            item = dict(testigo)
+            texto_busqueda = " ".join(
+                limpiar_texto(item.get(campo))
+                for campo in (
+                    "direccion_testigo",
+                    "referencia_testigo",
+                    "fuente_testigo",
+                    "municipio",
+                    "codigo_postal",
+                    "provincia",
+                    "tipologia",
+                    "validacion_estado",
+                )
+            ).lower()
+            if filtros["q"] and filtros["q"].lower() not in texto_busqueda:
+                continue
+            if filtros["tipologia"] and item.get("tipologia") != filtros["tipologia"]:
+                continue
+            if filtros["municipio"] and item.get("municipio") != filtros["municipio"]:
+                continue
+            if (
+                filtros["validacion"]
+                and item.get("validacion_estado") != filtros["validacion"]
+            ):
+                continue
+            disponibles_base.append(item)
+        opciones_filtros = cargar_opciones_filtro_testigos_valoracion(
+            cur,
+            current_user["id"],
+        )
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_expediente_testigos.html",
+        {
+            "expediente": dict(expediente),
+            "testigos_vinculados": [
+                enriquecer_vinculo_testigo_valoracion(dict(row))
+                for row in vinculados
+            ],
+            "testigos_disponibles": disponibles_base,
+            "filtros": filtros,
+            "opciones_filtros": opciones_filtros,
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.get(
+    "/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes",
+    response_class=HTMLResponse,
+)
+def editar_ajustes_testigo_valoracion(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        vinculo = get_owned_valoracion_expediente_testigo_detalle(
+            cur,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(vinculo, "Vínculo no encontrado")
+        if limpiar_texto(vinculo["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los ajustes solo aplican a expedientes de valoración.",
+            )
+        ajustes = cargar_valoracion_testigo_ajustes(cur, vinculo_id)
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_testigo_ajustes.html",
+        {
+            "vinculo": dict(vinculo),
+            "ajustes": ajustes,
+            "ajustes_items": VALORACION_TESTIGO_AJUSTES_ITEMS,
+            "error": limpiar_texto(request.query_params.get("error")),
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+        },
+    )
+
+
+@app.post("/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes")
+async def guardar_ajustes_testigo_valoracion(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        vinculo = get_owned_valoracion_expediente_testigo_detalle(
+            cur,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(vinculo, "Vínculo no encontrado")
+        if limpiar_texto(vinculo["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los ajustes solo aplican a expedientes de valoración.",
+            )
+        try:
+            valores = valores_ajustes_desde_form(form)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        upsert_valoracion_testigo_ajustes(cur, vinculo, valores)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}/valoracion/testigos?mensaje=Ajustes%20guardados.",
+        status_code=303,
+    )
+
+
+@app.post("/expedientes/{expediente_id}/valoracion/testigos/anadir")
+async def anadir_testigo_valoracion_expediente(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    testigo_id = parse_optional_int(form.get("testigo_id"))
+    notas_seleccion = limpiar_texto(form.get("notas_seleccion"))
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los testigos solo aplican a expedientes de valoración.",
+            )
+        if not testigo_id:
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Selecciona un testigo para vincular.",
+            )
+        testigo = get_owned_testigo_valoracion(cur, testigo_id, current_user["id"])
+        require_row(testigo, "Testigo no encontrado")
+        existente = cur.execute(
+            """
+            SELECT 1
+            FROM valoracion_expediente_testigos
+            WHERE expediente_id = ? AND testigo_id = ?
+            LIMIT 1
+            """,
+            (expediente_id, testigo_id),
+        ).fetchone()
+        if existente:
+            return RedirectResponse(
+                url=(
+                    f"/expedientes/{expediente_id}/valoracion/testigos"
+                    "?error=El%20testigo%20ya%20est%C3%A1%20vinculado."
+                ),
+                status_code=303,
+            )
+        cur.execute(
+            """
+            INSERT INTO valoracion_expediente_testigos (
+                expediente_id, testigo_id, orden, incluido, snapshot_json,
+                notas_seleccion, valor_unitario_base
+            )
+            VALUES (?, ?, ?, 1, ?, ?, ?)
+            """,
+            (
+                expediente_id,
+                testigo_id,
+                siguiente_orden_testigo_expediente(cur, expediente_id),
+                snapshot_testigo_valoracion(testigo),
+                notas_seleccion,
+                testigo["valor_unitario"],
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}/valoracion/testigos?mensaje=Testigo%20vinculado.",
+        status_code=303,
+    )
+
+
+@app.post("/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/actualizar")
+async def actualizar_testigo_valoracion_expediente(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+    orden = parse_optional_int(form.get("orden"))
+    incluido = 1 if form.get("incluido") == "1" else 0
+    notas_seleccion = limpiar_texto(form.get("notas_seleccion"))
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los testigos solo aplican a expedientes de valoración.",
+            )
+        vinculo = get_owned_valoracion_expediente_testigo(
+            cur,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(vinculo, "Vínculo no encontrado")
+        cur.execute(
+            """
+            UPDATE valoracion_expediente_testigos
+            SET orden = ?, incluido = ?, notas_seleccion = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (orden, incluido, notas_seleccion, vinculo_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}/valoracion/testigos?mensaje=V%C3%ADnculo%20actualizado.",
+        status_code=303,
+    )
+
+
+@app.post("/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/quitar")
+def quitar_testigo_valoracion_expediente(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los testigos solo aplican a expedientes de valoración.",
+            )
+        vinculo = get_owned_valoracion_expediente_testigo(
+            cur,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(vinculo, "Vínculo no encontrado")
+        cur.execute(
+            "DELETE FROM valoracion_expediente_testigos WHERE id = ?",
+            (vinculo_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}/valoracion/testigos?mensaje=Testigo%20quitado%20del%20expediente.",
+        status_code=303,
+    )
+
+
 @app.get("/resumen-registro/{expediente_id}", response_class=HTMLResponse)
 def resumen_registro(request: Request, expediente_id: int):
     current_user = get_current_user(request)
@@ -5228,6 +6811,12 @@ def resumen_registro(request: Request, expediente_id: int):
     expediente_data["tipo_informe_label"] = etiquetar_opcion(
         expediente_data.get("tipo_informe", ""),
         TIPO_INFORME_LABELS,
+    )
+    expediente_data["es_informe_patologias"] = (
+        limpiar_texto(expediente_data.get("tipo_informe")) == "patologias"
+    )
+    expediente_data["es_informe_valoracion"] = (
+        limpiar_texto(expediente_data.get("tipo_informe")) == "valoracion"
     )
 
     return render_template(
@@ -6002,6 +7591,8 @@ def nueva_visita(
     valoracion = {}
     comparables_valoracion = []
     visita_fotos_exteriores = []
+    visita_fotos_portal_contadores = []
+    valoracion_visita_observaciones = valoracion_visita_observaciones_form_vacio()
     opciones_visita_multiunidad = cargar_opciones_visita_multiunidad(cur, expediente_id)
     if visita_id:
         visita = get_owned_visita(cur, visita_id, current_user["id"])
@@ -6015,6 +7606,15 @@ def nueva_visita(
             (visita_id,),
         ).fetchall()
         visita_fotos_exteriores = obtener_fotos_visita(cur, visita_id, "exterior")
+        visita_fotos_portal_contadores = obtener_fotos_visita(
+            cur,
+            visita_id,
+            "portal_contadores",
+        )
+        valoracion_visita_observaciones = cargar_valoracion_visita_observaciones_form(
+            cur,
+            visita_id,
+        )
         if limpiar_texto(expediente["tipo_informe"]) == "inspeccion":
             inspeccion = cargar_datos_inspeccion_visita(cur, visita_id, estancias)
         if limpiar_texto(expediente["tipo_informe"]) == "habitabilidad":
@@ -6058,6 +7658,8 @@ def nueva_visita(
             "visita": visita,
             "visita_form": visita_form,
             "visita_fotos_exteriores": visita_fotos_exteriores,
+            "visita_fotos_portal_contadores": visita_fotos_portal_contadores,
+            "valoracion_visita_observaciones": valoracion_visita_observaciones,
             "clima": clima,
             "clima_detalle": clima_detalle,
             "clima_error": clima_error,
@@ -6091,6 +7693,7 @@ def nueva_visita(
             "valoracion_fechas_items": VALORACION_FECHAS_ITEMS,
             "valoracion_metodo_items": VALORACION_METODO_ITEMS,
             "valoracion_resultado_items": VALORACION_RESULTADO_ITEMS,
+            "valoracion_ayudas_rapidas": VALORACION_AYUDAS_RAPIDAS,
             "valoracion": valoracion,
             "comparables_valoracion_items": COMPARABLE_VALORACION_ITEMS,
             "comparables_valoracion": comparables_valoracion,
@@ -6153,6 +7756,8 @@ async def guardar_visita(
         clima_detalle = []
         estancias = []
         visita_fotos_exteriores = []
+        visita_fotos_portal_contadores = []
+        valoracion_visita_observaciones = valoracion_visita_observaciones_form_vacio()
         inspeccion = {"general": {}, "exterior": {}, "comunes": {}, "estancias": []}
         habitabilidad = {"general": {}, "exterior": {}, "estancias": []}
         valoracion = {}
@@ -6166,6 +7771,15 @@ async def guardar_visita(
                 (visita_id,),
             ).fetchall()
             visita_fotos_exteriores = obtener_fotos_visita(cur, visita_id, "exterior")
+            visita_fotos_portal_contadores = obtener_fotos_visita(
+                cur,
+                visita_id,
+                "portal_contadores",
+            )
+            valoracion_visita_observaciones = cargar_valoracion_visita_observaciones_form(
+                cur,
+                visita_id,
+            )
             tipo_informe = limpiar_texto(expediente["tipo_informe"])
             if tipo_informe == "inspeccion":
                 inspeccion = cargar_datos_inspeccion_visita(cur, visita_id, estancias)
@@ -6200,6 +7814,8 @@ async def guardar_visita(
                     "unidad_id": unidad_id,
                 },
                 "visita_fotos_exteriores": visita_fotos_exteriores,
+                "visita_fotos_portal_contadores": visita_fotos_portal_contadores,
+                "valoracion_visita_observaciones": valoracion_visita_observaciones,
                 "clima": clima,
                 "clima_detalle": clima_detalle,
                 "clima_error": "",
@@ -6233,6 +7849,7 @@ async def guardar_visita(
                 "valoracion_fechas_items": VALORACION_FECHAS_ITEMS,
                 "valoracion_metodo_items": VALORACION_METODO_ITEMS,
                 "valoracion_resultado_items": VALORACION_RESULTADO_ITEMS,
+                "valoracion_ayudas_rapidas": VALORACION_AYUDAS_RAPIDAS,
                 "valoracion": valoracion,
                 "comparables_valoracion_items": COMPARABLE_VALORACION_ITEMS,
                 "comparables_valoracion": comparables_valoracion,
@@ -6298,7 +7915,24 @@ async def guardar_visita(
         elif tipo_informe == "habitabilidad":
             await guardar_datos_habitabilidad_desde_form(cur, visita_id, estancias, form)
         else:
-            await guardar_datos_valoracion_desde_form(cur, visita_id, form)
+            if any(str(campo).startswith("valoracion__") for campo in form.keys()):
+                await guardar_datos_valoracion_desde_form(cur, visita_id, form)
+            campos_observaciones = {
+                "observaciones_portal",
+                "observaciones_cuadro_contadores",
+            }
+            if any(campo in form for campo in campos_observaciones):
+                existentes = cargar_valoracion_visita_observaciones_form(cur, visita_id)
+                valores_observaciones = {
+                    campo: form.get(campo, existentes.get(campo, ""))
+                    for campo in VALORACION_VISITA_OBSERVACIONES_FIELDS
+                }
+                upsert_valoracion_visita_observaciones(
+                    cur,
+                    visita_id,
+                    expediente_id,
+                    valores_observaciones,
+                )
 
     conn.commit()
     conn.close()
@@ -6440,6 +8074,76 @@ def editar_visita(request: Request, visita_id: int):
             "zonas_comunes_visita_options": opciones_visita_multiunidad["unidades_comunes"],
             "exteriores_visita_options": opciones_visita_multiunidad["unidades_exteriores"],
         },
+    )
+
+
+@app.get("/visitas/{visita_id}/valoracion-observaciones", response_class=HTMLResponse)
+def editar_valoracion_visita_observaciones(request: Request, visita_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if limpiar_texto(visita["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                visita["expediente_id"],
+                error="Las observaciones de valoración solo aplican a visitas de valoración.",
+            )
+        observaciones = cargar_valoracion_visita_observaciones_form(cur, visita_id)
+        legacy_observaciones = cargar_valoracion_visita_observaciones_legacy(
+            cur,
+            visita_id,
+        )
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_visita_observaciones.html",
+        {
+            "visita": dict(visita),
+            "observaciones": observaciones,
+            "legacy_observaciones": legacy_observaciones,
+            "observacion_grupos": VALORACION_VISITA_OBSERVACIONES_GROUPS,
+            "valoracion_ayudas_rapidas": VALORACION_AYUDAS_RAPIDAS,
+        },
+    )
+
+
+@app.post("/visitas/{visita_id}/valoracion-observaciones")
+async def guardar_valoracion_visita_observaciones(request: Request, visita_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if limpiar_texto(visita["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                visita["expediente_id"],
+                error="Las observaciones de valoración solo aplican a visitas de valoración.",
+            )
+        valores = {
+            campo: form.get(campo, "")
+            for campo in VALORACION_VISITA_OBSERVACIONES_FIELDS
+        }
+        upsert_valoracion_visita_observaciones(
+            cur,
+            visita_id,
+            visita["expediente_id"],
+            valores,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/nueva-visita/{visita['expediente_id']}?visita_id={visita_id}",
+        status_code=303,
     )
 
 
