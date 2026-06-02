@@ -19,6 +19,11 @@ from docx.shared import Cm, Pt, RGBColor
 
 from app.config import INFORMES_DIR, UPLOAD_DIR
 from app.database import get_connection
+from app.services.valoracion_comparacion import (
+    preparar_matriz_homogeneizacion,
+    preparar_resumen_comparacion,
+    preparar_testigo_comparacion,
+)
 
 
 def limpiar_nombre_archivo(texto: str) -> str:
@@ -83,6 +88,12 @@ def formatear_precio_unitario_es(valor) -> str:
     if parsear_float_valoracion(valor) is None:
         return valor_o_guion(valor)
     return f"{formatear_numero_es(valor, 0)} €/m²"
+
+
+def formatear_porcentaje_es(valor) -> str:
+    if parsear_float_valoracion(valor) is None:
+        return valor_o_guion(valor)
+    return f"{formatear_numero_es(valor, 2)}%"
 
 
 def formatear_superficie_es(valor) -> str:
@@ -318,7 +329,15 @@ VALORACION_ENCARGO_ITEMS = [
     ("domicilio_solicitante", "Domicilio"),
     ("entidad_financiera", "Entidad financiera"),
     ("finalidad_valoracion", "Finalidad de la valoración"),
+    ("finalidad_otro", "Finalidad: otro / matiz"),
+    ("alcance_valoracion", "Alcance de la valoración"),
+    ("fecha_valoracion", "Fecha de valoración"),
     ("finalidad_valoracion_detallada", "Finalidad detallada"),
+]
+VALORACION_BASE_VALOR_ITEMS = [
+    ("base_valor", "Base de valor"),
+    ("base_valor_otro", "Base de valor: otro"),
+    ("definicion_base_valor", "Definición de la base de valor"),
 ]
 VALORACION_DOCUMENTACION_ITEMS = [
     ("documentacion_utilizada", "Documentación utilizada"),
@@ -328,10 +347,16 @@ VALORACION_IDENTIFICACION_ITEMS = [
     ("identificacion_bien", "Identificación del bien"),
     ("superficie_valoracion", "Superficie de valoración"),
     ("superficie_util", "Superficie útil"),
+    ("superficie_construida", "Superficie construida"),
+    ("superficie_registral", "Superficie registral"),
+    ("superficie_catastral", "Superficie catastral"),
     ("superficie_terraza", "Superficie de terraza"),
     ("superficie_zonas_comunes", "Superficie de zonas comunes"),
     ("superficie_total", "Superficie total"),
     ("superficie_comprobada", "Superficie comprobada"),
+    ("superficie_computable", "Superficie computable"),
+    ("superficie_adoptada_calculo", "Superficie adoptada para cálculo"),
+    ("criterio_superficie_adoptada", "Criterio de superficie adoptada"),
 ]
 VALORACION_SITUACION_LEGAL_ITEMS = [
     ("situacion_ocupacion", "Situación de ocupación"),
@@ -390,6 +415,24 @@ VALORACION_METODO_ITEMS = [
     ("variables_mercado", "Variables de mercado"),
     ("metodo_homogeneizacion", "Método de homogeneización"),
 ]
+VALORACION_METODOS_ECO_ITEMS = [
+    ("metodo_comparacion_aplicado", "Comparación aplicada"),
+    ("metodo_comparacion_descartado", "Comparación descartada"),
+    ("metodo_comparacion_justificacion", "Justificación comparación"),
+    ("metodo_comparacion_observaciones", "Observaciones comparación"),
+    ("metodo_coste_aplicado", "Coste aplicado"),
+    ("metodo_coste_descartado", "Coste descartado"),
+    ("metodo_coste_justificacion", "Justificación coste"),
+    ("metodo_coste_observaciones", "Observaciones coste"),
+    ("metodo_actualizacion_rentas_aplicado", "Actualización de rentas aplicada"),
+    ("metodo_actualizacion_rentas_descartado", "Actualización de rentas descartada"),
+    ("metodo_actualizacion_rentas_justificacion", "Justificación actualización de rentas"),
+    ("metodo_actualizacion_rentas_observaciones", "Observaciones actualización de rentas"),
+    ("metodo_residual_aplicado", "Residual aplicado"),
+    ("metodo_residual_descartado", "Residual descartado"),
+    ("metodo_residual_justificacion", "Justificación residual"),
+    ("metodo_residual_observaciones", "Observaciones residual"),
+]
 VALORACION_RESULTADO_ITEMS = [
     ("valor_unitario", "Valor unitario"),
     ("valor_resultante", "Valor resultante"),
@@ -402,11 +445,36 @@ VALORACION_LIMITACIONES_ITEMS = [
     ),
     ("observaciones_valoracion", "Observaciones"),
 ]
+VALORACION_INCIDENCIAS_ITEMS = [
+    ("incidencias_condicionantes_manuales", "Condicionantes manuales"),
+    ("incidencias_advertencias_manuales", "Advertencias manuales"),
+    ("incidencias_limitaciones_manuales", "Limitaciones manuales"),
+]
+VALORACION_NOTA_ECO = (
+    "El presente informe no constituye tasación hipotecaria regulada salvo que "
+    "expresamente se indique y se cumplan los requisitos legales aplicables. "
+    "Su estructura técnica se inspira en criterios de trazabilidad, prudencia "
+    "y justificación propios de estándares profesionales de valoración."
+)
 COMPARABLES_COLUMNAS = [
     ("direccion_testigo", "Dirección"),
     ("fuente_testigo", "Fuente"),
+    ("fuente_tipo", "Tipo de fuente"),
+    ("fuente_detalle", "Detalle de fuente"),
     ("fecha_testigo", "Fecha"),
+    ("fecha_captura", "Fecha de captura"),
     ("precio_oferta", "Precio oferta"),
+    ("precio_depurado", "Precio depurado"),
+    ("superficie_tomada", "Superficie tomada"),
+    ("tipo_superficie_tomada", "Tipo de superficie"),
+    ("precio_unitario_inicial", "€/m² inicial"),
+    ("unitario_homogeneizado", "€/m² homogeneizado"),
+    ("unitario_para_resumen", "€/m² para resumen"),
+    ("incluido_calculo", "Incluido en cálculo"),
+    ("peso_porcentaje", "Peso"),
+    ("representatividad", "Representatividad"),
+    ("motivo_ponderacion", "Motivo ponderación"),
+    ("motivo_exclusion", "Motivo exclusión"),
     ("valor_unitario", "Valor unitario"),
     ("superficie_construida", "Sup. constr."),
     ("superficie_util", "Sup. útil"),
@@ -417,21 +485,37 @@ COMPARABLES_COLUMNAS = [
     ("estado_conservacion", "Estado"),
     ("antiguedad", "Antigüedad"),
     ("calidad_constructiva", "Calidad"),
+    ("dato_verificado", "Dato verificado"),
+    ("testigo_visitado", "Testigo visitado"),
+    ("fiabilidad_dato", "Fiabilidad"),
+    ("similitud_inmueble", "Similitud"),
+    ("estado_mercado", "Estado mercado"),
+    ("observaciones_economicas", "Observaciones económicas"),
+    ("advertencias_calculo_texto", "Advertencias cálculo inicial"),
     ("visitado", "Visitado"),
     ("observaciones", "Observaciones"),
 ]
 COMPARABLES_FORMATTERS = {
     "precio_oferta": formatear_moneda_es,
+    "precio_depurado": formatear_moneda_es,
+    "precio_unitario_inicial": formatear_precio_unitario_es,
+    "unitario_homogeneizado": formatear_precio_unitario_es,
     "valor_unitario": formatear_precio_unitario_es,
     "valor_unitario_base": formatear_precio_unitario_es,
     "valor_unitario_ajustado": formatear_precio_unitario_es,
+    "superficie_tomada": formatear_superficie_es,
     "superficie_construida": formatear_superficie_es,
     "superficie_util": formatear_superficie_es,
+    "dato_verificado": formatear_booleano_es,
+    "testigo_visitado": formatear_booleano_es,
     "visitado": formatear_booleano_es,
+    "incluido_calculo": formatear_booleano_es,
+    "peso_porcentaje": formatear_porcentaje_es,
 }
 VALORACION_CAMPOS_CONTEXTO = list(
     OrderedDict.fromkeys(
         [campo for campo, _ in VALORACION_ENCARGO_ITEMS]
+        + [campo for campo, _ in VALORACION_BASE_VALOR_ITEMS]
         + [campo for campo, _ in VALORACION_DOCUMENTACION_ITEMS]
         + [campo for campo, _ in VALORACION_IDENTIFICACION_ITEMS]
         + [campo for campo, _ in VALORACION_SITUACION_LEGAL_ITEMS]
@@ -440,8 +524,11 @@ VALORACION_CAMPOS_CONTEXTO = list(
         + [campo for campo, _ in VALORACION_CONSTRUCTIVO_ITEMS]
         + [campo for campo, _ in VALORACION_ESTADO_ITEMS]
         + [campo for campo, _ in VALORACION_METODO_ITEMS]
+        + [campo for campo, _ in VALORACION_METODOS_ECO_ITEMS]
         + [campo for campo, _ in VALORACION_RESULTADO_ITEMS]
         + [campo for campo, _ in VALORACION_LIMITACIONES_ITEMS]
+        + [campo for campo, _ in VALORACION_INCIDENCIAS_ITEMS]
+        + ["incidencias_automaticas_visibles", "incidencias_manuales_visibles"]
     )
 )
 GRAVEDAD_CUADRANTE_LABELS = {
@@ -1973,6 +2060,7 @@ def cargar_valoracion_visita(cur, visita_id: int) -> dict:
 
 VALORACION_GRUPOS_CONTEXTO = [
     ("encargo", "Encargo / solicitante", VALORACION_ENCARGO_ITEMS),
+    ("base_valor", "Base de valor", VALORACION_BASE_VALOR_ITEMS),
     ("documentacion", "Documentación utilizada", VALORACION_DOCUMENTACION_ITEMS),
     ("identificacion", "Identificación y superficies", VALORACION_IDENTIFICACION_ITEMS),
     ("situacion_legal", "Situación legal y urbanística", VALORACION_SITUACION_LEGAL_ITEMS),
@@ -1981,9 +2069,27 @@ VALORACION_GRUPOS_CONTEXTO = [
     ("constructivo", "Características constructivas", VALORACION_CONSTRUCTIVO_ITEMS),
     ("estado", "Estado actual y ocupación", VALORACION_ESTADO_ITEMS),
     ("metodo", "Método / mercado", VALORACION_METODO_ITEMS),
+    ("metodos_eco", "Métodos aplicados y descartados", VALORACION_METODOS_ECO_ITEMS),
     ("resultado", "Resultado de la valoración", VALORACION_RESULTADO_ITEMS),
     ("limitaciones", "Condicionantes y limitaciones", VALORACION_LIMITACIONES_ITEMS),
+    ("incidencias", "Incidencias", VALORACION_INCIDENCIAS_ITEMS),
 ]
+
+
+class ValoracionContext(list):
+    def __init__(self, bloques=None, eco=None):
+        super().__init__(bloques or [])
+        self.eco = eco or {}
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self.eco.get(key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        if isinstance(key, str):
+            return self.eco.get(key, default)
+        return default
 
 
 def construir_grupo_valoracion(clave: str, titulo: str, campos, datos: dict) -> dict:
@@ -2003,6 +2109,68 @@ def _tiene_datos_valoracion(datos: dict) -> bool:
 
 def _valoracion_dict_vacio() -> dict:
     return {campo: "" for campo in VALORACION_CAMPOS_CONTEXTO}
+
+
+def _valoracion_bool(valor) -> bool:
+    return limpiar_texto(valor).lower() in {"1", "true", "si", "sí", "yes", "on"}
+
+
+def _valoracion_visible(valor) -> bool:
+    texto = limpiar_texto(valor)
+    return texto == "" or texto.lower() not in {"0", "false", "no", "off"}
+
+
+def _etiqueta_base_valor(valor: str) -> str:
+    etiquetas = {
+        "valor_mercado": "Valor de mercado",
+        "valor_razonable_estimado": "Valor razonable estimado",
+        "valor_reposicion": "Valor de reposición",
+        "valor_actualizacion_rentas": "Valor por actualización de rentas",
+        "otro": "Otro",
+    }
+    texto = limpiar_texto(valor)
+    return etiquetas.get(texto, texto)
+
+
+def _campos_eco(campos, datos: dict) -> list[dict]:
+    return construir_campos_informe(
+        [
+            (
+                etiqueta,
+                "Sí"
+                if campo.endswith(("_aplicado", "_descartado"))
+                and _valoracion_bool(datos.get(campo))
+                else "No"
+                if campo.endswith(("_aplicado", "_descartado"))
+                else _etiqueta_base_valor(datos.get(campo))
+                if campo == "base_valor"
+                else datos.get(campo, ""),
+            )
+            for campo, etiqueta in campos
+        ]
+    )
+
+
+def _grupo_eco(clave: str, titulo: str, campos, datos: dict) -> dict:
+    return {
+        "clave": clave,
+        "titulo": titulo,
+        "campos": _campos_eco(campos, datos),
+        "hay_datos": any(
+            _valoracion_bool(datos.get(campo))
+            if campo.endswith(("_aplicado", "_descartado"))
+            else limpiar_texto(datos.get(campo))
+            for campo, _ in campos
+        ),
+    }
+
+
+def _lineas_manuales(texto: str) -> list[str]:
+    return [
+        limpiar_texto(linea).lstrip("-*• ").strip()
+        for linea in limpiar_texto(texto).splitlines()
+        if limpiar_texto(linea).lstrip("-*• ").strip()
+    ]
 
 
 def _visita_por_id(visitas, visita_id):
@@ -2174,6 +2342,212 @@ def cargar_valoracion_expediente_con_fallback(cur, expediente_id: int, visitas) 
     return []
 
 
+def cargar_valoracion_eco_con_fallback(cur, expediente_id: int, visitas) -> dict:
+    valoracion_expediente = cur.execute(
+        """
+        SELECT *
+        FROM valoracion_expediente
+        WHERE expediente_id = ?
+        """,
+        (expediente_id,),
+    ).fetchone()
+    if valoracion_expediente is not None:
+        return {**_valoracion_dict_vacio(), **row_to_dict(valoracion_expediente)}
+
+    for visita in reversed(visitas or []):
+        datos = cargar_valoracion_visita(cur, visita["id"])
+        if _tiene_datos_valoracion(datos):
+            return {**_valoracion_dict_vacio(), **datos}
+    return _valoracion_dict_vacio()
+
+
+def _metodo_eco(datos: dict, clave: str, titulo: str) -> dict:
+    aplicado = _valoracion_bool(datos.get(f"metodo_{clave}_aplicado"))
+    descartado = _valoracion_bool(datos.get(f"metodo_{clave}_descartado"))
+    if clave == "comparacion" and not aplicado:
+        aplicado = _valoracion_bool(datos.get("metodo_comparacion_activo"))
+    if clave == "coste" and not aplicado:
+        aplicado = _valoracion_bool(datos.get("metodo_coste_activo"))
+    return {
+        "clave": clave,
+        "titulo": titulo,
+        "aplicado": aplicado,
+        "descartado": descartado,
+        "justificacion": limpiar_texto(datos.get(f"metodo_{clave}_justificacion")),
+        "observaciones": limpiar_texto(datos.get(f"metodo_{clave}_observaciones")),
+    }
+
+
+def _crear_incidencia(tipo: str, origen: str, descripcion: str, visible: bool = True) -> dict:
+    return {
+        "tipo": tipo,
+        "origen": origen,
+        "descripcion": descripcion,
+        "visible": visible,
+    }
+
+
+def construir_valoracion_eco(
+    expediente: dict,
+    datos: dict,
+    comparables: list[dict],
+) -> dict:
+    metodos = [
+        _metodo_eco(datos, "comparacion", "Comparación"),
+        _metodo_eco(datos, "coste", "Coste"),
+        _metodo_eco(datos, "actualizacion_rentas", "Actualización de rentas"),
+        _metodo_eco(datos, "residual", "Residual"),
+    ]
+    metodo_comparacion = next(
+        metodo for metodo in metodos if metodo["clave"] == "comparacion"
+    )
+    visibles_auto = datos.get("incidencias_automaticas_visibles", 1)
+    visibles_manual = datos.get("incidencias_manuales_visibles", 1)
+    incidencias = []
+    if not limpiar_texto(expediente.get("referencia_catastral")):
+        incidencias.append(
+            _crear_incidencia(
+                "advertencia",
+                "automatica",
+                "No consta referencia catastral en el expediente.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+    if not limpiar_texto(datos.get("superficie_adoptada_calculo")):
+        incidencias.append(
+            _crear_incidencia(
+                "advertencia",
+                "automatica",
+                "No consta superficie adoptada para cálculo.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+    if not limpiar_texto(datos.get("fecha_valoracion")):
+        incidencias.append(
+            _crear_incidencia(
+                "advertencia",
+                "automatica",
+                "No consta fecha de valoración.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+    if not limpiar_texto(datos.get("finalidad_valoracion")):
+        incidencias.append(
+            _crear_incidencia(
+                "advertencia",
+                "automatica",
+                "No consta finalidad de valoración.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+    if metodo_comparacion["aplicado"] and len(comparables or []) < 3:
+        incidencias.append(
+            _crear_incidencia(
+                "advertencia",
+                "automatica",
+                "El método de comparación figura aplicado con menos de 3 testigos.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+    if any(not limpiar_texto(comparable.get("fuente_testigo")) for comparable in comparables or []):
+        incidencias.append(
+            _crear_incidencia(
+                "advertencia",
+                "automatica",
+                "Existen testigos sin fuente informada.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+    documentacion = limpiar_texto(datos.get("documentacion_utilizada")).lower()
+    if not limpiar_texto(datos.get("datos_registrales")) and "nota simple" not in documentacion:
+        incidencias.append(
+            _crear_incidencia(
+                "limitacion",
+                "automatica",
+                "No consta documentación registral suficiente.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+    if not limpiar_texto(expediente.get("referencia_catastral")) and "catastro" not in documentacion:
+        incidencias.append(
+            _crear_incidencia(
+                "limitacion",
+                "automatica",
+                "No consta información catastral suficiente.",
+                _valoracion_visible(visibles_auto),
+            )
+        )
+
+    for tipo, campo in [
+        ("condicionante", "incidencias_condicionantes_manuales"),
+        ("advertencia", "incidencias_advertencias_manuales"),
+        ("limitacion", "incidencias_limitaciones_manuales"),
+    ]:
+        for descripcion in _lineas_manuales(datos.get(campo)):
+            incidencias.append(
+                _crear_incidencia(
+                    tipo,
+                    "manual",
+                    descripcion,
+                    _valoracion_visible(visibles_manual),
+                )
+            )
+
+    superficies = _grupo_eco(
+        "superficies",
+        "Superficies consideradas y superficie adoptada",
+        [
+            ("superficie_util", "Superficie útil"),
+            ("superficie_construida", "Superficie construida"),
+            ("superficie_registral", "Superficie registral"),
+            ("superficie_catastral", "Superficie catastral"),
+            ("superficie_comprobada", "Superficie comprobada"),
+            ("superficie_computable", "Superficie computable"),
+            ("superficie_adoptada_calculo", "Superficie adoptada para cálculo"),
+            ("criterio_superficie_adoptada", "Criterio de adopción"),
+        ],
+        datos,
+    )
+    return {
+        "nota_metodologica": VALORACION_NOTA_ECO,
+        "finalidad": _grupo_eco(
+            "finalidad",
+            "Finalidad y alcance",
+            [
+                ("finalidad_valoracion", "Finalidad"),
+                ("finalidad_otro", "Finalidad: otro / matiz"),
+                ("alcance_valoracion", "Alcance"),
+                ("fecha_valoracion", "Fecha de valoración"),
+            ],
+            datos,
+        ),
+        "base_valor": _grupo_eco(
+            "base_valor",
+            "Base de valor",
+            VALORACION_BASE_VALOR_ITEMS,
+            datos,
+        ),
+        "superficies": superficies,
+        "metodos": {
+            "titulo": "Métodos aplicados y descartados",
+            "items": metodos,
+            "hay_datos": any(
+                metodo["aplicado"]
+                or metodo["descartado"]
+                or metodo["justificacion"]
+                or metodo["observaciones"]
+                for metodo in metodos
+            ),
+        },
+        "incidencias": {
+            "titulo": "Condicionantes, advertencias y limitaciones",
+            "items": incidencias,
+            "visibles": [incidencia for incidencia in incidencias if incidencia["visible"]],
+            "hay_datos": bool(incidencias),
+        },
+    }
+
+
 def _snapshot_json_valoracion(texto: str) -> dict:
     if not limpiar_texto(texto):
         return {}
@@ -2184,20 +2558,95 @@ def _snapshot_json_valoracion(texto: str) -> dict:
     return datos if isinstance(datos, dict) else {}
 
 
+def _hay_valor_comparable(valor) -> bool:
+    if valor is None:
+        return False
+    if isinstance(valor, (int, float)):
+        return True
+    return bool(limpiar_texto(valor))
+
+
 def _primer_valor_comparable(row, snapshot: dict, *campos):
     for campo in campos:
         valor = get_row_value(row, campo, None)
-        if limpiar_texto(valor):
+        if _hay_valor_comparable(valor):
             return valor
         valor_snapshot = snapshot.get(campo)
-        if limpiar_texto(valor_snapshot):
+        if _hay_valor_comparable(valor_snapshot):
             return valor_snapshot
     return ""
 
 
+def _valor_booleano_comparable(valor):
+    if isinstance(valor, (int, float)):
+        return bool(valor)
+    texto = limpiar_texto(valor).lower()
+    if texto in {"", "-"}:
+        return None
+    if texto in {"1", "true", "si", "sí", "yes", "on"}:
+        return True
+    if texto in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def formatear_booleano_comparable(valor) -> str:
+    booleano = _valor_booleano_comparable(valor)
+    if booleano is None:
+        return "-"
+    return "Sí" if booleano else "No"
+
+
+def _extraer_numero_planta(valor):
+    texto = limpiar_texto(valor).lower()
+    if not texto:
+        return None
+    if "bajo" in texto:
+        return 0
+    match = re.search(r"-?\d+", texto)
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
+def construir_advertencias_tecnicas_testigo(comparable: dict) -> list[str]:
+    advertencias = []
+    planta = _extraer_numero_planta(get_row_value(comparable, "planta"))
+    tiene_ascensor = _valor_booleano_comparable(
+        get_row_value(comparable, "ascensor")
+    )
+    if planta is not None and planta >= 4 and tiene_ascensor is False:
+        advertencias.append("4ª planta o superior sin ascensor.")
+
+    superficie_construida = parsear_float_valoracion(
+        get_row_value(comparable, "superficie_construida")
+    )
+    superficie_util = parsear_float_valoracion(
+        get_row_value(comparable, "superficie_util")
+    )
+    if superficie_construida is None and superficie_util is None:
+        advertencias.append("Falta superficie útil y construida.")
+    elif superficie_construida and superficie_util:
+        divergencia = abs(superficie_construida - superficie_util) / max(
+            superficie_construida,
+            superficie_util,
+        )
+        if divergencia >= 0.35:
+            advertencias.append("Superficie útil/construida muy divergente.")
+
+    if not limpiar_texto(get_row_value(comparable, "estado_conservacion")):
+        advertencias.append("Estado de conservación desconocido.")
+    if not limpiar_texto(get_row_value(comparable, "ano_construccion")):
+        advertencias.append("Año de construcción ausente.")
+    return advertencias
+
+
 def _construir_comparable_nuevo(row) -> dict:
     snapshot = _snapshot_json_valoracion(get_row_value(row, "snapshot_json"))
-    return {
+    comparable = {
         "id": get_row_value(row, "expediente_testigo_id"),
         "visita_id": None,
         "visita_fecha": "",
@@ -2206,6 +2655,12 @@ def _construir_comparable_nuevo(row) -> dict:
         "testigo_id": get_row_value(row, "testigo_id"),
         "orden": get_row_value(row, "orden"),
         "incluido": get_row_value(row, "incluido"),
+        "incluido_calculo": get_row_value(row, "incluido_calculo"),
+        "peso_porcentaje": get_row_value(row, "peso_porcentaje"),
+        "motivo_ponderacion": get_row_value(row, "motivo_ponderacion"),
+        "representatividad": get_row_value(row, "representatividad"),
+        "motivo_exclusion": get_row_value(row, "motivo_exclusion"),
+        "observaciones_ponderacion": get_row_value(row, "observaciones_ponderacion"),
         "notas_seleccion": get_row_value(row, "notas_seleccion"),
         "valor_unitario_base": get_row_value(row, "valor_unitario_base"),
         "valor_unitario_ajustado": get_row_value(row, "valor_unitario_ajustado"),
@@ -2226,8 +2681,20 @@ def _construir_comparable_nuevo(row) -> dict:
         **{
             "direccion_testigo": _primer_valor_comparable(row, snapshot, "direccion_testigo"),
             "fuente_testigo": _primer_valor_comparable(row, snapshot, "fuente_testigo"),
+            "fuente_tipo": _primer_valor_comparable(row, snapshot, "fuente_tipo"),
+            "fuente_detalle": _primer_valor_comparable(row, snapshot, "fuente_detalle"),
+            "url_fuente": _primer_valor_comparable(row, snapshot, "url_fuente"),
             "fecha_testigo": _primer_valor_comparable(row, snapshot, "fecha_testigo"),
+            "fecha_captura": _primer_valor_comparable(row, snapshot, "fecha_captura"),
             "precio_oferta": _primer_valor_comparable(row, snapshot, "precio_oferta"),
+            "precio_depurado": _primer_valor_comparable(row, snapshot, "precio_depurado"),
+            "superficie_tomada": _primer_valor_comparable(row, snapshot, "superficie_tomada"),
+            "tipo_superficie_tomada": _primer_valor_comparable(
+                row, snapshot, "tipo_superficie_tomada"
+            ),
+            "precio_unitario_inicial": _primer_valor_comparable(
+                row, snapshot, "precio_unitario_inicial"
+            ),
             "valor_unitario": _primer_valor_comparable(
                 row,
                 snapshot,
@@ -2243,12 +2710,41 @@ def _construir_comparable_nuevo(row) -> dict:
             "planta": _primer_valor_comparable(row, snapshot, "planta"),
             "dormitorios": _primer_valor_comparable(row, snapshot, "dormitorios"),
             "banos": _primer_valor_comparable(row, snapshot, "banos"),
+            "aseos": _primer_valor_comparable(row, snapshot, "aseos"),
+            "ascensor": _primer_valor_comparable(row, snapshot, "ascensor"),
+            "garaje": _primer_valor_comparable(row, snapshot, "garaje"),
+            "trastero": _primer_valor_comparable(row, snapshot, "trastero"),
+            "terraza": _primer_valor_comparable(row, snapshot, "terraza"),
+            "es_exterior": _primer_valor_comparable(row, snapshot, "es_exterior"),
+            "balcon": _primer_valor_comparable(row, snapshot, "balcon"),
+            "patio": _primer_valor_comparable(row, snapshot, "patio"),
             "estado_conservacion": _primer_valor_comparable(
                 row, snapshot, "estado_conservacion"
             ),
             "antiguedad": _primer_valor_comparable(row, snapshot, "antiguedad"),
+            "ano_construccion": _primer_valor_comparable(
+                row, snapshot, "ano_construccion"
+            ),
+            "ano_reforma": _primer_valor_comparable(row, snapshot, "ano_reforma"),
             "calidad_constructiva": _primer_valor_comparable(
                 row, snapshot, "calidad_constructiva"
+            ),
+            "aire_acondicionado": _primer_valor_comparable(
+                row, snapshot, "aire_acondicionado"
+            ),
+            "tipo_calefaccion": _primer_valor_comparable(
+                row, snapshot, "tipo_calefaccion"
+            ),
+            "certificacion_energetica": _primer_valor_comparable(
+                row, snapshot, "certificacion_energetica"
+            ),
+            "dato_verificado": _primer_valor_comparable(row, snapshot, "dato_verificado"),
+            "testigo_visitado": _primer_valor_comparable(row, snapshot, "testigo_visitado"),
+            "fiabilidad_dato": _primer_valor_comparable(row, snapshot, "fiabilidad_dato"),
+            "similitud_inmueble": _primer_valor_comparable(row, snapshot, "similitud_inmueble"),
+            "estado_mercado": _primer_valor_comparable(row, snapshot, "estado_mercado"),
+            "observaciones_economicas": _primer_valor_comparable(
+                row, snapshot, "observaciones_economicas"
             ),
             "visitado": _primer_valor_comparable(row, snapshot, "visitado"),
             "observaciones": _primer_valor_comparable(
@@ -2256,15 +2752,62 @@ def _construir_comparable_nuevo(row) -> dict:
             ),
         },
     }
+    preparado = preparar_testigo_comparacion(comparable)
+    if not limpiar_texto(comparable.get("precio_unitario_inicial")):
+        comparable["precio_unitario_inicial"] = preparado["precio_unitario_inicial"]
+    comparable["advertencias_calculo"] = preparado["advertencias_calculo"]
+    comparable["advertencias_calculo_texto"] = "\n".join(preparado["advertencias_calculo"])
+    return comparable
 
 
 def construir_comparable_valoracion_contexto(comparable, visita=None) -> dict:
     visita_fecha = get_row_value(comparable, "visita_fecha")
     if not limpiar_texto(visita_fecha) and visita is not None:
         visita_fecha = get_row_value(visita, "fecha")
+    preparado = preparar_testigo_comparacion(
+        {
+            "precio_oferta": get_row_value(comparable, "precio_oferta"),
+            "precio_depurado": get_row_value(comparable, "precio_depurado"),
+            "superficie_tomada": get_row_value(comparable, "superficie_tomada")
+            or get_row_value(comparable, "superficie_construida"),
+            "fuente_testigo": get_row_value(comparable, "fuente_testigo"),
+            "fuente_detalle": get_row_value(comparable, "fuente_detalle"),
+            "fecha_testigo": get_row_value(comparable, "fecha_testigo"),
+            "fiabilidad_dato": get_row_value(comparable, "fiabilidad_dato"),
+        }
+    )
+    advertencias_calculo = get_row_value(
+        comparable,
+        "advertencias_calculo",
+        preparado["advertencias_calculo"],
+    )
+    precio_unitario_inicial = get_row_value(
+        comparable,
+        "precio_unitario_inicial",
+        preparado["precio_unitario_inicial"],
+    )
+    homogeneizacion = get_row_value(comparable, "homogeneizacion", {})
+    unitario_homogeneizado = homogeneizacion.get("unitario_homogeneizado")
+    incluido_calculo = get_row_value(comparable, "incluido_calculo")
+    if incluido_calculo in ("", None):
+        incluido_calculo = get_row_value(comparable, "incluido", 1)
+    unitario_para_resumen = unitario_homogeneizado or precio_unitario_inicial
+    advertencias_tecnicas = construir_advertencias_tecnicas_testigo(comparable)
     campos = []
     for campo, etiqueta in COMPARABLES_COLUMNAS:
-        valor = get_row_value(comparable, campo)
+        valor = (
+            precio_unitario_inicial
+            if campo == "precio_unitario_inicial"
+            else "\n".join(advertencias_calculo)
+            if campo == "advertencias_calculo_texto"
+            else unitario_homogeneizado
+            if campo == "unitario_homogeneizado"
+            else unitario_para_resumen
+            if campo == "unitario_para_resumen"
+            else incluido_calculo
+            if campo == "incluido_calculo"
+            else get_row_value(comparable, campo)
+        )
         formatter = COMPARABLES_FORMATTERS.get(campo)
         campos.append((etiqueta, formatter(valor) if formatter else valor))
     return {
@@ -2272,6 +2815,82 @@ def construir_comparable_valoracion_contexto(comparable, visita=None) -> dict:
         "visita_id": get_row_value(comparable, "visita_id"),
         "visita_fecha": visita_fecha,
         "origen": get_row_value(comparable, "origen", "legacy"),
+        "direccion_testigo": get_row_value(comparable, "direccion_testigo"),
+        "fuente_testigo": get_row_value(comparable, "fuente_testigo"),
+        "fuente_tipo": get_row_value(comparable, "fuente_tipo"),
+        "fuente_detalle": get_row_value(comparable, "fuente_detalle"),
+        "url_fuente": get_row_value(comparable, "url_fuente"),
+        "fecha_testigo": get_row_value(comparable, "fecha_testigo"),
+        "fecha_captura": get_row_value(comparable, "fecha_captura"),
+        "precio_oferta": get_row_value(comparable, "precio_oferta"),
+        "precio_depurado": get_row_value(comparable, "precio_depurado"),
+        "superficie_tomada": get_row_value(comparable, "superficie_tomada"),
+        "tipo_superficie_tomada": get_row_value(comparable, "tipo_superficie_tomada"),
+        "precio_unitario_inicial": precio_unitario_inicial,
+        "valor_unitario": get_row_value(comparable, "valor_unitario"),
+        "superficie_construida": get_row_value(comparable, "superficie_construida"),
+        "superficie_util": get_row_value(comparable, "superficie_util"),
+        "planta": get_row_value(comparable, "planta"),
+        "banos": get_row_value(comparable, "banos"),
+        "aseos": get_row_value(comparable, "aseos"),
+        "ascensor": get_row_value(comparable, "ascensor"),
+        "es_exterior": get_row_value(comparable, "es_exterior"),
+        "balcon": get_row_value(comparable, "balcon"),
+        "terraza": get_row_value(comparable, "terraza"),
+        "patio": get_row_value(comparable, "patio"),
+        "ano_construccion": get_row_value(comparable, "ano_construccion"),
+        "ano_reforma": get_row_value(comparable, "ano_reforma"),
+        "aire_acondicionado": get_row_value(comparable, "aire_acondicionado"),
+        "tipo_calefaccion": get_row_value(comparable, "tipo_calefaccion"),
+        "garaje": get_row_value(comparable, "garaje"),
+        "trastero": get_row_value(comparable, "trastero"),
+        "certificacion_energetica": get_row_value(
+            comparable,
+            "certificacion_energetica",
+        ),
+        "estado_conservacion": get_row_value(comparable, "estado_conservacion"),
+        "dato_verificado": get_row_value(comparable, "dato_verificado"),
+        "testigo_visitado": get_row_value(comparable, "testigo_visitado"),
+        "fiabilidad_dato": get_row_value(comparable, "fiabilidad_dato"),
+        "similitud_inmueble": get_row_value(comparable, "similitud_inmueble"),
+        "estado_mercado": get_row_value(comparable, "estado_mercado"),
+        "observaciones_economicas": get_row_value(comparable, "observaciones_economicas"),
+        "advertencias_calculo": advertencias_calculo,
+        "advertencias_calculo_texto": "\n".join(advertencias_calculo),
+        "advertencias_tecnicas": advertencias_tecnicas,
+        "advertencias_tecnicas_texto": "\n".join(advertencias_tecnicas),
+        "ajustes_homogeneizacion": homogeneizacion.get("ajustes", []),
+        "unitario_inicial": homogeneizacion.get("unitario_inicial")
+        or precio_unitario_inicial,
+        "unitario_homogeneizado": unitario_homogeneizado,
+        "unitario_para_resumen": unitario_para_resumen,
+        "incluido_calculo": incluido_calculo,
+        "peso_porcentaje": get_row_value(comparable, "peso_porcentaje"),
+        "representatividad": get_row_value(comparable, "representatividad"),
+        "motivo_ponderacion": get_row_value(comparable, "motivo_ponderacion"),
+        "motivo_exclusion": get_row_value(comparable, "motivo_exclusion"),
+        "observaciones_ponderacion": get_row_value(
+            comparable,
+            "observaciones_ponderacion",
+        ),
+        "ajuste_total_importe_m2": homogeneizacion.get("ajuste_total_importe_m2"),
+        "ajuste_total_porcentaje_equivalente": homogeneizacion.get(
+            "ajuste_total_porcentaje_equivalente"
+        ),
+        "pasos_homogeneizacion": homogeneizacion.get("pasos", []),
+        "advertencias_homogeneizacion": homogeneizacion.get("advertencias", []),
+        "unitario_homogeneizado_fmt": formatear_precio_unitario_es(
+            unitario_homogeneizado
+        ),
+        "unitario_para_resumen_fmt": formatear_precio_unitario_es(
+            unitario_para_resumen
+        ),
+        "peso_porcentaje_fmt": formatear_porcentaje_es(
+            get_row_value(comparable, "peso_porcentaje")
+        ),
+        "ajuste_total_importe_m2_fmt": formatear_precio_unitario_es(
+            homogeneizacion.get("ajuste_total_importe_m2")
+        ),
         "expediente_testigo_id": get_row_value(comparable, "expediente_testigo_id"),
         "testigo_id": get_row_value(comparable, "testigo_id"),
         "orden": get_row_value(comparable, "orden"),
@@ -2295,6 +2914,16 @@ def construir_comparable_valoracion_contexto(comparable, visita=None) -> dict:
         "precio_oferta_fmt": formatear_moneda_es(
             get_row_value(comparable, "precio_oferta")
         ),
+        "precio_depurado_fmt": formatear_moneda_es(
+            get_row_value(comparable, "precio_depurado")
+        ),
+        "precio_unitario_inicial_fmt": formatear_precio_unitario_es(
+            get_row_value(comparable, "precio_unitario_inicial")
+            or precio_unitario_inicial
+        ),
+        "superficie_tomada_fmt": formatear_superficie_es(
+            get_row_value(comparable, "superficie_tomada")
+        ),
         "valor_unitario_fmt": formatear_precio_unitario_es(
             get_row_value(comparable, "valor_unitario")
         ),
@@ -2304,11 +2933,44 @@ def construir_comparable_valoracion_contexto(comparable, visita=None) -> dict:
         "superficie_util_fmt": formatear_superficie_es(
             get_row_value(comparable, "superficie_util")
         ),
+        "ascensor_fmt": formatear_booleano_comparable(
+            get_row_value(comparable, "ascensor")
+        ),
+        "es_exterior_fmt": formatear_booleano_comparable(
+            get_row_value(comparable, "es_exterior")
+        ),
+        "balcon_fmt": formatear_booleano_comparable(get_row_value(comparable, "balcon")),
+        "terraza_fmt": formatear_booleano_comparable(get_row_value(comparable, "terraza")),
+        "patio_fmt": formatear_booleano_comparable(get_row_value(comparable, "patio")),
+        "aire_acondicionado_fmt": formatear_booleano_comparable(
+            get_row_value(comparable, "aire_acondicionado")
+        ),
+        "garaje_fmt": formatear_booleano_comparable(get_row_value(comparable, "garaje")),
+        "trastero_fmt": formatear_booleano_comparable(
+            get_row_value(comparable, "trastero")
+        ),
         "justificacion_ajustes": get_row_value(comparable, "justificacion_ajustes"),
         "snapshot": get_row_value(comparable, "snapshot", {}),
         "ajustes": get_row_value(comparable, "ajustes", {}),
         "campos": construir_campos_informe(campos),
     }
+
+
+def cargar_ajustes_homogeneizacion_informe(cur, expediente_testigo_id: int) -> list[dict]:
+    return [
+        row_to_dict(row)
+        for row in cur.execute(
+            """
+            SELECT *
+            FROM valoracion_testigo_ajustes
+            WHERE expediente_testigo_id = ?
+              AND COALESCE(variable, '') != ''
+              AND COALESCE(activo, 1) = 1
+            ORDER BY COALESCE(orden, 9999) ASC, id ASC
+            """,
+            (expediente_testigo_id,),
+        ).fetchall()
+    ]
 
 
 def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas) -> list[dict]:
@@ -2319,6 +2981,12 @@ def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas)
                vet.testigo_id,
                vet.orden,
                vet.incluido,
+               vet.incluido_calculo,
+               vet.peso_porcentaje,
+               vet.motivo_ponderacion,
+               vet.representatividad,
+               vet.motivo_exclusion,
+               vet.observaciones_ponderacion,
                vet.snapshot_json,
                vet.notas_seleccion,
                vet.valor_unitario_base,
@@ -2333,6 +3001,10 @@ def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas)
                tv.municipio,
                tv.provincia,
                tv.precio_oferta,
+               tv.precio_depurado,
+               tv.precio_unitario_inicial,
+               tv.superficie_tomada,
+               tv.tipo_superficie_tomada,
                tv.precio_cierre,
                tv.superficie_construida,
                tv.superficie_util,
@@ -2341,11 +3013,33 @@ def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas)
                tv.planta,
                tv.dormitorios,
                tv.banos,
+               tv.aseos,
+               tv.ascensor,
+               tv.garaje,
+               tv.trastero,
+               tv.terraza,
+               tv.es_exterior,
+               tv.balcon,
+               tv.patio,
                tv.estado_conservacion,
                tv.antiguedad,
+               tv.ano_construccion,
+               tv.ano_reforma,
                tv.calidad_constructiva,
                tv.caracteristicas_constructivas,
                tv.ubicacion,
+               tv.aire_acondicionado,
+               tv.tipo_calefaccion,
+               tv.certificacion_energetica,
+               tv.fuente_tipo,
+               tv.fuente_detalle,
+               tv.fecha_captura,
+               tv.dato_verificado,
+               tv.testigo_visitado,
+               tv.fiabilidad_dato,
+               tv.similitud_inmueble,
+               tv.estado_mercado,
+               tv.observaciones_economicas,
                tv.visitado,
                tv.validacion_estado,
                tv.reutilizable,
@@ -2359,7 +3053,9 @@ def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas)
                vta.justificacion
         FROM valoracion_expediente_testigos vet
         LEFT JOIN testigos_valoracion tv ON tv.id = vet.testigo_id
-        LEFT JOIN valoracion_testigo_ajustes vta ON vta.expediente_testigo_id = vet.id
+        LEFT JOIN valoracion_testigo_ajustes vta
+          ON vta.expediente_testigo_id = vet.id
+         AND COALESCE(vta.variable, '') = ''
         WHERE vet.expediente_id = ?
           AND COALESCE(vet.incluido, 1) = 1
         ORDER BY COALESCE(vet.orden, 9999) ASC, vet.id ASC
@@ -2367,10 +3063,21 @@ def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas)
         (expediente_id,),
     ).fetchall()
     if comparables_nuevos:
-        return [
-            construir_comparable_valoracion_contexto(_construir_comparable_nuevo(row))
-            for row in comparables_nuevos
-        ]
+        comparables_contexto = []
+        for row in comparables_nuevos:
+            comparable = _construir_comparable_nuevo(row)
+            ajustes_homogeneizacion = cargar_ajustes_homogeneizacion_informe(
+                cur,
+                comparable["expediente_testigo_id"],
+            )
+            comparable["homogeneizacion"] = preparar_matriz_homogeneizacion(
+                comparable,
+                ajustes_homogeneizacion,
+            )
+            comparables_contexto.append(
+                construir_comparable_valoracion_contexto(comparable)
+            )
+        return comparables_contexto
 
     comparables_contexto = []
     for visita in visitas or []:
@@ -2388,6 +3095,34 @@ def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas)
             for comparable in comparables
         )
     return comparables_contexto
+
+
+def construir_resumen_comparacion_contexto(comparables: list[dict]) -> dict:
+    resumen = preparar_resumen_comparacion(comparables)
+    resumen.update(
+        {
+            "unitario_minimo_fmt": formatear_precio_unitario_es(
+                resumen.get("unitario_minimo")
+            ),
+            "unitario_maximo_fmt": formatear_precio_unitario_es(
+                resumen.get("unitario_maximo")
+            ),
+            "unitario_medio_fmt": formatear_precio_unitario_es(
+                resumen.get("unitario_medio")
+            ),
+            "unitario_mediana_fmt": formatear_precio_unitario_es(
+                resumen.get("unitario_mediana")
+            ),
+            "unitario_ponderado_fmt": formatear_precio_unitario_es(
+                resumen.get("unitario_ponderado")
+            ),
+            "propuesta_unitaria_orientativa_fmt": formatear_precio_unitario_es(
+                resumen.get("propuesta_unitaria_orientativa")
+            ),
+            "suma_pesos_fmt": formatear_porcentaje_es(resumen.get("suma_pesos")),
+        }
+    )
+    return resumen
 
 
 def grupo_valoracion_por_clave(valoraciones: list[dict], clave: str) -> list[dict]:
@@ -3244,18 +3979,19 @@ def construir_toc_items_informe(contexto: dict, paginas: dict | None = None) -> 
         items = [
             ("identificacion", 1, "Identificación del expediente"),
             ("objeto", 2, "Objeto del informe"),
-            ("valoracion-encargo", 3, "Encargo"),
-            ("valoracion-documentacion", 4, "Documentación utilizada"),
-            ("valoracion-identificacion", 5, "Identificación del bien"),
-            ("valoracion-situacion_legal", 6, "Situación legal"),
-            ("valoracion-entorno", 7, "Entorno"),
-            ("valoracion-edificio_inmueble", 8, "Edificio/inmueble"),
-            ("valoracion-constructivo", 9, "Características constructivas"),
-            ("valoracion-estado", 10, "Estado"),
-            ("valoracion-metodo", 11, "Método de valoración"),
-            ("valoracion-comparables", 12, "Comparables"),
-            ("valoracion-resultado", 13, "Resultado"),
-            ("valoracion-limitaciones", 14, "Limitaciones"),
+            ("valoracion-eco", 3, "Criterios periciales de valoración"),
+            ("valoracion-encargo", 4, "Encargo"),
+            ("valoracion-documentacion", 5, "Documentación utilizada"),
+            ("valoracion-identificacion", 6, "Identificación del bien"),
+            ("valoracion-situacion_legal", 7, "Situación legal"),
+            ("valoracion-entorno", 8, "Entorno"),
+            ("valoracion-edificio_inmueble", 9, "Edificio/inmueble"),
+            ("valoracion-constructivo", 10, "Características constructivas"),
+            ("valoracion-estado", 11, "Estado"),
+            ("valoracion-metodo", 12, "Método de valoración"),
+            ("valoracion-comparables", 13, "Comparables"),
+            ("valoracion-resultado", 14, "Resultado"),
+            ("valoracion-limitaciones", 15, "Limitaciones"),
         ]
         return [
             {
@@ -3403,6 +4139,7 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
         bloques_mapas = []
         valoracion_contexto = []
         comparables_valoracion_contexto = []
+        valoracion_eco_contexto = {}
 
         for visita in visitas:
             climatologia = cur.execute(
@@ -3543,6 +4280,29 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
                 expediente_id,
                 visitas,
             )
+            datos_valoracion_eco = cargar_valoracion_eco_con_fallback(
+                cur,
+                expediente_id,
+                visitas,
+            )
+            valoracion_eco_contexto = construir_valoracion_eco(
+                row_to_dict(expediente),
+                datos_valoracion_eco,
+                comparables_valoracion_contexto,
+            )
+            resumen_comparacion_valoracion = construir_resumen_comparacion_contexto(
+                comparables_valoracion_contexto
+            )
+            valoracion_eco_contexto["resumen_comparacion"] = resumen_comparacion_valoracion
+            valoracion_eco_contexto["comparacion"] = {
+                "resumen": resumen_comparacion_valoracion
+            }
+            valoracion_contexto = ValoracionContext(
+                valoracion_contexto,
+                valoracion_eco_contexto,
+            )
+        else:
+            resumen_comparacion_valoracion = construir_resumen_comparacion_contexto([])
 
         for registro in patologias_interiores_rows:
             referencias_cuadrantes = obtener_referencias_cuadrantes_patologia(conn, registro["id"])
@@ -3758,7 +4518,9 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
             else [],
             "visitas": visitas_contexto,
             "valoracion": valoracion_contexto,
+            "valoracion_eco": valoracion_eco_contexto,
             "comparables_valoracion": comparables_valoracion_contexto,
+            "resumen_comparacion_valoracion": resumen_comparacion_valoracion,
             "completitud_valoracion": construir_completitud_valoracion(
                 valoracion_contexto,
                 comparables_valoracion_contexto,
@@ -4241,17 +5003,17 @@ def add_zona_exterior_card_docx(doc: Document, zona: dict, indice: int) -> None:
 
 
 TITULOS_VALORACION_DOCX = {
-    "encargo": "3. Encargo",
-    "documentacion": "4. Documentación utilizada",
-    "identificacion": "5. Identificación del bien",
-    "situacion_legal": "6. Situación legal",
-    "entorno": "7. Entorno",
-    "edificio_inmueble": "8. Edificio/inmueble",
-    "constructivo": "9. Características constructivas",
-    "estado": "10. Estado",
-    "metodo": "11. Método de valoración",
-    "resultado": "13. Resultado",
-    "limitaciones": "14. Limitaciones",
+    "encargo": "4. Encargo",
+    "documentacion": "5. Documentación utilizada",
+    "identificacion": "6. Identificación del bien",
+    "situacion_legal": "7. Situación legal",
+    "entorno": "8. Entorno",
+    "edificio_inmueble": "9. Edificio/inmueble",
+    "constructivo": "10. Características constructivas",
+    "estado": "11. Estado",
+    "metodo": "12. Método de valoración",
+    "resultado": "14. Resultado",
+    "limitaciones": "15. Limitaciones",
 }
 
 
@@ -4271,18 +5033,152 @@ def add_grupo_valoracion_docx(doc: Document, grupo: dict, bloque: dict, titulo: 
 
 
 def add_comparables_valoracion_docx(doc: Document, comparables: list[dict]) -> None:
-    add_heading_editable(doc, "12. Comparables", level=1)
+    add_heading_editable(doc, "13. Comparables", level=1)
+    add_bloque_destacado_docx(
+        doc,
+        "Nota de cálculo inicial",
+        "Los valores unitarios iniciales no incorporan todavía homogeneización ni ponderación técnica salvo que se indique expresamente.\n"
+        "La homogeneización recoge ajustes técnicos introducidos por el perito. Los ajustes cualitativos no cuantificados se reflejan como observaciones y no modifican el valor unitario.",
+        fill="FFF8E6",
+    )
     if not comparables:
         add_parrafo_editable(doc, "No constan comparables de valoración registrados.")
         return
 
+    resumen = construir_resumen_comparacion_contexto(comparables)
+    add_heading_editable(doc, "Resumen comparativo y ponderación", level=2)
+    add_bloque_destacado_docx(
+        doc,
+        "Nota de ponderación",
+        "El resumen comparativo tiene carácter preparatorio. La adopción del valor unitario corresponde al criterio técnico del perito y debe quedar justificada expresamente.",
+        fill="FFF8E6",
+    )
+    add_tabla_campos_editable(
+        doc,
+        construir_campos_informe(
+            [
+                ("Testigos incluidos", resumen.get("testigos_incluidos")),
+                ("Testigos excluidos", resumen.get("testigos_excluidos")),
+                ("€/m² mínimo", resumen.get("unitario_minimo_fmt")),
+                ("€/m² máximo", resumen.get("unitario_maximo_fmt")),
+                ("€/m² medio", resumen.get("unitario_medio_fmt")),
+                ("€/m² mediana", resumen.get("unitario_mediana_fmt")),
+                ("€/m² ponderado", resumen.get("unitario_ponderado_fmt")),
+                ("Suma de pesos", resumen.get("suma_pesos_fmt")),
+                (
+                    "Propuesta orientativa",
+                    resumen.get("propuesta_unitaria_orientativa_fmt"),
+                ),
+            ]
+        )
+    )
+    if resumen.get("advertencias"):
+        add_bloque_destacado_docx(
+            doc,
+            "Advertencias de ponderación",
+            "\n".join(resumen.get("advertencias", [])),
+            fill="FFF8E6",
+        )
+
     for indice, comparable in enumerate(comparables, start=1):
         add_heading_editable(
             doc,
-            f"12.{indice} Comparable {indice} · visita {valor_o_guion(comparable.get('visita_fecha'))}",
+            f"13.{indice} Comparable {indice} · visita {valor_o_guion(comparable.get('visita_fecha'))}",
             level=2,
         )
         add_tabla_campos_editable(doc, comparable.get("campos", []))
+        if comparable.get("pasos_homogeneizacion"):
+            add_heading_editable(doc, "Matriz de homogeneización", level=3)
+            add_tabla_campos_editable(
+                doc,
+                construir_campos_informe(
+                    [
+                        (
+                            paso.get("variable") or "Ajuste",
+                            (
+                                f"Inmueble: {valor_o_guion(paso.get('valor_inmueble'))}\n"
+                                f"Testigo: {valor_o_guion(paso.get('valor_testigo'))}\n"
+                                f"Efecto: {formatear_precio_unitario_es(paso.get('efecto_importe_m2'))}\n"
+                                f"Justificación: {valor_o_guion(paso.get('justificacion'))}"
+                            ),
+                        )
+                        for paso in comparable.get("pasos_homogeneizacion", [])
+                    ]
+                ),
+            )
+        if comparable.get("advertencias_homogeneizacion"):
+            add_bloque_destacado_docx(
+                doc,
+                "Advertencias de homogeneización",
+                "\n".join(comparable.get("advertencias_homogeneizacion", [])),
+                fill="FFF8E6",
+            )
+
+
+def add_valoracion_eco_docx(doc: Document, contexto: dict) -> None:
+    valoracion_eco = contexto.get("valoracion_eco") or {}
+    if not valoracion_eco:
+        return
+    add_heading_editable(doc, "3. Criterios periciales de valoración", level=1)
+    add_bloque_destacado_docx(
+        doc,
+        "Nota metodológica",
+        valoracion_eco.get("nota_metodologica", VALORACION_NOTA_ECO),
+        fill="EEF6FF",
+    )
+    for grupo in [
+        valoracion_eco.get("finalidad"),
+        valoracion_eco.get("base_valor"),
+        valoracion_eco.get("superficies"),
+    ]:
+        if not grupo:
+            continue
+        add_heading_editable(doc, grupo.get("titulo", "Apartado de valoración"), level=2)
+        if grupo.get("hay_datos"):
+            add_tabla_campos_editable(doc, grupo.get("campos", []))
+        else:
+            add_parrafo_editable(doc, "No constan datos registrados para este apartado.")
+
+    metodos = valoracion_eco.get("metodos") or {}
+    add_heading_editable(doc, metodos.get("titulo", "Métodos aplicados y descartados"), level=2)
+    if metodos.get("hay_datos"):
+        campos_metodos = []
+        for metodo in metodos.get("items", []):
+            detalle = (
+                f"Aplicado: {'Sí' if metodo.get('aplicado') else 'No'} · "
+                f"Descartado: {'Sí' if metodo.get('descartado') else 'No'}"
+            )
+            if metodo.get("justificacion"):
+                detalle += f"\nJustificación: {metodo['justificacion']}"
+            if metodo.get("observaciones"):
+                detalle += f"\nObservaciones: {metodo['observaciones']}"
+            campos_metodos.append((metodo.get("titulo", "Método"), detalle))
+        add_tabla_campos_editable(doc, construir_campos_informe(campos_metodos))
+    else:
+        add_parrafo_editable(doc, "No constan métodos aplicados o descartados.")
+
+    incidencias = valoracion_eco.get("incidencias") or {}
+    add_heading_editable(
+        doc,
+        incidencias.get("titulo", "Condicionantes, advertencias y limitaciones"),
+        level=2,
+    )
+    visibles = incidencias.get("visibles", [])
+    if visibles:
+        add_tabla_campos_editable(
+            doc,
+            construir_campos_informe(
+                [
+                    (
+                        f"{incidencia.get('tipo', '').capitalize()} · {incidencia.get('origen', '')}",
+                        incidencia.get("descripcion", ""),
+                    )
+                    for incidencia in visibles
+                ]
+            ),
+        )
+    else:
+        add_parrafo_editable(doc, "No constan incidencias visibles para el informe.")
 
 
 def add_cuerpo_valoracion_docx(doc: Document, contexto: dict) -> None:
@@ -4303,12 +5199,14 @@ def add_cuerpo_valoracion_docx(doc: Document, contexto: dict) -> None:
             fill="FFF8E6",
         )
 
+    add_valoracion_eco_docx(doc, contexto)
+
     valoraciones = contexto.get("valoracion") or []
     if valoraciones:
         for bloque in valoraciones:
             for grupo in bloque.get("grupos", []):
                 clave = grupo.get("clave")
-                if clave in {"resultado", "limitaciones"}:
+                if clave in {"base_valor", "metodos_eco", "incidencias", "resultado", "limitaciones"}:
                     continue
                 add_grupo_valoracion_docx(
                     doc,
@@ -4318,7 +5216,7 @@ def add_cuerpo_valoracion_docx(doc: Document, contexto: dict) -> None:
                 )
     else:
         for clave, titulo in TITULOS_VALORACION_DOCX.items():
-            if clave in {"resultado", "limitaciones"}:
+            if clave in {"base_valor", "metodos_eco", "incidencias", "resultado", "limitaciones"}:
                 continue
             add_heading_editable(doc, titulo, level=1)
             add_parrafo_editable(doc, "No constan datos de valoración registrados.")
@@ -4338,9 +5236,9 @@ def add_cuerpo_valoracion_docx(doc: Document, contexto: dict) -> None:
                     TITULOS_VALORACION_DOCX.get(clave, valor_o_guion(grupo.get("titulo"))),
                 )
     else:
-        add_heading_editable(doc, "13. Resultado", level=1)
+        add_heading_editable(doc, "14. Resultado", level=1)
         add_parrafo_editable(doc, "No consta resultado de valoración registrado.")
-        add_heading_editable(doc, "14. Limitaciones", level=1)
+        add_heading_editable(doc, "15. Limitaciones", level=1)
         add_parrafo_editable(doc, "No constan limitaciones de valoración registradas.")
 
 

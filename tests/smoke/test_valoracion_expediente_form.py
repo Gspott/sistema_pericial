@@ -210,7 +210,22 @@ def test_detalle_expediente_muestra_cta_solo_en_valoracion(isolated_import):
     assert response_valoracion.status_code == 200
     assert "Editar datos de valoración" in response_valoracion.text
     assert f"/expedientes/{expediente_valoracion_id}/valoracion" in response_valoracion.text
+    assert "Workbench de valoración" in response_valoracion.text
+    assert (
+        f"/expediente/{expediente_valoracion_id}/valoracion/workbench"
+        in response_valoracion.text
+    )
+    assert (
+        "Análisis técnico de comparables, homogeneización y ponderación"
+        in response_valoracion.text
+    )
+    response_workbench = client.get(
+        f"/expediente/{expediente_valoracion_id}/valoracion/workbench"
+    )
+    assert response_workbench.status_code == 200
+    assert "Workbench de valoración" in response_workbench.text
 
     response_patologias = client.get(f"/detalle-expediente/{expediente_patologias_id}")
     assert response_patologias.status_code == 200
     assert "Editar datos de valoración" not in response_patologias.text
+    assert "Workbench de valoración" not in response_patologias.text

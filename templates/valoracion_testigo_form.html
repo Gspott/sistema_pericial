@@ -15,19 +15,47 @@
     <script src="/static/pwa.js?v=5" defer></script>
 
     <style>
+        .testigo-edit-wide {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .testigo-edit-hero {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            margin-bottom: 16px;
+            padding: 14px;
+        }
+
+        .testigo-edit-hero h1 {
+            margin-bottom: 6px;
+        }
+
         .valoracion-form details {
-            background: #f8fafc;
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            margin-bottom: 14px;
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            margin: 0;
             padding: 0;
+        }
+
+        .valoracion-form {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
         .valoracion-form summary {
             cursor: pointer;
             font-weight: 800;
             list-style: none;
-            padding: 16px;
+            padding: 12px 14px;
         }
 
         .valoracion-form summary::-webkit-details-marker {
@@ -35,23 +63,75 @@
         }
 
         .valoracion-form details[open] summary {
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid #dbe3ee;
         }
 
         .valoracion-fields {
-            padding: 0 16px 16px;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 0 14px 14px;
+        }
+
+        .valoracion-field-wide {
+            grid-column: 1 / -1;
+        }
+
+        .valoracion-fields label {
+            font-size: 0.8rem;
+            margin-bottom: 4px;
         }
 
         .valoracion-checkbox {
             align-items: center;
             display: flex;
             gap: 10px;
-            margin: 12px 0;
+            margin: 0;
+            min-height: 42px;
         }
 
         .valoracion-checkbox input {
             min-height: auto;
             width: auto;
+        }
+
+        .testigo-edit-note {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            grid-column: 1 / -1;
+            padding: 12px 14px;
+        }
+
+        .testigo-edit-actions {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            grid-column: 1 / -1;
+            justify-content: flex-end;
+            padding: 12px;
+        }
+
+        @media (min-width: 1480px) {
+            .valoracion-form {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 980px) {
+            .testigo-edit-wide {
+                width: 100%;
+            }
+
+            .testigo-edit-hero,
+            .valoracion-form,
+            .valoracion-fields {
+                grid-template-columns: 1fr;
+            }
+
+            .testigo-edit-actions {
+                justify-content: flex-start;
+            }
         }
     </style>
 
@@ -60,19 +140,27 @@
 
 <body>
     {% include "partials/_app_shell_start.html" %}
-    <div class="page">
-        <h1>{% if modo == 'editar' %}Editar testigo{% else %}Nuevo testigo{% endif %}</h1>
-
-        <div class="actions">
-            <a class="boton secundario" href="/valoracion/testigos">Volver a testigos</a>
-        </div>
-
-        <div class="card">
-            <p>El testigo base es reutilizable. Al seleccionarlo para un expediente se guardará un snapshot independiente para conservar la valoración histórica.</p>
-        </div>
+    <div class="page testigo-edit-wide">
+        <section class="testigo-edit-hero">
+            <div>
+                <p class="visita-eyebrow">Biblioteca de testigos</p>
+                <h1>{% if modo == 'editar' %}Editar testigo{% else %}Nuevo testigo{% endif %}</h1>
+                <p class="helper-text">Ficha reusable con datos de anuncio, economía, superficies, características y validación.</p>
+            </div>
+            <div class="actions">
+                <a class="boton secundario" href="/valoracion/testigos/biblioteca">Volver a biblioteca</a>
+                <a class="boton secundario" href="/valoracion/testigos">Vista móvil/cards</a>
+                {% if modo == 'editar' %}
+                <a class="boton secundario" href="/valoracion/testigos/{{ testigo_id }}">Ver detalle</a>
+                {% endif %}
+            </div>
+        </section>
 
         <form class="valoracion-form" method="post"
             action="{% if modo == 'editar' %}/valoracion/testigos/{{ testigo_id }}/editar{% else %}/valoracion/testigos/nuevo{% endif %}">
+            <div class="testigo-edit-note">
+                <p>El testigo base es reutilizable. Al seleccionarlo para un expediente se guardará un snapshot independiente para conservar la valoración histórica.</p>
+            </div>
             {% for titulo, campos in testigo_grupos %}
             <details {% if loop.first %}open{% endif %}>
                 <summary>{{ titulo }}</summary>
@@ -85,36 +173,57 @@
                         <span>{{ etiqueta }}</span>
                     </label>
                     {% elif campo == 'validacion_estado' %}
+                    <div>
                     <label for="{{ campo }}">{{ etiqueta }}</label>
                     <select id="{{ campo }}" name="{{ campo }}">
                         {% for valor, label in validacion_options %}
                         <option value="{{ valor }}" {% if testigo.get(campo) == valor %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
+                    </div>
                     {% elif campo in campos_numericos %}
+                    <div>
                     <label for="{{ campo }}">{{ etiqueta }}</label>
                     <input id="{{ campo }}" name="{{ campo }}" type="number" step="0.01" value="{{ testigo.get(campo, '') }}">
+                    </div>
                     {% elif campo in campos_enteros %}
+                    <div>
                     <label for="{{ campo }}">{{ etiqueta }}</label>
                     <input id="{{ campo }}" name="{{ campo }}" type="number" step="1" min="0" value="{{ testigo.get(campo, '') }}">
-                    {% elif campo == 'fecha_testigo' %}
+                    </div>
+                    {% elif campo in ['fecha_testigo', 'fecha_captura'] %}
+                    <div>
                     <label for="{{ campo }}">{{ etiqueta }}</label>
                     <input id="{{ campo }}" name="{{ campo }}" type="date" value="{{ testigo.get(campo, '') }}">
+                    </div>
                     {% elif campo == 'url_fuente' %}
+                    <div class="valoracion-field-wide">
                     <label for="{{ campo }}">{{ etiqueta }}</label>
                     <input id="{{ campo }}" name="{{ campo }}" type="url" value="{{ testigo.get(campo, '') }}">
-                    {% else %}
+                    </div>
+                    {% elif campo in ['observaciones', 'observaciones_economicas', 'caracteristicas_constructivas'] %}
+                    <div class="valoracion-field-wide">
                     <label for="{{ campo }}">{{ etiqueta }}</label>
-                    <textarea id="{{ campo }}" name="{{ campo }}">{{ testigo.get(campo, '') }}</textarea>
+                    <textarea id="{{ campo }}" name="{{ campo }}" rows="3">{{ testigo.get(campo, '') }}</textarea>
+                    </div>
+                    {% else %}
+                    <div>
+                    <label for="{{ campo }}">{{ etiqueta }}</label>
+                    <input id="{{ campo }}" name="{{ campo }}" value="{{ testigo.get(campo, '') }}">
+                    </div>
                     {% endif %}
                     {% endfor %}
                 </div>
             </details>
             {% endfor %}
 
-            <div class="actions sticky-actions">
+            <div class="actions sticky-actions testigo-edit-actions">
                 <button class="boton" type="submit">Guardar testigo</button>
-                <a class="boton secundario" href="/valoracion/testigos">Cancelar</a>
+                {% if modo == 'editar' %}
+                <a class="boton secundario" href="/valoracion/testigos/{{ testigo_id }}">Cancelar</a>
+                {% else %}
+                <a class="boton secundario" href="/valoracion/testigos/biblioteca">Cancelar</a>
+                {% endif %}
             </div>
         </form>
     </div>

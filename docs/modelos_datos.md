@@ -149,7 +149,7 @@ Tablas activas:
 
 - `valoracion_expediente`: datos estables 1:1 por expediente, como finalidad, solicitante, documentacion, superficies, situacion legal, entorno, caracteristicas constructivas, metodos previstos, variables de mercado y limitaciones.
 - `valoracion_visita_observaciones`: observaciones puntuales de visita, como estado observado, reforma observada, ocupacion observada, incidencias, comprobaciones fisicas, observaciones del portal, observaciones del cuadro de contadores y notas tecnicas.
-- `testigos_valoracion`: base reutilizable de testigos/comparables con ownership, fuente, fecha, superficies, precio, valor unitario, estado, validacion y marca `reutilizable`.
+- `testigos_valoracion`: base reutilizable de testigos/comparables con ownership, fuente, fecha, superficies, precio, valor unitario, estado, validacion, atributos tecnicos de anuncio y marca `reutilizable`. Reutiliza campos existentes como `banos`, `superficie_construida`, `superficie_util`, `planta`, `ascensor`, `terraza`, `garaje`, `trastero`, `estado_conservacion` y `codigo_postal`; y anade defensivamente atributos como exterior, balcon, patio, anos, aire acondicionado, calefaccion y certificacion energetica.
 - `testigos_valoracion_fotos`: metadatos de fotos o capturas de testigo subidas manualmente desde la biblioteca. No descarga imagenes remotas ni reutiliza uploads reales en smokes.
 - `valoracion_expediente_testigos`: vinculo expediente-testigo con orden, inclusion, snapshot JSON y valores unitarios/resultantes del uso concreto.
 - `valoracion_testigo_ajustes`: coeficientes y justificacion asociados al testigo vinculado, no al testigo reusable.

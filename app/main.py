@@ -67,6 +67,11 @@ from app.services.informe import (
     nombre_archivo_pdf_informe,
     limpiar_nombre_archivo,
 )
+from app.services.valoracion_comparacion import (
+    preparar_resumen_comparacion,
+    preparar_matriz_homogeneizacion,
+    preparar_testigo_comparacion,
+)
 from app.utils.helpers import formatear_plantas
 
 app = FastAPI()
@@ -453,6 +458,9 @@ VALORACION_EXPEDIENTE_FORM_GROUPS = [
         "Encargo",
         [
             ("finalidad_valoracion", "Finalidad de la valoración"),
+            ("finalidad_otro", "Finalidad: otro / matiz"),
+            ("alcance_valoracion", "Alcance de la valoración"),
+            ("fecha_valoracion", "Fecha de valoración"),
             ("finalidad_valoracion_detallada", "Finalidad detallada"),
             ("nombre_solicitante", "Solicitante"),
             ("nif_cif_solicitante", "NIF/CIF"),
@@ -474,10 +482,26 @@ VALORACION_EXPEDIENTE_FORM_GROUPS = [
             ("superficie_valoracion", "Superficie de valoración"),
             ("superficie_construida", "Superficie construida"),
             ("superficie_util", "Superficie útil"),
+            ("superficie_registral", "Superficie registral"),
+            ("superficie_catastral", "Superficie catastral"),
             ("superficie_terraza", "Superficie de terraza"),
             ("superficie_zonas_comunes", "Superficie de zonas comunes"),
             ("superficie_total", "Superficie total"),
             ("superficie_comprobada", "Superficie comprobada"),
+            ("superficie_computable", "Superficie computable"),
+            ("superficie_adoptada_calculo", "Superficie adoptada para cálculo"),
+            (
+                "criterio_superficie_adoptada",
+                "Criterio de superficie adoptada",
+            ),
+        ],
+    ),
+    (
+        "Base de valor",
+        [
+            ("base_valor", "Base de valor"),
+            ("base_valor_otro", "Base de valor: otro"),
+            ("definicion_base_valor", "Definición de la base de valor"),
         ],
     ),
     (
@@ -537,11 +561,56 @@ VALORACION_EXPEDIENTE_FORM_GROUPS = [
             ("criterios_metodo_valoracion", "Criterios / método de valoración"),
             ("variables_mercado", "Variables de mercado"),
             ("metodo_homogeneizacion", "Método de homogeneización"),
+            ("metodo_comparacion_aplicado", "Comparación aplicada"),
+            ("metodo_comparacion_descartado", "Comparación descartada"),
+            (
+                "metodo_comparacion_justificacion",
+                "Justificación comparación",
+            ),
+            ("metodo_comparacion_observaciones", "Observaciones comparación"),
+            ("metodo_coste_aplicado", "Coste aplicado"),
+            ("metodo_coste_descartado", "Coste descartado"),
+            ("metodo_coste_justificacion", "Justificación coste"),
+            ("metodo_coste_observaciones", "Observaciones coste"),
+            (
+                "metodo_actualizacion_rentas_aplicado",
+                "Actualización de rentas aplicada",
+            ),
+            (
+                "metodo_actualizacion_rentas_descartado",
+                "Actualización de rentas descartada",
+            ),
+            (
+                "metodo_actualizacion_rentas_justificacion",
+                "Justificación actualización de rentas",
+            ),
+            (
+                "metodo_actualizacion_rentas_observaciones",
+                "Observaciones actualización de rentas",
+            ),
+            ("metodo_residual_aplicado", "Residual aplicado"),
+            ("metodo_residual_descartado", "Residual descartado"),
+            ("metodo_residual_justificacion", "Justificación residual"),
+            ("metodo_residual_observaciones", "Observaciones residual"),
         ],
     ),
     (
-        "Limitaciones",
+        "Incidencias y limitaciones",
         [
+            (
+                "incidencias_automaticas_visibles",
+                "Mostrar incidencias automáticas en informe",
+            ),
+            (
+                "incidencias_manuales_visibles",
+                "Mostrar incidencias manuales en informe",
+            ),
+            (
+                "incidencias_condicionantes_manuales",
+                "Condicionantes manuales",
+            ),
+            ("incidencias_advertencias_manuales", "Advertencias manuales"),
+            ("incidencias_limitaciones_manuales", "Limitaciones manuales"),
             (
                 "condicionantes_limitaciones_valoracion",
                 "Condicionantes / limitaciones",
@@ -557,6 +626,20 @@ VALORACION_EXPEDIENTE_FORM_FIELDS = list(
         for campo, _ in campos
     )
 )
+VALORACION_EXPEDIENTE_CHECKBOX_FIELDS = {
+    "metodo_comparacion_activo",
+    "metodo_coste_activo",
+    "metodo_comparacion_aplicado",
+    "metodo_comparacion_descartado",
+    "metodo_coste_aplicado",
+    "metodo_coste_descartado",
+    "metodo_actualizacion_rentas_aplicado",
+    "metodo_actualizacion_rentas_descartado",
+    "metodo_residual_aplicado",
+    "metodo_residual_descartado",
+    "incidencias_automaticas_visibles",
+    "incidencias_manuales_visibles",
+}
 VALORACION_VISITA_OBSERVACIONES_GROUPS = [
     (
         "Estado observado",
@@ -608,6 +691,24 @@ VALORACION_AYUDAS_RAPIDAS = {
         "Judicial",
         "Otro",
     ],
+    "base_valor": [
+        "valor_mercado",
+        "valor_razonable_estimado",
+        "valor_reposicion",
+        "valor_actualizacion_rentas",
+        "otro",
+    ],
+    "alcance_valoracion": [
+        "Valoración pericial con estructura inspirada en estándares ECO/805/2003",
+        "Valoración orientativa para asesoramiento",
+        "Valoración para procedimiento judicial",
+    ],
+    "criterio_superficie_adoptada": [
+        "Superficie comprobada en visita",
+        "Superficie catastral contrastada",
+        "Superficie registral disponible",
+        "Superficie construida adoptada por prudencia",
+    ],
     "situacion_ocupacion": [
         "Libre",
         "Ocupado por propietario",
@@ -646,6 +747,18 @@ VALORACION_AYUDAS_RAPIDAS = {
         "Comparables no visitados",
         "Otro",
     ],
+    "incidencias_condicionantes_manuales": [
+        "Valor condicionado a comprobación documental",
+        "Valor condicionado a acceso completo",
+    ],
+    "incidencias_advertencias_manuales": [
+        "Datos sujetos a la documentación aportada",
+        "Comparables no visitados individualmente",
+    ],
+    "incidencias_limitaciones_manuales": [
+        "No se realiza comprobación urbanística exhaustiva",
+        "No se verifica cargas registrales fuera de la documentación aportada",
+    ],
 }
 COMPARABLE_VALORACION_ITEMS = [
     ("direccion_testigo", "Dirección testigo"),
@@ -671,9 +784,26 @@ TESTIGO_VALORACION_FORM_GROUPS = [
         [
             ("direccion_testigo", "Dirección"),
             ("referencia_testigo", "Referencia"),
+        ],
+    ),
+    (
+        "Datos económicos y fuente",
+        [
+            ("precio_oferta", "Precio ofertado"),
+            ("precio_depurado", "Precio depurado"),
+            ("superficie_tomada", "Superficie tomada"),
+            ("tipo_superficie_tomada", "Tipo de superficie tomada"),
+            ("fuente_tipo", "Tipo de fuente"),
             ("fuente_testigo", "Fuente"),
-            ("url_fuente", "URL de fuente"),
-            ("fecha_testigo", "Fecha"),
+            ("fuente_detalle", "Detalle de fuente"),
+            ("url_fuente", "URL o referencia de fuente"),
+            ("fecha_testigo", "Fecha del testigo"),
+            ("fecha_captura", "Fecha de captura"),
+            ("dato_verificado", "Dato verificado"),
+            ("testigo_visitado", "Testigo visitado"),
+            ("fiabilidad_dato", "Fiabilidad del dato"),
+            ("similitud_inmueble", "Similitud con el inmueble"),
+            ("observaciones_economicas", "Observaciones económicas"),
         ],
     ),
     (
@@ -688,7 +818,6 @@ TESTIGO_VALORACION_FORM_GROUPS = [
     (
         "Importes y superficies",
         [
-            ("precio_oferta", "Precio oferta"),
             ("precio_cierre", "Precio cierre"),
             ("superficie_construida", "Superficie construida"),
             ("superficie_util", "Superficie útil"),
@@ -705,9 +834,12 @@ TESTIGO_VALORACION_FORM_GROUPS = [
             ("banos", "Baños"),
             ("aseos", "Aseos"),
             ("ascensor", "Ascensor"),
+            ("es_exterior", "Exterior"),
+            ("balcon", "Balcón"),
             ("garaje", "Garaje"),
             ("trastero", "Trastero"),
             ("terraza", "Terraza"),
+            ("patio", "Patio"),
         ],
     ),
     (
@@ -715,8 +847,13 @@ TESTIGO_VALORACION_FORM_GROUPS = [
         [
             ("estado_conservacion", "Estado de conservación"),
             ("antiguedad", "Antigüedad"),
+            ("ano_construccion", "Año de construcción"),
+            ("ano_reforma", "Año de reforma"),
             ("calidad_constructiva", "Calidad constructiva"),
             ("caracteristicas_constructivas", "Características constructivas"),
+            ("aire_acondicionado", "Aire acondicionado"),
+            ("tipo_calefaccion", "Tipo de calefacción"),
+            ("certificacion_energetica", "Certificación energética"),
             ("visitado", "Visitado"),
             ("validacion_estado", "Estado de validación"),
             ("reutilizable", "Reutilizable"),
@@ -732,8 +869,13 @@ TESTIGO_VALORACION_FORM_FIELDS = [
     for _, campos in TESTIGO_VALORACION_FORM_GROUPS
     for campo, _ in campos
 ]
+if "precio_unitario_inicial" not in TESTIGO_VALORACION_FORM_FIELDS:
+    TESTIGO_VALORACION_FORM_FIELDS.append("precio_unitario_inicial")
 TESTIGO_VALORACION_NUMERIC_FIELDS = {
     "precio_oferta",
+    "precio_depurado",
+    "precio_unitario_inicial",
+    "superficie_tomada",
     "precio_cierre",
     "superficie_construida",
     "superficie_util",
@@ -744,12 +886,20 @@ TESTIGO_VALORACION_INTEGER_FIELDS = {
     "dormitorios",
     "banos",
     "aseos",
+    "ano_construccion",
+    "ano_reforma",
 }
 TESTIGO_VALORACION_CHECKBOX_FIELDS = {
     "ascensor",
+    "es_exterior",
+    "balcon",
     "garaje",
     "trastero",
     "terraza",
+    "patio",
+    "aire_acondicionado",
+    "dato_verificado",
+    "testigo_visitado",
     "visitado",
     "reutilizable",
 }
@@ -759,12 +909,74 @@ TESTIGO_VALORACION_VALIDACION_OPTIONS = [
     ("validado", "Validado"),
     ("descartado", "Descartado"),
 ]
+TESTIGO_BIBLIOTECA_FUENTE_PRESETS = [
+    "Idealista",
+    "Fotocasa",
+    "Habitaclia",
+    "Pisos.com",
+    "Yaencontre",
+    "Otro",
+]
+TESTIGO_BIBLIOTECA_BOOLEAN_FIELDS = {
+    "ascensor",
+    "es_exterior",
+    "balcon",
+    "terraza",
+    "patio",
+    "aire_acondicionado",
+    "garaje",
+    "trastero",
+    "dato_verificado",
+}
+TESTIGO_BIBLIOTECA_NUMERIC_FIELDS = {
+    "precio_oferta": "Precio oferta",
+    "precio_depurado": "Precio depurado",
+    "superficie_tomada": "Superficie tomada",
+    "superficie_construida": "Superficie construida",
+    "superficie_util": "Superficie útil",
+}
+TESTIGO_BIBLIOTECA_INTEGER_FIELDS = {
+    "banos": "Baños",
+    "ano_construccion": "Año de construcción",
+    "ano_reforma": "Año de reforma",
+}
 VALORACION_TESTIGO_AJUSTES_ITEMS = [
     ("ajuste_superficie_construida", "Superficie construida"),
     ("ajuste_ubicacion", "Ubicación"),
     ("ajuste_antiguedad", "Antigüedad"),
     ("ajuste_calidades", "Calidades"),
     ("ajuste_caracteristicas_constructivas", "Características constructivas"),
+]
+HOMOGENEIZACION_VARIABLE_OPTIONS = [
+    ("superficie", "Superficie"),
+    ("estado_conservacion", "Estado de conservación"),
+    ("antiguedad", "Antigüedad"),
+    ("planta", "Planta"),
+    ("ascensor", "Ascensor"),
+    ("ubicacion", "Ubicación"),
+    ("calidad_constructiva", "Calidad constructiva"),
+    ("reformas", "Reformas"),
+    ("anexos", "Anexos"),
+    ("exterior_interior", "Exterior/interior"),
+    ("orientacion", "Orientación"),
+    ("fuente_negociacion", "Fuente/negociación"),
+    ("otro", "Otro"),
+]
+HOMOGENEIZACION_TIPO_AJUSTE_OPTIONS = [
+    ("porcentaje", "Porcentaje"),
+    ("importe_m2", "Importe €/m²"),
+    ("cualitativo_no_cuantificado", "Cualitativo no cuantificado"),
+]
+HOMOGENEIZACION_SIGNO_OPTIONS = [
+    ("+", "Suma"),
+    ("-", "Resta"),
+]
+REPRESENTATIVIDAD_VALORACION_OPTIONS = [
+    ("alta", "Alta"),
+    ("media_alta", "Media alta"),
+    ("media", "Media"),
+    ("baja", "Baja"),
+    ("descartado", "Descartado"),
 ]
 TIPO_NIVEL_OPTIONS = [
     ("bajo_rasante", "Bajo rasante"),
@@ -1066,6 +1278,37 @@ def guardar_uploads_contextuales(
         if nombre:
             nombres.append(nombre)
     return nombres
+
+
+TESTIGO_FOTO_EXT_PERMITIDAS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+TESTIGO_FOTO_MAX_BYTES = 10 * 1024 * 1024
+
+
+def tamano_upload_file(archivo: UploadFile) -> int:
+    posicion = archivo.file.tell()
+    archivo.file.seek(0, os.SEEK_END)
+    tamano = archivo.file.tell()
+    archivo.file.seek(posicion)
+    return tamano
+
+
+def validar_fotos_testigo_valoracion(fotos: list[UploadFile] | None) -> list[str]:
+    errores = []
+    for foto in fotos or []:
+        if not foto or not foto.filename:
+            continue
+        extension = os.path.splitext(foto.filename)[1].lower()
+        if extension not in TESTIGO_FOTO_EXT_PERMITIDAS:
+            errores.append(
+                f"{foto.filename}: extensión no permitida. Usa JPG, PNG, WEBP o GIF."
+            )
+            continue
+        if foto.content_type and not foto.content_type.startswith("image/"):
+            errores.append(f"{foto.filename}: el archivo debe ser una imagen.")
+            continue
+        if tamano_upload_file(foto) > TESTIGO_FOTO_MAX_BYTES:
+            errores.append(f"{foto.filename}: supera el tamaño máximo de 10 MB.")
+    return errores
 
 
 def obtener_fotos_relacionadas(cur, tabla: str, fk_columna: str, parent_id: int) -> list[dict]:
@@ -1532,10 +1775,10 @@ def upsert_valoracion_expediente(cur, expediente_id: int, valores: dict):
     valores_limpios = {
         campo: (
             1
-            if campo in {"metodo_comparacion_activo", "metodo_coste_activo"}
+            if campo in VALORACION_EXPEDIENTE_CHECKBOX_FIELDS
             and valores.get(campo) == "1"
             else 0
-            if campo in {"metodo_comparacion_activo", "metodo_coste_activo"}
+            if campo in VALORACION_EXPEDIENTE_CHECKBOX_FIELDS
             else limpiar_texto(valores.get(campo))
         )
         for campo in columnas
@@ -1683,9 +1926,20 @@ def formatear_coeficiente_es(valor) -> str:
 
 def enriquecer_testigo_valoracion(testigo: dict) -> dict:
     item = dict(testigo)
+    preparado = preparar_testigo_comparacion(item)
+    if not item.get("precio_unitario_inicial"):
+        item["precio_unitario_inicial"] = preparado["precio_unitario_inicial"]
+    item["advertencias_calculo"] = preparado["advertencias_calculo"]
     item["precio_oferta_fmt"] = formatear_moneda_es(item.get("precio_oferta"))
+    item["precio_depurado_fmt"] = formatear_moneda_es(item.get("precio_depurado"))
     item["precio_cierre_fmt"] = formatear_moneda_es(item.get("precio_cierre"))
     item["valor_unitario_fmt"] = formatear_precio_unitario_es(item.get("valor_unitario"))
+    item["precio_unitario_inicial_fmt"] = formatear_precio_unitario_es(
+        item.get("precio_unitario_inicial")
+    )
+    item["superficie_tomada_fmt"] = formatear_superficie_es(
+        item.get("superficie_tomada")
+    )
     item["superficie_construida_fmt"] = formatear_superficie_es(
         item.get("superficie_construida")
     )
@@ -1695,6 +1949,8 @@ def enriquecer_testigo_valoracion(testigo: dict) -> dict:
     )
     item["reutilizable_fmt"] = formatear_booleano_es(item.get("reutilizable"))
     item["visitado_fmt"] = formatear_booleano_es(item.get("visitado"))
+    item["dato_verificado_fmt"] = formatear_booleano_es(item.get("dato_verificado"))
+    item["testigo_visitado_fmt"] = formatear_booleano_es(item.get("testigo_visitado"))
     item["ascensor_fmt"] = formatear_booleano_es(item.get("ascensor"))
     item["garaje_fmt"] = formatear_booleano_es(item.get("garaje"))
     item["trastero_fmt"] = formatear_booleano_es(item.get("trastero"))
@@ -1709,6 +1965,10 @@ def enriquecer_testigo_valoracion(testigo: dict) -> dict:
 
 def enriquecer_vinculo_testigo_valoracion(vinculo: dict) -> dict:
     item = dict(vinculo)
+    preparado = preparar_testigo_comparacion(item)
+    if not item.get("precio_unitario_inicial"):
+        item["precio_unitario_inicial"] = preparado["precio_unitario_inicial"]
+    item["advertencias_calculo"] = preparado["advertencias_calculo"]
     item["valor_unitario_base_fmt"] = formatear_precio_unitario_es(
         item.get("valor_unitario_base") or item.get("valor_unitario")
     )
@@ -1719,6 +1979,13 @@ def enriquecer_vinculo_testigo_valoracion(vinculo: dict) -> dict:
         item.get("coeficiente_total")
     )
     item["precio_oferta_fmt"] = formatear_moneda_es(item.get("precio_oferta"))
+    item["precio_depurado_fmt"] = formatear_moneda_es(item.get("precio_depurado"))
+    item["precio_unitario_inicial_fmt"] = formatear_precio_unitario_es(
+        item.get("precio_unitario_inicial")
+    )
+    item["superficie_tomada_fmt"] = formatear_superficie_es(
+        item.get("superficie_tomada")
+    )
     item["superficie_construida_fmt"] = formatear_superficie_es(
         item.get("superficie_construida")
     )
@@ -1727,13 +1994,17 @@ def enriquecer_vinculo_testigo_valoracion(vinculo: dict) -> dict:
 
 
 def valores_testigo_desde_form(form) -> dict:
-    return {
+    valores = {
         campo: normalizar_valor_testigo(
             campo,
             form.get(campo, "1" if campo == "reutilizable" else ""),
         )
         for campo in TESTIGO_VALORACION_FORM_FIELDS
     }
+    preparado = preparar_testigo_comparacion(valores)
+    if "precio_unitario_inicial" in TESTIGO_VALORACION_FORM_FIELDS:
+        valores["precio_unitario_inicial"] = preparado["precio_unitario_inicial"]
+    return valores
 
 
 def cargar_testigo_valoracion_form(cur, testigo_id: int, user_id: int):
@@ -1767,7 +2038,13 @@ def cargar_testigos_valoracion_usuario(cur, user_id: int, solo_reutilizables: bo
 
 def cargar_opciones_filtro_testigos_valoracion(cur, user_id: int) -> dict:
     opciones = {}
-    for campo in ("tipologia", "municipio", "validacion_estado"):
+    for campo in (
+        "tipologia",
+        "municipio",
+        "validacion_estado",
+        "fuente_testigo",
+        "fiabilidad_dato",
+    ):
         opciones[campo] = [
             row[campo]
             for row in cur.execute(
@@ -1782,6 +2059,525 @@ def cargar_opciones_filtro_testigos_valoracion(cur, user_id: int) -> dict:
             ).fetchall()
         ]
     return opciones
+
+
+def biblioteca_testigos_valor_orden(testigo: dict, ordenar: str):
+    if ordenar == "fecha":
+        return (False, limpiar_texto(testigo.get("fecha_testigo")))
+    if ordenar == "unitario":
+        valor = parsear_float(testigo.get("precio_unitario_inicial"))
+        return (valor is None, valor or 0)
+    if ordenar == "precio":
+        valor = parsear_float(testigo.get("precio_depurado") or testigo.get("precio_oferta"))
+        return (valor is None, valor or 0)
+    if ordenar == "superficie":
+        valor = parsear_float(
+            testigo.get("superficie_tomada") or testigo.get("superficie_construida")
+        )
+        return (valor is None, valor or 0)
+    if ordenar == "fiabilidad":
+        texto = limpiar_texto(testigo.get("fiabilidad_dato")).lower()
+        return (False, WORKBENCH_FIABILIDAD_RANK.get(texto, 0), texto)
+    return (False, limpiar_texto(testigo.get("direccion_testigo")).lower())
+
+
+def ordenar_biblioteca_testigos(testigos: list[dict], ordenar: str, direccion: str) -> list[dict]:
+    con_valor = []
+    sin_valor = []
+    for testigo in testigos:
+        valor = biblioteca_testigos_valor_orden(testigo, ordenar)
+        if valor[0]:
+            sin_valor.append(testigo)
+        else:
+            con_valor.append((valor[1:], testigo))
+    con_valor.sort(key=lambda item: item[0], reverse=direccion == "desc")
+    return [item for _, item in con_valor] + sin_valor
+
+
+def testigo_biblioteca_incompleto(testigo: dict) -> bool:
+    return bool(testigo.get("advertencias_calculo")) or any(
+        parsear_float(testigo.get(campo)) is None
+        for campo in ("precio_oferta", "superficie_tomada", "precio_unitario_inicial")
+    )
+
+
+def diagnostico_biblioteca_testigos(testigos: list[dict]) -> dict:
+    return {
+        "total": len(testigos),
+        "incompletos": sum(1 for item in testigos if testigo_biblioteca_incompleto(item)),
+        "sin_fuente": sum(1 for item in testigos if not limpiar_texto(item.get("fuente_testigo"))),
+        "sin_fecha": sum(1 for item in testigos if not limpiar_texto(item.get("fecha_testigo"))),
+        "sin_precio_superficie": sum(
+            1
+            for item in testigos
+            if parsear_float(item.get("precio_oferta") or item.get("precio_depurado")) is None
+            or parsear_float(item.get("superficie_tomada")) is None
+        ),
+        "verificados": sum(1 for item in testigos if str(item.get("dato_verificado")) == "1"),
+        "no_verificados": sum(
+            1 for item in testigos if str(item.get("dato_verificado") or "0") != "1"
+        ),
+    }
+
+
+def biblioteca_testigos_url(filtros: dict, ordenar: str, direccion: str, **overrides) -> str:
+    params = {
+        "municipio": filtros.get("municipio", ""),
+        "tipologia": filtros.get("tipologia", ""),
+        "fuente": filtros.get("fuente", ""),
+        "fiabilidad": filtros.get("fiabilidad", ""),
+        "verificacion": filtros.get("verificacion", ""),
+        "incompletos": filtros.get("incompletos", ""),
+        "expediente_id": filtros.get("expediente_id", ""),
+        "ordenar": ordenar,
+        "dir": direccion,
+    }
+    params.update(overrides)
+    query = "&".join(
+        f"{clave}={quote_plus(str(valor))}"
+        for clave, valor in params.items()
+        if limpiar_texto(valor)
+    )
+    return f"/valoracion/testigos/biblioteca?{query}" if query else "/valoracion/testigos/biblioteca"
+
+
+def testigo_biblioteca_form_vacio(expediente_id: str = "") -> dict:
+    return {
+        "texto_anuncio_bruto": "",
+        "url_fuente": "",
+        "fuente_tipo": "Idealista",
+        "fuente_testigo": "",
+        "fecha_captura": datetime.now().date().isoformat(),
+        "fecha_testigo": "",
+        "referencia_testigo": "",
+        "direccion_testigo": "",
+        "codigo_postal": "",
+        "municipio": "",
+        "provincia": "",
+        "tipologia": "",
+        "precio_oferta": "",
+        "precio_depurado": "",
+        "superficie_tomada": "",
+        "tipo_superficie_tomada": "construida",
+        "superficie_construida": "",
+        "superficie_util": "",
+        "banos": "",
+        "planta": "",
+        "ascensor": "0",
+        "es_exterior": "0",
+        "balcon": "0",
+        "terraza": "0",
+        "patio": "0",
+        "ano_construccion": "",
+        "ano_reforma": "",
+        "aire_acondicionado": "0",
+        "tipo_calefaccion": "",
+        "estado_conservacion": "",
+        "certificacion_energetica": "",
+        "garaje": "0",
+        "trastero": "0",
+        "fiabilidad_dato": "",
+        "dato_verificado": "0",
+        "observaciones": "",
+        "expediente_id": limpiar_texto(expediente_id),
+    }
+
+
+def analisis_anuncio_vacio() -> dict:
+    return {
+        "ejecutado": False,
+        "campos": {},
+        "confianza": "baja",
+        "advertencias": [],
+    }
+
+
+def _numero_texto_anuncio(valor: str):
+    if not valor:
+        return None
+    texto = valor.replace(".", "").replace(" ", "").replace(",", ".")
+    try:
+        return float(texto)
+    except ValueError:
+        return None
+
+
+def analizar_texto_anuncio_inmobiliario(texto: str) -> dict:
+    texto_limpio = limpiar_texto(texto)
+    if not texto_limpio:
+        return {
+            "ejecutado": True,
+            "campos": {},
+            "confianza": "baja",
+            "advertencias": ["No se ha pegado texto suficiente para analizar."],
+        }
+
+    campos = {}
+    advertencias = []
+    texto_lower = texto_limpio.lower()
+    for portal in TESTIGO_BIBLIOTECA_FUENTE_PRESETS:
+        if portal != "Otro" and portal.lower() in texto_lower:
+            campos["fuente_tipo"] = portal
+            campos["fuente_testigo"] = portal
+            break
+
+    precio_match = re.search(
+        r"(\d{2,3}(?:[.\s]\d{3})+|\d{5,7})(?:,\d{1,2})?\s*(?:€|eur)",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    if precio_match:
+        precio = _numero_texto_anuncio(precio_match.group(1))
+        if precio is not None:
+            campos["precio_oferta"] = str(int(precio))
+
+    superficie_matches = list(re.finditer(
+        r"(\d{2,4}(?:[,.]\d{1,2})?)\s*m(?:²|2)?\s*(construidos|útiles|utiles|registrales|catastrales)?",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    ))
+    for superficie_match in superficie_matches:
+        superficie = _numero_texto_anuncio(superficie_match.group(1))
+        if superficie is None:
+            continue
+        superficie_valor = str(superficie).rstrip("0").rstrip(".")
+        if "superficie_tomada" not in campos:
+            campos["superficie_tomada"] = str(superficie).rstrip("0").rstrip(".")
+        tipo_superficie = limpiar_texto(superficie_match.group(2)).lower()
+        if "útil" in tipo_superficie or "util" in tipo_superficie:
+            campos["superficie_util"] = superficie_valor
+            campos["tipo_superficie_tomada"] = "util"
+        elif "registral" in tipo_superficie:
+            campos["tipo_superficie_tomada"] = "registral"
+        elif "catastral" in tipo_superficie:
+            campos["tipo_superficie_tomada"] = "catastral"
+        elif tipo_superficie:
+            campos["superficie_construida"] = superficie_valor
+            campos["tipo_superficie_tomada"] = "construida"
+
+    unitario_match = re.search(
+        r"(\d{1,3}(?:[.\s]\d{3})+|\d{3,5})(?:,\d{1,2})?\s*(?:€\s*/\s*m(?:²|2)|€/m(?:²|2))",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    if unitario_match:
+        unitario = _numero_texto_anuncio(unitario_match.group(1))
+        if unitario is not None:
+            campos["precio_unitario_detectado"] = formatear_precio_unitario_es(unitario)
+
+    habitaciones = re.search(
+        r"(\d{1,2})\s*(?:hab\.?|habitaciones|dormitorios)",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    banos = re.search(
+        r"(\d{1,2})\s*(?:baños|banos)",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    observaciones_detectadas = []
+    if habitaciones:
+        observaciones_detectadas.append(f"{habitaciones.group(1)} habitaciones detectadas")
+    if banos:
+        campos["banos"] = banos.group(1)
+        observaciones_detectadas.append(f"{banos.group(1)} baños detectados")
+    if observaciones_detectadas:
+        campos["observaciones_detectadas"] = "; ".join(observaciones_detectadas) + "."
+
+    planta_match = re.search(
+        r"(\d{1,2})(?:ª|a|º|o)?\s*planta",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    if planta_match:
+        campos["planta"] = f"{planta_match.group(1)}ª"
+    elif re.search(r"\bático\b|\batico\b", texto_lower):
+        campos["planta"] = "ático"
+    elif re.search(r"\bbajo\b", texto_lower):
+        campos["planta"] = "bajo"
+
+    if "sin ascensor" in texto_lower:
+        campos["ascensor"] = "0"
+    elif "con ascensor" in texto_lower or re.search(r"\bascensor\b", texto_lower):
+        campos["ascensor"] = "1"
+    if "exterior" in texto_lower:
+        campos["es_exterior"] = "1"
+    elif "interior" in texto_lower:
+        campos["es_exterior"] = "0"
+    if re.search(r"\bbalc[oó]n\b", texto_lower):
+        campos["balcon"] = "1"
+    if "terraza" in texto_lower:
+        campos["terraza"] = "1"
+    if re.search(r"\bpatio\b", texto_lower):
+        campos["patio"] = "1"
+
+    construido_match = re.search(
+        r"construid[oa]\s+en\s+((?:19|20)\d{2})",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    if construido_match:
+        campos["ano_construccion"] = construido_match.group(1)
+    reforma_match = re.search(
+        r"reformad[oa]\s+en\s+((?:19|20)\d{2})",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    if reforma_match:
+        campos["ano_reforma"] = reforma_match.group(1)
+    if re.search(r"\ba reformar\b", texto_lower):
+        campos["estado_conservacion"] = "a reformar"
+    elif "reformado" in texto_lower or "reformada" in texto_lower:
+        campos["estado_conservacion"] = "reformado"
+    elif "buen estado" in texto_lower:
+        campos["estado_conservacion"] = "buen estado"
+    if "aire acondicionado" in texto_lower:
+        campos["aire_acondicionado"] = "1"
+    calefaccion_match = re.search(
+        r"calefacci[oó]n\s*(?:individual|central)?\s*[:\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ ]{3,40}?)(?=\s+(?:certificaci[oó]n|certificado|aire|precio|\d)|[.,;]|$)",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    if calefaccion_match:
+        campos["tipo_calefaccion"] = limpiar_texto(
+            calefaccion_match.group(1)
+        ).split(".")[0][:40]
+    certificado_match = re.search(
+        r"(?:certificaci[oó]n|certificado)\s+energ[eé]tic[ao]\s*[:\-]?\s*([A-G])\b",
+        texto_limpio,
+        flags=re.IGNORECASE,
+    )
+    if certificado_match:
+        campos["certificacion_energetica"] = certificado_match.group(1).upper()
+
+    lineas = [linea.strip() for linea in texto_limpio.splitlines() if linea.strip()]
+    if lineas:
+        primera_linea = lineas[0][:180]
+        if not re.search(r"^\d", primera_linea):
+            campos["referencia_testigo"] = primera_linea
+
+    municipio_match = re.search(
+        r"(?:municipio|localidad|en)\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\s]{2,40})",
+        texto_limpio,
+    )
+    if municipio_match:
+        municipio = limpiar_texto(municipio_match.group(1)).split(".")[0].strip()
+        if 2 < len(municipio) <= 40:
+            campos["municipio"] = municipio
+
+    if "precio_oferta" not in campos:
+        advertencias.append("No se ha detectado un precio claro.")
+    if "superficie_tomada" not in campos:
+        advertencias.append("No se ha detectado una superficie clara.")
+    if "fuente_testigo" not in campos:
+        advertencias.append("No se ha detectado portal/fuente de forma clara.")
+
+    señales_fuertes = sum(
+        1
+        for campo in ("precio_oferta", "superficie_tomada", "fuente_testigo")
+        if campo in campos
+    )
+    confianza = "alta" if señales_fuertes >= 3 else "media" if señales_fuertes == 2 else "baja"
+    return {
+        "ejecutado": True,
+        "campos": campos,
+        "confianza": confianza,
+        "advertencias": advertencias,
+    }
+
+
+def aplicar_analisis_a_testigo_biblioteca(valores: dict, analisis: dict) -> dict:
+    actualizados = dict(valores)
+    for campo, valor in (analisis.get("campos") or {}).items():
+        if campo in {"precio_unitario_detectado", "observaciones_detectadas"}:
+            continue
+        if campo in TESTIGO_BIBLIOTECA_BOOLEAN_FIELDS and campo in actualizados:
+            if str(valor) == "1" and str(actualizados.get(campo)) != "1":
+                actualizados[campo] = "1"
+            elif str(valor) == "0" and not limpiar_texto(actualizados.get(campo)):
+                actualizados[campo] = "0"
+        elif campo in actualizados and not limpiar_texto(actualizados.get(campo)):
+            actualizados[campo] = valor
+    observacion_detectada = analisis.get("campos", {}).get("observaciones_detectadas")
+    if observacion_detectada and not limpiar_texto(actualizados.get("observaciones")):
+        actualizados["observaciones"] = observacion_detectada
+    return actualizados
+
+
+def normalizar_clave_duplicado(texto: str) -> str:
+    texto = limpiar_texto(texto).lower()
+    texto = "".join(
+        caracter
+        for caracter in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(caracter) != "Mn"
+    )
+    return re.sub(r"[^a-z0-9]+", " ", texto).strip()
+
+
+def valores_cercanos(valor_a, valor_b, tolerancia: float = 0.05) -> bool:
+    numero_a = parsear_float(valor_a)
+    numero_b = parsear_float(valor_b)
+    if numero_a is None or numero_b is None or numero_a <= 0 or numero_b <= 0:
+        return False
+    return abs(numero_a - numero_b) / max(numero_a, numero_b) <= tolerancia
+
+
+def buscar_duplicados_testigo_biblioteca(cur, user_id: int, valores: dict) -> list[dict]:
+    rows = cur.execute(
+        """
+        SELECT *
+        FROM testigos_valoracion
+        WHERE owner_user_id = ?
+        ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+        """,
+        (user_id,),
+    ).fetchall()
+    url = limpiar_texto(valores.get("url_fuente"))
+    fuente = normalizar_clave_duplicado(valores.get("fuente_testigo") or valores.get("fuente_tipo"))
+    referencia = normalizar_clave_duplicado(valores.get("referencia_testigo"))
+    direccion = normalizar_clave_duplicado(valores.get("direccion_testigo"))
+    municipio = normalizar_clave_duplicado(valores.get("municipio"))
+    precio = valores.get("precio_depurado") or valores.get("precio_oferta")
+    superficie = valores.get("superficie_tomada")
+    candidatos = {}
+
+    for row in rows:
+        item = dict(row)
+        motivos = []
+        if url and limpiar_texto(item.get("url_fuente")) == url:
+            motivos.append("Misma URL del anuncio.")
+        item_fuente = normalizar_clave_duplicado(
+            item.get("fuente_testigo") or item.get("fuente_tipo")
+        )
+        item_referencia = normalizar_clave_duplicado(item.get("referencia_testigo"))
+        if fuente and referencia and item_fuente == fuente and item_referencia:
+            if referencia == item_referencia or referencia in item_referencia or item_referencia in referencia:
+                motivos.append("Misma fuente y referencia/título similar.")
+        item_municipio = normalizar_clave_duplicado(item.get("municipio"))
+        if (
+            municipio
+            and item_municipio == municipio
+            and valores_cercanos(precio, item.get("precio_depurado") or item.get("precio_oferta"))
+            and valores_cercanos(superficie, item.get("superficie_tomada"))
+        ):
+            motivos.append("Mismo municipio con precio y superficie parecidos.")
+        item_direccion = normalizar_clave_duplicado(item.get("direccion_testigo"))
+        if direccion and item_direccion and (
+            direccion == item_direccion
+            or direccion in item_direccion
+            or item_direccion in direccion
+        ):
+            motivos.append("Dirección o zona similar.")
+        if motivos:
+            enriquecido = enriquecer_testigo_valoracion(item)
+            candidatos[item["id"]] = {
+                **enriquecido,
+                "motivos_duplicado": motivos,
+            }
+    return list(candidatos.values())[:5]
+
+
+def calcular_unitario_visual_testigo_biblioteca(valores: dict) -> str:
+    precio = parsear_float(valores.get("precio_depurado") or valores.get("precio_oferta"))
+    superficie = parsear_float(valores.get("superficie_tomada"))
+    if precio is None or superficie is None or superficie <= 0:
+        return "pendiente"
+    return formatear_precio_unitario_es(precio / superficie)
+
+
+def valores_testigo_biblioteca_desde_form(form) -> tuple[dict, list[str], list[str]]:
+    valores = testigo_biblioteca_form_vacio(form.get("expediente_id", ""))
+    for campo in valores.keys():
+        if campo != "expediente_id":
+            valores[campo] = limpiar_texto(form.get(campo))
+    for campo in TESTIGO_BIBLIOTECA_BOOLEAN_FIELDS:
+        if campo in valores:
+            valores[campo] = "1" if form.get(campo) == "1" else "0"
+    if not valores["fecha_captura"]:
+        valores["fecha_captura"] = datetime.now().date().isoformat()
+    if not valores["fecha_testigo"]:
+        valores["fecha_testigo"] = valores["fecha_captura"]
+    if valores["fuente_tipo"] != "Otro" and not valores["fuente_testigo"]:
+        valores["fuente_testigo"] = valores["fuente_tipo"]
+
+    errores = []
+    avisos = []
+    for campo, etiqueta in TESTIGO_BIBLIOTECA_NUMERIC_FIELDS.items():
+        if valores[campo] and parsear_float(valores[campo]) is None:
+            errores.append(f"{etiqueta} debe ser numérico.")
+    for campo, etiqueta in TESTIGO_BIBLIOTECA_INTEGER_FIELDS.items():
+        if valores[campo] and parse_optional_int(valores[campo]) is None:
+            errores.append(f"{etiqueta} debe ser un número entero.")
+    if valores["superficie_tomada"] and parsear_float(valores["superficie_tomada"]) == 0:
+        errores.append("La superficie tomada debe ser mayor que cero.")
+    if valores["url_fuente"]:
+        parsed = urlparse(valores["url_fuente"])
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            errores.append("La URL del anuncio debe empezar por http:// o https://.")
+    if not valores["fuente_testigo"]:
+        avisos.append("Fuente no informada; el testigo se guardará como dato pendiente.")
+    return valores, errores, avisos
+
+
+def insertar_testigo_biblioteca_rapido(cur, user_id: int, valores: dict) -> int:
+    datos = {
+        "owner_user_id": user_id,
+        "url_fuente": valores["url_fuente"],
+        "fuente_tipo": valores["fuente_tipo"],
+        "fuente_testigo": valores["fuente_testigo"],
+        "fecha_captura": valores["fecha_captura"],
+        "fecha_testigo": valores["fecha_testigo"],
+        "referencia_testigo": valores["referencia_testigo"],
+        "direccion_testigo": valores["direccion_testigo"],
+        "codigo_postal": valores["codigo_postal"],
+        "municipio": valores["municipio"],
+        "provincia": valores["provincia"],
+        "tipologia": valores["tipologia"],
+        "precio_oferta": parsear_float(valores["precio_oferta"]),
+        "precio_depurado": parsear_float(valores["precio_depurado"]),
+        "superficie_tomada": parsear_float(valores["superficie_tomada"]),
+        "tipo_superficie_tomada": valores["tipo_superficie_tomada"],
+        "superficie_construida": parsear_float(valores["superficie_construida"]),
+        "superficie_util": parsear_float(valores["superficie_util"]),
+        "banos": parse_optional_int(valores["banos"]),
+        "planta": valores["planta"],
+        "ascensor": 1 if valores["ascensor"] == "1" else 0,
+        "es_exterior": 1 if valores["es_exterior"] == "1" else 0,
+        "balcon": 1 if valores["balcon"] == "1" else 0,
+        "terraza": 1 if valores["terraza"] == "1" else 0,
+        "patio": 1 if valores["patio"] == "1" else 0,
+        "ano_construccion": parse_optional_int(valores["ano_construccion"]),
+        "ano_reforma": parse_optional_int(valores["ano_reforma"]),
+        "aire_acondicionado": 1 if valores["aire_acondicionado"] == "1" else 0,
+        "tipo_calefaccion": valores["tipo_calefaccion"],
+        "estado_conservacion": valores["estado_conservacion"],
+        "certificacion_energetica": valores["certificacion_energetica"],
+        "garaje": 1 if valores["garaje"] == "1" else 0,
+        "trastero": 1 if valores["trastero"] == "1" else 0,
+        "fiabilidad_dato": valores["fiabilidad_dato"],
+        "dato_verificado": 1 if valores["dato_verificado"] == "1" else 0,
+        "observaciones": valores["observaciones"],
+        "validacion_estado": "revisado" if valores["dato_verificado"] == "1" else "pendiente",
+        "reutilizable": 1,
+    }
+    preparado = preparar_testigo_comparacion(datos)
+    datos["precio_unitario_inicial"] = preparado["precio_unitario_inicial"]
+    columnas_disponibles = get_table_columns("testigos_valoracion")
+    datos = {
+        clave: valor
+        for clave, valor in datos.items()
+        if clave in columnas_disponibles
+    }
+    columnas = list(datos.keys())
+    placeholders = ", ".join(["?"] * len(columnas))
+    cur.execute(
+        f"""
+        INSERT INTO testigos_valoracion ({", ".join(columnas)})
+        VALUES ({placeholders})
+        """,
+        [datos[columna] for columna in columnas],
+    )
+    return cur.lastrowid
 
 
 def primera_foto_testigo_valoracion(cur, testigo_id: int) -> str:
@@ -1857,11 +2653,17 @@ def cargar_testigos_expediente_valoracion(cur, expediente_id: int):
                tv.fuente_testigo,
                tv.fecha_testigo,
                tv.precio_oferta,
+               tv.precio_depurado,
+               tv.precio_unitario_inicial,
+               tv.superficie_tomada,
+               tv.tipo_superficie_tomada,
                tv.valor_unitario,
                tv.superficie_construida,
                tv.superficie_util,
                tv.tipologia,
                tv.validacion_estado,
+               tv.fiabilidad_dato,
+               tv.similitud_inmueble,
                tv.observaciones,
                vta.ajuste_superficie_construida,
                vta.ajuste_ubicacion,
@@ -1872,7 +2674,9 @@ def cargar_testigos_expediente_valoracion(cur, expediente_id: int):
                vta.justificacion
         FROM valoracion_expediente_testigos vet
         LEFT JOIN testigos_valoracion tv ON tv.id = vet.testigo_id
-        LEFT JOIN valoracion_testigo_ajustes vta ON vta.expediente_testigo_id = vet.id
+        LEFT JOIN valoracion_testigo_ajustes vta
+          ON vta.expediente_testigo_id = vet.id
+         AND COALESCE(vta.variable, '') = ''
         WHERE vet.expediente_id = ?
         ORDER BY COALESCE(vet.orden, 9999) ASC, vet.id ASC
         """,
@@ -1905,6 +2709,7 @@ def cargar_valoracion_testigo_ajustes(cur, vinculo_id: int):
         SELECT *
         FROM valoracion_testigo_ajustes
         WHERE expediente_testigo_id = ?
+          AND COALESCE(variable, '') = ''
         """,
         (vinculo_id,),
     ).fetchone()
@@ -1947,6 +2752,7 @@ def upsert_valoracion_testigo_ajustes(cur, vinculo, valores: dict):
         SELECT id
         FROM valoracion_testigo_ajustes
         WHERE expediente_testigo_id = ?
+          AND COALESCE(variable, '') = ''
         """,
         (vinculo["id"],),
     ).fetchone()
@@ -1993,6 +2799,566 @@ def upsert_valoracion_testigo_ajustes(cur, vinculo, valores: dict):
         (valor_unitario_ajustado, vinculo["id"]),
     )
     return valor_unitario_ajustado
+
+
+def ajuste_homogeneizacion_vacio() -> dict:
+    return {
+        "id": "",
+        "variable": "superficie",
+        "variable_otro": "",
+        "valor_inmueble": "",
+        "valor_testigo": "",
+        "tipo_ajuste": "porcentaje",
+        "ajuste_porcentaje": "",
+        "ajuste_importe_m2": "",
+        "signo": "+",
+        "justificacion": "",
+        "orden": "",
+        "activo": "1",
+    }
+
+
+def row_ajuste_homogeneizacion(row) -> dict:
+    item = dict(row)
+    item["activo_fmt"] = formatear_booleano_es(item.get("activo"))
+    porcentaje = parsear_float(item.get("ajuste_porcentaje"))
+    item["ajuste_porcentaje_fmt"] = (
+        f"{formatear_numero_es(porcentaje * 100, 2)}%" if porcentaje is not None else "—"
+    )
+    item["ajuste_importe_m2_fmt"] = formatear_precio_unitario_es(
+        item.get("ajuste_importe_m2")
+    )
+    return item
+
+
+def cargar_ajustes_homogeneizacion(cur, vinculo_id: int) -> list[dict]:
+    return [
+        row_ajuste_homogeneizacion(row)
+        for row in cur.execute(
+            """
+            SELECT *
+            FROM valoracion_testigo_ajustes
+            WHERE expediente_testigo_id = ?
+              AND COALESCE(variable, '') != ''
+            ORDER BY COALESCE(orden, 9999) ASC, id ASC
+            """,
+            (vinculo_id,),
+        ).fetchall()
+    ]
+
+
+def get_owned_ajuste_homogeneizacion(
+    cur,
+    ajuste_id: int,
+    vinculo_id: int,
+    expediente_id: int,
+    user_id: int,
+):
+    return cur.execute(
+        """
+        SELECT vta.*
+        FROM valoracion_testigo_ajustes vta
+        JOIN valoracion_expediente_testigos vet ON vet.id = vta.expediente_testigo_id
+        JOIN expedientes e ON e.id = vet.expediente_id
+        WHERE vta.id = ?
+          AND vta.expediente_testigo_id = ?
+          AND vet.expediente_id = ?
+          AND e.owner_user_id = ?
+          AND COALESCE(vta.variable, '') != ''
+        """,
+        (ajuste_id, vinculo_id, expediente_id, user_id),
+    ).fetchone()
+
+
+def valores_homogeneizacion_desde_form(form) -> dict:
+    tipo = limpiar_texto(form.get("tipo_ajuste")) or "porcentaje"
+    signo = limpiar_texto(form.get("signo")) or "+"
+    if tipo == "cualitativo_no_cuantificado":
+        signo = ""
+    return {
+        "variable": limpiar_texto(form.get("variable")) or "otro",
+        "variable_otro": limpiar_texto(form.get("variable_otro")),
+        "valor_inmueble": limpiar_texto(form.get("valor_inmueble")),
+        "valor_testigo": limpiar_texto(form.get("valor_testigo")),
+        "tipo_ajuste": tipo,
+        "ajuste_porcentaje": parsear_float(form.get("ajuste_porcentaje")),
+        "ajuste_importe_m2": parsear_float(form.get("ajuste_importe_m2")),
+        "signo": signo,
+        "justificacion": limpiar_texto(form.get("justificacion")),
+        "orden": parse_optional_int(form.get("orden")),
+        "activo": 1 if form.get("activo", "1") == "1" else 0,
+    }
+
+
+def insertar_ajuste_homogeneizacion(cur, vinculo, valores: dict):
+    cur.execute(
+        """
+        INSERT INTO valoracion_testigo_ajustes (
+            expediente_testigo_id, expediente_id, testigo_id, variable,
+            variable_otro, valor_inmueble, valor_testigo, tipo_ajuste,
+            ajuste_porcentaje, ajuste_importe_m2, signo, justificacion,
+            orden, activo
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            vinculo["id"],
+            vinculo["expediente_id"],
+            vinculo["testigo_id"],
+            valores["variable"],
+            valores["variable_otro"],
+            valores["valor_inmueble"],
+            valores["valor_testigo"],
+            valores["tipo_ajuste"],
+            valores["ajuste_porcentaje"],
+            valores["ajuste_importe_m2"],
+            valores["signo"],
+            valores["justificacion"],
+            valores["orden"],
+            valores["activo"],
+        ),
+    )
+
+
+def actualizar_ajuste_homogeneizacion(cur, ajuste_id: int, valores: dict):
+    cur.execute(
+        """
+        UPDATE valoracion_testigo_ajustes
+        SET variable = ?, variable_otro = ?, valor_inmueble = ?,
+            valor_testigo = ?, tipo_ajuste = ?, ajuste_porcentaje = ?,
+            ajuste_importe_m2 = ?, signo = ?, justificacion = ?,
+            orden = ?, activo = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (
+            valores["variable"],
+            valores["variable_otro"],
+            valores["valor_inmueble"],
+            valores["valor_testigo"],
+            valores["tipo_ajuste"],
+            valores["ajuste_porcentaje"],
+            valores["ajuste_importe_m2"],
+            valores["signo"],
+            valores["justificacion"],
+            valores["orden"],
+            valores["activo"],
+            ajuste_id,
+        ),
+    )
+
+
+def resumen_homogeneizacion_vinculo(vinculo, ajustes: list[dict]) -> dict:
+    testigo = {
+        "precio_unitario_inicial": vinculo.get("precio_unitario_inicial")
+        or vinculo.get("valor_unitario_base")
+        or vinculo.get("valor_unitario"),
+    }
+    resumen = preparar_matriz_homogeneizacion(testigo, ajustes)
+    resumen["unitario_inicial_fmt"] = formatear_precio_unitario_es(
+        resumen.get("unitario_inicial")
+    )
+    resumen["unitario_homogeneizado_fmt"] = formatear_precio_unitario_es(
+        resumen.get("unitario_homogeneizado")
+    )
+    resumen["ajuste_total_importe_m2_fmt"] = formatear_precio_unitario_es(
+        resumen.get("ajuste_total_importe_m2")
+    )
+    porcentaje = resumen.get("ajuste_total_porcentaje_equivalente")
+    resumen["ajuste_total_porcentaje_equivalente_fmt"] = (
+        f"{formatear_numero_es(porcentaje * 100, 2)}%"
+        if porcentaje is not None
+        else "—"
+    )
+    return resumen
+
+
+def enriquecer_ponderacion_vinculo_valoracion(vinculo: dict, resumen: dict) -> dict:
+    item = dict(vinculo)
+    item["incluido_calculo"] = (
+        item.get("incluido_calculo") if item.get("incluido_calculo") is not None else 1
+    )
+    item["unitario_homogeneizado"] = resumen.get("unitario_homogeneizado")
+    item["unitario_inicial"] = resumen.get("unitario_inicial")
+    item["unitario_para_resumen"] = (
+        resumen.get("unitario_homogeneizado") or resumen.get("unitario_inicial")
+    )
+    item["unitario_homogeneizado_fmt"] = resumen.get("unitario_homogeneizado_fmt")
+    item["unitario_para_resumen_fmt"] = formatear_precio_unitario_es(
+        item.get("unitario_para_resumen")
+    )
+    item["peso_porcentaje_fmt"] = (
+        f"{formatear_numero_es(item.get('peso_porcentaje'), 2)}%"
+        if item.get("peso_porcentaje") is not None
+        else "—"
+    )
+    return item
+
+
+def preparar_resumen_comparacion_vinculos(cur, vinculados) -> dict:
+    items = []
+    for row in vinculados or []:
+        vinculo = dict(row)
+        ajustes = cargar_ajustes_homogeneizacion(cur, vinculo["id"])
+        resumen = resumen_homogeneizacion_vinculo(vinculo, ajustes)
+        items.append(enriquecer_ponderacion_vinculo_valoracion(vinculo, resumen))
+    resumen_comparacion = preparar_resumen_comparacion(items)
+    resumen_comparacion["unitario_minimo_fmt"] = formatear_precio_unitario_es(
+        resumen_comparacion.get("unitario_minimo")
+    )
+    resumen_comparacion["unitario_maximo_fmt"] = formatear_precio_unitario_es(
+        resumen_comparacion.get("unitario_maximo")
+    )
+    resumen_comparacion["unitario_medio_fmt"] = formatear_precio_unitario_es(
+        resumen_comparacion.get("unitario_medio")
+    )
+    resumen_comparacion["unitario_mediana_fmt"] = formatear_precio_unitario_es(
+        resumen_comparacion.get("unitario_mediana")
+    )
+    resumen_comparacion["unitario_ponderado_fmt"] = formatear_precio_unitario_es(
+        resumen_comparacion.get("unitario_ponderado")
+    )
+    resumen_comparacion["propuesta_unitaria_orientativa_fmt"] = formatear_precio_unitario_es(
+        resumen_comparacion.get("propuesta_unitaria_orientativa")
+    )
+    resumen_comparacion["suma_pesos_fmt"] = (
+        f"{formatear_numero_es(resumen_comparacion.get('suma_pesos'), 2)}%"
+        if resumen_comparacion.get("suma_pesos") is not None
+        else "—"
+    )
+    return {"items": items, "resumen": resumen_comparacion}
+
+
+WORKBENCH_FILTROS = {"todos", "incluidos", "excluidos", "advertencias", "incompletos"}
+WORKBENCH_ORDENES = {"homogeneizado", "peso", "similitud", "fiabilidad", "fecha"}
+WORKBENCH_REPRESENTATIVIDAD_VALUES = {
+    valor for valor, _ in REPRESENTATIVIDAD_VALORACION_OPTIONS
+}
+WORKBENCH_SIMILITUD_RANK = {"alta": 4, "media_alta": 3, "media": 2, "baja": 1}
+WORKBENCH_FIABILIDAD_RANK = {"alta": 4, "media_alta": 3, "media": 2, "baja": 1}
+
+
+def workbench_comparable_id(comparable: dict) -> str:
+    return limpiar_texto(
+        comparable.get("testigo_id")
+        or comparable.get("expediente_testigo_id")
+        or comparable.get("id")
+    )
+
+
+def workbench_comparable_incluido(comparable: dict) -> bool:
+    valor = comparable.get("incluido_calculo")
+    if valor is None or valor == "":
+        valor = 1
+    return str(valor).strip().lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+
+
+def workbench_comparable_incompleto(comparable: dict) -> bool:
+    return parsear_float(comparable.get("unitario_homogeneizado")) is None
+
+
+def workbench_comparable_advertencias(comparable: dict) -> list[str]:
+    return (
+        list(comparable.get("advertencias_calculo") or [])
+        + list(comparable.get("advertencias_homogeneizacion") or [])
+        + list(comparable.get("advertencias_tecnicas") or [])
+    )
+
+
+def cargar_fotos_workbench_testigos(
+    cur,
+    testigo_ids: list[int],
+    owner_user_id: int,
+) -> dict[int, list[dict]]:
+    ids = set()
+    for testigo_id in testigo_ids:
+        if not testigo_id:
+            continue
+        try:
+            ids.add(int(testigo_id))
+        except (TypeError, ValueError):
+            continue
+    ids = sorted(ids)
+    if not ids:
+        return {}
+    placeholders = ", ".join(["?"] * len(ids))
+    fotos_por_testigo = {testigo_id: [] for testigo_id in ids}
+    filas = cur.execute(
+        f"""
+        SELECT f.id, f.testigo_id, f.archivo, f.descripcion, f.origen, f.created_at
+        FROM testigos_valoracion_fotos f
+        INNER JOIN testigos_valoracion tv ON tv.id = f.testigo_id
+        WHERE f.testigo_id IN ({placeholders})
+          AND tv.owner_user_id = ?
+        ORDER BY f.testigo_id ASC, f.id ASC
+        """,
+        ids + [owner_user_id],
+    ).fetchall()
+    for fila in filas:
+        foto = dict(fila)
+        foto["url"] = f"/uploads/{foto['archivo']}"
+        fotos_por_testigo.setdefault(foto["testigo_id"], []).append(foto)
+    return fotos_por_testigo
+
+
+def enriquecer_comparables_workbench_con_fotos(
+    comparables: list[dict],
+    fotos_por_testigo: dict[int, list[dict]],
+) -> list[dict]:
+    for comparable in comparables:
+        testigo_id = comparable.get("testigo_id")
+        try:
+            testigo_id_int = int(testigo_id)
+        except (TypeError, ValueError):
+            testigo_id_int = 0
+        fotos = fotos_por_testigo.get(testigo_id_int, [])
+        comparable["fotos_testigo"] = fotos
+        comparable["fotos_count"] = len(fotos)
+        comparable["primera_foto_url"] = fotos[0]["url"] if fotos else ""
+    return comparables
+
+
+def workbench_trazabilidad_homogeneizacion(comparable: dict) -> dict:
+    if not comparable:
+        return {}
+
+    unitario_inicial = parsear_float(
+        comparable.get("unitario_inicial")
+        or comparable.get("precio_unitario_inicial")
+        or comparable.get("valor_unitario_base")
+    )
+    unitario_homogeneizado = parsear_float(comparable.get("unitario_homogeneizado"))
+    pasos = list(comparable.get("pasos_homogeneizacion") or [])
+    pasos_contexto = []
+    subtotal_efectos = 0.0
+    subtotal_calculable = unitario_inicial is not None and bool(pasos)
+    avisos_incompleto = []
+
+    if unitario_inicial is None:
+        avisos_incompleto.append("Falta €/m² inicial para reconstruir la trazabilidad.")
+    if unitario_homogeneizado is None:
+        avisos_incompleto.append("Falta €/m² homogeneizado mostrado.")
+    if not pasos:
+        avisos_incompleto.append("No hay ajustes activos trazables para este testigo.")
+
+    for paso in pasos:
+        tipo = limpiar_texto(paso.get("tipo_ajuste"))
+        variable = limpiar_texto(paso.get("variable")) or "ajuste"
+        variable_label = variable.replace("_", " ").capitalize()
+        porcentaje = parsear_float(paso.get("ajuste_porcentaje"))
+        importe = parsear_float(paso.get("ajuste_importe_m2"))
+        efecto = parsear_float(paso.get("efecto_importe_m2"))
+        if tipo == "porcentaje" and porcentaje is None:
+            subtotal_calculable = False
+            avisos_incompleto.append(f"Ajuste porcentual sin porcentaje en {variable_label}.")
+        if tipo == "importe_m2" and importe is None:
+            subtotal_calculable = False
+            avisos_incompleto.append(f"Ajuste por importe €/m² sin importe en {variable_label}.")
+        if tipo in {"porcentaje", "importe_m2"} and efecto is None:
+            subtotal_calculable = False
+            avisos_incompleto.append(f"Ajuste cuantificado sin efecto €/m² en {variable_label}.")
+        if efecto is not None:
+            subtotal_efectos += efecto
+        pasos_contexto.append(
+            {
+                "variable": variable_label,
+                "tipo_ajuste": tipo,
+                "tipo_label": {
+                    "porcentaje": "Porcentaje",
+                    "importe_m2": "Importe €/m²",
+                    "cualitativo_no_cuantificado": "Cualitativo no cuantificado",
+                }.get(tipo, tipo.replace("_", " ").capitalize() or "Ajuste"),
+                "porcentaje_fmt": (
+                    f"{formatear_numero_es(porcentaje * 100, 2)}%"
+                    if porcentaje is not None
+                    else "—"
+                ),
+                "importe_m2_fmt": formatear_precio_unitario_es(importe),
+                "efecto_fmt": formatear_precio_unitario_es(efecto),
+                "unitario_antes_fmt": formatear_precio_unitario_es(
+                    paso.get("unitario_antes")
+                ),
+                "unitario_despues_fmt": formatear_precio_unitario_es(
+                    paso.get("unitario_despues")
+                ),
+                "valor_inmueble": limpiar_texto(paso.get("valor_inmueble")),
+                "valor_testigo": limpiar_texto(paso.get("valor_testigo")),
+                "justificacion": limpiar_texto(paso.get("justificacion")),
+                "es_cualitativo": tipo == "cualitativo_no_cuantificado",
+            }
+        )
+
+    subtotal_calculado = (
+        unitario_inicial + subtotal_efectos if subtotal_calculable else None
+    )
+    diferencia = (
+        subtotal_calculado - unitario_homogeneizado
+        if subtotal_calculado is not None and unitario_homogeneizado is not None
+        else None
+    )
+    discrepancia = diferencia is not None and abs(diferencia) > 0.01
+    return {
+        "unitario_inicial": unitario_inicial,
+        "unitario_inicial_fmt": formatear_precio_unitario_es(unitario_inicial),
+        "subtotal_efectos": subtotal_efectos if pasos else None,
+        "subtotal_efectos_fmt": formatear_precio_unitario_es(
+            subtotal_efectos if pasos else None
+        ),
+        "subtotal_calculado": subtotal_calculado,
+        "subtotal_calculado_fmt": formatear_precio_unitario_es(subtotal_calculado),
+        "unitario_homogeneizado": unitario_homogeneizado,
+        "unitario_homogeneizado_fmt": formatear_precio_unitario_es(
+            unitario_homogeneizado
+        ),
+        "diferencia": diferencia,
+        "diferencia_fmt": formatear_precio_unitario_es(diferencia),
+        "discrepancia": discrepancia,
+        "incompleto": bool(avisos_incompleto),
+        "avisos_incompleto": avisos_incompleto,
+        "pasos": pasos_contexto,
+    }
+
+
+def workbench_filtrar_comparables(comparables: list[dict], filtro: str) -> list[dict]:
+    if filtro == "incluidos":
+        return [item for item in comparables if workbench_comparable_incluido(item)]
+    if filtro == "excluidos":
+        return [item for item in comparables if not workbench_comparable_incluido(item)]
+    if filtro == "advertencias":
+        return [item for item in comparables if workbench_comparable_advertencias(item)]
+    if filtro == "incompletos":
+        return [item for item in comparables if workbench_comparable_incompleto(item)]
+    return list(comparables)
+
+
+def workbench_orden_valor(comparable: dict, ordenar: str):
+    if ordenar == "homogeneizado":
+        valor = parsear_float(comparable.get("unitario_homogeneizado"))
+        return (valor is None, valor or 0)
+    if ordenar == "peso":
+        valor = parsear_float(comparable.get("peso_porcentaje"))
+        return (valor is None, valor or 0)
+    if ordenar == "similitud":
+        texto = limpiar_texto(comparable.get("similitud_inmueble")).lower()
+        return (False, WORKBENCH_SIMILITUD_RANK.get(texto, 0), texto)
+    if ordenar == "fiabilidad":
+        texto = limpiar_texto(comparable.get("fiabilidad_dato")).lower()
+        return (False, WORKBENCH_FIABILIDAD_RANK.get(texto, 0), texto)
+    if ordenar == "fecha":
+        return (False, limpiar_texto(comparable.get("fecha_testigo")))
+    return (False, comparable.get("orden") or 0)
+
+
+def workbench_ordenar_comparables(
+    comparables: list[dict],
+    ordenar: str,
+    direccion: str,
+) -> list[dict]:
+    con_valor = []
+    sin_valor = []
+    for comparable in comparables:
+        valor = workbench_orden_valor(comparable, ordenar)
+        if valor[0]:
+            sin_valor.append(comparable)
+        else:
+            con_valor.append((valor[1:], comparable))
+    con_valor.sort(key=lambda item: item[0], reverse=direccion == "desc")
+    return [item for _, item in con_valor] + sin_valor
+
+
+def workbench_diagnostico(comparables: list[dict]) -> dict:
+    unitarios = [
+        parsear_float(comparable.get("unitario_homogeneizado"))
+        for comparable in comparables
+    ]
+    unitarios = [valor for valor in unitarios if valor is not None]
+    minimo = min(unitarios) if unitarios else None
+    maximo = max(unitarios) if unitarios else None
+    diferencia_relativa = ((maximo - minimo) / minimo * 100) if minimo and maximo else None
+    return {
+        "total": len(comparables),
+        "incluidos": sum(1 for item in comparables if workbench_comparable_incluido(item)),
+        "excluidos": sum(
+            1 for item in comparables if not workbench_comparable_incluido(item)
+        ),
+        "incompletos": sum(1 for item in comparables if workbench_comparable_incompleto(item)),
+        "con_advertencias": sum(
+            1 for item in comparables if workbench_comparable_advertencias(item)
+        ),
+        "unitario_minimo": minimo,
+        "unitario_maximo": maximo,
+        "unitario_minimo_fmt": formatear_precio_unitario_es(minimo),
+        "unitario_maximo_fmt": formatear_precio_unitario_es(maximo),
+        "diferencia_relativa": diferencia_relativa,
+        "diferencia_relativa_fmt": (
+            f"{formatear_numero_es(diferencia_relativa, 1)}%"
+            if diferencia_relativa is not None
+            else "—"
+        ),
+    }
+
+
+def workbench_url(
+    expediente_id: int,
+    filtro: str,
+    ordenar: str,
+    direccion: str,
+    testigo_id: str = "",
+    mensaje: str = "",
+    error: str = "",
+) -> str:
+    params = [("filtro", filtro), ("ordenar", ordenar), ("dir", direccion)]
+    if limpiar_texto(testigo_id):
+        params.append(("testigo_id", limpiar_texto(testigo_id)))
+    if limpiar_texto(mensaje):
+        params.append(("mensaje", limpiar_texto(mensaje)))
+    if limpiar_texto(error):
+        params.append(("error", limpiar_texto(error)))
+    query = "&".join(f"{clave}={quote_plus(str(valor))}" for clave, valor in params)
+    return f"/expediente/{expediente_id}/valoracion/workbench?{query}"
+
+
+def valores_microedicion_workbench_desde_form(form) -> dict:
+    peso = parsear_float(form.get("peso_porcentaje"))
+    if peso is not None and (peso < 0 or peso > 100):
+        raise ValueError("El peso debe estar entre 0 y 100.")
+    representatividad = limpiar_texto(form.get("representatividad"))
+    if representatividad and representatividad not in WORKBENCH_REPRESENTATIVIDAD_VALUES:
+        raise ValueError("Representatividad no válida.")
+    return {
+        "incluido_calculo": 1 if form.get("incluido_calculo") == "1" else 0,
+        "peso_porcentaje": peso,
+        "representatividad": representatividad,
+        "motivo_ponderacion": limpiar_texto(form.get("motivo_ponderacion")),
+        "motivo_exclusion": limpiar_texto(form.get("motivo_exclusion")),
+        "observaciones_ponderacion": limpiar_texto(
+            form.get("observaciones_ponderacion")
+        ),
+    }
+
+
+def actualizar_microedicion_workbench(cur, vinculo_id: int, valores: dict) -> None:
+    cur.execute(
+        """
+        UPDATE valoracion_expediente_testigos
+        SET incluido_calculo = ?, peso_porcentaje = ?, representatividad = ?,
+            motivo_ponderacion = ?, motivo_exclusion = ?,
+            observaciones_ponderacion = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (
+            valores["incluido_calculo"],
+            valores["peso_porcentaje"],
+            valores["representatividad"],
+            valores["motivo_ponderacion"],
+            valores["motivo_exclusion"],
+            valores["observaciones_ponderacion"],
+            vinculo_id,
+        ),
+    )
 
 
 def obtener_items_inspeccion_estancia(tipo_estancia: str):
@@ -4521,6 +5887,9 @@ def get_owned_valoracion_expediente_testigo_detalle(
                tv.direccion_testigo,
                tv.referencia_testigo,
                tv.fuente_testigo,
+               tv.precio_unitario_inicial,
+               tv.precio_depurado,
+               tv.superficie_tomada,
                tv.valor_unitario,
                tv.superficie_construida,
                tv.estado_conservacion,
@@ -4535,7 +5904,9 @@ def get_owned_valoracion_expediente_testigo_detalle(
         FROM valoracion_expediente_testigos vet
         JOIN expedientes e ON e.id = vet.expediente_id
         LEFT JOIN testigos_valoracion tv ON tv.id = vet.testigo_id
-        LEFT JOIN valoracion_testigo_ajustes vta ON vta.expediente_testigo_id = vet.id
+        LEFT JOIN valoracion_testigo_ajustes vta
+          ON vta.expediente_testigo_id = vet.id
+         AND COALESCE(vta.variable, '') = ''
         WHERE vet.id = ?
           AND vet.expediente_id = ?
           AND e.owner_user_id = ?
@@ -6130,10 +7501,7 @@ def editar_valoracion_expediente(request: Request, expediente_id: int):
             "legacy_valoracion": legacy_valoracion,
             "valoracion_grupos": VALORACION_EXPEDIENTE_FORM_GROUPS,
             "valoracion_ayudas_rapidas": VALORACION_AYUDAS_RAPIDAS,
-            "campos_checkbox": {
-                "metodo_comparacion_activo",
-                "metodo_coste_activo",
-            },
+            "campos_checkbox": VALORACION_EXPEDIENTE_CHECKBOX_FIELDS,
         },
     )
 
@@ -6156,7 +7524,7 @@ async def guardar_valoracion_expediente(request: Request, expediente_id: int):
 
         valores = {
             campo: ("1" if form.get(campo) == "1" else "")
-            if campo in {"metodo_comparacion_activo", "metodo_coste_activo"}
+            if campo in VALORACION_EXPEDIENTE_CHECKBOX_FIELDS
             else form.get(campo, "")
             for campo in VALORACION_EXPEDIENTE_FORM_FIELDS
         }
@@ -6253,6 +7621,253 @@ def listar_testigos_valoracion(
             "error": limpiar_texto(request.query_params.get("error")),
         },
     )
+
+
+@app.get("/valoracion/testigos/biblioteca", response_class=HTMLResponse)
+def biblioteca_testigos_valoracion(
+    request: Request,
+    municipio: str = Query(""),
+    tipologia: str = Query(""),
+    fuente: str = Query(""),
+    fiabilidad: str = Query(""),
+    verificacion: str = Query(""),
+    incompletos: str = Query(""),
+    ordenar: str = Query("fecha"),
+    dir: str = Query("desc"),
+    expediente_id: str = Query(""),
+):
+    current_user = get_current_user(request)
+    filtros = {
+        "municipio": limpiar_texto(municipio),
+        "tipologia": limpiar_texto(tipologia),
+        "fuente": limpiar_texto(fuente),
+        "fiabilidad": limpiar_texto(fiabilidad),
+        "verificacion": limpiar_texto(verificacion),
+        "incompletos": limpiar_texto(incompletos),
+        "expediente_id": limpiar_texto(expediente_id),
+    }
+    ordenes_validas = {"fecha", "unitario", "precio", "superficie", "fiabilidad"}
+    ordenar_warning = ""
+    ordenar = limpiar_texto(ordenar) or "fecha"
+    if ordenar not in ordenes_validas:
+        ordenar = "fecha"
+        ordenar_warning = "La ordenación solicitada no existe; se usa fecha."
+    direccion = limpiar_texto(dir).lower()
+    if direccion not in {"asc", "desc"}:
+        direccion = "desc"
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente_contexto = None
+        ids_vinculados = set()
+        expediente_contexto_id = parse_optional_int(filtros["expediente_id"])
+        if expediente_contexto_id:
+            expediente_row = get_owned_expediente(
+                cur,
+                expediente_contexto_id,
+                current_user["id"],
+            )
+            if (
+                expediente_row is not None
+                and limpiar_texto(expediente_row["tipo_informe"]) == "valoracion"
+            ):
+                expediente_contexto = dict(expediente_row)
+                ids_vinculados = {
+                    row["testigo_id"]
+                    for row in cur.execute(
+                        """
+                        SELECT testigo_id
+                        FROM valoracion_expediente_testigos
+                        WHERE expediente_id = ?
+                          AND testigo_id IS NOT NULL
+                        """,
+                        (expediente_contexto_id,),
+                    ).fetchall()
+                }
+        condiciones = ["owner_user_id = ?"]
+        parametros = [current_user["id"]]
+        if filtros["municipio"]:
+            condiciones.append("municipio = ?")
+            parametros.append(filtros["municipio"])
+        if filtros["tipologia"]:
+            condiciones.append("tipologia = ?")
+            parametros.append(filtros["tipologia"])
+        if filtros["fuente"]:
+            condiciones.append("fuente_testigo = ?")
+            parametros.append(filtros["fuente"])
+        if filtros["fiabilidad"]:
+            condiciones.append("fiabilidad_dato = ?")
+            parametros.append(filtros["fiabilidad"])
+        if filtros["verificacion"] in {"0", "1"}:
+            condiciones.append("COALESCE(dato_verificado, 0) = ?")
+            parametros.append(int(filtros["verificacion"]))
+        rows = cur.execute(
+            f"""
+            SELECT *
+            FROM testigos_valoracion
+            WHERE {" AND ".join(condiciones)}
+            """,
+            parametros,
+        ).fetchall()
+        opciones_filtros = cargar_opciones_filtro_testigos_valoracion(
+            cur,
+            current_user["id"],
+        )
+    finally:
+        conn.close()
+
+    testigos = [enriquecer_testigo_valoracion(dict(row)) for row in rows]
+    if filtros["incompletos"] in {"1", "si", "true"}:
+        testigos = [item for item in testigos if testigo_biblioteca_incompleto(item)]
+    testigos = ordenar_biblioteca_testigos(testigos, ordenar, direccion)
+    diagnostico = diagnostico_biblioteca_testigos(testigos)
+    return render_template(
+        request,
+        "valoracion_testigos_biblioteca.html",
+        {
+            "testigos": testigos,
+            "diagnostico": diagnostico,
+            "filtros": filtros,
+            "opciones_filtros": opciones_filtros,
+            "ordenar": ordenar,
+            "dir": direccion,
+            "ordenar_warning": ordenar_warning,
+            "expediente_contexto": expediente_contexto,
+            "ids_vinculados": ids_vinculados,
+            "sort_links": [
+                {
+                    "key": key,
+                    "label": label,
+                    "url": biblioteca_testigos_url(
+                        filtros,
+                        key,
+                        "asc" if ordenar == key and direccion == "desc" else "desc",
+                    ),
+                }
+                for key, label in [
+                    ("fecha", "Fecha"),
+                    ("unitario", "€/m²"),
+                    ("precio", "Precio"),
+                    ("superficie", "Superficie"),
+                    ("fiabilidad", "Fiabilidad"),
+                ]
+            ],
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.get("/valoracion/testigos/biblioteca/nuevo", response_class=HTMLResponse)
+def nuevo_testigo_biblioteca_valoracion(
+    request: Request,
+    expediente_id: str = Query(""),
+):
+    get_current_user(request)
+    valores = testigo_biblioteca_form_vacio(expediente_id)
+    return render_template(
+        request,
+        "valoracion_testigo_biblioteca_form.html",
+        {
+            "testigo": valores,
+            "fuente_presets": TESTIGO_BIBLIOTECA_FUENTE_PRESETS,
+            "unitario_visual": calcular_unitario_visual_testigo_biblioteca(valores),
+            "analisis_anuncio": analisis_anuncio_vacio(),
+            "duplicados_posibles": [],
+            "errores": [],
+            "avisos": [],
+        },
+    )
+
+
+@app.post("/valoracion/testigos/biblioteca/nuevo", response_class=HTMLResponse)
+async def crear_testigo_biblioteca_valoracion(request: Request):
+    current_user = get_current_user(request)
+    form = await request.form()
+    valores, errores, avisos = valores_testigo_biblioteca_desde_form(form)
+    accion = limpiar_texto(form.get("accion")) or "guardar"
+    expediente_id = limpiar_texto(valores.get("expediente_id"))
+
+    if accion == "analizar_texto":
+        analisis = analizar_texto_anuncio_inmobiliario(
+            valores.get("texto_anuncio_bruto")
+        )
+        valores = aplicar_analisis_a_testigo_biblioteca(valores, analisis)
+        if not limpiar_texto(form.get("fuente_testigo")) and analisis.get("campos", {}).get("fuente_testigo"):
+            valores["fuente_tipo"] = analisis["campos"]["fuente_tipo"]
+            valores["fuente_testigo"] = analisis["campos"]["fuente_testigo"]
+        return render_template(
+            request,
+            "valoracion_testigo_biblioteca_form.html",
+            {
+                "testigo": valores,
+                "fuente_presets": TESTIGO_BIBLIOTECA_FUENTE_PRESETS,
+                "unitario_visual": calcular_unitario_visual_testigo_biblioteca(valores),
+                "analisis_anuncio": analisis,
+                "duplicados_posibles": [],
+                "errores": [],
+                "avisos": avisos,
+            },
+        )
+
+    if errores:
+        return render_template(
+            request,
+            "valoracion_testigo_biblioteca_form.html",
+            {
+                "testigo": valores,
+                "fuente_presets": TESTIGO_BIBLIOTECA_FUENTE_PRESETS,
+                "unitario_visual": calcular_unitario_visual_testigo_biblioteca(valores),
+                "analisis_anuncio": analisis_anuncio_vacio(),
+                "duplicados_posibles": [],
+                "errores": errores,
+                "avisos": avisos,
+            },
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        duplicados_posibles = buscar_duplicados_testigo_biblioteca(
+            cur,
+            current_user["id"],
+            valores,
+        )
+        if duplicados_posibles and accion != "guardar_confirmado":
+            return render_template(
+                request,
+                "valoracion_testigo_biblioteca_form.html",
+                {
+                    "testigo": valores,
+                    "fuente_presets": TESTIGO_BIBLIOTECA_FUENTE_PRESETS,
+                    "unitario_visual": calcular_unitario_visual_testigo_biblioteca(valores),
+                    "analisis_anuncio": analisis_anuncio_vacio(),
+                    "duplicados_posibles": duplicados_posibles,
+                    "errores": [],
+                    "avisos": avisos,
+                },
+            )
+        testigo_id = insertar_testigo_biblioteca_rapido(
+            cur,
+            current_user["id"],
+            valores,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    if accion == "crear_otro":
+        url = "/valoracion/testigos/biblioteca/nuevo?mensaje=Testigo%20guardado."
+        if expediente_id:
+            url += f"&expediente_id={quote_plus(expediente_id)}"
+    elif accion == "volver_biblioteca":
+        url = "/valoracion/testigos/biblioteca?mensaje=Testigo%20guardado."
+        if expediente_id:
+            url += f"&expediente_id={quote_plus(expediente_id)}"
+    else:
+        url = f"/valoracion/testigos/{testigo_id}?mensaje=Testigo%20guardado."
+    return RedirectResponse(url=url, status_code=303)
 
 
 @app.get("/valoracion/testigos/nuevo", response_class=HTMLResponse)
@@ -6438,6 +8053,15 @@ def guardar_fotos_testigo_valoracion(
         require_row(testigo, "Testigo no encontrado")
         descripcion_limpia = limpiar_texto(descripcion)
         origen_limpio = limpiar_texto(origen) or "manual"
+        errores = validar_fotos_testigo_valoracion(fotos)
+        if errores:
+            return RedirectResponse(
+                url=(
+                    f"/valoracion/testigos/{testigo_id}?error="
+                    f"{quote_plus(' '.join(errores))}"
+                ),
+                status_code=303,
+            )
         nombres_fotos = guardar_uploads_contextuales(
             fotos,
             "testigo_valoracion",
@@ -6491,6 +8115,7 @@ def seleccionar_testigos_valoracion_expediente(
                 error="Los testigos solo aplican a expedientes de valoración.",
             )
         vinculados = cargar_testigos_expediente_valoracion(cur, expediente_id)
+        comparacion_vinculos = preparar_resumen_comparacion_vinculos(cur, vinculados)
         ids_vinculados = {
             row["testigo_id"]
             for row in vinculados
@@ -6544,14 +8169,243 @@ def seleccionar_testigos_valoracion_expediente(
             "expediente": dict(expediente),
             "testigos_vinculados": [
                 enriquecer_vinculo_testigo_valoracion(dict(row))
-                for row in vinculados
+                for row in comparacion_vinculos["items"]
             ],
+            "resumen_comparacion": comparacion_vinculos["resumen"],
             "testigos_disponibles": disponibles_base,
             "filtros": filtros,
             "opciones_filtros": opciones_filtros,
+            "representatividad_options": REPRESENTATIVIDAD_VALORACION_OPTIONS,
             "mensaje": limpiar_texto(request.query_params.get("mensaje")),
             "error": limpiar_texto(request.query_params.get("error")),
         },
+    )
+
+
+@app.get("/expediente/{expediente_id}/valoracion/workbench", response_class=HTMLResponse)
+def workbench_valoracion_expediente(
+    request: Request,
+    expediente_id: int,
+    testigo_id: str = Query(""),
+    filtro: str = Query("todos"),
+    ordenar: str = Query("homogeneizado"),
+    dir: str = Query("desc"),
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El workbench solo aplica a expedientes de valoración.",
+            )
+    finally:
+        conn.close()
+
+    contexto = build_informe_context(expediente_id)
+    comparables = contexto.get("comparables_valoracion") or []
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        fotos_por_testigo = cargar_fotos_workbench_testigos(
+            cur,
+            [comparable.get("testigo_id") for comparable in comparables],
+            current_user["id"],
+        )
+    finally:
+        conn.close()
+    enriquecer_comparables_workbench_con_fotos(comparables, fotos_por_testigo)
+    filtro = limpiar_texto(filtro) or "todos"
+    filtro_warning = ""
+    if filtro not in WORKBENCH_FILTROS:
+        filtro = "todos"
+        filtro_warning = "El filtro solicitado no existe; se muestran todos los testigos."
+    ordenar = limpiar_texto(ordenar) or "homogeneizado"
+    ordenar_warning = ""
+    if ordenar not in WORKBENCH_ORDENES:
+        ordenar = "homogeneizado"
+        ordenar_warning = (
+            "La ordenación solicitada no existe; se usa €/m² homogeneizado."
+        )
+    direccion = limpiar_texto(dir).lower()
+    if direccion not in {"asc", "desc"}:
+        direccion = "desc"
+    comparables_filtrados = workbench_ordenar_comparables(
+        workbench_filtrar_comparables(comparables, filtro),
+        ordenar,
+        direccion,
+    )
+    diagnostico = workbench_diagnostico(comparables)
+    testigo_id = limpiar_texto(testigo_id)
+    panel_testigo = comparables_filtrados[0] if comparables_filtrados else {}
+    panel_warning = ""
+    if testigo_id and comparables_filtrados:
+        panel_testigo = next(
+            (
+                comparable
+                for comparable in comparables_filtrados
+                if testigo_id == workbench_comparable_id(comparable)
+            ),
+            None,
+        )
+        if panel_testigo is None:
+            existe_en_contexto = any(
+                testigo_id == workbench_comparable_id(comparable)
+                for comparable in comparables
+            )
+            panel_testigo = comparables_filtrados[0]
+            panel_warning = (
+                "El testigo seleccionado queda fuera del filtro actual; "
+                "se muestra el primer testigo filtrado."
+                if existe_en_contexto
+                else "El testigo solicitado no pertenece al contexto de este expediente; "
+                "se muestra el primer testigo disponible."
+            )
+    elif testigo_id and not comparables_filtrados:
+        panel_warning = (
+            "El filtro actual no deja testigos visibles; ajusta el filtro para recuperar "
+            "la selección."
+        )
+    view_state = {
+        "filtro": filtro,
+        "ordenar": ordenar,
+        "dir": direccion,
+        "testigo_id": testigo_id,
+        "filtro_warning": filtro_warning,
+        "ordenar_warning": ordenar_warning,
+        "filter_links": [
+            {
+                "key": key,
+                "label": label,
+                "url": workbench_url(expediente_id, key, ordenar, direccion, testigo_id),
+            }
+            for key, label in [
+                ("todos", "Todos"),
+                ("incluidos", "Incluidos"),
+                ("excluidos", "Excluidos"),
+                ("advertencias", "Advertencias"),
+                ("incompletos", "Incompletos"),
+            ]
+        ],
+        "sort_links": [
+            {
+                "key": key,
+                "label": label,
+                "url": workbench_url(
+                    expediente_id,
+                    filtro,
+                    key,
+                    "asc" if ordenar == key and direccion == "desc" else "desc",
+                    testigo_id,
+                ),
+            }
+            for key, label in [
+                ("homogeneizado", "€/m² homog."),
+                ("peso", "Peso"),
+                ("similitud", "Similitud"),
+                ("fiabilidad", "Fiabilidad"),
+                ("fecha", "Fecha"),
+            ]
+        ],
+    }
+    return render_template(
+        request,
+        "valoracion_workbench.html",
+        {
+            "expediente": dict(expediente),
+            "contexto": contexto,
+            "valoracion": contexto.get("valoracion"),
+            "valoracion_eco": contexto.get("valoracion_eco") or {},
+            "comparables": comparables_filtrados,
+            "comparables_total": comparables,
+            "resumen_comparacion": contexto.get("resumen_comparacion_valoracion") or {},
+            "completitud": contexto.get("completitud_valoracion") or {},
+            "diagnostico": diagnostico,
+            "view_state": view_state,
+            "panel_testigo": panel_testigo,
+            "trazabilidad_homogeneizacion": workbench_trazabilidad_homogeneizacion(
+                panel_testigo
+            ),
+            "panel_warning": panel_warning,
+            "selected_testigo_id": testigo_id,
+            "representatividad_options": REPRESENTATIVIDAD_VALORACION_OPTIONS,
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.post("/expediente/{expediente_id}/valoracion/workbench/testigo/{testigo_id}")
+async def guardar_microedicion_workbench_valoracion(
+    request: Request,
+    expediente_id: int,
+    testigo_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+    filtro = limpiar_texto(form.get("filtro")) or "todos"
+    ordenar = limpiar_texto(form.get("ordenar")) or "homogeneizado"
+    direccion = limpiar_texto(form.get("dir")) or "desc"
+    redirect_url = workbench_url(
+        expediente_id,
+        filtro if filtro in WORKBENCH_FILTROS else "todos",
+        ordenar if ordenar in WORKBENCH_ORDENES else "homogeneizado",
+        direccion if direccion in {"asc", "desc"} else "desc",
+        str(testigo_id),
+    )
+
+    try:
+        valores = valores_microedicion_workbench_desde_form(form)
+    except ValueError as exc:
+        return RedirectResponse(
+            url=workbench_url(
+                expediente_id,
+                filtro if filtro in WORKBENCH_FILTROS else "todos",
+                ordenar if ordenar in WORKBENCH_ORDENES else "homogeneizado",
+                direccion if direccion in {"asc", "desc"} else "desc",
+                str(testigo_id),
+                error=str(exc),
+            ),
+            status_code=303,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El workbench solo aplica a expedientes de valoración.",
+            )
+        vinculo = cur.execute(
+            """
+            SELECT vet.*
+            FROM valoracion_expediente_testigos vet
+            JOIN expedientes e ON e.id = vet.expediente_id
+            WHERE vet.expediente_id = ?
+              AND vet.testigo_id = ?
+              AND e.owner_user_id = ?
+            """,
+            (expediente_id, testigo_id, current_user["id"]),
+        ).fetchone()
+        require_row(vinculo, "Testigo no vinculado al expediente")
+        actualizar_microedicion_workbench(cur, vinculo["id"], valores)
+        conn.commit()
+    finally:
+        conn.close()
+
+    mensaje = "Microedición de testigo guardada."
+    if valores["incluido_calculo"] == 0 and not valores["motivo_exclusion"]:
+        mensaje = "Microedición guardada. Recomendación: documenta el motivo de exclusión."
+    return RedirectResponse(
+        url=f"{redirect_url}&mensaje={quote_plus(mensaje)}",
+        status_code=303,
     )
 
 
@@ -6582,6 +8436,11 @@ def editar_ajustes_testigo_valoracion(
                 error="Los ajustes solo aplican a expedientes de valoración.",
             )
         ajustes = cargar_valoracion_testigo_ajustes(cur, vinculo_id)
+        ajustes_homogeneizacion = cargar_ajustes_homogeneizacion(cur, vinculo_id)
+        resumen_homogeneizacion = resumen_homogeneizacion_vinculo(
+            dict(vinculo),
+            ajustes_homogeneizacion,
+        )
     finally:
         conn.close()
 
@@ -6592,6 +8451,13 @@ def editar_ajustes_testigo_valoracion(
             "vinculo": dict(vinculo),
             "ajustes": ajustes,
             "ajustes_items": VALORACION_TESTIGO_AJUSTES_ITEMS,
+            "ajustes_homogeneizacion": ajustes_homogeneizacion,
+            "ajuste_homogeneizacion_form": ajuste_homogeneizacion_vacio(),
+            "resumen_homogeneizacion": resumen_homogeneizacion,
+            "variables_homogeneizacion": HOMOGENEIZACION_VARIABLE_OPTIONS,
+            "tipos_homogeneizacion": HOMOGENEIZACION_TIPO_AJUSTE_OPTIONS,
+            "signos_homogeneizacion": HOMOGENEIZACION_SIGNO_OPTIONS,
+            "modo_homogeneizacion": "nuevo",
             "error": limpiar_texto(request.query_params.get("error")),
             "mensaje": limpiar_texto(request.query_params.get("mensaje")),
         },
@@ -6633,6 +8499,186 @@ async def guardar_ajustes_testigo_valoracion(
 
     return RedirectResponse(
         url=f"/expedientes/{expediente_id}/valoracion/testigos?mensaje=Ajustes%20guardados.",
+        status_code=303,
+    )
+
+
+@app.post("/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes/homogeneizacion")
+async def crear_ajuste_homogeneizacion_valoracion(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+    valores = valores_homogeneizacion_desde_form(form)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        vinculo = get_owned_valoracion_expediente_testigo_detalle(
+            cur,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(vinculo, "Vínculo no encontrado")
+        if limpiar_texto(vinculo["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los ajustes solo aplican a expedientes de valoración.",
+            )
+        insertar_ajuste_homogeneizacion(cur, vinculo, valores)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=(
+            f"/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes"
+            "?mensaje=Ajuste%20de%20homogeneizaci%C3%B3n%20guardado."
+        ),
+        status_code=303,
+    )
+
+
+@app.get(
+    "/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes/homogeneizacion/{ajuste_id}/editar",
+    response_class=HTMLResponse,
+)
+def editar_ajuste_homogeneizacion_valoracion(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+    ajuste_id: int,
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        vinculo = get_owned_valoracion_expediente_testigo_detalle(
+            cur,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(vinculo, "Vínculo no encontrado")
+        ajuste = get_owned_ajuste_homogeneizacion(
+            cur,
+            ajuste_id,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(ajuste, "Ajuste no encontrado")
+        ajustes = cargar_valoracion_testigo_ajustes(cur, vinculo_id)
+        ajustes_homogeneizacion = cargar_ajustes_homogeneizacion(cur, vinculo_id)
+        resumen_homogeneizacion = resumen_homogeneizacion_vinculo(
+            dict(vinculo),
+            ajustes_homogeneizacion,
+        )
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "valoracion_testigo_ajustes.html",
+        {
+            "vinculo": dict(vinculo),
+            "ajustes": ajustes,
+            "ajustes_items": VALORACION_TESTIGO_AJUSTES_ITEMS,
+            "ajustes_homogeneizacion": ajustes_homogeneizacion,
+            "ajuste_homogeneizacion_form": row_ajuste_homogeneizacion(ajuste),
+            "resumen_homogeneizacion": resumen_homogeneizacion,
+            "variables_homogeneizacion": HOMOGENEIZACION_VARIABLE_OPTIONS,
+            "tipos_homogeneizacion": HOMOGENEIZACION_TIPO_AJUSTE_OPTIONS,
+            "signos_homogeneizacion": HOMOGENEIZACION_SIGNO_OPTIONS,
+            "modo_homogeneizacion": "editar",
+            "ajuste_homogeneizacion_id": ajuste_id,
+            "error": limpiar_texto(request.query_params.get("error")),
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+        },
+    )
+
+
+@app.post(
+    "/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes/homogeneizacion/{ajuste_id}/editar"
+)
+async def actualizar_ajuste_homogeneizacion_valoracion(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+    ajuste_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+    valores = valores_homogeneizacion_desde_form(form)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        ajuste = get_owned_ajuste_homogeneizacion(
+            cur,
+            ajuste_id,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(ajuste, "Ajuste no encontrado")
+        actualizar_ajuste_homogeneizacion(cur, ajuste_id, valores)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=(
+            f"/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes"
+            "?mensaje=Ajuste%20actualizado."
+        ),
+        status_code=303,
+    )
+
+
+@app.post(
+    "/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes/homogeneizacion/{ajuste_id}/desactivar"
+)
+def desactivar_ajuste_homogeneizacion_valoracion(
+    request: Request,
+    expediente_id: int,
+    vinculo_id: int,
+    ajuste_id: int,
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        ajuste = get_owned_ajuste_homogeneizacion(
+            cur,
+            ajuste_id,
+            vinculo_id,
+            expediente_id,
+            current_user["id"],
+        )
+        require_row(ajuste, "Ajuste no encontrado")
+        cur.execute(
+            """
+            UPDATE valoracion_testigo_ajustes
+            SET activo = 0, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (ajuste_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=(
+            f"/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/ajustes"
+            "?mensaje=Ajuste%20desactivado."
+        ),
         status_code=303,
     )
 
@@ -6692,7 +8738,7 @@ async def anadir_testigo_valoracion_expediente(request: Request, expediente_id: 
                 siguiente_orden_testigo_expediente(cur, expediente_id),
                 snapshot_testigo_valoracion(testigo),
                 notas_seleccion,
-                testigo["valor_unitario"],
+                testigo["precio_unitario_inicial"] or testigo["valor_unitario"],
             ),
         )
         conn.commit()
@@ -6705,6 +8751,73 @@ async def anadir_testigo_valoracion_expediente(request: Request, expediente_id: 
     )
 
 
+@app.post("/expedientes/{expediente_id}/valoracion/testigos/biblioteca/{testigo_id}/vincular")
+async def vincular_testigo_biblioteca_valoracion(
+    request: Request,
+    expediente_id: int,
+    testigo_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+    return_to = limpiar_texto(form.get("return_to"))
+    destino_ok = (
+        f"/expediente/{expediente_id}/valoracion/workbench?mensaje=Testigo%20vinculado."
+        if return_to == "workbench"
+        else f"/expedientes/{expediente_id}/valoracion/testigos?mensaje=Testigo%20vinculado."
+    )
+    destino_duplicado = (
+        f"/expedientes/{expediente_id}/valoracion/testigos"
+        "?error=El%20testigo%20ya%20est%C3%A1%20vinculado."
+    )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="Los testigos solo aplican a expedientes de valoración.",
+            )
+        testigo = get_owned_testigo_valoracion(cur, testigo_id, current_user["id"])
+        require_row(testigo, "Testigo no encontrado")
+        existente = cur.execute(
+            """
+            SELECT 1
+            FROM valoracion_expediente_testigos
+            WHERE expediente_id = ? AND testigo_id = ?
+            LIMIT 1
+            """,
+            (expediente_id, testigo_id),
+        ).fetchone()
+        if existente:
+            return RedirectResponse(url=destino_duplicado, status_code=303)
+        cur.execute(
+            """
+            INSERT INTO valoracion_expediente_testigos (
+                expediente_id, testigo_id, orden, incluido, incluido_calculo,
+                peso_porcentaje, representatividad, snapshot_json,
+                notas_seleccion, valor_unitario_base
+            )
+            VALUES (?, ?, ?, 1, 1, NULL, '', ?, ?, ?)
+            """,
+            (
+                expediente_id,
+                testigo_id,
+                siguiente_orden_testigo_expediente(cur, expediente_id),
+                snapshot_testigo_valoracion(testigo),
+                "Vinculado desde biblioteca desktop.",
+                testigo["precio_unitario_inicial"] or testigo["valor_unitario"],
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(url=destino_ok, status_code=303)
+
+
 @app.post("/expedientes/{expediente_id}/valoracion/testigos/{vinculo_id}/actualizar")
 async def actualizar_testigo_valoracion_expediente(
     request: Request,
@@ -6715,7 +8828,13 @@ async def actualizar_testigo_valoracion_expediente(
     form = await request.form()
     orden = parse_optional_int(form.get("orden"))
     incluido = 1 if form.get("incluido") == "1" else 0
+    incluido_calculo = 1 if form.get("incluido_calculo") == "1" else 0
+    peso_porcentaje = parsear_float(form.get("peso_porcentaje"))
+    representatividad = limpiar_texto(form.get("representatividad"))
     notas_seleccion = limpiar_texto(form.get("notas_seleccion"))
+    motivo_ponderacion = limpiar_texto(form.get("motivo_ponderacion"))
+    motivo_exclusion = limpiar_texto(form.get("motivo_exclusion"))
+    observaciones_ponderacion = limpiar_texto(form.get("observaciones_ponderacion"))
 
     conn = get_connection()
     cur = conn.cursor()
@@ -6737,11 +8856,25 @@ async def actualizar_testigo_valoracion_expediente(
         cur.execute(
             """
             UPDATE valoracion_expediente_testigos
-            SET orden = ?, incluido = ?, notas_seleccion = ?,
+            SET orden = ?, incluido = ?, incluido_calculo = ?,
+                peso_porcentaje = ?, representatividad = ?,
+                notas_seleccion = ?, motivo_ponderacion = ?,
+                motivo_exclusion = ?, observaciones_ponderacion = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (orden, incluido, notas_seleccion, vinculo_id),
+            (
+                orden,
+                incluido,
+                incluido_calculo,
+                peso_porcentaje,
+                representatividad,
+                notas_seleccion,
+                motivo_ponderacion,
+                motivo_exclusion,
+                observaciones_ponderacion,
+                vinculo_id,
+            ),
         )
         conn.commit()
     finally:

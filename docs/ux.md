@@ -140,6 +140,69 @@ Patrones recomendados:
   busqueda por direccion, fuente, municipio, codigo postal, referencia,
   tipologia o estado de validacion; mostrar importes, superficies y valores
   unitarios con unidades; y ofrecer acciones claras de detalle y edicion.
+- `/valoracion/testigos/biblioteca` es la vista SSR desktop de consulta maestra
+  de testigos reutilizables. Puede filtrar, ordenar y diagnosticar calidad del
+  dato global, pero no debe guardar peso, inclusion/exclusion ni
+  representatividad, porque esos criterios pertenecen al vinculo con cada
+  expediente.
+- `/valoracion/testigos/biblioteca/nuevo` es el alta rapida desktop de testigos
+  desde portales inmobiliarios. Reutiliza `testigos_valoracion`, no hace
+  scraping/OCR, no vincula automaticamente a expedientes y no sustituye el
+  formulario mobile-first completo en `/valoracion/testigos/nuevo`.
+- El alta rapida puede ofrecer pegado asistido SSR de texto bruto de anuncios:
+  el analisis es local y heuristico, solo propone campos, no verifica datos, no
+  se conecta a URLs externas y no guarda nada hasta que el usuario pulse una
+  accion final de guardado.
+- El alta rapida puede capturar atributos tecnicos de anuncio en bloques
+  compactos: caracteristicas, superficies, estado/calidades y equipamiento. El
+  pegado asistido solo rellena campos vacios o checks no activados y mantiene
+  siempre edicion manual.
+- El alta rapida debe advertir posibles duplicados antes de guardar, usando
+  criterios defensivos como URL igual, fuente/referencia similar, municipio con
+  precio y superficie cercanos o direccion/zona normalizada. El aviso no bloquea
+  y nunca fusiona ni borra testigos.
+- Si la biblioteca desktop recibe `expediente_id` de un expediente de
+  valoracion, puede mostrar la accion secundaria "Anadir a este expediente".
+  Esa accion crea solo el vinculo/snapshot en `valoracion_expediente_testigos`;
+  no modifica la biblioteca maestra ni guarda pesos, inclusion o
+  representatividad como datos globales.
+- `/expediente/{expediente_id}/valoracion/workbench` es una vista SSR de
+  escritorio para analisis comparativo. No sustituye los formularios
+  mobile-first de expediente, visita, testigos ni ajustes; en movil debe
+  degradar sin romper esos flujos.
+- El acceso al workbench debe aparecer como accion secundaria en expedientes de
+  valoracion y en la seleccion de testigos del expediente, con el texto
+  "Analisis tecnico de comparables, homogeneizacion y ponderacion". No debe
+  redirigir automaticamente ni sustituir la valoracion clasica.
+- El workbench puede seleccionar testigo mediante `?testigo_id=...`; si el
+  testigo no pertenece al contexto del expediente, debe degradar al primer
+  testigo disponible con advertencia no bloqueante.
+- El workbench puede filtrar y ordenar por query params server-side; estos
+  controles son ayudas de QA tecnico y no deben persistir decisiones ni
+  automatizar el valor final. El filtro de advertencias debe considerar tanto
+  advertencias de calculo/homogeneizacion como QA tecnico visual.
+- El workbench puede ofrecer microedicion SSR acotada del testigo seleccionado
+  para inclusion, peso, representatividad y motivos tecnicos. No debe
+  convertirse en spreadsheet ni sustituir los formularios moviles existentes.
+- El panel contextual del workbench muestra trazabilidad de homogeneizacion
+  basada en los pasos ya expuestos por el contexto: €/m2 inicial, ajustes,
+  subtotal visual y €/m2 homogeneizado. Las alertas de discrepancia o datos
+  incompletos son QA visual no bloqueante y no recalculan valores persistidos.
+- En escritorio ancho, el workbench puede usar modo wide con tabla principal en
+  torno al 70-75% y panel lateral en torno al 25-30%, densidad de filas mayor y
+  panel sticky. En movil debe volver a una columna y conservar scroll
+  horizontal de tabla.
+- El workbench puede mostrar atributos tecnicos de testigos reutilizables
+  procedentes del contexto moderno: superficies construida/util, banos, planta,
+  ascensor, exterior/interior, balcon, terraza, patio, estado, anos de
+  construccion/reforma, climatizacion, garaje, trastero y certificacion
+  energetica. Estos datos son comparativa visual y QA no bloqueante; no alteran
+  homogeneizacion, ponderacion ni valor final automatico.
+- El workbench puede mostrar fotos/capturas manuales del testigo vinculado como
+  evidencia visual auxiliar. Debe cargar solo fotos de testigos del usuario
+  actual, degradar a estado vacio si no existen y mantener la nota de que no
+  sustituyen inspeccion ni verificacion tecnica. No debe descargar imagenes ni
+  insertarlas automaticamente en informes.
 - La biblioteca y la seleccion de testigos por expediente deben ofrecer filtros
   server-side por tipologia, municipio, validacion y reutilizable cuando
   aplique. En la seleccion, `Quitar del expediente` debe diferenciarse como
@@ -148,6 +211,14 @@ Patrones recomendados:
   fuente/enlace y expedientes donde se ha usado el testigo, respetando
   ownership. No debe descargar imagenes remotas ni hacer scraping/OCR sin fase
   especifica.
+- Las fotos/capturas de testigo se suben manualmente desde la ficha del testigo
+  y son evidencias auxiliares de estado, calidades o anuncio. Deben validarse
+  como imagenes, mantenerse fuera de descargas remotas y no insertarse
+  automaticamente en informes hasta fase especifica.
+- Las vistas desktop de biblioteca, alta rapida, formulario completo de
+  edicion/alta y detalle de testigo pueden usar contenedores wide y rejillas
+  compactas con CSS scoped. En movil deben volver a una columna o scroll
+  horizontal sin sustituir las cards existentes.
 - El formulario de ajustes de testigo vinculado debe vivir en el contexto del
   expediente de valoracion. Debe mostrar valor unitario base, coeficiente total
   y valor unitario ajustado como ayudas operativas, sin convertirlo en calculo

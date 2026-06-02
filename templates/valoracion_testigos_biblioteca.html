@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .testigos-desktop {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .biblioteca-hero,
+        .biblioteca-panel {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .biblioteca-hero {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            margin-bottom: 16px;
+        }
+
+        .biblioteca-title {
+            font-size: clamp(1.35rem, 2.4vw, 2rem);
+            margin: 0 0 6px;
+        }
+
+        .biblioteca-note {
+            color: #475569;
+            margin: 0;
+        }
+
+        .diagnostic-bar {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(7, minmax(92px, 1fr));
+            margin-bottom: 12px;
+        }
+
+        .diagnostic-item {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        .diagnostic-label {
+            color: #64748b;
+            display: block;
+            font-size: 0.74rem;
+            margin-bottom: 4px;
+        }
+
+        .diagnostic-value {
+            color: #0f172a;
+            display: block;
+            font-weight: 800;
+        }
+
+        .filters-grid {
+            display: grid;
+            align-items: end;
+            gap: 8px;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+        }
+
+        .filters-grid label {
+            font-size: 0.78rem;
+            margin-bottom: 4px;
+        }
+
+        .filters-grid select {
+            min-height: 40px;
+        }
+
+        .biblioteca-controls {
+            align-items: end;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .sort-links {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0;
+        }
+
+        .sort-link {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 7px 10px;
+            text-decoration: none;
+        }
+
+        .sort-link.active {
+            background: #172033;
+            border-color: #172033;
+            color: #ffffff;
+        }
+
+        .testigos-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .testigos-table {
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            min-width: 1280px;
+            width: 100%;
+        }
+
+        .testigos-table th,
+        .testigos-table td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 7px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .testigos-table th {
+            color: #475569;
+            font-size: 0.73rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .number-cell {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .status-pill {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1;
+            margin: 2px 0;
+            padding: 6px 8px;
+            white-space: nowrap;
+        }
+
+        .status-pill.ok {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .status-pill.warn {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
+        }
+
+        .status-pill.issue {
+            background: #fff1f2;
+            border-color: #fecdd3;
+            color: #9f1239;
+        }
+
+        .row-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 118px;
+        }
+
+        .row-actions .boton,
+        .row-actions button {
+            justify-content: center;
+            min-height: 34px;
+            padding: 7px 9px;
+        }
+
+        .empty-state {
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 18px;
+        }
+
+        @media (max-width: 960px) {
+            .testigos-desktop {
+                width: 100%;
+            }
+
+            .biblioteca-hero,
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .row-actions {
+                flex-direction: row;
+            }
+
+            .diagnostic-bar {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .diagnostic-bar {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <title>Biblioteca desktop de testigos</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page testigos-desktop">
+        <section class="biblioteca-hero">
+            <div>
+                <p class="visita-eyebrow">Valoración inmobiliaria</p>
+                <h1 class="biblioteca-title">Biblioteca desktop de testigos</h1>
+                <p class="biblioteca-note">Consulta maestra de comparables reutilizables. No guarda pesos, inclusión ni representatividad de expedientes.</p>
+            </div>
+            <div class="actions">
+                <a class="boton" href="/valoracion/testigos/biblioteca/nuevo{% if filtros.expediente_id %}?expediente_id={{ filtros.expediente_id }}{% endif %}">Nuevo testigo rápido</a>
+                <a class="boton secundario" href="/valoracion/testigos/nuevo">Alta móvil completa</a>
+                <a class="boton secundario" href="/valoracion/testigos">Vista móvil/cards</a>
+                {% if filtros.expediente_id %}
+                <a class="boton secundario" href="/expedientes/{{ filtros.expediente_id }}/valoracion/testigos">Volver al expediente</a>
+                {% endif %}
+            </div>
+        </section>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if mensaje %}
+        <p>{{ mensaje }}</p>
+        {% endif %}
+        {% if ordenar_warning %}
+        <p class="error">{{ ordenar_warning }}</p>
+        {% endif %}
+
+        <section class="diagnostic-bar" aria-label="Diagnóstico de biblioteca">
+            <div class="diagnostic-item"><span class="diagnostic-label">Total testigos</span><span class="diagnostic-value">{{ diagnostico.total }}</span></div>
+            <div class="diagnostic-item"><span class="diagnostic-label">Incompletos</span><span class="diagnostic-value">{{ diagnostico.incompletos }}</span></div>
+            <div class="diagnostic-item"><span class="diagnostic-label">Sin fuente</span><span class="diagnostic-value">{{ diagnostico.sin_fuente }}</span></div>
+            <div class="diagnostic-item"><span class="diagnostic-label">Sin fecha</span><span class="diagnostic-value">{{ diagnostico.sin_fecha }}</span></div>
+            <div class="diagnostic-item"><span class="diagnostic-label">Sin precio/superficie</span><span class="diagnostic-value">{{ diagnostico.sin_precio_superficie }}</span></div>
+            <div class="diagnostic-item"><span class="diagnostic-label">Verificados</span><span class="diagnostic-value">{{ diagnostico.verificados }}</span></div>
+            <div class="diagnostic-item"><span class="diagnostic-label">No verificados</span><span class="diagnostic-value">{{ diagnostico.no_verificados }}</span></div>
+        </section>
+
+        <section class="biblioteca-panel">
+            <form method="get" action="/valoracion/testigos/biblioteca">
+                {% if filtros.expediente_id %}
+                <input type="hidden" name="expediente_id" value="{{ filtros.expediente_id }}">
+                {% endif %}
+                <div class="filters-grid">
+                    <div>
+                        <label for="municipio">Municipio</label>
+                        <select id="municipio" name="municipio">
+                            <option value="">Todos</option>
+                            {% for opcion in opciones_filtros.municipio %}
+                            <option value="{{ opcion }}" {% if filtros.municipio == opcion %}selected{% endif %}>{{ opcion }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="tipologia">Tipología</label>
+                        <select id="tipologia" name="tipologia">
+                            <option value="">Todas</option>
+                            {% for opcion in opciones_filtros.tipologia %}
+                            <option value="{{ opcion }}" {% if filtros.tipologia == opcion %}selected{% endif %}>{{ opcion }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="fuente">Fuente</label>
+                        <select id="fuente" name="fuente">
+                            <option value="">Todas</option>
+                            {% for opcion in opciones_filtros.fuente_testigo %}
+                            <option value="{{ opcion }}" {% if filtros.fuente == opcion %}selected{% endif %}>{{ opcion }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="fiabilidad">Fiabilidad</label>
+                        <select id="fiabilidad" name="fiabilidad">
+                            <option value="">Todas</option>
+                            {% for opcion in opciones_filtros.fiabilidad_dato %}
+                            <option value="{{ opcion }}" {% if filtros.fiabilidad == opcion %}selected{% endif %}>{{ opcion }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="verificacion">Verificación</label>
+                        <select id="verificacion" name="verificacion">
+                            <option value="">Todas</option>
+                            <option value="1" {% if filtros.verificacion == '1' %}selected{% endif %}>Verificados</option>
+                            <option value="0" {% if filtros.verificacion == '0' %}selected{% endif %}>No verificados</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="incompletos">Calidad del dato</label>
+                        <select id="incompletos" name="incompletos">
+                            <option value="">Todos</option>
+                            <option value="1" {% if filtros.incompletos == '1' %}selected{% endif %}>Solo incompletos</option>
+                        </select>
+                    </div>
+                </div>
+                <input type="hidden" name="ordenar" value="{{ ordenar }}">
+                <input type="hidden" name="dir" value="{{ dir }}">
+                <div class="biblioteca-controls">
+                    <button class="boton secundario" type="submit">Filtrar</button>
+                    <a class="boton secundario" href="/valoracion/testigos/biblioteca{% if filtros.expediente_id %}?expediente_id={{ filtros.expediente_id }}{% endif %}">Limpiar</a>
+                </div>
+            </form>
+
+            <div class="sort-links" aria-label="Ordenación">
+                <span class="diagnostic-label">Ordenar por</span>
+                {% for item in sort_links %}
+                <a class="sort-link {% if ordenar == item.key %}active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+                {% endfor %}
+            </div>
+
+            {% if testigos %}
+            <div class="testigos-scroll">
+                <table class="testigos-table">
+                    <thead>
+                        <tr>
+                            <th>Dirección / zona</th>
+                            <th>Municipio</th>
+                            <th>Provincia</th>
+                            <th>Tipología</th>
+                            <th>Oferta</th>
+                            <th>Depurado</th>
+                            <th>Superficie</th>
+                            <th>Tipo sup.</th>
+                            <th>€/m² inicial</th>
+                            <th>Fuente</th>
+                            <th>Fecha</th>
+                            <th>Fiabilidad</th>
+                            <th>Verificación</th>
+                            <th>Estado dato</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for testigo in testigos %}
+                        <tr>
+                            <td>
+                                <strong>{{ testigo.direccion_testigo or "Sin dirección" }}</strong><br>
+                                <span>{{ testigo.ubicacion or testigo.codigo_postal or "—" }}</span>
+                            </td>
+                            <td>{{ testigo.municipio or "—" }}</td>
+                            <td>{{ testigo.provincia or "—" }}</td>
+                            <td>{{ testigo.tipologia or "—" }}</td>
+                            <td class="number-cell">{{ testigo.precio_oferta_fmt }}</td>
+                            <td class="number-cell">{{ testigo.precio_depurado_fmt }}</td>
+                            <td class="number-cell">{{ testigo.superficie_tomada_fmt }}</td>
+                            <td>{{ testigo.tipo_superficie_tomada or "—" }}</td>
+                            <td class="number-cell">{{ testigo.precio_unitario_inicial_fmt }}</td>
+                            <td>
+                                {{ testigo.fuente_testigo or testigo.fuente_detalle or "—" }}
+                                {% if testigo.url_fuente %}
+                                <br><a href="{{ testigo.url_fuente }}" target="_blank" rel="noopener noreferrer">Abrir fuente</a>
+                                {% endif %}
+                            </td>
+                            <td>{{ testigo.fecha_testigo or "—" }}</td>
+                            <td>{{ testigo.fiabilidad_dato or "—" }}</td>
+                            <td>
+                                {% if testigo.dato_verificado %}
+                                <span class="status-pill ok">Verificado</span>
+                                {% else %}
+                                <span class="status-pill warn">No verificado</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if testigo.advertencias_calculo %}
+                                {% for advertencia in testigo.advertencias_calculo %}
+                                <span class="status-pill issue">{{ advertencia }}</span>
+                                {% endfor %}
+                                {% else %}
+                                <span class="status-pill ok">Dato suficiente</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="row-actions">
+                                    <a class="boton secundario" href="/valoracion/testigos/{{ testigo.id }}">Ver</a>
+                                    <a class="boton secundario" href="/valoracion/testigos/{{ testigo.id }}/editar">Editar</a>
+                                    {% if expediente_contexto %}
+                                        {% if testigo.id in ids_vinculados %}
+                                        <span class="status-pill ok">Ya vinculado</span>
+                                        {% else %}
+                                        <form method="post" action="/expedientes/{{ expediente_contexto.id }}/valoracion/testigos/biblioteca/{{ testigo.id }}/vincular">
+                                            <input type="hidden" name="return_to" value="seleccion">
+                                            <button class="boton secundario" type="submit">Añadir a este expediente</button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No hay testigos en la biblioteca con los filtros actuales.</p>
+                <div class="actions">
+                    <a class="boton" href="/valoracion/testigos/nuevo">Crear primer testigo</a>
+                    <a class="boton secundario" href="/valoracion/testigos/biblioteca">Limpiar filtros</a>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

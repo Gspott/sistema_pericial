@@ -1162,21 +1162,32 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             expediente_id INTEGER NOT NULL UNIQUE,
             finalidad_valoracion TEXT,
+            finalidad_otro TEXT,
+            alcance_valoracion TEXT,
+            fecha_valoracion TEXT,
             finalidad_valoracion_detallada TEXT,
             nombre_solicitante TEXT,
             nif_cif_solicitante TEXT,
             domicilio_solicitante TEXT,
             entidad_financiera TEXT,
+            base_valor TEXT,
+            base_valor_otro TEXT,
+            definicion_base_valor TEXT,
             documentacion_utilizada TEXT,
             datos_registrales TEXT,
             identificacion_bien TEXT,
             superficie_valoracion TEXT,
             superficie_construida TEXT,
             superficie_util TEXT,
+            superficie_registral TEXT,
+            superficie_catastral TEXT,
             superficie_terraza TEXT,
             superficie_zonas_comunes TEXT,
             superficie_total TEXT,
             superficie_comprobada TEXT,
+            superficie_computable TEXT,
+            superficie_adoptada_calculo TEXT,
+            criterio_superficie_adoptada TEXT,
             situacion_ocupacion TEXT,
             situacion_urbanistica TEXT,
             servidumbres TEXT,
@@ -1211,6 +1222,27 @@ def init_db():
             criterios_metodo_valoracion TEXT,
             variables_mercado TEXT,
             metodo_homogeneizacion TEXT,
+            metodo_comparacion_aplicado INTEGER DEFAULT 0,
+            metodo_comparacion_descartado INTEGER DEFAULT 0,
+            metodo_comparacion_justificacion TEXT,
+            metodo_comparacion_observaciones TEXT,
+            metodo_coste_aplicado INTEGER DEFAULT 0,
+            metodo_coste_descartado INTEGER DEFAULT 0,
+            metodo_coste_justificacion TEXT,
+            metodo_coste_observaciones TEXT,
+            metodo_actualizacion_rentas_aplicado INTEGER DEFAULT 0,
+            metodo_actualizacion_rentas_descartado INTEGER DEFAULT 0,
+            metodo_actualizacion_rentas_justificacion TEXT,
+            metodo_actualizacion_rentas_observaciones TEXT,
+            metodo_residual_aplicado INTEGER DEFAULT 0,
+            metodo_residual_descartado INTEGER DEFAULT 0,
+            metodo_residual_justificacion TEXT,
+            metodo_residual_observaciones TEXT,
+            incidencias_condicionantes_manuales TEXT,
+            incidencias_advertencias_manuales TEXT,
+            incidencias_limitaciones_manuales TEXT,
+            incidencias_automaticas_visibles INTEGER DEFAULT 1,
+            incidencias_manuales_visibles INTEGER DEFAULT 1,
             condicionantes_limitaciones_valoracion TEXT,
             observaciones_valoracion TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1219,6 +1251,41 @@ def init_db():
         )
         """
     )
+    for columna, definicion in {
+        "finalidad_otro": "TEXT",
+        "alcance_valoracion": "TEXT",
+        "fecha_valoracion": "TEXT",
+        "base_valor": "TEXT",
+        "base_valor_otro": "TEXT",
+        "definicion_base_valor": "TEXT",
+        "superficie_registral": "TEXT",
+        "superficie_catastral": "TEXT",
+        "superficie_computable": "TEXT",
+        "superficie_adoptada_calculo": "TEXT",
+        "criterio_superficie_adoptada": "TEXT",
+        "metodo_comparacion_aplicado": "INTEGER DEFAULT 0",
+        "metodo_comparacion_descartado": "INTEGER DEFAULT 0",
+        "metodo_comparacion_justificacion": "TEXT",
+        "metodo_comparacion_observaciones": "TEXT",
+        "metodo_coste_aplicado": "INTEGER DEFAULT 0",
+        "metodo_coste_descartado": "INTEGER DEFAULT 0",
+        "metodo_coste_justificacion": "TEXT",
+        "metodo_coste_observaciones": "TEXT",
+        "metodo_actualizacion_rentas_aplicado": "INTEGER DEFAULT 0",
+        "metodo_actualizacion_rentas_descartado": "INTEGER DEFAULT 0",
+        "metodo_actualizacion_rentas_justificacion": "TEXT",
+        "metodo_actualizacion_rentas_observaciones": "TEXT",
+        "metodo_residual_aplicado": "INTEGER DEFAULT 0",
+        "metodo_residual_descartado": "INTEGER DEFAULT 0",
+        "metodo_residual_justificacion": "TEXT",
+        "metodo_residual_observaciones": "TEXT",
+        "incidencias_condicionantes_manuales": "TEXT",
+        "incidencias_advertencias_manuales": "TEXT",
+        "incidencias_limitaciones_manuales": "TEXT",
+        "incidencias_automaticas_visibles": "INTEGER DEFAULT 1",
+        "incidencias_manuales_visibles": "INTEGER DEFAULT 1",
+    }.items():
+        asegurar_columna(cur, "valoracion_expediente", columna, definicion)
 
     cur.execute(
         """
@@ -1270,6 +1337,10 @@ def init_db():
             latitud REAL,
             longitud REAL,
             precio_oferta REAL,
+            precio_depurado REAL,
+            precio_unitario_inicial REAL,
+            superficie_tomada REAL,
+            tipo_superficie_tomada TEXT,
             precio_cierre REAL,
             superficie_construida REAL,
             superficie_util REAL,
@@ -1284,11 +1355,28 @@ def init_db():
             garaje INTEGER,
             trastero INTEGER,
             terraza INTEGER,
+            es_exterior INTEGER DEFAULT 0,
+            balcon INTEGER DEFAULT 0,
+            patio INTEGER DEFAULT 0,
             estado_conservacion TEXT,
             antiguedad TEXT,
+            ano_construccion INTEGER,
+            ano_reforma INTEGER,
             calidad_constructiva TEXT,
             caracteristicas_constructivas TEXT,
             ubicacion TEXT,
+            aire_acondicionado INTEGER DEFAULT 0,
+            tipo_calefaccion TEXT,
+            certificacion_energetica TEXT,
+            fuente_tipo TEXT,
+            fuente_detalle TEXT,
+            fecha_captura TEXT,
+            dato_verificado INTEGER DEFAULT 0,
+            testigo_visitado INTEGER DEFAULT 0,
+            fiabilidad_dato TEXT,
+            similitud_inmueble TEXT,
+            estado_mercado TEXT,
+            observaciones_economicas TEXT,
             visitado INTEGER DEFAULT 0,
             validacion_estado TEXT DEFAULT 'pendiente',
             reutilizable INTEGER NOT NULL DEFAULT 1,
@@ -1299,6 +1387,30 @@ def init_db():
         )
         """
     )
+    for columna, definicion in {
+        "precio_depurado": "REAL",
+        "precio_unitario_inicial": "REAL",
+        "superficie_tomada": "REAL",
+        "tipo_superficie_tomada": "TEXT",
+        "fuente_tipo": "TEXT",
+        "fuente_detalle": "TEXT",
+        "fecha_captura": "TEXT",
+        "es_exterior": "INTEGER DEFAULT 0",
+        "balcon": "INTEGER DEFAULT 0",
+        "patio": "INTEGER DEFAULT 0",
+        "ano_construccion": "INTEGER",
+        "ano_reforma": "INTEGER",
+        "aire_acondicionado": "INTEGER DEFAULT 0",
+        "tipo_calefaccion": "TEXT",
+        "certificacion_energetica": "TEXT",
+        "dato_verificado": "INTEGER DEFAULT 0",
+        "testigo_visitado": "INTEGER DEFAULT 0",
+        "fiabilidad_dato": "TEXT",
+        "similitud_inmueble": "TEXT",
+        "estado_mercado": "TEXT",
+        "observaciones_economicas": "TEXT",
+    }.items():
+        asegurar_columna(cur, "testigos_valoracion", columna, definicion)
 
     cur.execute(
         """
@@ -1327,6 +1439,12 @@ def init_db():
             valor_unitario_base REAL,
             valor_unitario_ajustado REAL,
             valor_resultante REAL,
+            incluido_calculo INTEGER,
+            peso_porcentaje REAL,
+            motivo_ponderacion TEXT,
+            representatividad TEXT,
+            motivo_exclusion TEXT,
+            observaciones_ponderacion TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT,
             FOREIGN KEY (expediente_id) REFERENCES expedientes (id),
@@ -1334,12 +1452,31 @@ def init_db():
         )
         """
     )
+    for columna, definicion in {
+        "incluido_calculo": "INTEGER",
+        "peso_porcentaje": "REAL",
+        "motivo_ponderacion": "TEXT",
+        "representatividad": "TEXT",
+        "motivo_exclusion": "TEXT",
+        "observaciones_ponderacion": "TEXT",
+    }.items():
+        asegurar_columna(cur, "valoracion_expediente_testigos", columna, definicion)
 
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS valoracion_testigo_ajustes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             expediente_testigo_id INTEGER NOT NULL,
+            expediente_id INTEGER,
+            testigo_id INTEGER,
+            variable TEXT,
+            variable_otro TEXT,
+            valor_inmueble TEXT,
+            valor_testigo TEXT,
+            tipo_ajuste TEXT,
+            ajuste_porcentaje REAL,
+            ajuste_importe_m2 REAL,
+            signo TEXT,
             ajuste_superficie_construida REAL,
             ajuste_ubicacion REAL,
             ajuste_antiguedad REAL,
@@ -1347,12 +1484,29 @@ def init_db():
             ajuste_caracteristicas_constructivas REAL,
             coeficiente_total REAL,
             justificacion TEXT,
+            orden INTEGER,
+            activo INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT,
             FOREIGN KEY (expediente_testigo_id) REFERENCES valoracion_expediente_testigos (id)
         )
         """
     )
+    for columna, definicion in {
+        "expediente_id": "INTEGER",
+        "testigo_id": "INTEGER",
+        "variable": "TEXT",
+        "variable_otro": "TEXT",
+        "valor_inmueble": "TEXT",
+        "valor_testigo": "TEXT",
+        "tipo_ajuste": "TEXT",
+        "ajuste_porcentaje": "REAL",
+        "ajuste_importe_m2": "REAL",
+        "signo": "TEXT",
+        "orden": "INTEGER",
+        "activo": "INTEGER NOT NULL DEFAULT 1",
+    }.items():
+        asegurar_columna(cur, "valoracion_testigo_ajustes", columna, definicion)
 
     cur.execute(
         """
@@ -1364,6 +1518,14 @@ def init_db():
             valor_unitario REAL,
             valor_resultante REAL,
             valor_tasacion_final REAL,
+            unitario_minimo REAL,
+            unitario_maximo REAL,
+            unitario_medio REAL,
+            unitario_mediana REAL,
+            unitario_ponderado REAL,
+            unitario_recomendado REAL,
+            justificacion_unitario_recomendado TEXT,
+            resultado_comparacion_revisado INTEGER,
             resumen_calculo TEXT,
             datos_calculo_json TEXT,
             activo INTEGER NOT NULL DEFAULT 1,
@@ -1373,6 +1535,17 @@ def init_db():
         )
         """
     )
+    for columna, definicion in {
+        "unitario_minimo": "REAL",
+        "unitario_maximo": "REAL",
+        "unitario_medio": "REAL",
+        "unitario_mediana": "REAL",
+        "unitario_ponderado": "REAL",
+        "unitario_recomendado": "REAL",
+        "justificacion_unitario_recomendado": "TEXT",
+        "resultado_comparacion_revisado": "INTEGER",
+    }.items():
+        asegurar_columna(cur, "valoracion_resultados", columna, definicion)
 
     cur.execute(
         """

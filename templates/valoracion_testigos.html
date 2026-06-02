@@ -80,6 +80,7 @@
 
             <div class="actions">
                 <a class="boton" href="/valoracion/testigos/nuevo">Nuevo testigo</a>
+                <a class="boton secundario" href="/valoracion/testigos/biblioteca">Biblioteca desktop</a>
                 <a class="boton secundario" href="/expedientes">Volver a expedientes</a>
             </div>
         </section>
@@ -105,6 +106,9 @@
 
             <div class="summary-grid">
                 <p><strong>Oferta:</strong> {{ testigo.precio_oferta_fmt }}</p>
+                <p><strong>Depurado:</strong> {{ testigo.precio_depurado_fmt }}</p>
+                <p><strong>Sup. tomada:</strong> {{ testigo.superficie_tomada_fmt }}</p>
+                <p><strong>€/m² inicial:</strong> {{ testigo.precio_unitario_inicial_fmt }}</p>
                 <p><strong>Cierre:</strong> {{ testigo.precio_cierre_fmt }}</p>
                 <p><strong>Construida:</strong> {{ testigo.superficie_construida_fmt }}</p>
                 <p><strong>Útil:</strong> {{ testigo.superficie_util_fmt }}</p>
@@ -116,6 +120,10 @@
             <p><strong>Antigüedad:</strong> {{ testigo.antiguedad or '—' }}</p>
             <p><strong>Calidad:</strong> {{ testigo.calidad_constructiva or '—' }}</p>
             <p><strong>Fuente:</strong> {{ testigo.fuente_testigo or '—' }}</p>
+            <p><strong>Fiabilidad:</strong> {{ testigo.fiabilidad_dato or '—' }} · <strong>Similitud:</strong> {{ testigo.similitud_inmueble or '—' }}</p>
+            {% if testigo.advertencias_calculo %}
+            <p class="error"><strong>Advertencias:</strong> {{ testigo.advertencias_calculo | join(' · ') }}</p>
+            {% endif %}
             {% if testigo.url_fuente %}
             <p><a href="{{ testigo.url_fuente }}" target="_blank" rel="noopener noreferrer">Abrir fuente</a></p>
             {% endif %}

@@ -43,6 +43,12 @@
             border: 1px solid #fecdd3;
             color: #991b1b;
         }
+
+        .workbench-access-note {
+            color: #475569;
+            font-size: 0.86rem;
+            margin: 6px 0 0;
+        }
     </style>
 
     <title>Testigos de valoración del expediente</title>
@@ -56,13 +62,16 @@
         <div class="actions">
             <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
             <a class="boton secundario" href="/valoracion/testigos">Base de testigos</a>
+            <a class="boton secundario" href="/valoracion/testigos/biblioteca?expediente_id={{ expediente.id }}">Biblioteca desktop</a>
             <a class="boton secundario" href="/valoracion/testigos/nuevo">Nuevo testigo</a>
+            <a class="boton secundario" href="/expediente/{{ expediente.id }}/valoracion/workbench">Workbench de valoración</a>
         </div>
 
         <div class="card">
             <p><strong>Expediente:</strong> {{ expediente.numero_expediente }}</p>
             <p><strong>Dirección:</strong> {{ expediente.direccion }}</p>
             <p>La selección guarda un snapshot del testigo. Editar el testigo base después no cambia este expediente.</p>
+            <p class="workbench-access-note">Workbench de valoración: Análisis técnico de comparables, homogeneización y ponderación.</p>
             {% if testigos_vinculados|length > 6 %}
             <p class="error">Hay más de 6 testigos vinculados. Es una advertencia no bloqueante.</p>
             {% endif %}
@@ -74,6 +83,57 @@
         {% if mensaje %}
         <p>{{ mensaje }}</p>
         {% endif %}
+
+        <section class="card">
+            <h2>Resumen comparativo</h2>
+            <div class="grid data-table">
+                <div>
+                    <div class="label">Testigos incluidos</div>
+                    <div class="value">{{ resumen_comparacion.testigos_incluidos }}</div>
+                </div>
+                <div>
+                    <div class="label">Testigos excluidos</div>
+                    <div class="value">{{ resumen_comparacion.testigos_excluidos }}</div>
+                </div>
+                <div>
+                    <div class="label">Mínimo</div>
+                    <div class="value">{{ resumen_comparacion.unitario_minimo_fmt }}</div>
+                </div>
+                <div>
+                    <div class="label">Máximo</div>
+                    <div class="value">{{ resumen_comparacion.unitario_maximo_fmt }}</div>
+                </div>
+                <div>
+                    <div class="label">Media</div>
+                    <div class="value">{{ resumen_comparacion.unitario_medio_fmt }}</div>
+                </div>
+                <div>
+                    <div class="label">Mediana</div>
+                    <div class="value">{{ resumen_comparacion.unitario_mediana_fmt }}</div>
+                </div>
+                <div>
+                    <div class="label">Ponderado</div>
+                    <div class="value">{{ resumen_comparacion.unitario_ponderado_fmt }}</div>
+                </div>
+                <div>
+                    <div class="label">Suma pesos</div>
+                    <div class="value">{{ resumen_comparacion.suma_pesos_fmt }}</div>
+                </div>
+                <div>
+                    <div class="label">Propuesta orientativa</div>
+                    <div class="value">{{ resumen_comparacion.propuesta_unitaria_orientativa_fmt }}</div>
+                </div>
+            </div>
+            <p>El resumen es preparatorio. La adopción del valor unitario queda al criterio técnico del perito.</p>
+            {% if resumen_comparacion.advertencias %}
+            <div class="error">
+                <strong>Advertencias</strong>
+                {% for advertencia in resumen_comparacion.advertencias %}
+                <p>{{ advertencia }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
 
         <section class="card">
             <h2>Añadir testigo al expediente</h2>
@@ -143,11 +203,19 @@
                 <p><strong>Fuente:</strong> {{ vinculo.fuente_testigo or '-' }}</p>
                 <p><strong>Referencia:</strong> {{ vinculo.referencia_testigo or '-' }}</p>
                 <p><strong>Precio oferta:</strong> {{ vinculo.precio_oferta_fmt }}</p>
+                <p><strong>Precio depurado:</strong> {{ vinculo.precio_depurado_fmt }}</p>
+                <p><strong>Superficie tomada:</strong> {{ vinculo.superficie_tomada_fmt }}</p>
+                <p><strong>€/m² inicial:</strong> {{ vinculo.precio_unitario_inicial_fmt }}</p>
                 <p><strong>Superficie construida:</strong> {{ vinculo.superficie_construida_fmt }}</p>
                 <p><strong>Superficie útil:</strong> {{ vinculo.superficie_util_fmt }}</p>
                 <p><strong>Valor unitario base:</strong> {{ vinculo.valor_unitario_base_fmt }}</p>
                 <p><strong>Coeficiente total:</strong> {{ vinculo.coeficiente_total_fmt }}</p>
                 <p><strong>Valor unitario ajustado:</strong> {{ vinculo.valor_unitario_ajustado_fmt }}</p>
+                <p><strong>€/m² homogeneizado:</strong> {{ vinculo.unitario_homogeneizado_fmt }}</p>
+                <p><strong>Unitario para resumen:</strong> {{ vinculo.unitario_para_resumen_fmt }}</p>
+                {% if vinculo.advertencias_calculo %}
+                <p class="error"><strong>Advertencias cálculo inicial:</strong> {{ vinculo.advertencias_calculo | join(' · ') }}</p>
+                {% endif %}
                 <p><strong>Snapshot:</strong> {% if vinculo.snapshot_json %}guardado{% else %}pendiente{% endif %}</p>
 
                 <form class="testigo-vinculo-form" method="post"
@@ -161,8 +229,35 @@
                         <span>Incluido en la valoración</span>
                     </label>
 
+                    <label class="testigo-inline" for="incluido_calculo_{{ vinculo.id }}">
+                        <input id="incluido_calculo_{{ vinculo.id }}" name="incluido_calculo" type="checkbox" value="1"
+                            {% if vinculo.incluido_calculo != 0 %}checked{% endif %}>
+                        <span>Incluido en cálculo comparativo</span>
+                    </label>
+
+                    <label for="peso_{{ vinculo.id }}">Peso técnico (%)</label>
+                    <input id="peso_{{ vinculo.id }}" name="peso_porcentaje" type="number" min="0" max="100" step="0.01"
+                        value="{{ vinculo.peso_porcentaje if vinculo.peso_porcentaje is not none else '' }}">
+
+                    <label for="representatividad_{{ vinculo.id }}">Representatividad</label>
+                    <select id="representatividad_{{ vinculo.id }}" name="representatividad">
+                        <option value="">Sin indicar</option>
+                        {% for valor, etiqueta in representatividad_options %}
+                        <option value="{{ valor }}" {% if vinculo.representatividad == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+
                     <label for="notas_{{ vinculo.id }}">Notas de selección</label>
                     <textarea id="notas_{{ vinculo.id }}" name="notas_seleccion">{{ vinculo.notas_seleccion or '' }}</textarea>
+
+                    <label for="motivo_ponderacion_{{ vinculo.id }}">Motivo de ponderación</label>
+                    <textarea id="motivo_ponderacion_{{ vinculo.id }}" name="motivo_ponderacion">{{ vinculo.motivo_ponderacion or '' }}</textarea>
+
+                    <label for="motivo_exclusion_{{ vinculo.id }}">Motivo de exclusión</label>
+                    <textarea id="motivo_exclusion_{{ vinculo.id }}" name="motivo_exclusion">{{ vinculo.motivo_exclusion or '' }}</textarea>
+
+                    <label for="observaciones_ponderacion_{{ vinculo.id }}">Observaciones de ponderación</label>
+                    <textarea id="observaciones_ponderacion_{{ vinculo.id }}" name="observaciones_ponderacion">{{ vinculo.observaciones_ponderacion or '' }}</textarea>
 
                     <div class="testigo-actions">
                         <button class="boton secundario" type="submit">Guardar vínculo</button>

@@ -14,13 +14,70 @@
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
 
+    <style>
+        .testigo-detalle-wide {
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .testigo-detail-grid {
+            align-items: start;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+        }
+
+        .testigo-detail-span {
+            grid-column: 1 / -1;
+        }
+
+        .testigo-data-grid {
+            display: grid;
+            gap: 6px 16px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .testigo-data-grid p {
+            border-bottom: 1px solid #eef2f7;
+            margin: 0;
+            padding: 5px 0;
+        }
+
+        .testigo-gallery {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        }
+
+        .testigo-gallery .visita-foto-item {
+            margin: 0;
+        }
+
+        .testigo-gallery img {
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+            width: 100%;
+        }
+
+        @media (max-width: 980px) {
+            .testigo-detalle-wide {
+                width: 100%;
+            }
+
+            .testigo-detail-grid,
+            .testigo-data-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
     <title>Detalle de testigo</title>
 </head>
 
 <body>
     {% include "partials/_app_shell_start.html" %}
-    <div class="page">
-        <section class="card">
+    <div class="page testigo-detalle-wide">
+        <section class="card testigo-detail-span">
             <p class="visita-eyebrow">Testigo reutilizable · {{ testigo.validacion_estado or 'pendiente' }}</p>
             <h1>{{ testigo.direccion_testigo or 'Testigo sin dirección' }}</h1>
             <p class="helper-text">{{ testigo.municipio or 'Municipio no indicado' }}{% if testigo.codigo_postal %} · {{ testigo.codigo_postal }}{% endif %}</p>
@@ -37,8 +94,10 @@
         <p>{{ mensaje }}</p>
         {% endif %}
 
+        <div class="testigo-detail-grid">
         <section class="card">
             <h2>Datos principales</h2>
+            <div class="testigo-data-grid">
             <p><strong>Referencia:</strong> {{ testigo.referencia_testigo or '—' }}</p>
             <p><strong>Fuente:</strong> {{ testigo.fuente_testigo or '—' }}</p>
             {% if testigo.url_fuente %}
@@ -46,15 +105,33 @@
             {% endif %}
             <p><strong>Fecha:</strong> {{ testigo.fecha_testigo or '—' }}</p>
             <p><strong>Precio oferta:</strong> {{ testigo.precio_oferta_fmt }}</p>
+            <p><strong>Precio depurado:</strong> {{ testigo.precio_depurado_fmt }}</p>
+            <p><strong>Superficie tomada:</strong> {{ testigo.superficie_tomada_fmt }}</p>
+            <p><strong>Tipo de superficie tomada:</strong> {{ testigo.tipo_superficie_tomada or '—' }}</p>
+            <p><strong>€/m² inicial:</strong> {{ testigo.precio_unitario_inicial_fmt }}</p>
             <p><strong>Precio cierre:</strong> {{ testigo.precio_cierre_fmt }}</p>
             <p><strong>Valor unitario:</strong> {{ testigo.valor_unitario_fmt }}</p>
             <p><strong>Superficie construida:</strong> {{ testigo.superficie_construida_fmt }}</p>
             <p><strong>Superficie útil:</strong> {{ testigo.superficie_util_fmt }}</p>
             <p><strong>Otros usos:</strong> {{ testigo.superficie_otros_usos_fmt }}</p>
+            <p><strong>Tipo de fuente:</strong> {{ testigo.fuente_tipo or '—' }}</p>
+            <p><strong>Detalle de fuente:</strong> {{ testigo.fuente_detalle or '—' }}</p>
+            <p><strong>Fecha de captura:</strong> {{ testigo.fecha_captura or '—' }}</p>
+            <p><strong>Dato verificado:</strong> {{ testigo.dato_verificado_fmt }}</p>
+            <p><strong>Testigo visitado:</strong> {{ testigo.testigo_visitado_fmt }}</p>
+            <p><strong>Fiabilidad:</strong> {{ testigo.fiabilidad_dato or '—' }}</p>
+            <p><strong>Similitud:</strong> {{ testigo.similitud_inmueble or '—' }}</p>
+            <p><strong>Estado de mercado:</strong> {{ testigo.estado_mercado or '—' }}</p>
+            <p><strong>Observaciones económicas:</strong> {{ testigo.observaciones_economicas or '—' }}</p>
+            {% if testigo.advertencias_calculo %}
+            <p class="error"><strong>Advertencias de cálculo inicial:</strong> {{ testigo.advertencias_calculo | join(' · ') }}</p>
+            {% endif %}
+            </div>
         </section>
 
         <section class="card">
             <h2>Características</h2>
+            <div class="testigo-data-grid">
             <p><strong>Tipología:</strong> {{ testigo.tipologia or '—' }}</p>
             <p><strong>Planta:</strong> {{ testigo.planta or '—' }}</p>
             <p><strong>Dormitorios:</strong> {{ testigo.dormitorios if testigo.dormitorios is not none else '—' }}</p>
@@ -72,29 +149,32 @@
             <p><strong>Visitado:</strong> {{ testigo.visitado_fmt }}</p>
             <p><strong>Reutilizable:</strong> {{ testigo.reutilizable_fmt }}</p>
             <p><strong>Observaciones:</strong> {{ testigo.observaciones or '—' }}</p>
+            </div>
         </section>
 
         <section class="card">
             <h2>Fotos</h2>
+            <p class="helper-text">Evidencias auxiliares subidas manualmente. No se descargan imágenes externas ni se insertan automáticamente en informes.</p>
             <form method="post" action="/valoracion/testigos/{{ testigo.id }}/fotos" enctype="multipart/form-data">
                 <label for="descripcion_foto_testigo">Descripción</label>
                 <input id="descripcion_foto_testigo" name="descripcion" type="text" placeholder="Ej. Captura del anuncio, fachada, interior">
                 <input type="hidden" name="origen" value="manual">
 
                 <label class="photo-capture-label" for="fotos_testigo">Añadir fotos o capturas</label>
-                <input class="photo-input" id="fotos_testigo" name="fotos" type="file" accept="image/*" multiple>
+                <input class="photo-input" id="fotos_testigo" name="fotos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
 
                 <button class="boton" type="submit">Guardar fotos</button>
             </form>
 
             {% if fotos %}
-            <div class="visita-fotos-grid">
+            <div class="visita-fotos-grid testigo-gallery">
                 {% for foto in fotos %}
                 <figure class="visita-foto-item">
                     <img src="{{ foto.url }}" alt="Foto de testigo de valoración">
                     {% if foto.descripcion %}
                     <figcaption>{{ foto.descripcion }}</figcaption>
                     {% endif %}
+                    <a href="{{ foto.url }}" target="_blank" rel="noopener noreferrer">Ver foto</a>
                 </figure>
                 {% endfor %}
             </div>
@@ -103,7 +183,7 @@
             {% endif %}
         </section>
 
-        <section class="card">
+        <section class="card testigo-detail-span">
             <h2>Uso en expedientes</h2>
             {% if vinculos %}
             {% for vinculo in vinculos %}
@@ -123,6 +203,7 @@
             <p class="empty">Este testigo todavía no está vinculado a expedientes.</p>
             {% endif %}
         </section>
+        </div>
     </div>
     {% include "partials/_app_shell_end.html" %}
 </body>

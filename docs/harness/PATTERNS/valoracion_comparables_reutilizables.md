@@ -46,9 +46,23 @@ ligados a visita hacia una base reutilizable de testigos de mercado.
 - Las fotos de testigo pueden subirse manualmente desde el detalle usando
   `testigos_valoracion_fotos`. No automatizar descarga de imagenes de portales
   ni OCR sin una fase independiente de captura asistida.
+- La subida manual de fotos debe reutilizar uploads contextuales del proyecto,
+  validar extensiones/tipo de imagen y tamaño maximo razonable, y registrar solo
+  metadatos en `testigos_valoracion_fotos`. El borrado fisico de archivos queda
+  fuera salvo fase explicita con rollback y criterio sobre uploads reales.
+- El alta rapida desktop puede enriquecer el testigo base con atributos
+  tecnicos propios del anuncio: superficies especificas, banos, planta,
+  exterior/interior, ascensor, balcon, terraza, patio, anos, estado,
+  climatizacion, calefaccion, certificacion energetica, garaje y trastero. Debe
+  reutilizar columnas existentes cuando las haya y anadir solo columnas
+  defensivas para atributos sin equivalente.
 - Al vincular un testigo se guarda `snapshot_json`, `orden`, `incluido` y
   `notas_seleccion` en `valoracion_expediente_testigos`. Quitar un testigo del
   expediente elimina solo el vinculo, nunca el testigo base.
+- La biblioteca desktop puede vincular un testigo a un expediente solo cuando
+  recibe contexto explicito `expediente_id` y el expediente pertenece al usuario
+  y es de tipo `valoracion`. Debe evitar duplicados y no debe guardar peso,
+  inclusion/exclusion ni representatividad como datos globales del testigo.
 - El maximo habitual de 6 testigos debe tratarse como recomendacion no
   bloqueante hasta que exista una regla funcional explicita.
 - Los ajustes de homogeneizacion se guardan en `valoracion_testigo_ajustes`

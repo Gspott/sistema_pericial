@@ -534,24 +534,100 @@
             {% endif %}
         </section>
 
+        {% if valoracion_eco %}
+        <section class="section" data-toc-id="valoracion-eco">
+            <h2>3. Criterios periciales de valoración</h2>
+            <div class="warning technical-note">
+                <strong>Nota metodológica</strong>
+                <p>{{ valoracion_eco.nota_metodologica }}</p>
+            </div>
+
+            {% for grupo in [valoracion_eco.finalidad, valoracion_eco.base_valor, valoracion_eco.superficies] %}
+            <div class="card section-card">
+                <div class="card-title">
+                    <h3>{{ grupo.titulo }}</h3>
+                </div>
+                {% if grupo.hay_datos %}
+                <div class="grid data-table">
+                    {% for campo in grupo.campos %}
+                    {% if campo.value not in ["-", "—", ""] %}
+                    <div>
+                        <div class="label">{{ campo.label }}</div>
+                        <div class="value">{{ campo.value }}</div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p>No constan datos registrados para este apartado.</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <div class="card section-card">
+                <div class="card-title">
+                    <h3>{{ valoracion_eco.metodos.titulo }}</h3>
+                </div>
+                {% if valoracion_eco.metodos.hay_datos %}
+                <div class="grid data-table">
+                    {% for metodo in valoracion_eco.metodos["items"] %}
+                    <div>
+                        <div class="label">{{ metodo.titulo }}</div>
+                        <div class="value">
+                            Aplicado: {{ "Sí" if metodo.aplicado else "No" }} ·
+                            Descartado: {{ "Sí" if metodo.descartado else "No" }}
+                            {% if metodo.justificacion %}<br>{{ metodo.justificacion }}{% endif %}
+                            {% if metodo.observaciones %}<br>{{ metodo.observaciones }}{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p>No constan métodos aplicados o descartados.</p>
+                {% endif %}
+            </div>
+
+            <div class="card section-card">
+                <div class="card-title">
+                    <h3>{{ valoracion_eco.incidencias.titulo }}</h3>
+                </div>
+                {% if valoracion_eco.incidencias.visibles %}
+                <div class="grid data-table">
+                    {% for incidencia in valoracion_eco.incidencias.visibles %}
+                    <div>
+                        <div class="label">{{ incidencia.tipo|capitalize }} · {{ incidencia.origen }}</div>
+                        <div class="value">{{ incidencia.descripcion }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p>No constan incidencias visibles para el informe.</p>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
         {% set titulos_valoracion = {
-            "encargo": "3. Encargo",
-            "documentacion": "4. Documentación utilizada",
-            "identificacion": "5. Identificación del bien",
-            "situacion_legal": "6. Situación legal",
-            "entorno": "7. Entorno",
-            "edificio_inmueble": "8. Edificio/inmueble",
-            "constructivo": "9. Características constructivas",
-            "estado": "10. Estado",
-            "metodo": "11. Método de valoración",
-            "resultado": "13. Resultado",
-            "limitaciones": "14. Limitaciones"
+            "encargo": "4. Encargo",
+            "base_valor": "5. Base de valor",
+            "documentacion": "5. Documentación utilizada",
+            "identificacion": "6. Identificación del bien",
+            "situacion_legal": "7. Situación legal",
+            "entorno": "8. Entorno",
+            "edificio_inmueble": "9. Edificio/inmueble",
+            "constructivo": "10. Características constructivas",
+            "estado": "11. Estado",
+            "metodo": "12. Método de valoración",
+            "metodos_eco": "12. Métodos aplicados y descartados",
+            "resultado": "14. Resultado",
+            "limitaciones": "15. Limitaciones",
+            "incidencias": "15. Incidencias"
         } %}
 
         {% if valoracion %}
             {% for bloque in valoracion %}
                 {% for grupo in bloque.grupos %}
-                    {% if grupo.clave not in ["resultado", "limitaciones"] %}
+                    {% if grupo.clave not in ["base_valor", "metodos_eco", "incidencias", "resultado", "limitaciones"] %}
                     <section class="section" data-toc-id="valoracion-{{ grupo.clave }}">
                         <h2>{{ titulos_valoracion.get(grupo.clave, grupo.titulo) }}</h2>
                         <div class="card section-card">
@@ -580,7 +656,7 @@
             {% endfor %}
         {% else %}
             {% for clave, titulo in titulos_valoracion.items() %}
-                {% if clave not in ["resultado", "limitaciones"] %}
+                {% if clave not in ["base_valor", "metodos_eco", "incidencias", "resultado", "limitaciones"] %}
                 <section class="section" data-toc-id="valoracion-{{ clave }}">
                     <h2>{{ titulo }}</h2>
                     <p>No constan datos de valoración registrados.</p>
@@ -590,8 +666,69 @@
         {% endif %}
 
         <section class="section" data-toc-id="valoracion-comparables">
-            <h2>12. Comparables</h2>
+            <h2>13. Comparables</h2>
+            <div class="warning technical-note">
+                <strong>Nota de cálculo inicial</strong>
+                <p>Los valores unitarios iniciales no incorporan todavía homogeneización ni ponderación técnica salvo que se indique expresamente.</p>
+                <p>La homogeneización recoge ajustes técnicos introducidos por el perito. Los ajustes cualitativos no cuantificados se reflejan como observaciones y no modifican el valor unitario.</p>
+            </div>
             {% if comparables_valoracion %}
+                {% set resumen = resumen_comparacion_valoracion %}
+                <article class="card section-card">
+                    <div class="card-title">
+                        <h3>Resumen comparativo y ponderación</h3>
+                    </div>
+                    <div class="warning technical-note">
+                        <strong>Nota de ponderación</strong>
+                        <p>El resumen comparativo tiene carácter preparatorio. La adopción del valor unitario corresponde al criterio técnico del perito y debe quedar justificada expresamente.</p>
+                    </div>
+                    <div class="grid data-table">
+                        <div>
+                            <div class="label">Testigos incluidos</div>
+                            <div class="value">{{ resumen.testigos_incluidos }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Testigos excluidos</div>
+                            <div class="value">{{ resumen.testigos_excluidos }}</div>
+                        </div>
+                        <div>
+                            <div class="label">€/m² mínimo</div>
+                            <div class="value">{{ resumen.unitario_minimo_fmt }}</div>
+                        </div>
+                        <div>
+                            <div class="label">€/m² máximo</div>
+                            <div class="value">{{ resumen.unitario_maximo_fmt }}</div>
+                        </div>
+                        <div>
+                            <div class="label">€/m² medio</div>
+                            <div class="value">{{ resumen.unitario_medio_fmt }}</div>
+                        </div>
+                        <div>
+                            <div class="label">€/m² mediana</div>
+                            <div class="value">{{ resumen.unitario_mediana_fmt }}</div>
+                        </div>
+                        <div>
+                            <div class="label">€/m² ponderado</div>
+                            <div class="value">{{ resumen.unitario_ponderado_fmt }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Suma de pesos</div>
+                            <div class="value">{{ resumen.suma_pesos_fmt }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Propuesta orientativa</div>
+                            <div class="value">{{ resumen.propuesta_unitaria_orientativa_fmt }}</div>
+                        </div>
+                    </div>
+                    {% if resumen.advertencias %}
+                    <div class="warning technical-note">
+                        <strong>Advertencias de ponderación</strong>
+                        {% for advertencia in resumen.advertencias %}
+                        <p>{{ advertencia }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </article>
                 {% for comparable in comparables_valoracion %}
                 <article class="card section-card">
                     <div class="card-title">
@@ -608,6 +745,30 @@
                         {% endif %}
                         {% endfor %}
                     </div>
+                    {% if comparable.pasos_homogeneizacion %}
+                    <h4>Matriz de homogeneización</h4>
+                    <div class="grid data-table">
+                        {% for paso in comparable.pasos_homogeneizacion %}
+                        <div>
+                            <div class="label">{{ paso.variable or "Ajuste" }}</div>
+                            <div class="value">
+                                {{ paso.valor_inmueble or "—" }} / {{ paso.valor_testigo or "—" }}<br>
+                                Efecto: {{ paso.efecto_importe_m2|round(2) }} €/m²<br>
+                                {{ paso.justificacion or "Sin justificación" }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p><strong>€/m² inicial:</strong> {{ comparable.precio_unitario_inicial_fmt }} · <strong>€/m² homogeneizado:</strong> {{ comparable.unitario_homogeneizado_fmt }}</p>
+                    {% endif %}
+                    {% if comparable.advertencias_homogeneizacion %}
+                    <div class="warning technical-note">
+                        <strong>Advertencias de homogeneización</strong>
+                        {% for advertencia in comparable.advertencias_homogeneizacion %}
+                        <p>{{ advertencia }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </article>
                 {% endfor %}
             {% else %}
@@ -643,13 +804,13 @@
             {% endfor %}
         {% else %}
             <section class="section final-section" data-toc-id="valoracion-resultado">
-                <h2>13. Resultado</h2>
+                <h2>14. Resultado</h2>
                 <div class="conclusion-card">
                     <p>No consta resultado de valoración registrado.</p>
                 </div>
             </section>
             <section class="section" data-toc-id="valoracion-limitaciones">
-                <h2>14. Limitaciones</h2>
+                <h2>15. Limitaciones</h2>
                 <div class="conclusion-card">
                     <p>No constan limitaciones de valoración registradas.</p>
                 </div>

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .quick-testigo {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .quick-hero,
+        .quick-section {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .quick-hero {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            margin-bottom: 16px;
+        }
+
+        .quick-title {
+            font-size: clamp(1.35rem, 2.3vw, 2rem);
+            margin: 0 0 6px;
+        }
+
+        .quick-note {
+            color: #475569;
+            margin: 0;
+        }
+
+        .quick-form {
+            display: grid;
+            gap: 14px;
+        }
+
+        .quick-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .quick-section h2 {
+            font-size: 1rem;
+            margin: 0 0 12px;
+        }
+
+        .quick-wide {
+            grid-column: 1 / -1;
+        }
+
+        .quick-checkbox {
+            align-items: center;
+            display: flex;
+            gap: 8px;
+            margin-top: 28px;
+        }
+
+        .quick-checkbox input {
+            min-height: auto;
+            width: auto;
+        }
+
+        .unitario-preview {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .unitario-preview span {
+            color: #64748b;
+            display: block;
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .unitario-preview strong {
+            display: block;
+            font-size: 1.15rem;
+        }
+
+        .quick-alert {
+            border-radius: 8px;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+        }
+
+        .quick-alert.error {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            color: #9f1239;
+        }
+
+        .quick-alert.warning {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #92400e;
+        }
+
+        .analysis-preview {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            margin-top: 12px;
+            padding: 12px;
+        }
+
+        .analysis-preview-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .analysis-preview-item {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .analysis-preview-item span {
+            color: #64748b;
+            display: block;
+            font-size: 0.74rem;
+            margin-bottom: 3px;
+        }
+
+        .confidence-pill {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            display: inline-flex;
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding: 6px 9px;
+        }
+
+        .duplicate-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .duplicate-item {
+            background: #ffffff;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .duplicate-meta {
+            color: #475569;
+            font-size: 0.88rem;
+            margin: 4px 0;
+        }
+
+        @media (min-width: 1180px) {
+            .quick-form {
+                align-items: start;
+                grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.55fr);
+            }
+
+            .quick-assist {
+                grid-row: span 4;
+                position: sticky;
+                top: 12px;
+            }
+
+            .quick-assist textarea {
+                min-height: 420px;
+            }
+
+            .sticky-actions {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (max-width: 960px) {
+            .quick-testigo {
+                width: 100%;
+            }
+
+            .quick-hero,
+            .quick-grid,
+            .analysis-preview-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-checkbox {
+                margin-top: 0;
+            }
+        }
+    </style>
+
+    <title>Nuevo testigo rápido</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page quick-testigo">
+        <section class="quick-hero">
+            <div>
+                <p class="visita-eyebrow">Biblioteca de testigos</p>
+                <h1 class="quick-title">Nuevo testigo rápido</h1>
+                <p class="quick-note">Alta desktop para capturar anuncios inmobiliarios de forma ágil. No vincula automáticamente a expedientes.</p>
+            </div>
+            <div class="actions">
+                <a class="boton secundario" href="/valoracion/testigos/biblioteca{% if testigo.expediente_id %}?expediente_id={{ testigo.expediente_id }}{% endif %}">Volver a biblioteca</a>
+                {% if testigo.expediente_id %}
+                <a class="boton secundario" href="/expedientes/{{ testigo.expediente_id }}/valoracion/testigos">Volver al expediente</a>
+                {% endif %}
+            </div>
+        </section>
+
+        {% if errores %}
+        <div class="quick-alert error">
+            {% for error in errores %}
+            <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if avisos %}
+        <div class="quick-alert warning">
+            {% for aviso in avisos %}
+            <p>{{ aviso }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if duplicados_posibles %}
+        <div class="quick-alert warning">
+            <p><strong>Posibles testigos duplicados.</strong> Revisa los candidatos antes de guardar. Esta comprobación no bloquea ni fusiona datos.</p>
+            <div class="duplicate-list">
+                {% for candidato in duplicados_posibles %}
+                <div class="duplicate-item">
+                    <strong>{{ candidato.direccion_testigo or "Testigo sin dirección" }}</strong>
+                    <p class="duplicate-meta">
+                        {{ candidato.municipio or "Municipio no indicado" }} ·
+                        {{ candidato.precio_oferta_fmt }} ·
+                        {{ candidato.superficie_tomada_fmt }} ·
+                        {{ candidato.precio_unitario_inicial_fmt }}
+                    </p>
+                    <p class="duplicate-meta">Fuente: {{ candidato.fuente_testigo or "—" }} · Ref.: {{ candidato.referencia_testigo or "—" }}</p>
+                    {% for motivo in candidato.motivos_duplicado %}
+                    <p class="duplicate-meta">Motivo: {{ motivo }}</p>
+                    {% endfor %}
+                    <a href="/valoracion/testigos/{{ candidato.id }}">Ver candidato</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <form class="quick-form" method="post" action="/valoracion/testigos/biblioteca/nuevo">
+            <input type="hidden" name="expediente_id" value="{{ testigo.expediente_id or '' }}">
+
+            <section class="quick-section quick-assist">
+                <h2>Pegado asistido desde anuncio</h2>
+                <p class="quick-note">Ayuda local de captura. No verifica datos, no descarga URLs, no usa scraping ni IA externa.</p>
+                <label for="texto_anuncio_bruto">Texto bruto del anuncio</label>
+                <textarea id="texto_anuncio_bruto" name="texto_anuncio_bruto" rows="5" placeholder="Pega aquí el texto copiado del anuncio">{{ testigo.texto_anuncio_bruto or '' }}</textarea>
+                <div class="actions">
+                    <button class="boton secundario" type="submit" name="accion" value="analizar_texto" formnovalidate>Analizar texto pegado</button>
+                </div>
+                {% if analisis_anuncio and analisis_anuncio.ejecutado %}
+                <div class="analysis-preview">
+                    <p><strong>Previsualización detectada</strong> · <span class="confidence-pill">Confianza {{ analisis_anuncio.confianza }}</span></p>
+                    {% if analisis_anuncio.campos %}
+                    <div class="analysis-preview-grid">
+                        {% for campo, valor in analisis_anuncio.campos.items() %}
+                        <div class="analysis-preview-item">
+                            <span>{{ campo.replace('_', ' ') }}</span>
+                            <strong>{{ valor }}</strong>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p>No se han detectado campos aplicables.</p>
+                    {% endif %}
+                    {% if analisis_anuncio.advertencias %}
+                    <div class="quick-alert warning">
+                        {% for advertencia in analisis_anuncio.advertencias %}
+                        <p>{{ advertencia }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </section>
+
+            <section class="quick-section">
+                <h2>Fuente del anuncio</h2>
+                <div class="quick-grid">
+                    <div>
+                        <label for="fuente_tipo">Portal</label>
+                        <select id="fuente_tipo" name="fuente_tipo">
+                            {% for fuente in fuente_presets %}
+                            <option value="{{ fuente }}" {% if testigo.fuente_tipo == fuente %}selected{% endif %}>{{ fuente }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="fuente_testigo">Fuente / portal manual</label>
+                        <input id="fuente_testigo" name="fuente_testigo" value="{{ testigo.fuente_testigo or '' }}" placeholder="Idealista, Fotocasa, portal local...">
+                    </div>
+                    <div>
+                        <label for="fecha_captura">Fecha de captura</label>
+                        <input id="fecha_captura" name="fecha_captura" type="date" value="{{ testigo.fecha_captura or '' }}">
+                    </div>
+                    <div class="quick-wide">
+                        <label for="url_fuente">URL del anuncio</label>
+                        <input id="url_fuente" name="url_fuente" type="url" value="{{ testigo.url_fuente or '' }}" placeholder="https://...">
+                    </div>
+                    <div class="quick-wide">
+                        <label for="referencia_testigo">Título del anuncio / referencia</label>
+                        <input id="referencia_testigo" name="referencia_testigo" value="{{ testigo.referencia_testigo or '' }}" placeholder="Piso reformado con ascensor en zona centro">
+                    </div>
+                </div>
+            </section>
+
+            <section class="quick-section">
+                <h2>Identificación y localización</h2>
+                <div class="quick-grid">
+                    <div class="quick-wide">
+                        <label for="direccion_testigo">Dirección o zona</label>
+                        <input id="direccion_testigo" name="direccion_testigo" value="{{ testigo.direccion_testigo or '' }}" placeholder="Calle, barrio o zona del anuncio">
+                    </div>
+                    <div>
+                        <label for="municipio">Municipio</label>
+                        <input id="municipio" name="municipio" value="{{ testigo.municipio or '' }}">
+                    </div>
+                    <div>
+                        <label for="provincia">Provincia</label>
+                        <input id="provincia" name="provincia" value="{{ testigo.provincia or '' }}">
+                    </div>
+                    <div>
+                        <label for="tipologia">Tipología</label>
+                        <input id="tipologia" name="tipologia" value="{{ testigo.tipologia or '' }}" placeholder="Piso, local, unifamiliar...">
+                    </div>
+                    <div>
+                        <label for="codigo_postal">Código postal</label>
+                        <input id="codigo_postal" name="codigo_postal" value="{{ testigo.codigo_postal or '' }}">
+                    </div>
+                </div>
+            </section>
+
+            <section class="quick-section">
+                <h2>Datos económicos</h2>
+                <div class="quick-grid">
+                    <div>
+                        <label for="precio_oferta">Precio oferta</label>
+                        <input id="precio_oferta" name="precio_oferta" type="number" step="0.01" value="{{ testigo.precio_oferta or '' }}">
+                    </div>
+                    <div>
+                        <label for="precio_depurado">Precio depurado</label>
+                        <input id="precio_depurado" name="precio_depurado" type="number" step="0.01" value="{{ testigo.precio_depurado or '' }}">
+                    </div>
+                    <div class="unitario-preview">
+                        <span>€/m² inicial estimado</span>
+                        <strong>{{ unitario_visual }}</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="quick-section">
+                <h2>Superficies</h2>
+                <div class="quick-grid">
+                    <div>
+                        <label for="superficie_tomada">Superficie tomada</label>
+                        <input id="superficie_tomada" name="superficie_tomada" type="number" step="0.01" value="{{ testigo.superficie_tomada or '' }}">
+                    </div>
+                    <div>
+                        <label for="tipo_superficie_tomada">Tipo de superficie</label>
+                        <select id="tipo_superficie_tomada" name="tipo_superficie_tomada">
+                            {% for valor in ["construida", "util", "registral", "catastral", "anuncio", "otra"] %}
+                            <option value="{{ valor }}" {% if testigo.tipo_superficie_tomada == valor %}selected{% endif %}>{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="superficie_construida">Superficie construida</label>
+                        <input id="superficie_construida" name="superficie_construida" type="number" step="0.01" value="{{ testigo.superficie_construida or '' }}">
+                    </div>
+                    <div>
+                        <label for="superficie_util">Superficie útil</label>
+                        <input id="superficie_util" name="superficie_util" type="number" step="0.01" value="{{ testigo.superficie_util or '' }}">
+                    </div>
+                    <div>
+                        <label for="fecha_testigo">Fecha del testigo</label>
+                        <input id="fecha_testigo" name="fecha_testigo" type="date" value="{{ testigo.fecha_testigo or '' }}">
+                    </div>
+                </div>
+            </section>
+
+            <section class="quick-section">
+                <h2>Características</h2>
+                <div class="quick-grid">
+                    <div>
+                        <label for="banos">Baños</label>
+                        <input id="banos" name="banos" type="number" step="1" min="0" value="{{ testigo.banos or '' }}">
+                    </div>
+                    <div>
+                        <label for="planta">Planta</label>
+                        <input id="planta" name="planta" value="{{ testigo.planta or '' }}" placeholder="4ª, bajo, ático...">
+                    </div>
+                    <label class="quick-checkbox" for="es_exterior">
+                        <input id="es_exterior" name="es_exterior" type="checkbox" value="1" {% if testigo.es_exterior == '1' or testigo.es_exterior == 1 %}checked{% endif %}>
+                        <span>Exterior</span>
+                    </label>
+                    <label class="quick-checkbox" for="ascensor">
+                        <input id="ascensor" name="ascensor" type="checkbox" value="1" {% if testigo.ascensor == '1' or testigo.ascensor == 1 %}checked{% endif %}>
+                        <span>Ascensor</span>
+                    </label>
+                    <label class="quick-checkbox" for="balcon">
+                        <input id="balcon" name="balcon" type="checkbox" value="1" {% if testigo.balcon == '1' or testigo.balcon == 1 %}checked{% endif %}>
+                        <span>Balcón</span>
+                    </label>
+                    <label class="quick-checkbox" for="terraza">
+                        <input id="terraza" name="terraza" type="checkbox" value="1" {% if testigo.terraza == '1' or testigo.terraza == 1 %}checked{% endif %}>
+                        <span>Terraza</span>
+                    </label>
+                    <label class="quick-checkbox" for="patio">
+                        <input id="patio" name="patio" type="checkbox" value="1" {% if testigo.patio == '1' or testigo.patio == 1 %}checked{% endif %}>
+                        <span>Patio</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="quick-section">
+                <h2>Estado y calidades</h2>
+                <div class="quick-grid">
+                    <div>
+                        <label for="estado_conservacion">Estado de conservación</label>
+                        <input id="estado_conservacion" name="estado_conservacion" value="{{ testigo.estado_conservacion or '' }}" placeholder="Reformado, buen estado, a reformar...">
+                    </div>
+                    <div>
+                        <label for="ano_construccion">Año de construcción</label>
+                        <input id="ano_construccion" name="ano_construccion" type="number" step="1" value="{{ testigo.ano_construccion or '' }}">
+                    </div>
+                    <div>
+                        <label for="ano_reforma">Año de reforma</label>
+                        <input id="ano_reforma" name="ano_reforma" type="number" step="1" value="{{ testigo.ano_reforma or '' }}">
+                    </div>
+                    <div>
+                        <label for="certificacion_energetica">Certificación energética</label>
+                        <input id="certificacion_energetica" name="certificacion_energetica" value="{{ testigo.certificacion_energetica or '' }}" placeholder="A, B, C...">
+                    </div>
+                </div>
+            </section>
+
+            <section class="quick-section">
+                <h2>Equipamiento</h2>
+                <div class="quick-grid">
+                    <label class="quick-checkbox" for="aire_acondicionado">
+                        <input id="aire_acondicionado" name="aire_acondicionado" type="checkbox" value="1" {% if testigo.aire_acondicionado == '1' or testigo.aire_acondicionado == 1 %}checked{% endif %}>
+                        <span>Aire acondicionado</span>
+                    </label>
+                    <label class="quick-checkbox" for="garaje">
+                        <input id="garaje" name="garaje" type="checkbox" value="1" {% if testigo.garaje == '1' or testigo.garaje == 1 %}checked{% endif %}>
+                        <span>Garaje</span>
+                    </label>
+                    <label class="quick-checkbox" for="trastero">
+                        <input id="trastero" name="trastero" type="checkbox" value="1" {% if testigo.trastero == '1' or testigo.trastero == 1 %}checked{% endif %}>
+                        <span>Trastero</span>
+                    </label>
+                    <div class="quick-wide">
+                        <label for="tipo_calefaccion">Tipo de calefacción</label>
+                        <input id="tipo_calefaccion" name="tipo_calefaccion" value="{{ testigo.tipo_calefaccion or '' }}" placeholder="Individual eléctrica, gas natural, central...">
+                    </div>
+                </div>
+            </section>
+
+            <section class="quick-section">
+                <h2>Calidad y verificación</h2>
+                <div class="quick-grid">
+                    <div>
+                        <label for="fiabilidad_dato">Fiabilidad</label>
+                        <select id="fiabilidad_dato" name="fiabilidad_dato">
+                            <option value="">Sin indicar</option>
+                            {% for valor in ["alta", "media_alta", "media", "baja"] %}
+                            <option value="{{ valor }}" {% if testigo.fiabilidad_dato == valor %}selected{% endif %}>{{ valor }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label class="quick-checkbox" for="dato_verificado">
+                        <input id="dato_verificado" name="dato_verificado" type="checkbox" value="1" {% if testigo.dato_verificado == '1' or testigo.dato_verificado == 1 %}checked{% endif %}>
+                        <span>Dato verificado manualmente</span>
+                    </label>
+                    <div class="quick-wide">
+                        <label for="observaciones">Observaciones</label>
+                        <textarea id="observaciones" name="observaciones" rows="3" placeholder="Notas del anuncio, condiciones, dudas o depuración aplicada">{{ testigo.observaciones or '' }}</textarea>
+                    </div>
+                </div>
+            </section>
+
+            <div class="actions sticky-actions">
+                <button class="boton" type="submit" name="accion" value="guardar">Guardar</button>
+                {% if duplicados_posibles %}
+                <button class="boton secundario" type="submit" name="accion" value="guardar_confirmado">Guardar de todos modos</button>
+                {% endif %}
+                <button class="boton secundario" type="submit" name="accion" value="crear_otro">Guardar y crear otro</button>
+                <button class="boton secundario" type="submit" name="accion" value="volver_biblioteca">Guardar y volver a biblioteca</button>
+                <a class="boton secundario" href="/valoracion/testigos/biblioteca{% if testigo.expediente_id %}?expediente_id={{ testigo.expediente_id }}{% endif %}">Cancelar</a>
+            </div>
+        </form>
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

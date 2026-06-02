@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+
+    <style>
+        .valuation-workbench {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .workbench-hero {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+            margin-bottom: 12px;
+            padding: 14px;
+        }
+
+        .workbench-kicker {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            margin: 0 0 6px;
+            text-transform: uppercase;
+        }
+
+        .workbench-title {
+            font-size: clamp(1.45rem, 2.4vw, 2.3rem);
+            line-height: 1.05;
+            margin: 0 0 8px;
+        }
+
+        .workbench-subtitle {
+            color: #475569;
+            margin: 0;
+            max-width: 70ch;
+        }
+
+        .workbench-metrics {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .diagnostic-bar {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(7, minmax(96px, 1fr));
+            margin-bottom: 12px;
+        }
+
+        .diagnostic-item {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        .metric-tile {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 9px 10px;
+        }
+
+        .metric-label {
+            color: #64748b;
+            display: block;
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            color: #0f172a;
+            display: block;
+            font-size: 1.05rem;
+            font-weight: 800;
+        }
+
+        .workbench-layout {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 72fr) minmax(300px, 28fr);
+            align-items: start;
+        }
+
+        .workbench-panel,
+        .workbench-section {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .workbench-panel {
+            position: sticky;
+            top: 12px;
+        }
+
+        .workbench-section + .workbench-section {
+            margin-top: 12px;
+        }
+
+        .section-head {
+            align-items: start;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .section-head h2,
+        .workbench-panel h2 {
+            font-size: 1.05rem;
+            margin: 0;
+        }
+
+        .section-note {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin: 4px 0 0;
+        }
+
+        .comparables-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .comparables-table {
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            min-width: 1260px;
+            width: 100%;
+        }
+
+        .comparables-table th,
+        .comparables-table td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 7px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .comparables-table th {
+            color: #475569;
+            font-size: 0.73rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .number-cell {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .tech-cell {
+            min-width: 120px;
+        }
+
+        .tech-compact {
+            display: grid;
+            gap: 4px;
+        }
+
+        .tech-line {
+            color: #334155;
+            display: block;
+            font-size: 0.78rem;
+            line-height: 1.25;
+        }
+
+        .tech-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .tech-chip {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 999px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.7rem;
+            font-weight: 700;
+            line-height: 1;
+            padding: 4px 6px;
+            white-space: nowrap;
+        }
+
+        .tech-chip.is-warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
+        }
+
+        .photo-indicator {
+            align-items: center;
+            display: inline-flex;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .visual-gallery {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .visual-item {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .visual-thumb {
+            aspect-ratio: 4 / 3;
+            background: #e2e8f0;
+            display: block;
+            object-fit: cover;
+            width: 100%;
+        }
+
+        .visual-meta {
+            display: grid;
+            gap: 4px;
+            padding: 8px;
+        }
+
+        .visual-meta span {
+            color: #475569;
+            font-size: 0.76rem;
+        }
+
+        .status-pill {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1;
+            padding: 5px 7px;
+            white-space: nowrap;
+        }
+
+        .status-pill.is-on {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .status-pill.is-off {
+            background: #fff7ed;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
+
+        .status-pill.is-muted {
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        .status-pill.is-warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
+        }
+
+        .status-pill.is-issue {
+            background: #fff1f2;
+            border-color: #fecdd3;
+            color: #9f1239;
+        }
+
+        .workbench-controls {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            margin-bottom: 10px;
+        }
+
+        .control-group {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .control-label {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .control-link {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 6px 9px;
+            text-decoration: none;
+        }
+
+        .control-link.active {
+            background: #172033;
+            border-color: #172033;
+            color: #ffffff;
+        }
+
+        .legend-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 0 0 12px;
+        }
+
+        .row-selected {
+            background: #f8fafc;
+            box-shadow: inset 3px 0 0 #475569;
+        }
+
+        .select-link {
+            color: #1e3a8a;
+            display: inline-flex;
+            font-weight: 700;
+            margin-top: 6px;
+            text-decoration: none;
+        }
+
+        .alert-strip {
+            border-radius: 8px;
+            margin: 0 0 12px;
+            padding: 10px 12px;
+        }
+
+        .alert-strip.warning {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #92400e;
+        }
+
+        .alert-strip.issue {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            color: #9f1239;
+        }
+
+        .panel-actions {
+            display: grid;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .microedit-form {
+            border-top: 1px solid #e2e8f0;
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+            padding-top: 14px;
+        }
+
+        .microedit-inline {
+            align-items: center;
+            display: flex;
+            gap: 8px;
+        }
+
+        .microedit-inline input {
+            min-height: auto;
+            width: auto;
+        }
+
+        .warning-list {
+            display: grid;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .warning-list li {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            color: #9a3412;
+            list-style: none;
+            padding: 10px;
+        }
+
+        .side-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .side-field {
+            border-top: 1px solid #e2e8f0;
+            padding-top: 10px;
+        }
+
+        .side-field span {
+            color: #64748b;
+            display: block;
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .side-field strong {
+            color: #0f172a;
+            display: block;
+        }
+
+        .trace-section {
+            border-top: 1px solid #e2e8f0;
+            display: grid;
+            gap: 12px;
+            padding-top: 12px;
+        }
+
+        .trace-section h3 {
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .trace-summary {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .trace-metric,
+        .trace-step {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .trace-metric span,
+        .trace-step span {
+            color: #64748b;
+            display: block;
+            font-size: 0.74rem;
+            margin-bottom: 3px;
+        }
+
+        .trace-metric strong,
+        .trace-step strong {
+            color: #0f172a;
+            display: block;
+        }
+
+        .trace-step-title {
+            align-items: start;
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .trace-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .technical-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .trace-note {
+            color: #475569;
+            font-size: 0.88rem;
+            margin: 8px 0 0;
+        }
+
+        @media (max-width: 960px) {
+            .valuation-workbench {
+                width: 100%;
+            }
+
+            .workbench-hero,
+            .workbench-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .workbench-panel {
+                position: static;
+            }
+
+            .diagnostic-bar,
+            .workbench-controls {
+                grid-template-columns: 1fr;
+            }
+
+            .workbench-metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .workbench-hero,
+            .workbench-panel,
+            .workbench-section {
+                padding: 12px;
+            }
+
+            .workbench-metrics {
+                grid-template-columns: 1fr;
+            }
+
+            .diagnostic-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .trace-summary,
+            .trace-grid,
+            .visual-gallery,
+            .technical-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <title>Workbench de valoración</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page valuation-workbench workbench-wide-desktop">
+        <section class="workbench-hero">
+            <div>
+                <p class="workbench-kicker">Workbench de valoración</p>
+                <h1 class="workbench-title">{{ expediente.numero_expediente }} · {{ expediente.direccion or "Sin dirección" }}</h1>
+                <p class="workbench-subtitle">Vista de análisis de escritorio para revisar comparables, homogeneización, ponderación e incidencias sin sustituir los formularios móviles existentes.</p>
+                <p class="section-note">Los resultados son orientativos: la decisión técnica final sigue correspondiendo al perito y no se adopta automáticamente ningún valor final.</p>
+                {% if mensaje %}
+                <div class="alert-strip warning">{{ mensaje }}</div>
+                {% endif %}
+                {% if error %}
+                <div class="alert-strip issue">{{ error }}</div>
+                {% endif %}
+                <div class="actions">
+                    <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion/testigos">Testigos del expediente</a>
+                    <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe</a>
+                </div>
+            </div>
+            <div class="workbench-metrics">
+                <div class="metric-tile">
+                    <span class="metric-label">Testigos incluidos</span>
+                    <span class="metric-value">{{ resumen_comparacion.testigos_incluidos or 0 }}</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Mediana</span>
+                    <span class="metric-value">{{ resumen_comparacion.unitario_mediana_fmt or "—" }}</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Ponderado</span>
+                    <span class="metric-value">{{ resumen_comparacion.unitario_ponderado_fmt or "—" }}</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Rango</span>
+                    <span class="metric-value">{{ resumen_comparacion.unitario_minimo_fmt or "—" }} / {{ resumen_comparacion.unitario_maximo_fmt or "—" }}</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Suma pesos</span>
+                    <span class="metric-value">{{ resumen_comparacion.suma_pesos_fmt or "—" }}</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Propuesta orientativa</span>
+                    <span class="metric-value">{{ resumen_comparacion.propuesta_unitaria_orientativa_fmt or "—" }}</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="diagnostic-bar" aria-label="Diagnóstico técnico del workbench">
+            <div class="diagnostic-item">
+                <span class="metric-label">Total testigos</span>
+                <span class="metric-value">{{ diagnostico.total }}</span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="metric-label">Incluidos</span>
+                <span class="metric-value">{{ diagnostico.incluidos }}</span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="metric-label">Excluidos</span>
+                <span class="metric-value">{{ diagnostico.excluidos }}</span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="metric-label">Incompletos</span>
+                <span class="metric-value">{{ diagnostico.incompletos }}</span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="metric-label">Con advertencias</span>
+                <span class="metric-value">{{ diagnostico.con_advertencias }}</span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="metric-label">Rango homog.</span>
+                <span class="metric-value">{{ diagnostico.unitario_minimo_fmt }} / {{ diagnostico.unitario_maximo_fmt }}</span>
+            </div>
+            <div class="diagnostic-item">
+                <span class="metric-label">Diferencia relativa</span>
+                <span class="metric-value">{{ diagnostico.diferencia_relativa_fmt }}</span>
+            </div>
+        </section>
+
+        <div class="workbench-layout">
+            <div>
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Resumen de valoración</h2>
+                            <p class="section-note">Fuente: contexto moderno de `build_informe_context()` con fallback legacy.</p>
+                        </div>
+                    </div>
+                    <div class="grid data-table">
+                        <div>
+                            <div class="label">Finalidad</div>
+                            <div class="value">{{ valoracion_eco.finalidad.campos[0].value if valoracion_eco.finalidad and valoracion_eco.finalidad.campos else "—" }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Base de valor</div>
+                            <div class="value">{{ valoracion_eco.base_valor.campos[0].value if valoracion_eco.base_valor and valoracion_eco.base_valor.campos else "—" }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Advertencias completitud</div>
+                            <div class="value">{{ completitud.total_advertencias or 0 }}</div>
+                        </div>
+                        <div>
+                            <div class="label">Pesos válidos</div>
+                            <div class="value">{{ "Sí" if resumen_comparacion.pesos_validos else "No" }}</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Testigos comparables</h2>
+                            <p class="section-note">Tabla compacta para análisis. En móvil se mantiene como scroll horizontal, sin reemplazar las cards operativas.</p>
+                        </div>
+                    </div>
+                    {% if view_state.filtro_warning %}
+                    <div class="alert-strip warning">{{ view_state.filtro_warning }}</div>
+                    {% endif %}
+                    {% if view_state.ordenar_warning %}
+                    <div class="alert-strip warning">{{ view_state.ordenar_warning }}</div>
+                    {% endif %}
+                    <div class="workbench-controls">
+                        <div class="control-group">
+                            <span class="control-label">Filtro</span>
+                            {% for item in view_state.filter_links %}
+                            <a class="control-link {% if view_state.filtro == item.key %}active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+                            {% endfor %}
+                        </div>
+                        <div class="control-group">
+                            <span class="control-label">Orden</span>
+                            {% for item in view_state.sort_links %}
+                            <a class="control-link {% if view_state.ordenar == item.key %}active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="legend-row">
+                        <span class="control-label">Leyenda</span>
+                        <span class="status-pill is-on">Incluido</span>
+                        <span class="status-pill is-off">Excluido</span>
+                        <span class="status-pill is-muted">Incompleto</span>
+                        <span class="status-pill is-warning">Advertencia</span>
+                        <span class="status-pill is-issue">Incidencia</span>
+                    </div>
+                    {% if comparables %}
+                    <div class="comparables-scroll">
+                        <table class="comparables-table">
+                            <thead>
+                                <tr>
+                                    <th>Testigo</th>
+                                    <th>Fuente</th>
+                                    <th>€/m² inicial</th>
+                                    <th>€/m² homog.</th>
+                                    <th>Sup. constr./útil</th>
+                                    <th>Técnicos</th>
+                                    <th>Fotos</th>
+                                    <th>Estado cons.</th>
+                                    <th>Peso</th>
+                                    <th>Similitud</th>
+                                    <th>Fiabilidad</th>
+                                    <th>Estado</th>
+                                    <th>Advertencias</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for comparable in comparables %}
+                                {% set comparable_key = comparable.testigo_id or comparable.expediente_testigo_id or comparable.id %}
+                                {% set is_selected = panel_testigo and comparable_key|string == (panel_testigo.testigo_id or panel_testigo.expediente_testigo_id or panel_testigo.id)|string %}
+                                <tr class="{% if is_selected %}row-selected{% endif %}">
+                                    <td>
+                                        <strong>{{ comparable.direccion_testigo or "Sin dirección" }}</strong><br>
+                                        <span class="section-note">{{ comparable.representatividad or "Representatividad no indicada" }}</span>
+                                        <br>
+                                        <a class="select-link" href="/expediente/{{ expediente.id }}/valoracion/workbench?filtro={{ view_state.filtro }}&ordenar={{ view_state.ordenar }}&dir={{ view_state.dir }}&testigo_id={{ comparable_key }}">Seleccionar</a>
+                                    </td>
+                                    <td>{{ comparable.fuente_testigo or comparable.fuente_detalle or "—" }}</td>
+                                    <td class="number-cell">{{ comparable.precio_unitario_inicial_fmt or "—" }}</td>
+                                    <td class="number-cell">{{ comparable.unitario_homogeneizado_fmt or "—" }}</td>
+                                    <td class="tech-cell">
+                                        <div class="tech-compact">
+                                            <span class="tech-line">Constr.: {{ comparable.superficie_construida_fmt or "—" }}</span>
+                                            <span class="tech-line">Útil: {{ comparable.superficie_util_fmt or "—" }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="tech-cell">
+                                        <div class="tech-chip-row">
+                                            {% if comparable.banos not in [none, ""] %}<span class="tech-chip">{{ comparable.banos }} baños</span>{% endif %}
+                                            {% if comparable.planta %}<span class="tech-chip">{{ comparable.planta }}</span>{% endif %}
+                                            {% if comparable.ascensor_fmt != "-" %}<span class="tech-chip">{{ "Ascensor" if comparable.ascensor_fmt == "Sí" else "Sin ascensor" }}</span>{% endif %}
+                                            {% if comparable.es_exterior_fmt != "-" %}<span class="tech-chip">{{ "Exterior" if comparable.es_exterior_fmt == "Sí" else "Interior" }}</span>{% endif %}
+                                            {% if comparable.balcon_fmt == "Sí" %}<span class="tech-chip">Balcón</span>{% endif %}
+                                            {% if comparable.terraza_fmt == "Sí" %}<span class="tech-chip">Terraza</span>{% endif %}
+                                            {% if comparable.patio_fmt == "Sí" %}<span class="tech-chip">Patio</span>{% endif %}
+                                            {% if not comparable.banos and not comparable.planta and comparable.ascensor_fmt == "-" and comparable.es_exterior_fmt == "-" %}
+                                            <span class="tech-chip is-warning">Datos técnicos pendientes</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if comparable.fotos_count %}
+                                        <span class="status-pill is-on photo-indicator">{{ comparable.fotos_count }} fotos</span>
+                                        {% else %}
+                                        <span class="status-pill is-muted">Sin fotos</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ comparable.estado_conservacion or "—" }}</td>
+                                    <td class="number-cell">{{ comparable.peso_porcentaje_fmt or "—" }}</td>
+                                    <td>{{ comparable.similitud_inmueble or "—" }}</td>
+                                    <td>{{ comparable.fiabilidad_dato or "—" }}</td>
+                                    <td>
+                                        <span class="status-pill {% if comparable.incluido_calculo != 0 %}is-on{% else %}is-off{% endif %}">
+                                            {% if comparable.incluido_calculo != 0 %}Incluido{% else %}Excluido{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% set advertencias = (comparable.advertencias_calculo or []) + (comparable.advertencias_homogeneizacion or []) + (comparable.advertencias_tecnicas or []) %}
+                                        {% if comparable.incluido_calculo == 0 %}
+                                        <span class="status-pill is-off">Excluido</span>
+                                        {% endif %}
+                                        {% if not comparable.unitario_homogeneizado %}
+                                        <span class="status-pill is-muted">Dato incompleto</span>
+                                        {% endif %}
+                                        {% if advertencias %}
+                                        <span class="status-pill is-warning">Advertencia</span>
+                                        <br>{{ advertencias|join(" · ") }}
+                                        {% else %}
+                                        {% if comparable.incluido_calculo != 0 and comparable.unitario_homogeneizado %}
+                                        —
+                                        {% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert-strip issue">
+                        No hay testigos visibles con el filtro actual. Cambia a “Todos” para recuperar la tabla.
+                    </div>
+                    {% endif %}
+                </section>
+
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Estado e incidencias</h2>
+                            <p class="section-note">Advertencias no bloqueantes para revisión técnica.</p>
+                        </div>
+                    </div>
+                    {% if resumen_comparacion.advertencias or completitud.advertencias %}
+                    <ul class="warning-list">
+                        {% for incidencia in resumen_comparacion.advertencias or [] %}
+                        <li>{{ incidencia }}</li>
+                        {% endfor %}
+                        {% for advertencia in completitud.advertencias or [] %}
+                        <li>{{ advertencia.mensaje }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p>No constan advertencias relevantes en el contexto actual.</p>
+                    {% endif %}
+                </section>
+            </div>
+
+            <aside class="workbench-panel">
+                <h2>Panel contextual</h2>
+                {% if panel_warning %}
+                <div class="alert-strip warning">{{ panel_warning }}</div>
+                {% endif %}
+                {% if panel_testigo %}
+                <p class="section-note">Testigo seleccionado desde la tabla. Si no hay selección válida, se usa el primer testigo disponible.</p>
+                <div class="side-grid">
+                    <div class="side-field">
+                        <span>Dirección</span>
+                        <strong>{{ panel_testigo.direccion_testigo or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Precio ofertado</span>
+                        <strong>{{ panel_testigo.precio_oferta_fmt or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Precio depurado</span>
+                        <strong>{{ panel_testigo.precio_depurado_fmt or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Superficie tomada</span>
+                        <strong>{{ panel_testigo.superficie_tomada_fmt or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>€/m² inicial</span>
+                        <strong>{{ panel_testigo.precio_unitario_inicial_fmt or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>€/m² homogeneizado</span>
+                        <strong>{{ panel_testigo.unitario_homogeneizado_fmt or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Inclusión</span>
+                        <strong>{% if panel_testigo.incluido_calculo != 0 %}Incluido en cálculo{% else %}Excluido del cálculo{% endif %}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Peso</span>
+                        <strong>{{ panel_testigo.peso_porcentaje_fmt or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Similitud / fiabilidad</span>
+                        <strong>{{ panel_testigo.similitud_inmueble or "—" }} · {{ panel_testigo.fiabilidad_dato or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Motivo ponderación</span>
+                        <strong>{{ panel_testigo.motivo_ponderacion or "—" }}</strong>
+                    </div>
+                    <div class="side-field">
+                        <span>Motivo exclusión</span>
+                        <strong>{{ panel_testigo.motivo_exclusion or "—" }}</strong>
+                        {% if panel_testigo.incluido_calculo == 0 and not panel_testigo.motivo_exclusion %}
+                        <div class="alert-strip warning">Testigo excluido sin motivo técnico breve.</div>
+                        {% endif %}
+                    </div>
+                    <div class="side-field">
+                        <span>Advertencias e incidencias</span>
+                        {% set panel_advertencias = (panel_testigo.advertencias_calculo or []) + (panel_testigo.advertencias_homogeneizacion or []) + (panel_testigo.advertencias_tecnicas or []) %}
+                        {% if panel_advertencias %}
+                        <div class="alert-strip warning">
+                            {% for advertencia in panel_advertencias %}
+                            <p>{{ advertencia }}</p>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <strong>Sin advertencias específicas.</strong>
+                        {% endif %}
+                    </div>
+                    <div class="trace-section">
+                        <h3>Características técnicas del testigo</h3>
+                        <div class="technical-grid">
+                            <div class="trace-metric">
+                                <span>Baños</span>
+                                <strong>{{ panel_testigo.banos if panel_testigo.banos not in [none, ""] else "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Superficie construida</span>
+                                <strong>{{ panel_testigo.superficie_construida_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Superficie útil</span>
+                                <strong>{{ panel_testigo.superficie_util_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Planta</span>
+                                <strong>{{ panel_testigo.planta or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Ascensor</span>
+                                <strong>{{ panel_testigo.ascensor_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Exterior</span>
+                                <strong>{{ panel_testigo.es_exterior_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Balcón</span>
+                                <strong>{{ panel_testigo.balcon_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Terraza</span>
+                                <strong>{{ panel_testigo.terraza_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Patio</span>
+                                <strong>{{ panel_testigo.patio_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Año construcción</span>
+                                <strong>{{ panel_testigo.ano_construccion or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Año reforma</span>
+                                <strong>{{ panel_testigo.ano_reforma or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Aire acondicionado</span>
+                                <strong>{{ panel_testigo.aire_acondicionado_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Calefacción</span>
+                                <strong>{{ panel_testigo.tipo_calefaccion or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Garaje</span>
+                                <strong>{{ panel_testigo.garaje_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Trastero</span>
+                                <strong>{{ panel_testigo.trastero_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Certificación energética</span>
+                                <strong>{{ panel_testigo.certificacion_energetica or "—" }}</strong>
+                            </div>
+                        </div>
+                        {% if panel_testigo.advertencias_tecnicas %}
+                        <div class="alert-strip warning">
+                            {% for advertencia in panel_testigo.advertencias_tecnicas %}
+                            <p>{{ advertencia }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="trace-section">
+                        <h3>Evidencia visual</h3>
+                        <p class="section-note">Evidencias auxiliares manuales; no sustituyen la inspección ni la verificación técnica.</p>
+                        {% if panel_testigo.fotos_testigo %}
+                        <div class="visual-gallery">
+                            {% for foto in panel_testigo.fotos_testigo %}
+                            <div class="visual-item">
+                                <img class="visual-thumb" src="{{ foto.url }}" alt="Foto manual del testigo {{ panel_testigo.direccion_testigo or '' }}">
+                                <div class="visual-meta">
+                                    <strong>{{ foto.descripcion or "Foto/captura manual" }}</strong>
+                                    <span>{{ foto.origen or "manual" }} · {{ foto.created_at or "sin fecha" }}</span>
+                                    <a class="select-link" href="{{ foto.url }}" target="_blank" rel="noopener">Ver foto</a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="alert-strip warning">Este testigo no tiene fotos o capturas manuales asociadas.</div>
+                        {% endif %}
+                    </div>
+                    <div class="trace-section">
+                        <h3>Trazabilidad de homogeneización</h3>
+                        <div class="trace-summary">
+                            <div class="trace-metric">
+                                <span>€/m² inicial</span>
+                                <strong>{{ trazabilidad_homogeneizacion.unitario_inicial_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>Subtotal ajustes</span>
+                                <strong>{{ trazabilidad_homogeneizacion.subtotal_efectos_fmt or "—" }}</strong>
+                            </div>
+                            <div class="trace-metric">
+                                <span>€/m² homogeneizado</span>
+                                <strong>{{ trazabilidad_homogeneizacion.unitario_homogeneizado_fmt or "—" }}</strong>
+                            </div>
+                        </div>
+                        {% if trazabilidad_homogeneizacion.incompleto %}
+                        <div class="alert-strip warning">
+                            <strong>Trazabilidad incompleta.</strong>
+                            {% for aviso in trazabilidad_homogeneizacion.avisos_incompleto %}
+                            <p>{{ aviso }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if trazabilidad_homogeneizacion.discrepancia %}
+                        <div class="alert-strip issue">
+                            Diferencia QA entre subtotal reconstruido y €/m² homogeneizado mostrado:
+                            {{ trazabilidad_homogeneizacion.diferencia_fmt }}.
+                        </div>
+                        {% endif %}
+                        {% if trazabilidad_homogeneizacion.pasos %}
+                        {% for paso in trazabilidad_homogeneizacion.pasos %}
+                        <div class="trace-step">
+                            <div class="trace-step-title">
+                                <strong>{{ paso.variable }}</strong>
+                                <span>{{ paso.tipo_label }}</span>
+                            </div>
+                            <div class="trace-grid">
+                                <div>
+                                    <span>Porcentaje</span>
+                                    <strong>{{ paso.porcentaje_fmt }}</strong>
+                                </div>
+                                <div>
+                                    <span>Importe €/m²</span>
+                                    <strong>{{ paso.importe_m2_fmt }}</strong>
+                                </div>
+                                <div>
+                                    <span>Efecto</span>
+                                    <strong>{{ paso.efecto_fmt }}</strong>
+                                </div>
+                                <div>
+                                    <span>Antes / después</span>
+                                    <strong>{{ paso.unitario_antes_fmt }} → {{ paso.unitario_despues_fmt }}</strong>
+                                </div>
+                            </div>
+                            {% if paso.valor_inmueble or paso.valor_testigo %}
+                            <p class="trace-note">Inmueble: {{ paso.valor_inmueble or "—" }} · Testigo: {{ paso.valor_testigo or "—" }}</p>
+                            {% endif %}
+                            <p class="trace-note">{{ paso.justificacion or "Sin justificación" }}</p>
+                            {% if paso.es_cualitativo %}
+                            <span class="status-pill is-muted">Ajuste cualitativo sin efecto numérico</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <strong>Sin ajustes aplicados.</strong>
+                        {% endif %}
+                        {% if panel_testigo.expediente_testigo_id %}
+                        <a class="select-link" href="/expedientes/{{ expediente.id }}/valoracion/testigos/{{ panel_testigo.expediente_testigo_id }}/ajustes">Editar ajustes</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if panel_testigo.testigo_id %}
+                <form class="microedit-form" method="post" action="/expediente/{{ expediente.id }}/valoracion/workbench/testigo/{{ panel_testigo.testigo_id }}">
+                    <input type="hidden" name="filtro" value="{{ view_state.filtro }}">
+                    <input type="hidden" name="ordenar" value="{{ view_state.ordenar }}">
+                    <input type="hidden" name="dir" value="{{ view_state.dir }}">
+
+                    <label class="microedit-inline" for="wb_incluido_{{ panel_testigo.testigo_id }}">
+                        <input id="wb_incluido_{{ panel_testigo.testigo_id }}" name="incluido_calculo" type="checkbox" value="1"
+                            {% if panel_testigo.incluido_calculo != 0 %}checked{% endif %}>
+                        <span>Incluido en cálculo comparativo</span>
+                    </label>
+
+                    <label for="wb_peso_{{ panel_testigo.testigo_id }}">Peso (%)</label>
+                    <input id="wb_peso_{{ panel_testigo.testigo_id }}" name="peso_porcentaje" type="number" min="0" max="100" step="0.01"
+                        value="{{ panel_testigo.peso_porcentaje if panel_testigo.peso_porcentaje is not none else '' }}">
+
+                    <label for="wb_representatividad_{{ panel_testigo.testigo_id }}">Representatividad</label>
+                    <select id="wb_representatividad_{{ panel_testigo.testigo_id }}" name="representatividad">
+                        <option value="">Sin indicar</option>
+                        {% for valor, etiqueta in representatividad_options %}
+                        <option value="{{ valor }}" {% if panel_testigo.representatividad == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="wb_motivo_ponderacion_{{ panel_testigo.testigo_id }}">Motivo de ponderación</label>
+                    <textarea id="wb_motivo_ponderacion_{{ panel_testigo.testigo_id }}" name="motivo_ponderacion" rows="2">{{ panel_testigo.motivo_ponderacion or '' }}</textarea>
+
+                    <label for="wb_motivo_exclusion_{{ panel_testigo.testigo_id }}">Motivo de exclusión</label>
+                    <textarea id="wb_motivo_exclusion_{{ panel_testigo.testigo_id }}" name="motivo_exclusion" rows="2">{{ panel_testigo.motivo_exclusion or '' }}</textarea>
+
+                    <label for="wb_observaciones_{{ panel_testigo.testigo_id }}">Motivo técnico breve / observación</label>
+                    <textarea id="wb_observaciones_{{ panel_testigo.testigo_id }}" name="observaciones_ponderacion" rows="2">{{ panel_testigo.observaciones_ponderacion or '' }}</textarea>
+
+                    <button class="boton" type="submit">Guardar microedición</button>
+                </form>
+                {% endif %}
+                <div class="panel-actions">
+                    <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Ver expediente</a>
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion/testigos">Volver a valoración clásica/móvil</a>
+                    {% if panel_testigo.testigo_id %}
+                    <a class="boton secundario" href="/valoracion/testigos/{{ panel_testigo.testigo_id }}/editar">Editar testigo</a>
+                    {% endif %}
+                    {% if panel_testigo.expediente_testigo_id %}
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion/testigos/{{ panel_testigo.expediente_testigo_id }}/ajustes">Editar ajustes</a>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p>No hay testigos disponibles para el panel contextual.</p>
+                {% endif %}
+            </aside>
+        </div>
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

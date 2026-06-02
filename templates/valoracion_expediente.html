@@ -111,7 +111,7 @@
                         {% if campo in campos_checkbox %}
                         <label class="valoracion-checkbox" for="{{ campo }}">
                             <input id="{{ campo }}" name="{{ campo }}" type="checkbox" value="1"
-                                {% if valoracion.get(campo) != '0' %}checked{% endif %}>
+                                {% if valoracion.get(campo) in [1, '1', true] %}checked{% endif %}>
                             <span>{{ etiqueta }}</span>
                         </label>
                         {% else %}

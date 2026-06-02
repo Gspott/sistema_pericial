@@ -56,7 +56,106 @@
         <p>{{ mensaje }}</p>
         {% endif %}
 
+        <section class="card">
+            <h2>Homogeneización</h2>
+            <p><strong>€/m² inicial:</strong> {{ resumen_homogeneizacion.unitario_inicial_fmt }}</p>
+            <p><strong>€/m² homogeneizado:</strong> {{ resumen_homogeneizacion.unitario_homogeneizado_fmt }}</p>
+            <p><strong>Ajuste total:</strong> {{ resumen_homogeneizacion.ajuste_total_importe_m2_fmt }} · {{ resumen_homogeneizacion.ajuste_total_porcentaje_equivalente_fmt }}</p>
+            {% if resumen_homogeneizacion.advertencias %}
+            <p class="error"><strong>Advertencias:</strong> {{ resumen_homogeneizacion.advertencias | join(' · ') }}</p>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <h2>Matriz de homogeneización</h2>
+            {% if ajustes_homogeneizacion %}
+                {% for ajuste_h in ajustes_homogeneizacion %}
+                <article class="card inner-card">
+                    <p><strong>Variable:</strong> {{ ajuste_h.variable }}{% if ajuste_h.variable_otro %} · {{ ajuste_h.variable_otro }}{% endif %}</p>
+                    <p><strong>Inmueble:</strong> {{ ajuste_h.valor_inmueble or '—' }}</p>
+                    <p><strong>Testigo:</strong> {{ ajuste_h.valor_testigo or '—' }}</p>
+                    <p><strong>Tipo:</strong> {{ ajuste_h.tipo_ajuste or '—' }}</p>
+                    <p><strong>Signo:</strong> {{ ajuste_h.signo or '—' }}</p>
+                    <p><strong>Porcentaje:</strong> {{ ajuste_h.ajuste_porcentaje_fmt }}</p>
+                    <p><strong>Importe €/m²:</strong> {{ ajuste_h.ajuste_importe_m2_fmt }}</p>
+                    <p><strong>Justificación:</strong> {{ ajuste_h.justificacion or '—' }}</p>
+                    <p><strong>Activo:</strong> {{ ajuste_h.activo_fmt }}</p>
+                    <div class="actions">
+                        <a class="boton secundario" href="/expedientes/{{ vinculo.expediente_id }}/valoracion/testigos/{{ vinculo.id }}/ajustes/homogeneizacion/{{ ajuste_h.id }}/editar">Editar</a>
+                    </div>
+                    <form method="post" action="/expedientes/{{ vinculo.expediente_id }}/valoracion/testigos/{{ vinculo.id }}/ajustes/homogeneizacion/{{ ajuste_h.id }}/desactivar">
+                        <button class="boton secundario" type="submit">Desactivar</button>
+                    </form>
+                </article>
+                {% endfor %}
+            {% else %}
+            <p>No hay ajustes de homogeneización registrados.</p>
+            {% endif %}
+        </section>
+
+        <form class="card" method="post"
+            action="{% if modo_homogeneizacion == 'editar' %}/expedientes/{{ vinculo.expediente_id }}/valoracion/testigos/{{ vinculo.id }}/ajustes/homogeneizacion/{{ ajuste_homogeneizacion_id }}/editar{% else %}/expedientes/{{ vinculo.expediente_id }}/valoracion/testigos/{{ vinculo.id }}/ajustes/homogeneizacion{% endif %}">
+            <h2>{% if modo_homogeneizacion == 'editar' %}Editar ajuste de homogeneización{% else %}Nuevo ajuste de homogeneización{% endif %}</h2>
+
+            <label for="variable">Variable</label>
+            <select id="variable" name="variable">
+                {% for valor, label in variables_homogeneizacion %}
+                <option value="{{ valor }}" {% if ajuste_homogeneizacion_form.variable == valor %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="variable_otro">Variable otro</label>
+            <input id="variable_otro" name="variable_otro" type="text" value="{{ ajuste_homogeneizacion_form.variable_otro or '' }}">
+
+            <label for="valor_inmueble">Valor inmueble</label>
+            <input id="valor_inmueble" name="valor_inmueble" type="text" value="{{ ajuste_homogeneizacion_form.valor_inmueble or '' }}">
+
+            <label for="valor_testigo">Valor testigo</label>
+            <input id="valor_testigo" name="valor_testigo" type="text" value="{{ ajuste_homogeneizacion_form.valor_testigo or '' }}">
+
+            <label for="tipo_ajuste">Tipo de ajuste</label>
+            <select id="tipo_ajuste" name="tipo_ajuste">
+                {% for valor, label in tipos_homogeneizacion %}
+                <option value="{{ valor }}" {% if ajuste_homogeneizacion_form.tipo_ajuste == valor %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="signo">Signo</label>
+            <select id="signo" name="signo">
+                {% for valor, label in signos_homogeneizacion %}
+                <option value="{{ valor }}" {% if ajuste_homogeneizacion_form.signo == valor %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="ajuste_porcentaje">Ajuste porcentaje</label>
+            <input id="ajuste_porcentaje" name="ajuste_porcentaje" type="number" step="0.01" value="{{ ajuste_homogeneizacion_form.ajuste_porcentaje or '' }}">
+            <p class="ajuste-help">Usar 0.05 para 5%. Si se introduce 5, se interpreta como 5%.</p>
+
+            <label for="ajuste_importe_m2">Ajuste importe €/m²</label>
+            <input id="ajuste_importe_m2" name="ajuste_importe_m2" type="number" step="0.01" value="{{ ajuste_homogeneizacion_form.ajuste_importe_m2 or '' }}">
+
+            <label for="justificacion_homogeneizacion">Justificación</label>
+            <textarea id="justificacion_homogeneizacion" name="justificacion">{{ ajuste_homogeneizacion_form.justificacion or '' }}</textarea>
+
+            <label for="orden_homogeneizacion">Orden</label>
+            <input id="orden_homogeneizacion" name="orden" type="number" min="1" step="1" value="{{ ajuste_homogeneizacion_form.orden or '' }}">
+
+            <label class="valoracion-checkbox" for="activo_homogeneizacion">
+                <input id="activo_homogeneizacion" name="activo" type="checkbox" value="1"
+                    {% if ajuste_homogeneizacion_form.activo not in [0, '0'] %}checked{% endif %}>
+                <span>Activo</span>
+            </label>
+
+            <div class="actions">
+                <button class="boton" type="submit">{% if modo_homogeneizacion == 'editar' %}Guardar edición{% else %}Añadir ajuste{% endif %}</button>
+                {% if modo_homogeneizacion == 'editar' %}
+                <a class="boton secundario" href="/expedientes/{{ vinculo.expediente_id }}/valoracion/testigos/{{ vinculo.id }}/ajustes">Cancelar edición</a>
+                {% endif %}
+            </div>
+        </form>
+
         <form class="card" method="post" action="/expedientes/{{ vinculo.expediente_id }}/valoracion/testigos/{{ vinculo.id }}/ajustes">
+            <h2>Ajustes manuales legacy</h2>
             <div class="ajustes-grid">
                 {% for campo, etiqueta in ajustes_items %}
                 <div>
