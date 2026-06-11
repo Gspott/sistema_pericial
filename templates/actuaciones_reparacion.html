@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Actuaciones de reparación</title>
+    <style>
+        .actuaciones-page {
+            max-width: 1280px;
+        }
+
+        .actuaciones-header,
+        .actuacion-head,
+        .actuaciones-summary-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 14px;
+            align-items: start;
+        }
+
+        .actuaciones-total,
+        .actuaciones-money,
+        .actuaciones-number {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .actuaciones-total strong {
+            display: block;
+            font-size: 1.7rem;
+        }
+
+        .actuaciones-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            white-space: nowrap;
+        }
+
+        .actuacion-card {
+            display: grid;
+            gap: 14px;
+        }
+
+        .actuacion-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(180px, 0.3fr);
+            gap: 12px;
+        }
+
+        .actuacion-actions {
+            align-items: end;
+        }
+
+        .actuaciones-alert {
+            border: 1px solid #bfdbfe;
+            background: #eff6ff;
+            color: #1e3a8a;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        @media (max-width: 820px) {
+            .actuaciones-header,
+            .actuacion-head,
+            .actuaciones-summary-row,
+            .actuacion-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actuaciones-total,
+            .actuaciones-money,
+            .actuaciones-number {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page actuaciones-page">
+        <header class="card actuaciones-header">
+            <div>
+                <h1>Actuaciones de reparación</h1>
+                <p class="subtitle">Expediente {{ expediente.numero_expediente }} · {{ expediente.cliente }} · {{ expediente.direccion }}</p>
+                <p class="helper-text">Presupuesto interno por actuaciones. Mantiene snapshots de descripción, unidad y precio; no modifica patologías ni informes.</p>
+            </div>
+            <div class="actuaciones-total">
+                <span>Total PEM del expediente</span>
+                <strong>{{ formatear_numero_es(actuaciones.total_pem, 2) }} €</strong>
+            </div>
+            <div class="actions">
+                <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+                {% if actuaciones.total_pem > 0 %}
+                <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir?incluir_anexo_economico_reparacion=1">Informe con anexo económico</a>
+                <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}?incluir_anexo_economico_reparacion=1">DOCX con anexo económico</a>
+                {% endif %}
+                {% if tiene_presupuesto_patologias %}
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/presupuesto-reparacion">Presupuesto por patologías</a>
+                {% endif %}
+                <a class="boton secundario" href="/costes">Biblioteca de costes</a>
+            </div>
+        </header>
+
+        {% if mensaje %}
+        <div class="actuaciones-alert">{{ mensaje }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <section class="card" aria-labelledby="crear-actuacion-title">
+            <h2 id="crear-actuacion-title">Nueva actuación</h2>
+            <form method="post" action="/expedientes/{{ expediente.id }}/actuaciones-reparacion" class="form-grid">
+                <label>
+                    Título
+                    <input type="text" name="titulo" required placeholder="Pintura de paramentos afectados">
+                </label>
+                <label>
+                    Orden
+                    <input type="number" name="orden" min="0" step="1" placeholder="Automático">
+                </label>
+                <label class="full">
+                    Descripción
+                    <textarea name="descripcion" rows="3"></textarea>
+                </label>
+                <label class="full">
+                    Observaciones
+                    <textarea name="observaciones" rows="2"></textarea>
+                </label>
+                <div class="actions full">
+                    <button type="submit" class="boton">Crear actuación</button>
+                </div>
+            </form>
+        </section>
+
+        {% if actuaciones.actuaciones %}
+        <section class="card" aria-labelledby="resumen-actuaciones-title">
+            <h2 id="resumen-actuaciones-title">Resumen</h2>
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Actuación</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for actuacion in actuaciones.actuaciones %}
+                        <tr>
+                            <td>{{ actuacion.orden }}. {{ actuacion.titulo }}</td>
+                            <td class="actuaciones-money">{{ formatear_numero_es(actuacion.subtotal, 2) }} €</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Total PEM del expediente</th>
+                            <th class="actuaciones-money">{{ formatear_numero_es(actuaciones.total_pem, 2) }} €</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+
+        {% for actuacion in actuaciones.actuaciones %}
+        <section class="card actuacion-card" aria-labelledby="actuacion-{{ actuacion.id }}-title">
+            <div class="actuacion-head">
+                <div>
+                    <h2 id="actuacion-{{ actuacion.id }}-title">{{ actuacion.orden }}. {{ actuacion.titulo }}</h2>
+                    {% if actuacion.descripcion %}<p>{{ actuacion.descripcion }}</p>{% endif %}
+                    {% if actuacion.observaciones %}<p class="helper-text">{{ actuacion.observaciones }}</p>{% endif %}
+                </div>
+                <div class="actuaciones-total">
+                    <span>Subtotal actuación</span>
+                    <strong>{{ formatear_numero_es(actuacion.subtotal, 2) }} €</strong>
+                </div>
+            </div>
+
+            <form method="post" action="/actuaciones-reparacion/{{ actuacion.id }}/actualizar" class="form-grid">
+                <label>
+                    Título
+                    <input type="text" name="titulo" value="{{ actuacion.titulo }}" required>
+                </label>
+                <label>
+                    Orden
+                    <input type="number" name="orden" min="0" step="1" value="{{ actuacion.orden }}">
+                </label>
+                <label class="full">
+                    Descripción
+                    <textarea name="descripcion" rows="2">{{ actuacion.descripcion or '' }}</textarea>
+                </label>
+                <label class="full">
+                    Observaciones
+                    <textarea name="observaciones" rows="2">{{ actuacion.observaciones or '' }}</textarea>
+                </label>
+                <div class="actions full">
+                    <button type="submit" class="boton secundario">Guardar actuación</button>
+                </div>
+            </form>
+
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Partida snapshot</th>
+                            <th>Cantidad</th>
+                            <th>Unidad</th>
+                            <th>Precio</th>
+                            <th>Importe</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for partida in actuacion.partidas %}
+                        <tr>
+                            <td class="actuaciones-code">{{ partida.concepto_codigo }}</td>
+                            <td>
+                                {{ partida.descripcion_snapshot or partida.concepto_resumen }}
+                                <br><span class="helper-text">{{ partida.base_nombre }} · {{ partida.base_origen or 'manual' }}</span>
+                            </td>
+                            <td class="actuaciones-number">
+                                <form method="post" action="/actuacion-partidas/{{ partida.id }}/actualizar" class="inline-form">
+                                    <input type="text" name="cantidad" value="{{ formatear_numero_es(partida.cantidad, 4) }}" inputmode="decimal">
+                                    <button type="submit" class="boton secundario">Actualizar</button>
+                                </form>
+                            </td>
+                            <td>{{ partida.unidad_snapshot or '-' }}</td>
+                            <td class="actuaciones-money">{{ formatear_numero_es(partida.precio_unitario_snapshot, 2) }} €</td>
+                            <td class="actuaciones-money">{{ formatear_numero_es(partida.importe, 2) }} €</td>
+                            <td>
+                                <form method="post" action="/actuacion-partidas/{{ partida.id }}/borrar" onsubmit="return confirm('¿Borrar esta partida de la actuación?');">
+                                    <button type="submit" class="boton secundario">Borrar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="empty">Esta actuación todavía no tiene partidas.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <form method="get" action="/expedientes/{{ expediente.id }}/actuaciones-reparacion" class="form-grid">
+                <input type="hidden" name="actuacion_id" value="{{ actuacion.id }}">
+                <label class="full">
+                    Buscar partida validada
+                    <input type="search" name="q" value="{{ q if actuacion_id == actuacion.id else '' }}" placeholder="Código, resumen o descripción">
+                </label>
+                <div class="actions full">
+                    <button type="submit" class="boton secundario">Buscar para esta actuación</button>
+                </div>
+            </form>
+
+            {% if actuacion_id == actuacion.id and q %}
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Partida</th>
+                            <th>Unidad</th>
+                            <th>Precio</th>
+                            <th>Cantidad</th>
+                            <th>Añadir</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for concepto in partidas_encontradas %}
+                        <tr>
+                            <td class="actuaciones-code">{{ concepto.codigo }}</td>
+                            <td>
+                                {{ concepto.resumen }}
+                                <br><span class="helper-text">{{ concepto.base_nombre }} · {{ concepto.base_origen or 'manual' }}</span>
+                            </td>
+                            <td>{{ concepto.unidad or '-' }}</td>
+                            <td class="actuaciones-money">{{ formatear_numero_es(concepto.precio, 2) }} €</td>
+                            <td>
+                                <form method="post" action="/actuaciones-reparacion/{{ actuacion.id }}/partidas" class="inline-form">
+                                    <input type="hidden" name="concepto_id" value="{{ concepto.id }}">
+                                    <input type="hidden" name="q" value="{{ q }}">
+                                    <input type="text" name="cantidad" value="1" inputmode="decimal">
+                                    <button type="submit" class="boton">Añadir</button>
+                                </form>
+                            </td>
+                            <td>{{ concepto.estado }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="empty">No se han encontrado partidas validadas.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <form method="post" action="/actuaciones-reparacion/{{ actuacion.id }}/borrar" onsubmit="return confirm('¿Borrar esta actuación y sus partidas?');">
+                <div class="actions">
+                    <button type="submit" class="boton secundario">Borrar actuación</button>
+                </div>
+            </form>
+        </section>
+        {% endfor %}
+        {% else %}
+        <section class="card" aria-labelledby="actuaciones-vacias-title">
+            <h2 id="actuaciones-vacias-title">Sin actuaciones</h2>
+            <p class="empty">Crea actuaciones de reparación para estructurar la valoración económica del expediente sin repetir partidas por patología.</p>
+        </section>
+        {% endif %}
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

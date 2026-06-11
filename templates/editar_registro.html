@@ -25,6 +25,10 @@
             <a class="boton secundario" href="{{ next_url or ('/registrar-patologias/' ~ registro.visita_id) }}">Volver a patologías</a>
         </div>
 
+        {% if mensaje %}<div class="card"><p class="success">{{ mensaje }}</p></div>{% endif %}
+        {% if error %}<div class="card"><p class="error">{{ error }}</p></div>{% endif %}
+        {% if aviso %}<div class="card"><p class="warning">{{ aviso }}</p></div>{% endif %}
+
         {% if objeto_visita_label %}
         <div class="card">
             <p><strong>Objeto de la visita:</strong> {{ objeto_visita_label }}</p>
@@ -138,6 +142,120 @@
             </div>
             {% endif %}
         </div>
+
+        <section class="card" aria-labelledby="coste-subsanacion-title">
+            <h2 id="coste-subsanacion-title">Coste de subsanación</h2>
+            <p class="helper-text">Vinculación controlada con partidas de costes. El precio y la unidad se copian como snapshot al añadir la partida.</p>
+
+            <form method="get" action="/editar-registro/{{ registro.id }}">
+                <input type="hidden" name="next" value="{{ next_url or '' }}">
+                <label for="cost_q">Buscar partida validada</label>
+                <input id="cost_q" name="cost_q" type="search" value="{{ cost_q or '' }}" placeholder="Código, resumen o descripción">
+                <div class="actions">
+                    <button class="boton secundario" type="submit">Buscar costes</button>
+                    {% if cost_q %}<a class="boton secundario" href="/editar-registro/{{ registro.id }}">Limpiar búsqueda</a>{% endif %}
+                </div>
+            </form>
+
+            {% if partidas_coste %}
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Resumen</th>
+                            <th>Base</th>
+                            <th>Unidad</th>
+                            <th>Precio</th>
+                            <th>Cantidad</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for partida in partidas_coste %}
+                        <tr>
+                            <td>{{ partida.codigo }}</td>
+                            <td>{{ partida.resumen }}</td>
+                            <td>{{ partida.base_nombre }}</td>
+                            <td>{{ partida.unidad }}</td>
+                            <td>{{ '%.2f'|format(partida.precio or 0) }} {{ partida.moneda or 'EUR' }}</td>
+                            <td>
+                                <form id="vincular-coste-{{ partida.id }}" method="post" action="/patologias/{{ registro.id }}/costes">
+                                    <input type="hidden" name="concepto_id" value="{{ partida.id }}">
+                                    <input type="hidden" name="descripcion_actuacion" value="{{ partida.resumen }}">
+                                    <input name="cantidad" type="number" min="0" step="0.0001" value="1">
+                                </form>
+                            </td>
+                            <td><button class="boton" type="submit" form="vincular-coste-{{ partida.id }}">Añadir</button></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif cost_q %}
+            <p class="empty">No hay partidas validadas que coincidan con la búsqueda.</p>
+            {% else %}
+            <p class="empty">Busca una partida validada para añadirla a esta patología.</p>
+            {% endif %}
+
+            <h3>Partidas asociadas</h3>
+            {% if costes_patologia %}
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Actuación</th>
+                            <th>Cantidad</th>
+                            <th>Precio snapshot</th>
+                            <th>Importe</th>
+                            <th>Estado</th>
+                            <th>Observaciones</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in costes_patologia %}
+                        <tr>
+                            <td>{{ item.concepto_codigo }}</td>
+                            <td>
+                                <form id="actualizar-coste-{{ item.id }}" method="post" action="/patologias/costes/{{ item.id }}/actualizar">
+                                    <input name="descripcion_actuacion" type="text" value="{{ item.descripcion_actuacion or item.concepto_resumen }}">
+                                </form>
+                                <p class="helper-text">{{ item.base_nombre }} · {{ item.base_origen or 'manual' }}{% if item.concepto_estado != 'validado' %} · partida base en borrador{% endif %}</p>
+                            </td>
+                            <td><input form="actualizar-coste-{{ item.id }}" name="cantidad" type="number" min="0" step="0.0001" value="{{ item.cantidad }}"></td>
+                            <td>{{ '%.2f'|format(item.precio_unitario or 0) }} / {{ item.unidad or '-' }}</td>
+                            <td>{{ '%.2f'|format(item.importe or 0) }}</td>
+                            <td>
+                                <select form="actualizar-coste-{{ item.id }}" name="estado">
+                                    <option value="incluido" {% if item.estado == 'incluido' %}selected{% endif %}>incluido</option>
+                                    <option value="borrador" {% if item.estado == 'borrador' %}selected{% endif %}>borrador</option>
+                                </select>
+                            </td>
+                            <td><input form="actualizar-coste-{{ item.id }}" name="observaciones" type="text" value="{{ item.observaciones or '' }}"></td>
+                            <td>
+                                <button class="boton secundario" type="submit" form="actualizar-coste-{{ item.id }}">Actualizar</button>
+                                <form method="post" action="/patologias/costes/{{ item.id }}/borrar">
+                                    <button class="boton secundario" type="submit">Borrar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="4">Total subsanación</th>
+                            <th>{{ '%.2f'|format(total_costes_patologia or 0) }}</th>
+                            <th colspan="3"></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty">Todavía no hay partidas asociadas a esta patología.</p>
+            {% endif %}
+        </section>
     </div>
 
     <script>

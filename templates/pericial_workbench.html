@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+    <title>Workbench pericial · {{ expediente.numero_expediente }}</title>
+    <style>
+        .pericial-workbench {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .workbench-hero,
+        .workbench-section,
+        .workbench-panel,
+        .diagnostic-item,
+        .metric-tile {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+        }
+
+        .workbench-hero {
+            background: #f8fafc;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.9fr);
+            margin-bottom: 12px;
+            padding: 14px;
+        }
+
+        .workbench-kicker {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            margin: 0 0 6px;
+            text-transform: uppercase;
+        }
+
+        .workbench-title {
+            font-size: clamp(1.45rem, 2.4vw, 2.3rem);
+            line-height: 1.05;
+            margin: 0 0 8px;
+        }
+
+        .workbench-subtitle,
+        .section-note,
+        .muted {
+            color: #64748b;
+        }
+
+        .workbench-subtitle {
+            margin: 0;
+            max-width: 78ch;
+        }
+
+        .workbench-metrics,
+        .diagnostic-bar {
+            display: grid;
+            gap: 8px;
+        }
+
+        .workbench-metrics {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .diagnostic-bar {
+            grid-template-columns: repeat(5, minmax(120px, 1fr));
+            margin-bottom: 12px;
+        }
+
+        .metric-tile,
+        .diagnostic-item {
+            padding: 9px 10px;
+        }
+
+        .metric-label {
+            color: #64748b;
+            display: block;
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            color: #0f172a;
+            display: block;
+            font-size: 1.05rem;
+            font-weight: 800;
+        }
+
+        .workbench-layout {
+            align-items: start;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(210px, 18fr) minmax(0, 54fr) minmax(300px, 28fr);
+        }
+
+        .workbench-section,
+        .workbench-panel {
+            padding: 12px;
+        }
+
+        .workbench-section + .workbench-section,
+        .workbench-panel + .workbench-panel {
+            margin-top: 12px;
+        }
+
+        .workbench-panel {
+            position: sticky;
+            top: 12px;
+        }
+
+        .section-head {
+            align-items: start;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .section-head h2,
+        .workbench-panel h2 {
+            font-size: 1.05rem;
+            margin: 0;
+        }
+
+        .section-note {
+            font-size: 0.9rem;
+            margin: 4px 0 0;
+        }
+
+        .chapter-list,
+        .warning-list,
+        .candidate-list {
+            display: grid;
+            gap: 8px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .chapter-item,
+        .warning-item,
+        .candidate-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .chapter-title {
+            align-items: center;
+            display: flex;
+            gap: 8px;
+            justify-content: space-between;
+        }
+
+        .status-pill {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 7px;
+            white-space: nowrap;
+        }
+
+        .status-pill.completo {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .status-pill.parcial {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
+        }
+
+        .status-pill.pendiente {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .workbench-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .workbench-table {
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            min-width: 900px;
+            width: 100%;
+        }
+
+        .workbench-table th,
+        .workbench-table td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 7px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .workbench-table th {
+            color: #475569;
+            font-size: 0.73rem;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .number-cell {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .text-block {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin: 0;
+            padding: 9px;
+            white-space: pre-line;
+        }
+
+        .two-column {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .draft-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .draft-card {
+            background: #fffdf7;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .draft-card h3 {
+            margin: 0 0 8px;
+        }
+
+        .draft-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .draft-badge {
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            border-radius: 999px;
+            color: #78350f;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 7px;
+        }
+
+        .draft-meta {
+            color: #64748b;
+            font-size: 0.78rem;
+            margin: 8px 0 0;
+        }
+
+        .document-form,
+        .document-row-form {
+            display: grid;
+            gap: 8px;
+        }
+
+        .document-form {
+            grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 0.8fr) minmax(160px, 0.8fr) minmax(90px, 0.4fr) auto;
+            margin-bottom: 12px;
+        }
+
+        .document-form input,
+        .document-form select,
+        .document-row-input,
+        .document-row-select {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font: inherit;
+            min-height: 38px;
+            padding: 7px 8px;
+            width: 100%;
+        }
+
+        .document-row-input.order {
+            max-width: 82px;
+            text-align: right;
+        }
+
+        .actions {
+            margin-top: 10px;
+        }
+
+        @media (max-width: 1100px) {
+            .workbench-hero,
+            .workbench-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .workbench-panel {
+                position: static;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .pericial-workbench {
+                width: 100%;
+            }
+
+            .workbench-metrics,
+            .diagnostic-bar,
+            .two-column,
+            .document-form {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page pericial-workbench">
+        <section class="workbench-hero">
+            <div>
+                <p class="workbench-kicker">Workbench pericial V2</p>
+                <h1 class="workbench-title">{{ expediente.numero_expediente }} · {{ expediente.direccion or "Sin dirección" }}</h1>
+                <p class="workbench-subtitle">{{ expediente.cliente }} · {{ expediente.tipo_trabajo_label or expediente.tipo_informe }}{% if workbench.fecha_referencia %} · Fecha {{ workbench.fecha_referencia }}{% endif %}</p>
+                <p class="section-note">Vista de diagnóstico de escritorio y gestor documental del Anexo A. No modifica patologías, no cambia costes y no altera el PDF clásico.</p>
+                {% if mensaje %}<div class="warning-item">{{ mensaje }}</div>{% endif %}
+                {% if error %}<div class="warning-item">{{ error }}</div>{% endif %}
+                <div class="actions">
+                    <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
+                    <a class="boton secundario" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
+                    <a class="boton primario" href="/expedientes/{{ expediente.id }}/informe-v2-editor">Editar informe V2</a>
+                    <a class="boton secundario" href="/generar-informe-v2-pdf/{{ expediente.id }}">Generar PDF V2</a>
+                    <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe actual</a>
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/actuaciones-reparacion">Actuaciones</a>
+                </div>
+            </div>
+            <div class="workbench-metrics">
+                <div class="metric-tile"><span class="metric-label">Visitas</span><span class="metric-value">{{ metricas.visitas }}</span></div>
+                <div class="metric-tile"><span class="metric-label">Estancias</span><span class="metric-value">{{ metricas.estancias }}</span></div>
+                <div class="metric-tile"><span class="metric-label">Pat. interiores</span><span class="metric-value">{{ metricas.patologias_interiores }}</span></div>
+                <div class="metric-tile"><span class="metric-label">Pat. exteriores</span><span class="metric-value">{{ metricas.patologias_exteriores }}</span></div>
+                <div class="metric-tile"><span class="metric-label">Fotografías</span><span class="metric-value">{{ metricas.fotografias }}</span></div>
+                <div class="metric-tile"><span class="metric-label">PEM</span><span class="metric-value">{{ formatear_numero_es(metricas.pem_total, 2) }} €</span></div>
+            </div>
+        </section>
+
+        <section class="diagnostic-bar" aria-label="Diagnóstico rápido">
+            <div class="diagnostic-item"><span class="metric-label">Actuaciones económicas</span><span class="metric-value">{{ metricas.actuaciones }}</span></div>
+            <div class="diagnostic-item"><span class="metric-label">Capítulos pendientes</span><span class="metric-value">{{ diagnostico | selectattr("estado", "equalto", "pendiente") | list | length }}</span></div>
+            <div class="diagnostic-item"><span class="metric-label">Capítulos parciales</span><span class="metric-value">{{ diagnostico | selectattr("estado", "equalto", "parcial") | list | length }}</span></div>
+            <div class="diagnostic-item"><span class="metric-label">Limitaciones candidatas</span><span class="metric-value">{{ limitaciones_candidatas | length }}</span></div>
+            <div class="diagnostic-item"><span class="metric-label">Recomendaciones candidatas</span><span class="metric-value">{{ recomendaciones_candidatas | length }}</span></div>
+        </section>
+
+        <section class="workbench-section">
+            <div class="section-head">
+                <div>
+                    <h2>ANEXO A. Documentación aportada</h2>
+                    <p class="section-note">Inventario pericial de PDFs aportados. El nombre visible y el orden son los que aparecerán en el PDF V2.</p>
+                </div>
+            </div>
+            <form class="document-form" action="/expedientes/{{ expediente.id }}/pericial-workbench/documentos" method="post" enctype="multipart/form-data">
+                <input type="file" name="archivo" accept="application/pdf,.pdf" required aria-label="Documento PDF">
+                <input type="text" name="nombre_visible" placeholder="Nombre visible en informe">
+                <select name="tipo_documento" aria-label="Tipo documental">
+                    {% for tipo in tipos_documentales_anexo_a %}
+                    <option value="{{ tipo }}">{{ tipo }}</option>
+                    {% endfor %}
+                </select>
+                <input type="number" name="orden" placeholder="Orden" inputmode="numeric">
+                <button class="boton primario" type="submit">Subir PDF</button>
+                <input type="text" name="descripcion" placeholder="Descripción documental">
+            </form>
+            {% if documentos_aportados %}
+            <div class="workbench-table-wrap">
+                <table class="workbench-table">
+                    <thead>
+                        <tr>
+                            <th>Orden</th>
+                            <th>Nombre visible</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Fecha</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for documento in documentos_aportados %}
+                        {% set form_id = "documento-anexo-a-" ~ documento.id %}
+                        <tr>
+                            <td>
+                                <input class="document-row-input order" form="{{ form_id }}" type="number" name="orden" value="{{ documento.orden }}" inputmode="numeric">
+                            </td>
+                            <td>
+                                <input class="document-row-input" form="{{ form_id }}" type="text" name="nombre_visible" value="{{ documento.nombre_visible }}" required>
+                            </td>
+                            <td>
+                                <select class="document-row-select" form="{{ form_id }}" name="tipo_documento">
+                                    {% for tipo in tipos_documentales_anexo_a %}
+                                    <option value="{{ tipo }}" {% if tipo == documento.tipo_documento %}selected{% endif %}>{{ tipo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input class="document-row-input" form="{{ form_id }}" type="text" name="descripcion" value="{{ documento.descripcion or '' }}">
+                            </td>
+                            <td>{{ documento.fecha or "-" }}</td>
+                            <td>
+                                <form id="{{ form_id }}" action="/expedientes/{{ expediente.id }}/pericial-workbench/documentos/{{ documento.id }}" method="post">
+                                    <button class="boton secundario" type="submit">Guardar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-block">No hay documentos PDF aportados gestionados para el Anexo A.</p>
+            {% endif %}
+        </section>
+
+        <div class="workbench-layout">
+            <aside class="workbench-panel" aria-label="Índice diagnóstico V2">
+                <h2>Diagnóstico V2</h2>
+                <p class="section-note">Estado estimado por capítulo. Diagnóstico derivado, no persistido.</p>
+                <ul class="chapter-list">
+                    {% for item in diagnostico %}
+                    <li class="chapter-item">
+                        <div class="chapter-title">
+                            <strong>{{ item.capitulo }}</strong>
+                            <span class="status-pill {{ item.estado }}">{{ item.estado }}</span>
+                        </div>
+                        <p class="section-note">{{ item.nota }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </aside>
+
+            <div>
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Borrador informe V2</h2>
+                            <p class="section-note">Texto temporal generado solo con datos existentes. No se guarda ni modifica el informe actual.</p>
+                        </div>
+                    </div>
+                    <div class="draft-grid">
+                        {% for bloque in borrador_informe %}
+                        <article class="draft-card">
+                            <h3>{{ bloque.titulo }} (borrador)</h3>
+                            <div class="draft-badges">
+                                <span class="draft-badge">Texto generado automáticamente</span>
+                                <span class="draft-badge">Requiere revisión técnica</span>
+                            </div>
+                            {% for parrafo in bloque.parrafos %}
+                            <p class="text-block">{{ parrafo }}</p>
+                            {% endfor %}
+                            <p class="draft-meta">Fuentes: {{ bloque.fuentes | join(", ") }}.</p>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </section>
+
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Inventario resumido de daños</h2>
+                            <p class="section-note">Derivado de patologías interiores y exteriores. No crea registros nuevos.</p>
+                        </div>
+                    </div>
+                    {% if inventario %}
+                    <div class="workbench-table-wrap">
+                        <table class="workbench-table">
+                            <thead>
+                                <tr>
+                                    <th>Estancia / zona</th>
+                                    <th>Nivel / unidad</th>
+                                    <th>Patología</th>
+                                    <th>Elemento</th>
+                                    <th>Rol</th>
+                                    <th>Fotos</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in inventario %}
+                                <tr>
+                                    <td>{{ item.zona or "-" }}</td>
+                                    <td>{{ item.nivel_unidad or "-" }}</td>
+                                    <td>
+                                        <strong>{{ item.patologia or "-" }}</strong>
+                                        {% if item.localizacion_dano %}<br><span class="muted">{{ item.localizacion_dano }}</span>{% endif %}
+                                        {% if item.detalle_localizacion %}<br><span class="muted">{{ item.detalle_localizacion }}</span>{% endif %}
+                                    </td>
+                                    <td>{{ item.elemento or "-" }}</td>
+                                    <td>{{ item.rol_patologia_observado or "Sin rol" }}</td>
+                                    <td class="number-cell">{{ item.fotos or 0 }}</td>
+                                    <td><a class="boton secundario" href="{{ item.edit_url }}">Editar</a></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-block">No hay patologías registradas para construir el inventario.</p>
+                    {% endif %}
+                </section>
+
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Metodología básica</h2>
+                            <p class="section-note">Construida con visitas existentes y climatología guardada.</p>
+                        </div>
+                    </div>
+                    {% if expediente.metodologia_pericial %}
+                    <p class="text-block">{{ expediente.metodologia_pericial }}</p>
+                    {% else %}
+                    <p class="text-block">No consta metodología pericial formal en el expediente.</p>
+                    {% endif %}
+                    <div class="workbench-table-wrap">
+                        <table class="workbench-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Técnico</th>
+                                    <th>Ámbito</th>
+                                    <th>Climatología</th>
+                                    <th>Observaciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for visita in visitas %}
+                                <tr>
+                                    <td>{{ visita.fecha }}</td>
+                                    <td>{{ visita.tecnico }}</td>
+                                    <td>{{ visita.ambito_visita or "-" }}</td>
+                                    <td>{{ visita.climatologia or "No consta climatología registrada" }}</td>
+                                    <td>{{ visita.observaciones_visita or "-" }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5">No hay visitas registradas.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Limitaciones candidatas</h2>
+                            <p class="section-note">Textos detectados por palabras clave en observaciones y campos técnicos. No se guardan.</p>
+                        </div>
+                    </div>
+                    {% if expediente.alcance_limitaciones %}
+                    <p class="text-block">{{ expediente.alcance_limitaciones }}</p>
+                    {% endif %}
+                    {% if limitaciones_candidatas %}
+                    <ul class="candidate-list">
+                        {% for item in limitaciones_candidatas %}
+                        <li class="candidate-item"><strong>{{ item.origen }}:</strong> {{ item.texto }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-block">No se han detectado limitaciones candidatas.</p>
+                    {% endif %}
+                </section>
+
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Recomendaciones candidatas</h2>
+                            <p class="section-note">Derivadas de propuesta, urgencia, evolución y observaciones. No se guardan.</p>
+                        </div>
+                    </div>
+                    <div class="two-column">
+                        <div>
+                            <h3>Propuesta de reparación</h3>
+                            <p class="text-block">{{ expediente.propuesta_reparacion or "Sin propuesta de reparación." }}</p>
+                        </div>
+                        <div>
+                            <h3>Urgencia / evolución</h3>
+                            <p class="text-block">{{ expediente.urgencia_gravedad or "Sin urgencia/gravedad." }}{% if expediente.evolucion_preexistencia %}&#10;{{ expediente.evolucion_preexistencia }}{% endif %}</p>
+                        </div>
+                    </div>
+                    {% if recomendaciones_candidatas %}
+                    <ul class="candidate-list">
+                        {% for item in recomendaciones_candidatas %}
+                        <li class="candidate-item"><strong>{{ item.origen }}:</strong> {{ item.texto }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-block">No se han detectado recomendaciones candidatas.</p>
+                    {% endif %}
+                </section>
+
+                <section class="workbench-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Panel económico por actuaciones</h2>
+                            <p class="section-note">Usa actuaciones de reparación y partidas snapshot. No modifica costes.</p>
+                        </div>
+                        <strong>{{ formatear_numero_es(actuaciones.total_pem, 2) }} €</strong>
+                    </div>
+                    {% if actuaciones.actuaciones %}
+                    {% for actuacion in actuaciones.actuaciones %}
+                    <h3>{{ actuacion.orden }}. {{ actuacion.titulo }}</h3>
+                    {% if actuacion.descripcion %}<p>{{ actuacion.descripcion }}</p>{% endif %}
+                    {% if actuacion.observaciones %}<p class="muted">{{ actuacion.observaciones }}</p>{% endif %}
+                    <div class="workbench-table-wrap">
+                        <table class="workbench-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Partida</th>
+                                    <th>Cantidad</th>
+                                    <th>Unidad</th>
+                                    <th>Precio</th>
+                                    <th>Importe</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for partida in actuacion.partidas %}
+                                <tr>
+                                    <td>{{ partida.concepto_codigo }}</td>
+                                    <td>{{ partida.descripcion_snapshot or partida.concepto_resumen }}</td>
+                                    <td class="number-cell">{{ formatear_numero_es(partida.cantidad, 4) }}</td>
+                                    <td>{{ partida.unidad_snapshot or "-" }}</td>
+                                    <td class="number-cell">{{ formatear_numero_es(partida.precio_unitario_snapshot, 2) }} €</td>
+                                    <td class="number-cell">{{ formatear_numero_es(partida.importe, 2) }} €</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="6">Sin partidas.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="text-block">No hay actuaciones económicas registradas.</p>
+                    {% endif %}
+                </section>
+            </div>
+
+            <aside>
+                <section class="workbench-panel">
+                    <h2>Advertencias</h2>
+                    <ul class="warning-list">
+                        {% for item in advertencias %}
+                        <li class="warning-item">{{ item }}</li>
+                        {% else %}
+                        <li class="warning-item">Sin advertencias principales.</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <section class="workbench-panel">
+                    <h2>Evidencias y accesos</h2>
+                    <p class="section-note">Resumen de fuentes reutilizadas para diagnosticar el informe V2.</p>
+                    <ul class="candidate-list">
+                        <li class="candidate-item">Fotografías totales: <strong>{{ metricas.fotografias }}</strong></li>
+                        <li class="candidate-item">Patologías interiores: <strong>{{ metricas.patologias_interiores }}</strong></li>
+                        <li class="candidate-item">Patologías exteriores: <strong>{{ metricas.patologias_exteriores }}</strong></li>
+                        <li class="candidate-item">Actuaciones económicas: <strong>{{ metricas.actuaciones }}</strong></li>
+                    </ul>
+                    <div class="actions">
+                        {% if workbench.ultima_visita_id %}
+                        <a class="boton secundario" href="/registrar-patologias/{{ workbench.ultima_visita_id }}">Revisar patologías</a>
+                        {% endif %}
+                        <a class="boton secundario" href="/expedientes/{{ expediente.id }}/actuaciones-reparacion">Revisar actuaciones</a>
+                        <a class="boton secundario" href="/costes">Biblioteca de costes</a>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>

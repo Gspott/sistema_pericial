@@ -8,41 +8,107 @@
 </head>
 <body>
     {% include "partials/_app_shell_start.html" %}
-<div class="page">
-<div class="card">
+<div class="page leads-prospecting-page">
+<div class="card leads-prospecting-header">
             <h1>Leads</h1>
-            <p class="subtitle">Contactos comerciales, historial y próximas acciones.</p>
+            <p class="subtitle">Repositorio de prospección comercial para prescriptores, historial y próximas acciones.</p>
+            <div class="actions">
+                <a class="boton" href="/leads/prospeccion">Workbench de prospección</a>
+                <a class="boton secundario" href="/leads/nuevo">Nuevo lead</a>
+            </div>
 
-            <form method="get" action="/leads">
-                <label for="estado">Filtrar por estado</label>
-                <select id="estado" name="estado">
-                    <option value="">Todos</option>
-                    {% for estado in estados_lead %}
-                    <option value="{{ estado }}" {% if estado_actual == estado %}selected{% endif %}>{{ estado.replace('_', ' ') }}</option>
-                    {% endfor %}
-                </select>
+            <form class="leads-filter-form" method="get" action="/leads">
+                <label for="tipo">
+                    Tipo
+                    <select id="tipo" name="tipo">
+                        <option value="">Todos</option>
+                        {% for value, label in tipos_prospeccion %}
+                        <option value="{{ value }}" {% if filters.tipo == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label for="estado">
+                    Estado
+                    <select id="estado" name="estado">
+                        <option value="">Todos</option>
+                        {% for estado in estados_lead %}
+                        <option value="{{ estado }}" {% if filters.estado == estado %}selected{% endif %}>{{ label_estado(estado) }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label for="localidad">
+                    Localidad
+                    <input id="localidad" name="localidad" type="search" value="{{ filters.localidad }}" placeholder="Ciudad, zona o provincia">
+                </label>
+
+                <label for="fecha">
+                    Fecha
+                    <select id="fecha" name="fecha">
+                        {% for value, label in fecha_options %}
+                        <option value="{{ value }}" {% if filters.fecha == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
                 <button class="boton secundario" type="submit">Aplicar filtro</button>
+                <a class="boton secundario" href="/leads">Limpiar</a>
             </form>
 
         </div>
 
         {% if leads %}
+            <form class="card leads-table-card" method="get" action="/leads">
+                <div class="leads-bulk-toolbar">
+                    <div>
+                        <h2>Selección múltiple</h2>
+                        <p class="subtitle">Preparado para acciones masivas futuras. En esta fase no se envían emails.</p>
+                    </div>
+                    <button class="boton secundario" type="button" disabled>Acciones masivas</button>
+                </div>
+                <div class="dashboard-table-wrap">
+                    <table class="dashboard-table leads-prospecting-table">
+                        <thead>
+                            <tr>
+                                <th>Sel.</th>
+                                <th>Lead</th>
+                                <th>Tipo</th>
+                                <th>Estado</th>
+                                <th>Contacto</th>
+                                <th>Localidad</th>
+                                <th>Fecha</th>
+                                <th>Acceso</th>
+                            </tr>
+                        </thead>
+                        <tbody>
             {% for lead in leads %}
-            <div class="card card-clickable">
-                <a class="card-link-cover" href="/leads/{{ lead.id }}" aria-label="Abrir lead {{ lead.nombre }}"></a>
-                <div class="card-content">
-                    <h2>{{ lead.nombre }}</h2>
-                    {% if lead.servicio_solicitado %}<p><strong>Servicio:</strong> {{ lead.servicio_solicitado }}</p>{% endif %}
-                    {% if lead.telefono %}<p><strong>Teléfono:</strong> {{ lead.telefono }}</p>{% endif %}
-                    {% if lead.email %}<p><strong>Email:</strong> {{ lead.email }}</p>{% endif %}
-                    {% set lead_estado_clase = 'estado-pendiente' if lead.estado in ['nuevo', 'contactado', 'pendiente_respuesta'] else 'estado-borrador' %}
-                    <p><strong>Estado:</strong> <span class="estado-badge {{ lead_estado_clase }}">{{ lead.estado.replace('_', ' ') }}</span></p>
-                </div>
-                <div class="card-actions">
-                    <a class="boton secundario" href="/leads/{{ lead.id }}/editar">Editar</a>
-                </div>
-            </div>
+                            <tr>
+                                <td><input type="checkbox" name="lead_ids" value="{{ lead.id }}" aria-label="Seleccionar {{ lead.nombre }}"></td>
+                                <td>
+                                    <a href="/leads/{{ lead.id }}">{{ lead.nombre }}</a>
+                                    {% if lead.servicio_solicitado %}<br><span class="muted">{{ lead.servicio_solicitado }}</span>{% endif %}
+                                </td>
+                                <td>{{ label_tipo_prospeccion(lead.origen) }}</td>
+                                <td><span class="{{ lead_estado_badge_class(lead.estado) }}">{{ label_estado(lead.estado) }}</span></td>
+                                <td>
+                                    {% if lead.email %}{{ lead.email }}{% elif lead.telefono %}{{ lead.telefono }}{% else %}<span class="muted">Sin contacto</span>{% endif %}
+                                </td>
+                                <td>{{ lead.cliente_ciudad or lead.cliente_provincia or 'Sin localidad' }}</td>
+                                <td>{{ lead.updated_at or lead.created_at or 'Sin fecha' }}</td>
+                                <td>
+                                    <a href="/leads/{{ lead.id }}">Abrir</a>
+                                    · <a href="/leads/{{ lead.id }}/editar">Editar</a>
+                                </td>
+                            </tr>
             {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if leads|length >= leads_list_limit %}
+                <p class="empty">Mostrando los {{ leads_list_limit }} leads más recientes para mantener la lista ágil.</p>
+                {% endif %}
+            </form>
         {% else %}
             <div class="card">
                 <p class="empty">Todavía no hay leads registrados para este usuario.</p>

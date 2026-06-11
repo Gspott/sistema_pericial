@@ -1,0 +1,62 @@
+# Costes Ive 1A
+
+# Objetivo
+
+Implementar COSTES-IVE-1A: reconocer conceptos auxiliares IVE de descomposición con código/unidad `%`, especialmente `Costes directos complementarios`.
+
+# Modulo
+
+Costes / parser OCR IVE.
+
+# Riesgo
+
+Bajo. Cambio acotado a `app/services/costes_parser.py`; no toca OCR ni módulos de negocio.
+
+# Archivos permitidos
+
+- `app/services/costes_parser.py`
+- `tests/smoke/test_costes_capturas.py`
+- `docs/harness/PLANS/active/costes-ive-1a.md`
+- `docs/harness/EPISODES/2026-06-05-costes-ive-1a.md`
+- `docs/harness/METRICS.md` si cambia al cierre
+
+# Archivos prohibidos
+
+- OCR.
+- Informes, actuaciones, patologías, facturación, CRM, emails y valoraciones.
+- Datos reales, uploads, informes generados, backups, fotos y logs.
+
+# Playbook aplicable
+
+Task Pack sugerido: `docs/harness/TASK_PACKS/app_change.md`.
+
+
+# Validaciones
+
+- `python3 scripts/audit_docs.py`
+- `python3 -m compileall app`
+- `.venv/bin/python -m pytest tests/smoke/test_costes_capturas.py -q`
+- `.venv/bin/python -m pytest tests/smoke/test_costes_db.py tests/smoke/test_costes_workbench.py tests/smoke/test_costes_capturas.py tests/smoke/test_costes_bc3.py tests/smoke/test_patologia_costes.py tests/smoke/test_actuaciones_reparacion.py -q`
+- `bash scripts/finish_harness_task.sh`
+- `git diff --check`
+
+# Rollback
+
+Revertir archivos listados. No hay migración ni cambios de datos.
+
+# Fuera de alcance
+
+- Cambiar OCR.
+- Cambiar parser genérico.
+- Guardado o validación automática.
+- Conexión con informes/actuaciones/patologías.
+
+# Aprobacion humana requerida
+
+Si se quisiera tocar OCR, usar servicios externos o modificar datos reales.
+
+# Decisión
+
+En modo IVE, las líneas que contienen `directos complementarios` se reconocen como concepto porcentual auxiliar aunque el OCR omita uno o ambos símbolos `%`.
+
+Estado: completado

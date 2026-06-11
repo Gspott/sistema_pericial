@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Importar BC3</title>
+    <style>
+        .costes-bc3-page {
+            max-width: 980px;
+        }
+
+        .costes-bc3-form {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .costes-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .costes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .costes-notice {
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            color: #92400e;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        @media (max-width: 760px) {
+            .costes-bc3-form {
+                grid-template-columns: 1fr;
+            }
+
+            .costes-form-full {
+                grid-column: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-bc3-page">
+        <header class="card">
+            <h1>Importar BC3</h1>
+            <p class="subtitle">Importador mínimo FIEBDC para base propia de costes. Todo queda en borrador.</p>
+            <p class="costes-notice">Sin validación automática y sin conexión con patologías. Los registros no soportados se ignoran con advertencia.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </header>
+
+        <section class="card" aria-labelledby="bc3-form-title">
+            <h2 id="bc3-form-title">Archivo y destino</h2>
+            <form method="post" action="/costes/bc3/importar" enctype="multipart/form-data">
+                <div class="costes-bc3-form">
+                    <label class="costes-form-full" for="archivo">
+                        Archivo .bc3
+                        <input id="archivo" name="archivo" type="file" accept=".bc3,.txt" required>
+                    </label>
+                    <label for="base_id">
+                        Base existente
+                        <select id="base_id" name="base_id">
+                            <option value="">Crear base nueva</option>
+                            {% for base in bases %}
+                            <option value="{{ base.id }}">{{ base.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label for="base_nombre">
+                        Nombre base nueva
+                        <input id="base_nombre" name="base_nombre" type="text" placeholder="Nombre del archivo si se deja vacío">
+                    </label>
+                    <label class="costes-form-full" for="descripcion">
+                        Descripción
+                        <input id="descripcion" name="descripcion" type="text" value="Importación BC3 mínima">
+                    </label>
+                    <label for="fecha_base">
+                        Fecha base
+                        <input id="fecha_base" name="fecha_base" type="date">
+                    </label>
+                    <label for="provincia">
+                        Provincia
+                        <input id="provincia" name="provincia" type="text">
+                    </label>
+                    <label class="costes-form-full" for="observaciones">
+                        Observaciones
+                        <textarea id="observaciones" name="observaciones" rows="3"></textarea>
+                    </label>
+                </div>
+                <div class="costes-actions">
+                    <button class="boton" type="submit">Importar en borrador</button>
+                    <a class="boton secundario" href="/costes">Volver a costes</a>
+                </div>
+            </form>
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

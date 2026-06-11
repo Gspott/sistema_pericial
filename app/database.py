@@ -199,6 +199,332 @@ def migrar_fotos_legadas(cur):
     )
 
 
+def asegurar_tablas_costes(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS costes_bases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            fecha_base TEXT,
+            provincia TEXT,
+            origen TEXT,
+            version TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS costes_capitulos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            base_id INTEGER NOT NULL,
+            codigo TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            parent_id INTEGER,
+            orden INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (base_id) REFERENCES costes_bases (id),
+            FOREIGN KEY (parent_id) REFERENCES costes_capitulos (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS costes_conceptos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            base_id INTEGER NOT NULL,
+            capitulo_id INTEGER,
+            codigo TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            unidad TEXT,
+            resumen TEXT NOT NULL,
+            descripcion TEXT,
+            precio REAL DEFAULT 0,
+            moneda TEXT NOT NULL DEFAULT 'EUR',
+            fecha_base TEXT,
+            provincia TEXT,
+            estado TEXT NOT NULL DEFAULT 'borrador',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (base_id) REFERENCES costes_bases (id),
+            FOREIGN KEY (capitulo_id) REFERENCES costes_capitulos (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS costes_descompuestos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            concepto_padre_id INTEGER NOT NULL,
+            concepto_hijo_id INTEGER,
+            codigo TEXT,
+            tipo TEXT,
+            unidad TEXT,
+            resumen TEXT,
+            precio_unitario REAL DEFAULT 0,
+            rendimiento REAL DEFAULT 0,
+            importe REAL DEFAULT 0,
+            orden INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (concepto_padre_id) REFERENCES costes_conceptos (id),
+            FOREIGN KEY (concepto_hijo_id) REFERENCES costes_conceptos (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS costes_fuentes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            base_id INTEGER,
+            concepto_id INTEGER,
+            tipo_fuente TEXT NOT NULL,
+            descripcion TEXT,
+            archivo_original TEXT,
+            url_origen TEXT,
+            observaciones TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (base_id) REFERENCES costes_bases (id),
+            FOREIGN KEY (concepto_id) REFERENCES costes_conceptos (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS costes_capturas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fuente_id INTEGER,
+            concepto_id INTEGER,
+            archivo_imagen TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'pendiente',
+            datos_extraidos_json TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (fuente_id) REFERENCES costes_fuentes (id),
+            FOREIGN KEY (concepto_id) REFERENCES costes_conceptos (id)
+        )
+        """
+    )
+
+    for nombre, tabla, columnas in [
+        ("idx_costes_capitulos_base_id", "costes_capitulos", "base_id"),
+        ("idx_costes_capitulos_codigo", "costes_capitulos", "codigo"),
+        ("idx_costes_conceptos_base_id", "costes_conceptos", "base_id"),
+        ("idx_costes_conceptos_codigo", "costes_conceptos", "codigo"),
+        ("idx_costes_conceptos_resumen", "costes_conceptos", "resumen"),
+        ("idx_costes_conceptos_estado", "costes_conceptos", "estado"),
+        (
+            "idx_costes_descompuestos_concepto_padre_id",
+            "costes_descompuestos",
+            "concepto_padre_id",
+        ),
+        ("idx_costes_descompuestos_codigo", "costes_descompuestos", "codigo"),
+        ("idx_costes_fuentes_base_id", "costes_fuentes", "base_id"),
+        ("idx_costes_fuentes_concepto_id", "costes_fuentes", "concepto_id"),
+        ("idx_costes_capturas_concepto_id", "costes_capturas", "concepto_id"),
+        ("idx_costes_capturas_estado", "costes_capturas", "estado"),
+    ]:
+        cur.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {nombre}
+            ON {tabla} ({columnas})
+            """
+        )
+
+
+def asegurar_tabla_patologia_costes(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS patologia_costes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patologia_id INTEGER NOT NULL,
+            concepto_id INTEGER NOT NULL,
+            descripcion_actuacion TEXT,
+            cantidad REAL NOT NULL DEFAULT 0,
+            unidad TEXT,
+            precio_unitario REAL NOT NULL DEFAULT 0,
+            importe REAL NOT NULL DEFAULT 0,
+            estado TEXT NOT NULL DEFAULT 'borrador',
+            observaciones TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (patologia_id) REFERENCES registros_patologias (id),
+            FOREIGN KEY (concepto_id) REFERENCES costes_conceptos (id)
+        )
+        """
+    )
+    for nombre, columnas in [
+        ("idx_patologia_costes_patologia_id", "patologia_id"),
+        ("idx_patologia_costes_concepto_id", "concepto_id"),
+        ("idx_patologia_costes_estado", "estado"),
+    ]:
+        cur.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {nombre}
+            ON patologia_costes ({columnas})
+            """
+        )
+
+
+def asegurar_tablas_actuaciones_reparacion(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS actuaciones_reparacion (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            descripcion TEXT,
+            observaciones TEXT,
+            orden INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS actuacion_partidas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            actuacion_id INTEGER NOT NULL,
+            concepto_id INTEGER NOT NULL,
+            descripcion_snapshot TEXT,
+            unidad_snapshot TEXT,
+            precio_unitario_snapshot REAL NOT NULL DEFAULT 0,
+            cantidad REAL NOT NULL DEFAULT 0,
+            importe REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (actuacion_id) REFERENCES actuaciones_reparacion (id),
+            FOREIGN KEY (concepto_id) REFERENCES costes_conceptos (id)
+        )
+        """
+    )
+    for nombre, tabla, columnas in [
+        (
+            "idx_actuaciones_reparacion_expediente_id",
+            "actuaciones_reparacion",
+            "expediente_id",
+        ),
+        (
+            "idx_actuaciones_reparacion_orden",
+            "actuaciones_reparacion",
+            "expediente_id, orden",
+        ),
+        (
+            "idx_actuacion_partidas_actuacion_id",
+            "actuacion_partidas",
+            "actuacion_id",
+        ),
+        (
+            "idx_actuacion_partidas_concepto_id",
+            "actuacion_partidas",
+            "concepto_id",
+        ),
+    ]:
+        cur.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS {nombre}
+            ON {tabla} ({columnas})
+            """
+        )
+
+
+def asegurar_tabla_informe_v2_capitulos(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS informe_v2_capitulos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL,
+            clave TEXT NOT NULL,
+            titulo TEXT NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0,
+            contenido TEXT,
+            generado_desde TEXT,
+            editado_manual INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_informe_v2_capitulos_expediente_clave
+        ON informe_v2_capitulos (expediente_id, clave)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_informe_v2_capitulos_expediente_orden
+        ON informe_v2_capitulos (expediente_id, orden)
+        """
+    )
+
+
+def asegurar_tabla_informe_v2_capitulo_versiones(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS informe_v2_capitulo_versiones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL,
+            clave TEXT NOT NULL,
+            contenido TEXT,
+            updated_at_original TEXT,
+            origen TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_informe_v2_versiones_expediente_clave
+        ON informe_v2_capitulo_versiones (expediente_id, clave, created_at DESC, id DESC)
+        """
+    )
+
+
+def asegurar_tabla_expediente_documentos(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS expediente_documentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL,
+            nombre_visible TEXT NOT NULL,
+            descripcion TEXT,
+            tipo_documento TEXT,
+            archivo_ruta TEXT NOT NULL,
+            archivo_nombre_original TEXT,
+            mime_type TEXT,
+            orden INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "expediente_documentos", "expediente_id", "INTEGER NOT NULL")
+    asegurar_columna(cur, "expediente_documentos", "nombre_visible", "TEXT NOT NULL")
+    asegurar_columna(cur, "expediente_documentos", "descripcion", "TEXT")
+    asegurar_columna(cur, "expediente_documentos", "tipo_documento", "TEXT")
+    asegurar_columna(cur, "expediente_documentos", "archivo_ruta", "TEXT NOT NULL")
+    asegurar_columna(cur, "expediente_documentos", "archivo_nombre_original", "TEXT")
+    asegurar_columna(cur, "expediente_documentos", "mime_type", "TEXT")
+    asegurar_columna(cur, "expediente_documentos", "orden", "INTEGER NOT NULL DEFAULT 0")
+    asegurar_columna(
+        cur, "expediente_documentos", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    )
+    asegurar_columna(cur, "expediente_documentos", "updated_at", "TEXT")
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_expediente_documentos_expediente_orden
+        ON expediente_documentos (expediente_id, orden, id)
+        """
+    )
+
+
 def init_db():
     conn = get_connection()
     cur = conn.cursor()
@@ -1601,6 +1927,13 @@ def init_db():
         ON valoracion_resultados (expediente_id)
         """
     )
+
+    asegurar_tablas_costes(cur)
+    asegurar_tabla_patologia_costes(cur)
+    asegurar_tablas_actuaciones_reparacion(cur)
+    asegurar_tabla_informe_v2_capitulos(cur)
+    asegurar_tabla_informe_v2_capitulo_versiones(cur)
+    asegurar_tabla_expediente_documentos(cur)
 
     cur.execute(
         """

@@ -1,5 +1,6 @@
 import mimetypes
 import re
+from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -21,6 +22,7 @@ EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MAX_ADJUNTO_BYTES = 10 * 1024 * 1024
 EMAIL_ESTADOS = ("enviado", "error")
 MAX_CONTACTOS_SUGERIDOS = 8
+PROSPECCION_SEGUIMIENTO_DIAS = 10
 
 
 def get_current_user(request: Request):
@@ -101,6 +103,47 @@ def _agregar_contacto(contactos: list[dict], vistos: set[str], nombre: str, emai
             "origen": origen,
         }
     )
+
+
+def get_owned_lead(cur, lead_id: int, owner_user_id: int):
+    return cur.execute(
+        """
+        SELECT *
+        FROM leads
+        WHERE id = ? AND owner_user_id = ?
+        """,
+        (lead_id, owner_user_id),
+    ).fetchone()
+
+
+def crear_seguimiento_prospeccion(cur, lead_id: int, owner_user_id: int) -> str:
+    fecha_programada = (date.today() + timedelta(days=PROSPECCION_SEGUIMIENTO_DIAS)).isoformat()
+    cur.execute(
+        """
+        INSERT INTO lead_tareas (
+            lead_id, titulo, tipo, fecha_programada, estado, notas, owner_user_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            lead_id,
+            "Seguimiento tras email de presentación",
+            "seguimiento",
+            fecha_programada,
+            "pendiente",
+            f"Creado automáticamente tras email de presentación. Revisar en {PROSPECCION_SEGUIMIENTO_DIAS} días.",
+            owner_user_id,
+        ),
+    )
+    cur.execute(
+        """
+        UPDATE leads
+        SET estado = 'email_enviado', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND owner_user_id = ?
+        """,
+        (lead_id, owner_user_id),
+    )
+    return fecha_programada
 
 
 @router.get("/emails", response_class=HTMLResponse)
@@ -252,17 +295,35 @@ def buscar_contactos_email(request: Request, q: str = Query("", max_length=80)):
 
 
 @router.get("/emails/nuevo", response_class=HTMLResponse)
-def nuevo_email(request: Request, mensaje: str = "", error: str = ""):
-    get_current_user(request)
+def nuevo_email(request: Request, mensaje: str = "", error: str = "", lead_id: int = Query(0)):
+    current_user = get_current_user(request)
+    form_data = {}
+    lead = None
+    if lead_id:
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            lead = get_owned_lead(cur, lead_id, current_user["id"])
+        finally:
+            conn.close()
+        if lead:
+            form_data = {
+                "destinatario": lead["email"] or "",
+                "asunto": "Presentación servicios periciales",
+                "cuerpo": "",
+                "lead_id": lead_id,
+            }
     return render_template(
         request,
         "emails/form.html",
         {
             "titulo": "Nuevo email corporativo",
             "form_action": "/emails/nuevo",
-            "form_data": {},
+            "form_data": form_data,
+            "lead": lead,
             "mensaje": limpiar_texto(mensaje),
             "error": limpiar_texto(error),
+            "seguimiento_dias": PROSPECCION_SEGUIMIENTO_DIAS,
         },
     )
 
@@ -273,6 +334,7 @@ def enviar_email_corporativo(
     destinatario: str = Form(""),
     asunto: str = Form(""),
     cuerpo: str = Form(""),
+    lead_id: int = Form(0),
     adjunto: UploadFile | None = File(None),
 ):
     current_user = get_current_user(request)
@@ -283,7 +345,19 @@ def enviar_email_corporativo(
         "destinatario": destinatario_limpio,
         "asunto": asunto_limpio,
         "cuerpo": cuerpo_limpio,
+        "lead_id": lead_id,
     }
+    lead = None
+    if lead_id:
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            lead = get_owned_lead(cur, lead_id, current_user["id"])
+        finally:
+            conn.close()
+        if not lead:
+            lead_id = 0
+            form_data["lead_id"] = 0
 
     if not destinatario_limpio or not es_email_valido(destinatario_limpio):
         return render_template(
@@ -293,8 +367,10 @@ def enviar_email_corporativo(
                 "titulo": "Nuevo email corporativo",
                 "form_action": "/emails/nuevo",
                 "form_data": form_data,
+                "lead": lead,
                 "mensaje": "",
                 "error": "Indica un destinatario válido.",
+                "seguimiento_dias": PROSPECCION_SEGUIMIENTO_DIAS,
             },
         )
     if not asunto_limpio:
@@ -305,8 +381,10 @@ def enviar_email_corporativo(
                 "titulo": "Nuevo email corporativo",
                 "form_action": "/emails/nuevo",
                 "form_data": form_data,
+                "lead": lead,
                 "mensaje": "",
                 "error": "El asunto es obligatorio.",
+                "seguimiento_dias": PROSPECCION_SEGUIMIENTO_DIAS,
             },
         )
     if not cuerpo_limpio:
@@ -317,8 +395,10 @@ def enviar_email_corporativo(
                 "titulo": "Nuevo email corporativo",
                 "form_action": "/emails/nuevo",
                 "form_data": form_data,
+                "lead": lead,
                 "mensaje": "",
                 "error": "El cuerpo del email es obligatorio.",
+                "seguimiento_dias": PROSPECCION_SEGUIMIENTO_DIAS,
             },
         )
 
@@ -332,8 +412,10 @@ def enviar_email_corporativo(
                 "titulo": "Nuevo email corporativo",
                 "form_action": "/emails/nuevo",
                 "form_data": form_data,
+                "lead": lead,
                 "mensaje": "",
                 "error": str(exc),
+                "seguimiento_dias": PROSPECCION_SEGUIMIENTO_DIAS,
             },
         )
 
@@ -363,6 +445,8 @@ def enviar_email_corporativo(
             tiene_adjunto=bool(adjunto_preparado),
             estado="error",
             error_mensaje=str(exc),
+            referencia_entidad_tipo="lead" if lead_id else None,
+            referencia_entidad_id=lead_id or None,
             owner_user_id=current_user["id"],
         )
         return render_template(
@@ -372,8 +456,10 @@ def enviar_email_corporativo(
                 "titulo": "Nuevo email corporativo",
                 "form_action": "/emails/nuevo",
                 "form_data": form_data,
+                "lead": lead,
                 "mensaje": "",
                 "error": "No está configurado el envío de email.",
+                "seguimiento_dias": PROSPECCION_SEGUIMIENTO_DIAS,
             },
         )
     except Exception as exc:
@@ -386,6 +472,8 @@ def enviar_email_corporativo(
             tiene_adjunto=bool(adjunto_preparado),
             estado="error",
             error_mensaje=str(exc),
+            referencia_entidad_tipo="lead" if lead_id else None,
+            referencia_entidad_id=lead_id or None,
             owner_user_id=current_user["id"],
         )
         return render_template(
@@ -395,8 +483,10 @@ def enviar_email_corporativo(
                 "titulo": "Nuevo email corporativo",
                 "form_action": "/emails/nuevo",
                 "form_data": form_data,
+                "lead": lead,
                 "mensaje": "",
                 "error": "No se pudo enviar el email corporativo.",
+                "seguimiento_dias": PROSPECCION_SEGUIMIENTO_DIAS,
             },
         )
 
@@ -408,8 +498,20 @@ def enviar_email_corporativo(
         nombre_adjunto=adjunto_preparado["filename"] if adjunto_preparado else None,
         tiene_adjunto=bool(adjunto_preparado),
         estado="enviado",
+        referencia_entidad_tipo="lead" if lead_id else None,
+        referencia_entidad_id=lead_id or None,
         owner_user_id=current_user["id"],
     )
+    if lead_id:
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            lead = get_owned_lead(cur, lead_id, current_user["id"])
+            if lead:
+                crear_seguimiento_prospeccion(cur, lead_id, current_user["id"])
+                conn.commit()
+        finally:
+            conn.close()
 
     return RedirectResponse(
         url=f"/emails/nuevo?mensaje={quote('Email corporativo enviado correctamente.')}",

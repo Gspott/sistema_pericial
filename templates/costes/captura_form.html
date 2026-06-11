@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Nueva captura de costes</title>
+    <style>
+        .costes-captura-form-page {
+            max-width: 980px;
+        }
+
+        .costes-captura-form {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .costes-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .costes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .costes-notice {
+            border: 1px solid #bfdbfe;
+            background: #eff6ff;
+            color: #1e40af;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        @media (max-width: 760px) {
+            .costes-captura-form {
+                grid-template-columns: 1fr;
+            }
+
+            .costes-form-full {
+                grid-column: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-captura-form-page">
+        <header class="card">
+            <h1>Nueva captura</h1>
+            <p class="subtitle">Sube un pantallazo para revisarlo manualmente antes de crear la partida.</p>
+            <p class="costes-notice">Sin OCR automático: la imagen se guarda como trazabilidad y los datos se rellenan a mano.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </header>
+
+        <section class="card" aria-labelledby="captura-form-title">
+            <h2 id="captura-form-title">Origen</h2>
+            <form method="post" action="/costes/capturas/nueva" enctype="multipart/form-data">
+                <div class="costes-captura-form">
+                    <label class="costes-form-full" for="archivo">
+                        Imagen
+                        <input id="archivo" name="archivo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required>
+                    </label>
+                    <label for="base_id">
+                        Base
+                        <select id="base_id" name="base_id">
+                            <option value="">Sin base asignada</option>
+                            {% for base in bases %}
+                            <option value="{{ base.id }}">{{ base.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label for="descripcion">
+                        Descripción de fuente
+                        <input id="descripcion" name="descripcion" type="text" placeholder="Pantallazo de tarifa, catálogo, proveedor...">
+                    </label>
+                    <label for="provincia">
+                        Provincia
+                        <input id="provincia" name="provincia" type="text">
+                    </label>
+                    <label for="fecha_base">
+                        Fecha base
+                        <input id="fecha_base" name="fecha_base" type="date">
+                    </label>
+                    <label class="costes-form-full" for="observaciones">
+                        Observaciones
+                        <textarea id="observaciones" name="observaciones" rows="4"></textarea>
+                    </label>
+                </div>
+                <div class="costes-actions">
+                    <button class="boton" type="submit">Guardar captura</button>
+                    <a class="boton secundario" href="/costes/capturas">Volver a capturas</a>
+                </div>
+            </form>
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

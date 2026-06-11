@@ -24,8 +24,16 @@
                 <label for="telefono">Teléfono</label>
                 <input id="telefono" name="telefono" type="text" value="{{ lead.telefono or '' }}">
 
-                <label for="origen">Origen</label>
-                <input id="origen" name="origen" type="text" value="{{ lead.origen or '' }}">
+                <label for="origen">Tipo / categoría</label>
+                <select id="origen" name="origen">
+                    {% if lead.origen and lead.origen not in tipos_prospeccion_values %}
+                    <option value="{{ lead.origen }}" selected>{{ lead.origen }}</option>
+                    {% endif %}
+                    <option value="" {% if not lead.origen %}selected{% endif %}>Sin tipificar</option>
+                    {% for value, label in tipos_prospeccion %}
+                    <option value="{{ value }}" {% if lead.origen == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
 
                 <label for="servicio_solicitado">Servicio solicitado</label>
                 <input id="servicio_solicitado" name="servicio_solicitado" type="text" value="{{ lead.servicio_solicitado or '' }}">

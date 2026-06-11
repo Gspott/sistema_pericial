@@ -4023,8 +4023,22 @@ def construir_toc_items_informe(contexto: dict, paginas: dict | None = None) -> 
         [
             ("analisis", 8 + offset + post_mapas, "Análisis técnico"),
             ("propuesta", 9 + offset + post_mapas, "Propuesta de reparación"),
-            ("conclusiones-tecnicas", 10 + offset + post_mapas, "Conclusiones técnicas"),
-            ("conclusiones-periciales", 11 + offset + post_mapas, "Conclusiones periciales"),
+        ]
+    )
+    post_anexo = 0
+    if (contexto.get("anexo_economico_reparacion") or {}).get("incluido"):
+        items.append(
+            (
+                "anexo-economico-reparacion",
+                10 + offset + post_mapas,
+                "Anexo económico de reparación",
+            )
+        )
+        post_anexo = 1
+    items.extend(
+        [
+            ("conclusiones-tecnicas", 10 + offset + post_mapas + post_anexo, "Conclusiones técnicas"),
+            ("conclusiones-periciales", 11 + offset + post_mapas + post_anexo, "Conclusiones periciales"),
         ]
     )
     return [
@@ -4074,7 +4088,202 @@ def numerar_figuras_en_orden_visual(contexto: dict) -> int:
     return contador["valor"] - 1
 
 
-def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
+def cargar_anexo_economico_reparacion_informe(cur, expediente_id: int, incluir: bool) -> dict:
+    anexo = {
+        "incluido": False,
+        "tiene_costes": False,
+        "modo": "",
+        "actuaciones": [],
+        "patologias": [],
+        "total_pem": 0.0,
+        "fuentes": [],
+        "nota": (
+            "La valoración económica siguiente se realiza a efectos orientativos/periciales, "
+            "basada en mediciones y precios unitarios incorporados al expediente."
+        ),
+    }
+    filas_actuaciones = cur.execute(
+        """
+        SELECT
+            ar.id AS actuacion_id,
+            ar.titulo,
+            ar.descripcion AS actuacion_descripcion,
+            ar.observaciones AS actuacion_observaciones,
+            ar.orden,
+            ap.descripcion_snapshot,
+            ap.unidad_snapshot,
+            ap.precio_unitario_snapshot,
+            ap.cantidad,
+            ap.importe,
+            cc.codigo AS concepto_codigo,
+            cc.resumen AS concepto_resumen,
+            cb.nombre AS base_nombre,
+            cb.origen AS base_origen,
+            cb.version AS base_version
+        FROM actuaciones_reparacion ar
+        JOIN actuacion_partidas ap ON ap.actuacion_id = ar.id
+        JOIN costes_conceptos cc ON cc.id = ap.concepto_id
+        JOIN costes_bases cb ON cb.id = cc.base_id
+        WHERE ar.expediente_id = ?
+        ORDER BY ar.orden ASC, ar.id ASC, ap.id ASC
+        """,
+        (expediente_id,),
+    ).fetchall()
+
+    if filas_actuaciones:
+        anexo["tiene_costes"] = True
+        anexo["modo"] = "actuaciones"
+        anexo["nota"] = (
+            "La valoración económica se estructura por actuaciones de reparación "
+            "necesarias para la subsanación de los daños observados."
+        )
+        if not incluir:
+            return anexo
+
+        actuaciones_por_id: dict[int, dict] = {}
+        fuentes: dict[str, dict] = {}
+        total = 0.0
+        for fila in filas_actuaciones:
+            actuacion = actuaciones_por_id.setdefault(
+                fila["actuacion_id"],
+                {
+                    "id": fila["actuacion_id"],
+                    "titulo": valor_o_guion(fila["titulo"]),
+                    "descripcion": limpiar_texto(fila["actuacion_descripcion"]),
+                    "observaciones": limpiar_texto(fila["actuacion_observaciones"]),
+                    "partidas": [],
+                    "subtotal": 0.0,
+                },
+            )
+            importe = round(float(fila["importe"] or 0), 2)
+            actuacion["partidas"].append(
+                {
+                    "codigo": limpiar_texto(fila["concepto_codigo"]),
+                    "partida": limpiar_texto(fila["descripcion_snapshot"])
+                    or limpiar_texto(fila["concepto_resumen"]),
+                    "cantidad": float(fila["cantidad"] or 0),
+                    "unidad": limpiar_texto(fila["unidad_snapshot"]),
+                    "precio_unitario": float(fila["precio_unitario_snapshot"] or 0),
+                    "importe": importe,
+                    "base_nombre": limpiar_texto(fila["base_nombre"]),
+                    "base_origen": limpiar_texto(fila["base_origen"]),
+                }
+            )
+            actuacion["subtotal"] = round(actuacion["subtotal"] + importe, 2)
+            total = round(total + importe, 2)
+            clave_fuente = f"{fila['base_nombre']}|{fila['base_origen']}|{fila['base_version']}"
+            fuentes[clave_fuente] = {
+                "nombre": limpiar_texto(fila["base_nombre"]),
+                "origen": limpiar_texto(fila["base_origen"]),
+                "version": limpiar_texto(fila["base_version"]),
+            }
+
+        anexo["incluido"] = True
+        anexo["actuaciones"] = list(actuaciones_por_id.values())
+        anexo["total_pem"] = total
+        anexo["fuentes"] = list(fuentes.values())
+        return anexo
+
+    filas_patologias = cur.execute(
+        """
+        SELECT
+            pc.patologia_id,
+            pc.descripcion_actuacion,
+            pc.cantidad,
+            pc.unidad,
+            pc.precio_unitario,
+            pc.importe,
+            pc.estado AS vinculo_estado,
+            pc.observaciones AS vinculo_observaciones,
+            rp.patologia,
+            rp.elemento,
+            rp.localizacion_dano,
+            rp.detalle_localizacion,
+            es.nombre AS estancia_nombre,
+            cc.codigo AS concepto_codigo,
+            cc.resumen AS concepto_resumen,
+            cc.estado AS concepto_estado,
+            cb.nombre AS base_nombre,
+            cb.origen AS base_origen,
+            cb.version AS base_version
+        FROM patologia_costes pc
+        JOIN registros_patologias rp ON rp.id = pc.patologia_id
+        JOIN visitas v ON v.id = rp.visita_id
+        LEFT JOIN estancias es ON es.id = rp.estancia_id
+        JOIN costes_conceptos cc ON cc.id = pc.concepto_id
+        JOIN costes_bases cb ON cb.id = cc.base_id
+        WHERE v.expediente_id = ?
+        ORDER BY es.nombre COLLATE NOCASE, rp.id, pc.id
+        """,
+        (expediente_id,),
+    ).fetchall()
+    if not filas_patologias:
+        return anexo
+
+    anexo["tiene_costes"] = True
+    anexo["modo"] = "patologias"
+    if not incluir:
+        return anexo
+
+    patologias_por_id: dict[int, dict] = {}
+    fuentes: dict[str, dict] = {}
+    total = 0.0
+    for fila in filas_patologias:
+        patologia = patologias_por_id.setdefault(
+            fila["patologia_id"],
+            {
+                "id": fila["patologia_id"],
+                "patologia": valor_o_guion(fila["patologia"]),
+                "zona": " · ".join(
+                    parte
+                    for parte in [
+                        limpiar_texto(fila["estancia_nombre"]),
+                        limpiar_texto(fila["elemento"]),
+                        limpiar_texto(fila["localizacion_dano"]),
+                    ]
+                    if parte
+                ),
+                "detalle_localizacion": limpiar_texto(fila["detalle_localizacion"]),
+                "partidas": [],
+                "subtotal": 0.0,
+            },
+        )
+        importe = round(float(fila["importe"] or 0), 2)
+        patologia["partidas"].append(
+            {
+                "codigo": limpiar_texto(fila["concepto_codigo"]),
+                "partida": limpiar_texto(fila["descripcion_actuacion"]) or limpiar_texto(fila["concepto_resumen"]),
+                "cantidad": float(fila["cantidad"] or 0),
+                "unidad": limpiar_texto(fila["unidad"]),
+                "precio_unitario": float(fila["precio_unitario"] or 0),
+                "importe": importe,
+                "estado": limpiar_texto(fila["vinculo_estado"]),
+                "observaciones": limpiar_texto(fila["vinculo_observaciones"]),
+                "base_nombre": limpiar_texto(fila["base_nombre"]),
+                "base_origen": limpiar_texto(fila["base_origen"]),
+            }
+        )
+        patologia["subtotal"] = round(patologia["subtotal"] + importe, 2)
+        total = round(total + importe, 2)
+        clave_fuente = f"{fila['base_nombre']}|{fila['base_origen']}|{fila['base_version']}"
+        fuentes[clave_fuente] = {
+            "nombre": limpiar_texto(fila["base_nombre"]),
+            "origen": limpiar_texto(fila["base_origen"]),
+            "version": limpiar_texto(fila["base_version"]),
+        }
+
+    anexo["incluido"] = True
+    anexo["patologias"] = list(patologias_por_id.values())
+    anexo["total_pem"] = total
+    anexo["fuentes"] = list(fuentes.values())
+    return anexo
+
+
+def build_informe_context(
+    expediente_id: int,
+    base_url: str = "",
+    incluir_anexo_economico_reparacion: bool = False,
+) -> dict:
     """Prepara los datos del informe HTML sin alterar la generación DOCX existente."""
     conn = get_connection()
     cur = conn.cursor()
@@ -4453,6 +4662,12 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
             "habitabilidad": "Informe de habitabilidad",
             "valoracion": "Informe de valoración",
         }.get(tipo_informe, "Informe pericial")
+        anexo_economico_reparacion = cargar_anexo_economico_reparacion_informe(
+            cur,
+            expediente_id,
+            incluir_anexo_economico_reparacion and tipo_informe == "patologias",
+        )
+
         contexto = {
             "expediente": expediente_dict,
             "tipo_informe": tipo_informe,
@@ -4550,6 +4765,7 @@ def build_informe_context(expediente_id: int, base_url: str = "") -> dict:
                 patologias_interiores_rows,
                 patologias_exteriores_rows,
             ),
+            "anexo_economico_reparacion": anexo_economico_reparacion,
         }
         contexto["total_figuras"] = numerar_figuras_en_orden_visual(contexto)
         contexto["toc_items"] = construir_toc_items_informe(contexto)
@@ -5242,8 +5458,14 @@ def add_cuerpo_valoracion_docx(doc: Document, contexto: dict) -> None:
         add_parrafo_editable(doc, "No constan limitaciones de valoración registradas.")
 
 
-def generar_informe_docx_editable_bytes(expediente_id: int) -> bytes:
-    contexto = build_informe_context(expediente_id)
+def generar_informe_docx_editable_bytes(
+    expediente_id: int,
+    incluir_anexo_economico_reparacion: bool = False,
+) -> bytes:
+    contexto = build_informe_context(
+        expediente_id,
+        incluir_anexo_economico_reparacion=incluir_anexo_economico_reparacion,
+    )
     doc = Document()
     configurar_documento_editable(doc)
 
@@ -5373,8 +5595,74 @@ def generar_informe_docx_editable_bytes(expediente_id: int) -> bytes:
     add_heading_editable(doc, f"{9 + offset + post_mapas}. Propuesta de reparación", level=1)
     add_parrafo_editable(doc, contexto["propuesta_reparacion"])
 
+    post_anexo = 0
+    if contexto.get("anexo_economico_reparacion", {}).get("incluido"):
+        anexo = contexto["anexo_economico_reparacion"]
+        add_heading_editable(doc, f"{10 + offset + post_mapas}. Anexo económico de reparación", level=1)
+        add_parrafo_editable(doc, anexo["nota"])
+        add_parrafo_editable(
+            doc,
+            "Alcance económico: PEM orientativo. No incluye IVA, beneficio industrial, "
+            "gastos generales ni constituye oferta comercial.",
+        )
+        if anexo.get("modo") == "actuaciones":
+            for actuacion in anexo["actuaciones"]:
+                add_heading_editable(doc, actuacion["titulo"], level=2)
+                add_tabla_campos_editable(
+                    doc,
+                    construir_campos_informe(
+                        [
+                            ("Descripción", actuacion.get("descripcion")),
+                            ("Observaciones", actuacion.get("observaciones")),
+                            ("Subtotal", f"{actuacion.get('subtotal', 0):.2f} €"),
+                        ]
+                    ),
+                )
+                for partida in actuacion["partidas"]:
+                    add_tabla_campos_editable(
+                        doc,
+                        construir_campos_informe(
+                            [
+                                ("Código", partida.get("codigo")),
+                                ("Partida", partida.get("partida")),
+                                ("Cantidad", partida.get("cantidad")),
+                                ("Unidad", partida.get("unidad")),
+                                ("Precio unitario", f"{partida.get('precio_unitario', 0):.2f} €"),
+                                ("Importe", f"{partida.get('importe', 0):.2f} €"),
+                            ]
+                        ),
+                    )
+        else:
+            for patologia in anexo["patologias"]:
+                add_heading_editable(doc, patologia["patologia"], level=2)
+                add_tabla_campos_editable(
+                    doc,
+                    construir_campos_informe(
+                        [
+                            ("Zona", patologia.get("zona")),
+                            ("Subtotal", f"{patologia.get('subtotal', 0):.2f} €"),
+                        ]
+                    ),
+                )
+                for partida in patologia["partidas"]:
+                    add_tabla_campos_editable(
+                        doc,
+                        construir_campos_informe(
+                            [
+                                ("Código", partida.get("codigo")),
+                                ("Partida", partida.get("partida")),
+                                ("Cantidad", partida.get("cantidad")),
+                                ("Unidad", partida.get("unidad")),
+                                ("Precio unitario", f"{partida.get('precio_unitario', 0):.2f} €"),
+                                ("Importe", f"{partida.get('importe', 0):.2f} €"),
+                            ]
+                        ),
+                    )
+        add_parrafo_editable(doc, f"Total PEM de reparación: {anexo['total_pem']:.2f} €")
+        post_anexo = 1
+
     add_salto_pagina(doc)
-    add_heading_editable(doc, f"{10 + offset + post_mapas}. Conclusiones técnicas", level=1)
+    add_heading_editable(doc, f"{10 + offset + post_mapas + post_anexo}. Conclusiones técnicas", level=1)
     add_bloque_destacado_docx(
         doc,
         "Conclusiones técnicas",
@@ -5382,7 +5670,7 @@ def generar_informe_docx_editable_bytes(expediente_id: int) -> bytes:
         fill="F8FAFC",
     )
 
-    add_heading_editable(doc, f"{11 + offset + post_mapas}. Conclusiones periciales", level=1)
+    add_heading_editable(doc, f"{11 + offset + post_mapas + post_anexo}. Conclusiones periciales", level=1)
     add_bloque_destacado_docx(
         doc,
         "Conclusiones periciales",
@@ -5396,7 +5684,11 @@ def generar_informe_docx_editable_bytes(expediente_id: int) -> bytes:
     return buffer.getvalue()
 
 
-def generar_informe_pdf_bytes(request: Request, expediente_id: int) -> bytes:
+def generar_informe_pdf_bytes(
+    request: Request,
+    expediente_id: int,
+    incluir_anexo_economico_reparacion: bool = False,
+) -> bytes:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
@@ -5408,6 +5700,7 @@ def generar_informe_pdf_bytes(request: Request, expediente_id: int) -> bytes:
     contexto = build_informe_context(
         expediente_id,
         base_url=str(request.base_url).rstrip("/"),
+        incluir_anexo_economico_reparacion=incluir_anexo_economico_reparacion,
     )
     template = request.app.state.templates.env.get_template("informes/imprimir.html")
 
@@ -5478,6 +5771,61 @@ def generar_informe_pdf_bytes(request: Request, expediente_id: int) -> bytes:
         raise HTTPException(
             status_code=500,
             detail="No se pudo generar el PDF del informe.",
+        ) from exc
+
+    return pdf_bytes
+
+
+def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Playwright no está instalado. Actualiza dependencias para generar PDFs.",
+        ) from exc
+
+    template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+    html = template.render(
+        {
+            "request": request,
+            "current_user": getattr(request.state, "current_user", None),
+            "modo_pdf": True,
+            **contexto,
+        }
+    )
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 794, "height": 1123})
+            page.emulate_media(media="print")
+            page.set_content(html, wait_until="networkidle")
+            pdf_bytes = page.pdf(
+                format="A4",
+                margin={
+                    "top": "15mm",
+                    "right": "16mm",
+                    "bottom": "18mm",
+                    "left": "16mm",
+                },
+                display_header_footer=True,
+                header_template="<span></span>",
+                footer_template=(
+                    "<div style='width:100%;font-family:Arial,Helvetica,sans-serif;"
+                    "font-size:8px;color:#6b7280;text-align:center;'>"
+                    "Informe Pericial V2 · Página <span class='pageNumber'></span> de "
+                    "<span class='totalPages'></span>"
+                    "</div>"
+                ),
+                print_background=True,
+                prefer_css_page_size=True,
+            )
+            browser.close()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo generar el PDF V2 del informe.",
         ) from exc
 
     return pdf_bytes

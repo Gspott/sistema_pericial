@@ -129,3 +129,76 @@ Usar esta prioridad para problemas que no son emergencia inmediata, pero condici
 - Avance 2026-05-26: smart dependency scopes implementados con resolver por
   paths, auto-upgrade de scopes insuficientes y override explicito
   `--allow-unsafe-scope`.
+
+## Dashboard Desktop Como Centro Operativo CRM
+
+- Impacto: convierte el dashboard en la mesa de trabajo diaria del despacho:
+  seguimientos, captacion, comunicacion, propuestas y pipeline.
+- Modulos: dashboard, leads, clientes, propuestas, emails, expedientes,
+  facturacion, UX desktop.
+- Riesgo: Alto si se crea un CRM paralelo o se toca email/DB sin fases; medio
+  si la primera fase es read-only con datos existentes.
+- Task Pack recomendado: crear `docs/harness/TASK_PACKS/crm_change.md` en fase
+  harness, o combinar `bugfix.md`, `email_change.md` y `db_change.md` segun
+  alcance.
+- Validaciones minimas: `python3 scripts/audit_docs.py`, `python3 -m compileall
+  app`, smokes de dashboard/ownership y `bash scripts/finish_harness_task.sh`.
+- Bloqueo/no bloqueo: no bloquea mejoras read-only del dashboard; bloquea
+  tablas CRM, emails/respuestas, CalDAV, WhatsApp o analitica externa sin plan
+  especifico.
+- Dependencias: `docs/crm_dashboard.md` y
+  `docs/harness/AGENT_MAPS/crm_dashboard_map.md`.
+- Pendientes:
+  - CRM-0 auditoria y arquitectura minima. Avance 2026-06-02: completado en
+    documentacion, sin tocar app ni DB.
+  - CRM-1A dashboard read-only con datos existentes: Hoy, Captacion,
+    Comunicacion, Pipeline y Administracion secundaria. Avance 2026-06-02:
+    completado como cockpit SSR read-only con consultas defensivas, limites
+    bajos y smoke de render/ownership/degradacion; harness full OK con 92
+    smokes.
+  - CRM-1B dashboard operativo sin nuevo esquema: navegacion segura, filtros
+    simples, badges de estados reales, acciones de tareas existentes y bloque
+    discreto de campanas/proximos pasos. Avance 2026-06-02: completado sin
+    tocar DB, SMTP ni integraciones; harness full OK con 92 smokes.
+  - CRM-1C layout desktop real del dashboard. Avance 2026-06-02: completado
+    con rejilla desktop ancha, zonas principal/lateral, prioridad visual para
+    Hoy y Actividad operativa, sin tocar Python, rutas, consultas ni esquema;
+    harness full OK con 92 smokes.
+  - CRM-1C-FIX ancho desktop dashboard. Avance 2026-06-02: completado con
+    `body.dashboard-cockpit-page`, cache-busting `mobile.css?v=11`, override
+    especifico contra `.page max-width: 920px` y smoke de layout CSS; harness
+    full OK con 93 smokes.
+  - CRM-1C-FIX-2 diagnostico de ancho desktop dashboard. Avance 2026-06-02:
+    completado identificando `.page { max-width: 920px; margin: 0 auto; }`
+    como selector limitante, corrigiendo el `main` anidado dentro del app shell
+    por `div` y anadiendo override especifico sobre el dashboard real; harness
+    full OK con 93 smokes.
+  - CRM-2A leads de prospeccion. Avance 2026-06-04: completado reutilizando
+    `leads.origen` como tipo/categoria, ampliando estados ligeros de
+    prospeccion, filtros SSR por tipo/estado/localidad/fecha, seleccion
+    multiple preparada sin acciones reales y metricas de prospeccion en
+    dashboard; sin tablas nuevas, SMTP ni integraciones; harness full OK con 95
+    smokes.
+  - CRM-2B seguimiento automatico de prospeccion. Avance 2026-06-04:
+    completado creando tarea `lead_tareas` de seguimiento a 10 dias tras envio
+    manual correcto desde lead, registrando referencia en `emails_enviados`,
+    cambiando el lead a `email_enviado` y destacando seguimientos vencidos/hoy
+    en dashboard; sin tablas nuevas, SMTP real ni automatizaciones agresivas;
+    harness full OK con 97 smokes.
+  - CRM-2D workbench de prospeccion rapida. Avance 2026-06-04: completado con
+    `/leads/prospeccion`, alta rapida desktop que crea leads directamente,
+    duplicados por email/telefono/empresa, tabla compacta de trabajo, acciones
+    de abrir/editar/mailto/web/revisado y helpers reutilizables para futura
+    importacion CSV; sin tabla nueva, SMTP, scraping ni integraciones; harness
+    full OK con 96 smokes.
+  - CRM-1D modelo minimo defensivo candidato: `contactos_profesionales`,
+    `crm_oportunidades`, `crm_interacciones` y `crm_campanas`, solo con DB
+    temporal y sin migrar datos.
+  - CRM-2 asociacion de emails enviados a contactos/campanas/oportunidades, sin
+    SMTP real en smokes ni lectura IMAP hasta fase propia.
+  - CRM-3 dashboard desktop denso con tablas, filtros y acciones rapidas.
+  - CRM-4 diseno de captacion web para Plausible/Matomo/Google Business
+    Profile, sin replicar Google Analytics.
+  - CRM-5 diseno de agenda Apple Calendar/CalDAV.
+  - CRM-6 registro manual de WhatsApp y enlaces rapidos, sin automatizacion
+    compleja.

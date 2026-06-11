@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Nueva partida de coste</title>
+    <style>
+        .costes-form-page {
+            max-width: 1180px;
+        }
+
+        .costes-form-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .costes-form-wide {
+            grid-column: span 2;
+        }
+
+        .costes-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .costes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        @media (max-width: 900px) {
+            .costes-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .costes-form-wide,
+            .costes-form-full {
+                grid-column: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-form-page">
+        <header class="card">
+            <h1>Nueva partida</h1>
+            <p class="subtitle">Alta manual rápida. Si no existe ninguna base, se creará una base básica con estos datos.</p>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </header>
+
+        <section class="card" aria-labelledby="costes-form-title">
+            <h2 id="costes-form-title">Datos principales</h2>
+            <form method="post" action="/costes/nuevo">
+                <div class="costes-form-grid">
+                    <label class="costes-form-wide" for="base_id">
+                        Base
+                        <select id="base_id" name="base_id">
+                            {% if bases %}
+                            {% for base in bases %}
+                            <option value="{{ base.id }}" {% if concepto.base_id == base.id %}selected{% endif %}>{{ base.nombre }}</option>
+                            {% endfor %}
+                            {% else %}
+                            <option value="">Crear base básica</option>
+                            {% endif %}
+                        </select>
+                    </label>
+
+                    {% if not bases %}
+                    <label class="costes-form-wide" for="base_nombre">
+                        Nombre de base
+                        <input id="base_nombre" name="base_nombre" type="text" value="Base manual de costes">
+                    </label>
+                    <label class="costes-form-full" for="base_descripcion">
+                        Descripción de base
+                        <input id="base_descripcion" name="base_descripcion" type="text" value="Base creada desde alta rápida COSTES-2A">
+                    </label>
+                    {% endif %}
+
+                    <label class="costes-form-wide" for="capitulo_id">
+                        Capítulo
+                        <select id="capitulo_id" name="capitulo_id">
+                            <option value="">Sin capítulo</option>
+                            {% for capitulo in capitulos %}
+                            <option value="{{ capitulo.id }}" {% if concepto.capitulo_id == capitulo.id %}selected{% endif %}>{{ capitulo.codigo }} · {{ capitulo.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label for="codigo">
+                        Código
+                        <input id="codigo" name="codigo" type="text" value="{{ concepto.codigo }}" required autofocus>
+                    </label>
+                    <label for="tipo">
+                        Tipo
+                        <select id="tipo" name="tipo">
+                            {% for tipo in tipos_concepto %}
+                            <option value="{{ tipo }}" {% if concepto.tipo == tipo %}selected{% endif %}>{{ tipo }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label for="unidad">
+                        Unidad
+                        <input id="unidad" name="unidad" type="text" value="{{ concepto.unidad }}" required>
+                    </label>
+                    <label class="costes-form-wide" for="resumen">
+                        Resumen
+                        <input id="resumen" name="resumen" type="text" value="{{ concepto.resumen }}" required>
+                    </label>
+                    <label for="precio">
+                        Precio
+                        <input id="precio" name="precio" type="number" min="0" step="0.01" value="{{ concepto.precio }}">
+                    </label>
+                    <label for="moneda">
+                        Moneda
+                        <input id="moneda" name="moneda" type="text" value="{{ concepto.moneda or 'EUR' }}">
+                    </label>
+                    <label for="fecha_base">
+                        Fecha base
+                        <input id="fecha_base" name="fecha_base" type="date" value="{{ concepto.fecha_base }}">
+                    </label>
+                    <label for="provincia">
+                        Provincia
+                        <input id="provincia" name="provincia" type="text" value="{{ concepto.provincia }}">
+                    </label>
+                    <label for="estado">
+                        Estado
+                        <select id="estado" name="estado">
+                            {% for estado in estados_concepto %}
+                            <option value="{{ estado }}" {% if concepto.estado == estado %}selected{% endif %}>{{ estado }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="costes-form-full" for="descripcion">
+                        Descripción
+                        <textarea id="descripcion" name="descripcion" rows="5">{{ concepto.descripcion }}</textarea>
+                    </label>
+                </div>
+                <div class="costes-actions">
+                    <button class="boton" type="submit">Crear partida</button>
+                    <a class="boton secundario" href="/costes">Volver a costes</a>
+                </div>
+            </form>
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

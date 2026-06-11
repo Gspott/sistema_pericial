@@ -237,6 +237,33 @@
             font-weight: 700;
         }
 
+        .economic-table {
+            border-collapse: collapse;
+            font-size: 12px;
+            margin: 12px 0;
+            width: 100%;
+        }
+
+        .economic-table th,
+        .economic-table td {
+            border: 1px solid var(--line);
+            padding: 6px 7px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .economic-table th,
+        .economic-table tfoot th {
+            background: var(--soft-strong);
+            font-weight: 700;
+        }
+
+        .economic-table .num {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            white-space: nowrap;
+        }
+
         .label {
             color: var(--muted);
             font-size: 11px;
@@ -444,8 +471,8 @@
     {% if not modo_pdf %}
     <div class="toolbar no-print">
         <button class="button" type="button" onclick="window.print()">Imprimir / guardar PDF</button>
-        <a class="button secondary" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
-        <a class="button secondary" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
+        <a class="button secondary" href="/generar-informe-pdf/{{ expediente.id }}{% if anexo_economico_reparacion.incluido %}?incluir_anexo_economico_reparacion=1{% endif %}">Descargar PDF</a>
+        <a class="button secondary" href="/generar-informe-docx-editable/{{ expediente.id }}{% if anexo_economico_reparacion.incluido %}?incluir_anexo_economico_reparacion=1{% endif %}">Descargar DOCX editable</a>
         <a class="button secondary" href="/detalle-expediente/{{ expediente.id }}">Volver</a>
     </div>
     {% endif %}
@@ -1102,15 +1129,134 @@
             <p>{{ propuesta_reparacion }}</p>
         </section>
 
+        {% set post_anexo = 1 if anexo_economico_reparacion.incluido else 0 %}
+        {% if anexo_economico_reparacion.incluido %}
+        <section class="section page-break" data-toc-id="anexo-economico-reparacion">
+            <h2>{{ 10 + offset + post_mapas }}. Anexo económico de reparación</h2>
+            <div class="conclusion-card">
+                <p>{{ anexo_economico_reparacion.nota }}</p>
+                <p><strong>Alcance económico:</strong> PEM orientativo. No incluye IVA, beneficio industrial, gastos generales ni constituye oferta comercial.</p>
+                {% if anexo_economico_reparacion.modo == 'actuaciones' %}
+                <p><strong>Base de valoración:</strong> actuaciones de reparación del expediente y partidas de la biblioteca de costes.</p>
+                {% endif %}
+            </div>
+
+            {% if anexo_economico_reparacion.modo == 'actuaciones' %}
+            {% for actuacion in anexo_economico_reparacion.actuaciones %}
+            <article class="card section-card">
+                <div class="card-title">
+                    <h3>{{ actuacion.titulo }}</h3>
+                    <span class="muted">Subtotal {{ '%.2f'|format(actuacion.subtotal or 0) }} €</span>
+                </div>
+                {% if actuacion.descripcion %}
+                <p>{{ actuacion.descripcion }}</p>
+                {% endif %}
+                {% if actuacion.observaciones %}
+                <p class="muted">{{ actuacion.observaciones }}</p>
+                {% endif %}
+                <table class="economic-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Partida</th>
+                            <th>Cantidad</th>
+                            <th>Ud.</th>
+                            <th>Precio unitario</th>
+                            <th>Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for partida in actuacion.partidas %}
+                        <tr>
+                            <td>{{ partida.codigo }}</td>
+                            <td>{{ partida.partida }}</td>
+                            <td class="num">{{ '%.4f'|format(partida.cantidad or 0) }}</td>
+                            <td>{{ partida.unidad or "-" }}</td>
+                            <td class="num">{{ '%.2f'|format(partida.precio_unitario or 0) }} €</td>
+                            <td class="num">{{ '%.2f'|format(partida.importe or 0) }} €</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="5">Subtotal actuación</th>
+                            <th class="num">{{ '%.2f'|format(actuacion.subtotal or 0) }} €</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </article>
+            {% endfor %}
+            {% else %}
+            {% for patologia in anexo_economico_reparacion.patologias %}
+            <article class="card section-card">
+                <div class="card-title">
+                    <h3>{{ patologia.patologia }}</h3>
+                    <span class="muted">{{ patologia.zona or "-" }}</span>
+                </div>
+                {% if patologia.detalle_localizacion %}
+                <p>{{ patologia.detalle_localizacion }}</p>
+                {% endif %}
+                <table class="economic-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Partida</th>
+                            <th>Cantidad</th>
+                            <th>Ud.</th>
+                            <th>Precio unitario</th>
+                            <th>Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for partida in patologia.partidas %}
+                        <tr>
+                            <td>{{ partida.codigo }}</td>
+                            <td>
+                                {{ partida.partida }}
+                                {% if partida.observaciones %}<br><span class="muted">{{ partida.observaciones }}</span>{% endif %}
+                            </td>
+                            <td class="num">{{ '%.4f'|format(partida.cantidad or 0) }}</td>
+                            <td>{{ partida.unidad or "-" }}</td>
+                            <td class="num">{{ '%.2f'|format(partida.precio_unitario or 0) }} €</td>
+                            <td class="num">{{ '%.2f'|format(partida.importe or 0) }} €</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="5">Subtotal</th>
+                            <th class="num">{{ '%.2f'|format(patologia.subtotal or 0) }} €</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </article>
+            {% endfor %}
+            {% endif %}
+
+            <div class="conclusion-card">
+                <p><strong>Total PEM de reparación:</strong> {{ '%.2f'|format(anexo_economico_reparacion.total_pem or 0) }} €</p>
+                {% if anexo_economico_reparacion.fuentes %}
+                <p><strong>Fuentes/base de precios:</strong>
+                    {% for fuente in anexo_economico_reparacion.fuentes %}
+                    {{ fuente.nombre }}{% if fuente.origen %} ({{ fuente.origen }}){% endif %}{% if fuente.version %} · {{ fuente.version }}{% endif %}{% if not loop.last %}; {% endif %}
+                    {% endfor %}
+                </p>
+                {% endif %}
+            </div>
+        </section>
+        {% else %}
+        {% set post_anexo = 0 %}
+        {% endif %}
+
         <section class="section final-section" data-toc-id="conclusiones-tecnicas">
-            <h2>{{ 10 + offset + post_mapas }}. Conclusiones técnicas</h2>
+            <h2>{{ 10 + offset + post_mapas + post_anexo }}. Conclusiones técnicas</h2>
             <div class="conclusion-card">
                 <p>{{ conclusion_tecnica }}</p>
             </div>
         </section>
 
         <section class="section" data-toc-id="conclusiones-periciales">
-            <h2>{{ 11 + offset + post_mapas }}. Conclusiones periciales</h2>
+            <h2>{{ 11 + offset + post_mapas + post_anexo }}. Conclusiones periciales</h2>
             <div class="conclusion-card">
                 <p>{{ conclusion_pericial }}</p>
             </div>

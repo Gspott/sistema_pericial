@@ -6,7 +6,8 @@
         <button class="drawer-close" type="button" aria-label="Cerrar menú" data-drawer-close="main-nav">×</button>
     </div>
     <a class="drawer-link {% if path.startswith('/dashboard') or path == '/' %}active{% endif %}" href="/dashboard">Dashboard</a>
-    <a class="drawer-link {% if path.startswith('/leads') %}active{% endif %}" href="/leads">Leads</a>
+    <a class="drawer-link {% if path.startswith('/leads') and not path.startswith('/leads/prospeccion') %}active{% endif %}" href="/leads">Leads</a>
+    <a class="drawer-link {% if path.startswith('/leads/prospeccion') %}active{% endif %}" href="/leads/prospeccion">Prospección rápida</a>
     <a class="drawer-link {% if path.startswith('/propuestas') %}active{% endif %}" href="/propuestas">Propuestas</a>
     <a class="drawer-link {% if path == '/emails' %}active{% endif %}" href="/emails">Emails enviados</a>
     <a class="drawer-link {% if path.startswith('/emails/nuevo') %}active{% endif %}" href="/emails/nuevo">Email corporativo</a>
@@ -25,6 +26,7 @@
         <button class="drawer-close" type="button" aria-label="Cerrar acciones rápidas" data-quick-drawer-close="quick-actions">×</button>
     </div>
     <a class="drawer-link quick-drawer-link" href="/leads/nuevo">Nuevo lead</a>
+    <a class="drawer-link quick-drawer-link" href="/leads/prospeccion">Prospección rápida</a>
     <a class="drawer-link quick-drawer-link" href="/propuestas/nueva">Nueva propuesta</a>
     <a class="drawer-link quick-drawer-link" href="/emails/nuevo">Nuevo email corporativo</a>
     <a class="drawer-link quick-drawer-link" href="/clientes/nuevo">Nuevo cliente</a>

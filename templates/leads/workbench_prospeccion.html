@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Workbench de prospección</title>
+</head>
+<body class="prospecting-workbench-page">
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page prospecting-workbench">
+        <header class="card prospecting-workbench-header">
+            <div>
+                <h1>Workbench de prospección</h1>
+                <p class="subtitle">Alta rápida para cargar contactos manuales en leads con mínimos clics.</p>
+            </div>
+            <div class="prospecting-workbench-actions">
+                <a class="boton secundario" href="/leads">Ver leads</a>
+                <a class="boton secundario" href="/dashboard">Dashboard</a>
+            </div>
+        </header>
+
+        {% if creado %}
+        <div class="card prospecting-flash">
+            <strong>Lead creado.</strong>
+            <a href="/leads/{{ creado }}">Abrir lead #{{ creado }}</a>
+        </div>
+        {% endif %}
+
+        <section class="card prospecting-entry-card" aria-labelledby="alta-rapida-title">
+            <div class="prospecting-entry-heading">
+                <div>
+                    <h2 id="alta-rapida-title">Alta rápida</h2>
+                    <p class="subtitle">Empresa y una vía de contacto bastan para avanzar.</p>
+                </div>
+                <span>Guardar y crear otro</span>
+            </div>
+
+            {% if error %}
+            <p class="error">{{ error }}</p>
+            {% endif %}
+
+            <form class="prospecting-entry-form" method="post" action="/leads/prospeccion">
+                <label for="empresa">
+                    Empresa
+                    <input id="empresa" name="empresa" type="text" value="{{ lead.empresa or '' }}" autofocus required>
+                </label>
+                <label for="contacto">
+                    Contacto
+                    <input id="contacto" name="contacto" type="text" value="{{ lead.contacto or '' }}">
+                </label>
+                <label for="email">
+                    Email
+                    <input id="email" name="email" type="email" value="{{ lead.email or '' }}">
+                </label>
+                <label for="telefono">
+                    Teléfono
+                    <input id="telefono" name="telefono" type="text" value="{{ lead.telefono or '' }}">
+                </label>
+                <label for="localidad">
+                    Localidad
+                    <input id="localidad" name="localidad" type="text" value="{{ lead.localidad or filters.localidad or '' }}">
+                </label>
+                <label for="tipo">
+                    Categoría
+                    <select id="tipo" name="tipo">
+                        {% for value, label in tipos_prospeccion %}
+                        <option value="{{ value }}" {% if (lead.origen or filters.tipo) == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label for="web">
+                    Web
+                    <input id="web" name="web" type="url" value="{{ lead.web or '' }}" placeholder="https://...">
+                </label>
+                <label class="prospecting-notes-field" for="observaciones">
+                    Observaciones
+                    <textarea id="observaciones" name="observaciones" rows="2">{{ lead.observaciones or '' }}</textarea>
+                </label>
+
+                {% if duplicados %}
+                <div class="prospecting-duplicate-warning">
+                    <strong>Posibles duplicados encontrados.</strong>
+                    <ul>
+                        {% for duplicado in duplicados %}
+                        <li>
+                            <a href="/leads/{{ duplicado.id }}">{{ duplicado.nombre }}</a>
+                            · {{ duplicado.email or duplicado.telefono or 'Sin contacto' }}
+                            · {{ label_estado(duplicado.estado) }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <label class="checkbox-row">
+                        <input type="checkbox" name="confirmar_duplicado" value="1">
+                        Crear de todos modos
+                    </label>
+                </div>
+                {% endif %}
+
+                <button class="boton" type="submit">Crear lead y seguir</button>
+            </form>
+        </section>
+
+        <section class="card prospecting-table-card" aria-labelledby="mesa-trabajo-title">
+            <div class="prospecting-table-header">
+                <div>
+                    <h2 id="mesa-trabajo-title">Mesa de trabajo</h2>
+                    <p class="subtitle">Últimos leads de prospección para revisar, abrir o marcar.</p>
+                </div>
+                <form class="prospecting-filter-form" method="get" action="/leads/prospeccion">
+                    <label for="filtro_tipo">
+                        Categoría
+                        <select id="filtro_tipo" name="tipo">
+                            {% for value, label in tipos_prospeccion %}
+                            <option value="{{ value }}" {% if filters.tipo == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label for="filtro_localidad">
+                        Localidad
+                        <input id="filtro_localidad" name="localidad" type="search" value="{{ filters.localidad }}">
+                    </label>
+                    <label for="filtro_vista">
+                        Vista
+                        <select id="filtro_vista" name="vista">
+                            <option value="pendientes" {% if filters.vista == 'pendientes' %}selected{% endif %}>Pendientes</option>
+                            <option value="convertidos" {% if filters.vista == 'convertidos' %}selected{% endif %}>Convertidos</option>
+                            <option value="todos" {% if filters.vista == 'todos' %}selected{% endif %}>Todos</option>
+                            {% for estado in estados_lead %}
+                            <option value="{{ estado }}" {% if filters.vista == estado %}selected{% endif %}>{{ label_estado(estado) }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <button class="boton secundario" type="submit">Filtrar</button>
+                </form>
+            </div>
+
+            {% if recientes %}
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table prospecting-workbench-table">
+                    <thead>
+                        <tr>
+                            <th>Empresa</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Contacto</th>
+                            <th>Localidad</th>
+                            <th>Notas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in recientes %}
+                        <tr>
+                            <td><a href="/leads/{{ item.id }}">{{ item.nombre }}</a></td>
+                            <td>{{ label_tipo_prospeccion(item.origen) }}</td>
+                            <td><span class="{{ lead_estado_badge_class(item.estado) }}">{{ label_estado(item.estado) }}</span></td>
+                            <td>
+                                {% if item.email %}<a href="mailto:{{ item.email }}">{{ item.email }}</a>{% elif item.telefono %}{{ item.telefono }}{% else %}<span class="muted">Sin contacto</span>{% endif %}
+                            </td>
+                            <td>{{ item.cliente_ciudad or item.cliente_provincia or filters.localidad or 'Sin localidad' }}</td>
+                            <td>{{ item.mensaje or item.notas or 'Sin notas' }}</td>
+                            <td class="prospecting-row-actions">
+                                {% if item.web %}<a href="{{ item.web }}" target="_blank" rel="noopener">Web</a>{% endif %}
+                                <a href="/leads/{{ item.id }}">Abrir</a>
+                                <a href="/leads/{{ item.id }}/editar">Editar</a>
+                                {% if item.estado in ['nuevo', 'pendiente'] %}
+                                <form method="post" action="/leads/prospeccion/{{ item.id }}/revisado">
+                                    <button type="submit">Revisado</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if recientes|length >= workbench_limit %}
+            <p class="empty">Mostrando los {{ workbench_limit }} registros más recientes para mantener velocidad.</p>
+            {% endif %}
+            {% else %}
+            <p class="empty">Todavía no hay leads de prospección con estos filtros.</p>
+            {% endif %}
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>{{ concepto.codigo }} · Costes</title>
+    <style>
+        .costes-detail-page {
+            max-width: 1480px;
+        }
+
+        .costes-detail-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+            gap: 14px;
+            align-items: start;
+        }
+
+        .costes-form-grid,
+        .costes-descomp-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .costes-form-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .costes-descomp-form {
+            grid-template-columns: 140px 150px 90px minmax(320px, 1fr) 150px 150px 150px 90px auto;
+            align-items: end;
+            overflow-x: auto;
+        }
+
+        .costes-form-wide {
+            grid-column: span 2;
+        }
+
+        .costes-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .costes-actions,
+        .costes-header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .costes-header-actions {
+            justify-content: flex-end;
+        }
+
+        .costes-summary-box {
+            display: grid;
+            gap: 8px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 12px;
+        }
+
+        .costes-meta-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .costes-meta-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 9px 10px;
+            background: #f9fafb;
+        }
+
+        .costes-summary-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 14px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .costes-summary-row strong,
+        .costes-money {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .costes-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            white-space: nowrap;
+        }
+
+        .costes-warning {
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            color: #92400e;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .costes-danger-action button {
+            color: #b91c1c;
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+
+        .costes-descomp-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .costes-descomp-table {
+            border-collapse: collapse;
+            min-width: 1380px;
+            width: 100%;
+        }
+
+        .costes-descomp-table th,
+        .costes-descomp-table td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 8px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .costes-descomp-table th {
+            color: #4b5563;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .costes-descomp-table input,
+        .costes-descomp-table select {
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .costes-col-codigo { width: 140px; }
+        .costes-col-tipo { width: 150px; }
+        .costes-col-unidad { width: 90px; }
+        .costes-col-resumen { min-width: 360px; }
+        .costes-col-numero { width: 150px; }
+        .costes-col-orden { width: 90px; }
+        .costes-col-acciones { width: 180px; }
+
+        @media (max-width: 1000px) {
+            .costes-detail-grid,
+            .costes-form-grid,
+            .costes-descomp-form {
+                grid-template-columns: 1fr;
+            }
+
+            .costes-form-wide,
+            .costes-form-full {
+                grid-column: auto;
+            }
+
+            .costes-header-actions {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-detail-page">
+        <header class="card">
+            <div class="costes-detail-grid">
+                <div>
+                    <h1>{{ concepto.codigo }} · {{ concepto.resumen }}</h1>
+                    <p class="subtitle">Base: {{ concepto.base_nombre }} · Origen: {{ concepto.base_origen or 'manual' }} · {{ concepto.provincia or 'Sin provincia' }} · {{ concepto.fecha_base or 'Sin fecha base' }}</p>
+                    <p><span class="{{ estado_badge_class(concepto.estado) }}">{{ label_estado(concepto.estado) }}</span></p>
+                </div>
+                <div class="costes-header-actions">
+                    <a class="boton secundario" href="/costes">Volver al listado</a>
+                    <form method="post" action="/costes/{{ concepto.id }}/validar">
+                        <button class="boton" type="submit">Validar partida</button>
+                    </form>
+                </div>
+            </div>
+            {% if mensaje %}<p class="success">{{ mensaje }}</p>{% endif %}
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+            {% if aviso %}<p class="costes-warning">{{ aviso }}</p>{% endif %}
+            {% if resumen_descomp.descuadre %}
+            <p class="costes-warning">La partida descuadra más de {{ format_money(resumen_descomp.tolerancia) }} € respecto a su descomposición.</p>
+            {% endif %}
+        </header>
+
+        <div class="costes-detail-grid">
+            <section class="card" aria-labelledby="editar-partida-title">
+                <h2 id="editar-partida-title">Editar partida</h2>
+                <form method="post" action="/costes/{{ concepto.id }}">
+                    <div class="costes-form-grid">
+                        <label class="costes-form-wide" for="base_id">
+                            Base
+                            <select id="base_id" name="base_id">
+                                {% for base in bases %}
+                                <option value="{{ base.id }}" {% if concepto.base_id == base.id %}selected{% endif %}>{{ base.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label class="costes-form-wide" for="capitulo_id">
+                            Capítulo
+                            <select id="capitulo_id" name="capitulo_id">
+                                <option value="">Sin capítulo</option>
+                                {% for capitulo in capitulos %}
+                                <option value="{{ capitulo.id }}" {% if concepto.capitulo_id == capitulo.id %}selected{% endif %}>{{ capitulo.codigo }} · {{ capitulo.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label for="codigo">
+                            Código
+                            <input id="codigo" name="codigo" type="text" value="{{ concepto.codigo }}" required>
+                        </label>
+                        <label for="tipo">
+                            Tipo
+                            <select id="tipo" name="tipo">
+                                {% for tipo in tipos_concepto %}
+                                <option value="{{ tipo }}" {% if concepto.tipo == tipo %}selected{% endif %}>{{ tipo }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label for="unidad">
+                            Unidad
+                            <input id="unidad" name="unidad" type="text" value="{{ concepto.unidad }}" required>
+                        </label>
+                        <label for="precio">
+                            Precio
+                            <input id="precio" name="precio" type="number" min="0" step="0.01" value="{{ concepto.precio }}">
+                        </label>
+                        <label class="costes-form-wide" for="resumen">
+                            Resumen
+                            <input id="resumen" name="resumen" type="text" value="{{ concepto.resumen }}" required>
+                        </label>
+                        <label for="moneda">
+                            Moneda
+                            <input id="moneda" name="moneda" type="text" value="{{ concepto.moneda or 'EUR' }}">
+                        </label>
+                        <label for="fecha_base">
+                            Fecha base
+                            <input id="fecha_base" name="fecha_base" type="date" value="{{ concepto.fecha_base }}">
+                        </label>
+                        <label for="provincia">
+                            Provincia
+                            <input id="provincia" name="provincia" type="text" value="{{ concepto.provincia }}">
+                        </label>
+                        <label for="estado">
+                            Estado
+                            <select id="estado" name="estado">
+                                {% for estado in estados_concepto %}
+                                <option value="{{ estado }}" {% if concepto.estado == estado %}selected{% endif %}>{{ estado }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label class="costes-form-full" for="descripcion">
+                            Descripción
+                            <textarea id="descripcion" name="descripcion" rows="5">{{ concepto.descripcion }}</textarea>
+                        </label>
+                    </div>
+                    <div class="costes-actions">
+                        <button class="boton" type="submit">Guardar cambios</button>
+                    </div>
+                </form>
+            </section>
+
+            <aside class="card" aria-labelledby="validacion-title">
+                <h2 id="validacion-title">Validación económica</h2>
+                <div class="costes-summary-box">
+                    <div class="costes-summary-row">
+                        <span>Suma descompuestos</span>
+                        <strong>{{ format_money(resumen_descomp.suma) }} {{ concepto.moneda or 'EUR' }}</strong>
+                    </div>
+                    <div class="costes-summary-row">
+                        <span>Precio partida</span>
+                        <strong>{{ format_money(resumen_descomp.precio) }} {{ concepto.moneda or 'EUR' }}</strong>
+                    </div>
+                    <div class="costes-summary-row">
+                        <span>Diferencia</span>
+                        <strong>{{ format_money(resumen_descomp.diferencia) }} {{ concepto.moneda or 'EUR' }}</strong>
+                    </div>
+                </div>
+                <p class="subtitle">Para validar hacen falta código, unidad, resumen, precio positivo y diferencia dentro de tolerancia.</p>
+            </aside>
+
+            <aside class="card" aria-labelledby="fuentes-title">
+                <h2 id="fuentes-title">Fuente y trazabilidad</h2>
+                <div class="costes-meta-list">
+                    <div class="costes-meta-item">
+                        <strong>Base</strong>
+                        <p>{{ concepto.base_nombre }} · {{ concepto.base_origen or 'manual' }}{% if concepto.base_version %} · {{ concepto.base_version }}{% endif %}</p>
+                    </div>
+                    {% if fuentes %}
+                    {% for fuente in fuentes %}
+                    <div class="costes-meta-item">
+                        <strong>{{ fuente.tipo_fuente }}</strong>
+                        <p>{{ fuente.descripcion or 'Sin descripción' }}</p>
+                        {% if fuente.archivo_original %}<p class="costes-code">{{ fuente.archivo_original }}</p>{% endif %}
+                        {% if fuente.captura_id %}<p><a href="/costes/capturas/{{ fuente.captura_id }}">Ver captura</a> · {{ fuente.captura_estado }}</p>{% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="empty">No hay fuente específica asociada a esta partida.</p>
+                    {% endif %}
+                </div>
+            </aside>
+        </div>
+
+        <section class="card" aria-labelledby="descompuestos-title">
+            <h2 id="descompuestos-title">Descomposición</h2>
+            {% if descompuestos %}
+            <div class="costes-descomp-table-wrap">
+                <table class="costes-descomp-table">
+                    <thead>
+                        <tr>
+                            <th class="costes-col-codigo">Código</th>
+                            <th class="costes-col-tipo">Tipo</th>
+                            <th class="costes-col-unidad">Unidad</th>
+                            <th class="costes-col-resumen">Resumen</th>
+                            <th class="costes-col-numero">Precio unitario</th>
+                            <th class="costes-col-numero">Rendimiento</th>
+                            <th class="costes-col-numero">Importe</th>
+                            <th class="costes-col-orden">Orden</th>
+                            <th class="costes-col-acciones">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in descompuestos %}
+                        <tr>
+                            <td class="costes-col-codigo">
+                                <input form="descompuesto-{{ item.id }}-form" name="codigo" type="text" value="{{ item.codigo }}">
+                            </td>
+                            <td class="costes-col-tipo">
+                                <select form="descompuesto-{{ item.id }}-form" name="tipo">
+                                    {% for tipo in tipos_descompuesto %}
+                                    <option value="{{ tipo }}" {% if item.tipo == tipo %}selected{% endif %}>{{ tipo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="costes-col-unidad">
+                                <input form="descompuesto-{{ item.id }}-form" name="unidad" type="text" value="{{ item.unidad }}">
+                            </td>
+                            <td class="costes-col-resumen">
+                                <input form="descompuesto-{{ item.id }}-form" name="resumen" type="text" value="{{ item.resumen }}">
+                            </td>
+                            <td class="costes-col-numero">
+                                <input form="descompuesto-{{ item.id }}-form" name="precio_unitario" type="number" step="0.0001" value="{{ item.precio_unitario }}">
+                            </td>
+                            <td class="costes-col-numero">
+                                <input form="descompuesto-{{ item.id }}-form" name="rendimiento" type="number" step="0.0001" value="{{ item.rendimiento }}">
+                            </td>
+                            <td class="costes-col-numero">
+                                <input form="descompuesto-{{ item.id }}-form" name="importe" type="number" step="0.01" value="{{ item.importe }}" placeholder="Auto">
+                            </td>
+                            <td class="costes-col-orden">
+                                <input form="descompuesto-{{ item.id }}-form" name="orden" type="number" step="1" value="{{ item.orden }}">
+                            </td>
+                            <td class="costes-col-acciones">
+                                <div class="costes-actions">
+                                <form id="descompuesto-{{ item.id }}-form" method="post" action="/costes/descompuestos/{{ item.id }}/actualizar"></form>
+                                    <button form="descompuesto-{{ item.id }}-form" class="boton secundario" type="submit">Guardar</button>
+                                <form class="costes-danger-action" method="post" action="/costes/descompuestos/{{ item.id }}/borrar" onsubmit="return confirm('¿Borrar este descompuesto?');">
+                                    <button class="boton secundario" type="submit">Borrar</button>
+                                </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty">Todavía no hay líneas de descomposición para esta partida.</p>
+            {% endif %}
+        </section>
+
+        <section class="card" aria-labelledby="nuevo-descompuesto-title">
+            <h2 id="nuevo-descompuesto-title">Añadir descompuesto</h2>
+            <form class="costes-descomp-form" method="post" action="/costes/{{ concepto.id }}/descompuestos">
+                <label class="costes-col-codigo" for="descomp_codigo">
+                    Código
+                    <input id="descomp_codigo" name="codigo" type="text">
+                </label>
+                <label class="costes-col-tipo" for="descomp_tipo">
+                    Tipo
+                    <select id="descomp_tipo" name="tipo">
+                        {% for tipo in tipos_descompuesto %}
+                        <option value="{{ tipo }}">{{ tipo }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="costes-col-unidad" for="descomp_unidad">
+                    Unidad
+                    <input id="descomp_unidad" name="unidad" type="text">
+                </label>
+                <label class="costes-col-resumen" for="descomp_resumen">
+                    Resumen
+                    <input id="descomp_resumen" name="resumen" type="text">
+                </label>
+                <label class="costes-col-numero" for="descomp_precio_unitario">
+                    Precio unitario
+                    <input id="descomp_precio_unitario" name="precio_unitario" type="number" step="0.0001" value="0">
+                </label>
+                <label class="costes-col-numero" for="descomp_rendimiento">
+                    Rendimiento
+                    <input id="descomp_rendimiento" name="rendimiento" type="number" step="0.0001" value="1">
+                </label>
+                <label class="costes-col-numero" for="descomp_importe">
+                    Importe
+                    <input id="descomp_importe" name="importe" type="number" step="0.01" placeholder="Auto">
+                </label>
+                <label class="costes-col-orden" for="descomp_orden">
+                    Orden
+                    <input id="descomp_orden" name="orden" type="number" step="1" value="{{ descompuestos|length + 1 }}">
+                </label>
+                <button class="boton" type="submit">Añadir línea</button>
+            </form>
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

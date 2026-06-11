@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+    <title>Editor informe V2 · {{ expediente.numero_expediente }}</title>
+    <style>
+        .editor-v2 {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .editor-hero,
+        .editor-panel,
+        .chapter-editor,
+        .evidence-item {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+        }
+
+        .editor-hero {
+            background: #f8fafc;
+            margin-bottom: 12px;
+            padding: 14px;
+        }
+
+        .editor-kicker {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 800;
+            margin: 0 0 6px;
+            text-transform: uppercase;
+        }
+
+        .editor-title {
+            font-size: clamp(1.45rem, 2.2vw, 2.25rem);
+            line-height: 1.08;
+            margin: 0 0 8px;
+        }
+
+        .editor-note,
+        .muted {
+            color: #64748b;
+        }
+
+        .editor-layout {
+            align-items: start;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(220px, 18fr) minmax(0, 56fr) minmax(300px, 26fr);
+        }
+
+        .editor-panel,
+        .chapter-editor {
+            padding: 12px;
+        }
+
+        .editor-panel {
+            position: sticky;
+            top: 12px;
+        }
+
+        .chapter-nav,
+        .evidence-list {
+            display: grid;
+            gap: 8px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .chapter-nav a,
+        .evidence-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            display: block;
+            padding: 8px;
+            text-decoration: none;
+        }
+
+        .chapter-nav strong {
+            color: #0f172a;
+            display: block;
+        }
+
+        .status-pill {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.72rem;
+            font-weight: 800;
+            margin-top: 5px;
+            padding: 3px 7px;
+            white-space: nowrap;
+        }
+
+        .status-pill.generado {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
+
+        .status-pill.editado {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .status-pill.vacio {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .editor-main {
+            display: grid;
+            gap: 12px;
+        }
+
+        .printable-zone-note {
+            color: #334155;
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 800;
+            margin-bottom: 3px;
+        }
+
+        .chapter-head {
+            align-items: start;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .chapter-head h2 {
+            font-size: 1.05rem;
+            margin: 0;
+        }
+
+        .chapter-meta {
+            color: #64748b;
+            font-size: 0.78rem;
+            margin: 5px 0 0;
+        }
+
+        .chapter-textarea {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            color: #0f172a;
+            font: inherit;
+            line-height: 1.45;
+            min-height: 220px;
+            padding: 10px;
+            resize: vertical;
+            width: 100%;
+        }
+
+        .save-bar {
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            padding: 10px;
+            position: sticky;
+            top: 8px;
+            z-index: 2;
+        }
+
+        .autosave-status {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.74rem;
+            font-weight: 800;
+            margin-left: 8px;
+            padding: 3px 8px;
+            white-space: nowrap;
+        }
+
+        .autosave-status.dirty {
+            background: #fff7ed;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
+
+        .autosave-status.saving {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
+
+        .autosave-status.saved {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .autosave-status.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .autosave-status.ready {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+
+        .chapter-save-status {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #475569;
+            display: inline-flex;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 7px;
+            white-space: nowrap;
+        }
+
+        .chapter-save-status.dirty {
+            background: #fff7ed;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
+
+        .chapter-save-status.saving {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
+
+        .chapter-save-status.saved {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .chapter-save-status.error,
+        .chapter-save-status.conflict {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .chapter-save-status.local {
+            background: #fefce8;
+            border-color: #fde68a;
+            color: #854d0e;
+        }
+
+        .local-recovery {
+            background: #fffbeb;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            color: #78350f;
+            display: none;
+            margin: 8px 0;
+            padding: 9px;
+        }
+
+        .local-recovery.visible {
+            display: block;
+        }
+
+        .local-recovery p {
+            margin: 0 0 8px;
+        }
+
+        .chapter-history {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin: 8px 0;
+            padding: 8px;
+        }
+
+        .history-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .history-item {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .history-content {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            color: #0f172a;
+            margin: 8px 0 0;
+            max-height: 220px;
+            overflow: auto;
+            padding: 8px;
+            white-space: pre-wrap;
+        }
+
+        .context-panel {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            max-height: calc(100vh - 24px);
+            overflow: auto;
+        }
+
+        .context-panel h2 {
+            margin-bottom: 4px;
+        }
+
+        .context-block {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            margin-top: 9px;
+            padding: 9px;
+        }
+
+        .context-block summary {
+            color: #0f172a;
+            cursor: pointer;
+            font-weight: 800;
+        }
+
+        .context-list {
+            display: grid;
+            gap: 7px;
+            list-style: none;
+            margin: 8px 0 0;
+            padding: 0;
+        }
+
+        .context-line {
+            border-top: 1px solid #e2e8f0;
+            color: #334155;
+            font-size: 0.82rem;
+            padding-top: 7px;
+        }
+
+        .context-line:first-child {
+            border-top: 0;
+            padding-top: 0;
+        }
+
+        .context-label {
+            color: #64748b;
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .context-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 6px;
+        }
+
+        .context-chip {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 999px;
+            color: #334155;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 3px 7px;
+        }
+
+        .context-subcard {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-top: 8px;
+            padding: 8px;
+        }
+
+        .context-subcard h3,
+        .context-subcard h4 {
+            font-size: 0.88rem;
+            margin: 0 0 5px;
+        }
+
+        .context-empty {
+            color: #64748b;
+            font-size: 0.82rem;
+            margin: 8px 0 0;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 1100px) {
+            .editor-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .editor-panel,
+            .save-bar,
+            .context-panel {
+                position: static;
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page editor-v2">
+        <section class="editor-hero">
+            <p class="editor-kicker">Informe pericial V2 · Editor estructurado</p>
+            <h1 class="editor-title">{{ expediente.numero_expediente }} · {{ expediente.direccion or "Sin dirección" }}</h1>
+            <p class="editor-note">{{ expediente.cliente }} · {{ expediente.tipo_trabajo_label or expediente.tipo_informe }}</p>
+            <p class="editor-note">La estructura del informe es fija; edita únicamente el contenido técnico. Esta pantalla no modifica el PDF actual.</p>
+            {% if mensaje %}<p class="evidence-item">{{ mensaje }}</p>{% endif %}
+            {% if error %}<p class="evidence-item">{{ error }}</p>{% endif %}
+            <div class="actions">
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/pericial-workbench">Volver al Workbench</a>
+                <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Detalle del expediente</a>
+                <a class="boton primario" href="/generar-informe-v2-pdf/{{ expediente.id }}">Generar PDF V2</a>
+                <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe actual</a>
+                <a class="boton secundario" href="/informes-v2/{{ expediente.id }}/respaldo.json">Descargar respaldo</a>
+            </div>
+        </section>
+
+        <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-editor">
+            <div class="editor-layout">
+                <aside class="editor-panel" aria-label="Capítulos del informe V2">
+                    <h2>Capítulos</h2>
+                    <p class="editor-note">Estado del contenido guardado o precargado.</p>
+                    <nav class="chapter-nav">
+                        {% for capitulo in capitulos %}
+                        <a href="#capitulo-{{ capitulo.clave }}">
+                            <strong>{{ capitulo.orden }}. {{ capitulo.titulo }}</strong>
+                            <span class="status-pill {{ capitulo.estado | replace('í', 'i') }}">{{ capitulo.estado }}</span>
+                        </a>
+                        {% endfor %}
+                    </nav>
+                </aside>
+
+                <div class="editor-main">
+                    <div class="save-bar">
+                        <span class="editor-note">
+                            <span class="printable-zone-note">Zona blanca/editor: contenido del Informe V2.</span>
+                            Los textos precargados proceden del Workbench; al guardar pasan a contenido manual del informe V2.
+                            <strong id="autosave-status" class="autosave-status ready" aria-live="polite">Listo para editar</strong>
+                        </span>
+                        <button class="boton primario" type="submit">Guardar datos</button>
+                    </div>
+
+                    {% for capitulo in capitulos %}
+                    <section class="chapter-editor" id="capitulo-{{ capitulo.clave }}">
+                        <div class="chapter-head">
+                            <div>
+                                <h2>{{ capitulo.orden }}. {{ capitulo.titulo }}</h2>
+                                <p class="chapter-meta">
+                                    {% if capitulo.editado_manual %}
+                                    Editado manualmente{% if capitulo.updated_at %} · Última actualización <span data-utc-timestamp="{{ capitulo.updated_at }}" data-format="datetime">{{ capitulo.updated_at }}</span>{% endif %}
+                                    {% else %}
+                                    Precargado desde {{ capitulo.generado_desde }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="actions">
+                                <span class="status-pill {{ capitulo.estado | replace('í', 'i') }}">{{ capitulo.estado }}</span>
+                                <span class="chapter-save-status ready" data-chapter-status="{{ capitulo.clave }}">Listo</span>
+                            </div>
+                        </div>
+                        <input type="hidden" name="updated_at_{{ capitulo.clave }}" value="{{ capitulo.updated_at }}" data-autosave-updated-at="{{ capitulo.clave }}">
+                        <div class="local-recovery" data-local-recovery="{{ capitulo.clave }}">
+                            <p>Copia local disponible para este capítulo.</p>
+                            <button class="boton secundario" type="button" data-local-recover="{{ capitulo.clave }}">Recuperar copia local</button>
+                            <button class="boton secundario" type="button" data-local-discard="{{ capitulo.clave }}">Descartar copia local</button>
+                        </div>
+                        <details class="chapter-history">
+                            <summary>Historial{% if capitulo.versiones %} ({{ capitulo.versiones | length }}){% endif %}</summary>
+                            {% if capitulo.versiones %}
+                            <div class="history-list">
+                                {% for version in capitulo.versiones %}
+                                <article class="history-item">
+                                    <p class="chapter-meta">
+                                        <span data-utc-timestamp="{{ version.created_at }}" data-format="datetime">{{ version.created_at }}</span> · {{ version.origen or "manual" }}
+                                        {% if version.updated_at_original %} · original <span data-utc-timestamp="{{ version.updated_at_original }}" data-format="datetime">{{ version.updated_at_original }}</span>{% endif %}
+                                    </p>
+                                    <details>
+                                        <summary>Ver contenido</summary>
+                                        <pre class="history-content">{{ version.contenido }}</pre>
+                                    </details>
+                                    <button class="boton secundario" type="submit" form="restore-{{ capitulo.clave }}-{{ version.id }}">Restaurar versión</button>
+                                </article>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="editor-note">Sin versiones anteriores guardadas para este capítulo.</p>
+                            {% endif %}
+                        </details>
+                        <textarea class="chapter-textarea" name="contenido_{{ capitulo.clave }}" data-autosave-campo="{{ capitulo.clave }}" data-autosave-titulo="{{ capitulo.titulo }}">{{ capitulo.contenido }}</textarea>
+                    </section>
+                    {% endfor %}
+                </div>
+
+                <aside class="editor-panel context-panel" aria-label="Contexto del expediente">
+                    <h2>Contexto del expediente</h2>
+                    <p class="editor-note">Información de apoyo. No se imprime en el PDF.</p>
+                    <ul class="evidence-list">
+                        <li class="evidence-item">Visitas: <strong>{{ metricas.visitas }}</strong></li>
+                        <li class="evidence-item">Patologías: <strong>{{ metricas.patologias_interiores + metricas.patologias_exteriores }}</strong></li>
+                        <li class="evidence-item">Fotografías: <strong>{{ metricas.fotografias }}</strong></li>
+                        <li class="evidence-item">PEM: <strong>{{ formatear_numero_es(metricas.pem_total, 2) }} €</strong></li>
+                        <li class="evidence-item">Limitaciones candidatas: <strong>{{ limitaciones_candidatas | length }}</strong></li>
+                        <li class="evidence-item">Recomendaciones candidatas: <strong>{{ recomendaciones_candidatas | length }}</strong></li>
+                    </ul>
+
+                    <details class="context-block" open>
+                        <summary>Resumen de expediente</summary>
+                        <ul class="context-list">
+                            {% if contexto_editor.expediente.numero_expediente %}<li class="context-line"><span class="context-label">Expediente</span><br>{{ contexto_editor.expediente.numero_expediente }}</li>{% endif %}
+                            {% if contexto_editor.expediente.cliente %}<li class="context-line"><span class="context-label">Cliente</span><br>{{ contexto_editor.expediente.cliente }}</li>{% endif %}
+                            {% if contexto_editor.expediente.direccion %}<li class="context-line"><span class="context-label">Dirección</span><br>{{ contexto_editor.expediente.direccion }}</li>{% endif %}
+                            {% if contexto_editor.expediente.tipo_inmueble %}<li class="context-line"><span class="context-label">Inmueble</span><br>{{ contexto_editor.expediente.tipo_inmueble }}</li>{% endif %}
+                        </ul>
+                    </details>
+
+                    <details class="context-block">
+                        <summary>Visitas y observaciones</summary>
+                        {% if contexto_editor.visitas %}
+                        <ul class="context-list">
+                            {% for visita in contexto_editor.visitas %}
+                            <li class="context-line">
+                                <span class="context-label">{{ visita.fecha or "Sin fecha" }}</span><br>
+                                {{ visita.tecnico or "Técnico no indicado" }}
+                                {% if visita.climatologia %}<br>Climatología: {{ visita.climatologia }}{% endif %}
+                                {% if visita.observaciones_visita %}<br>{{ visita.observaciones_visita }}{% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="context-empty">No hay visitas registradas.</p>
+                        {% endif %}
+                    </details>
+
+                    <details class="context-block">
+                        <summary>Observaciones técnicas relevantes</summary>
+                        {% if contexto_editor.observaciones %}
+                        <ul class="context-list">
+                            {% for observacion in contexto_editor.observaciones %}
+                            <li class="context-line">
+                                <span class="context-label">{{ observacion.origen }}</span><br>
+                                {{ observacion.texto }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="context-empty">No hay observaciones técnicas destacadas.</p>
+                        {% endif %}
+                    </details>
+
+                    <details class="context-block" open>
+                        <summary>Estructura: nivel → unidad → estancia</summary>
+                        {% if contexto_editor.grupos_unidades %}
+                            {% for grupo in contexto_editor.grupos_unidades %}
+                            <div class="context-subcard">
+                                <h3>{{ grupo.titulo }}</h3>
+                                {% if grupo.meta %}<p class="chapter-meta">{{ grupo.meta }}</p>{% endif %}
+                                {% for unidad in grupo.unidades %}
+                                <div class="context-subcard">
+                                    <h4>{{ unidad.identificador or "Sin unidad asignada" }}</h4>
+                                    {% if unidad.tipo_unidad_label or unidad.uso %}
+                                    <p class="chapter-meta">{{ unidad.tipo_unidad_label }}{% if unidad.uso %} · {{ unidad.uso }}{% endif %}</p>
+                                    {% endif %}
+                                    {% if unidad.estancias %}
+                                    {% for estancia in unidad.estancias %}
+                                    <details class="context-subcard">
+                                        <summary>{{ estancia.nombre or "Estancia sin nombre" }}</summary>
+                                        <div class="context-chips">
+                                            {% for dato in estancia.datos_tecnicos %}
+                                                {% if dato.valor %}<span class="context-chip">{{ dato.label }}: {{ dato.valor }}</span>{% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        {% if estancia.observaciones %}
+                                        <p class="context-line"><span class="context-label">Observaciones</span><br>{{ estancia.observaciones }}</p>
+                                        {% endif %}
+                                        {% if estancia.fotos %}
+                                        <p class="context-line"><span class="context-label">Fotos de estancia</span><br>
+                                            {% for foto in estancia.fotos %}{{ foto.archivo }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+                                        </p>
+                                        {% endif %}
+                                        {% if estancia.patologias %}
+                                        <ul class="context-list">
+                                            {% for patologia in estancia.patologias %}
+                                            <li class="context-line">
+                                                <span class="context-label">Patología interior</span><br>
+                                                {{ patologia.elemento }} · {{ patologia.patologia }}
+                                                {% if patologia.localizacion_dano %}<br>Localización: {{ patologia.localizacion_dano }}{% endif %}
+                                                {% if patologia.detalle_localizacion %}<br>Detalle: {{ patologia.detalle_localizacion }}{% endif %}
+                                                {% if patologia.observaciones %}<br>{{ patologia.observaciones }}{% endif %}
+                                                {% if patologia.fotos %}<br>Fotos: {% for foto in patologia.fotos %}{{ foto.archivo }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% endif %}
+                                    </details>
+                                    {% endfor %}
+                                    {% else %}
+                                    <p class="context-empty">Sin estancias registradas en esta unidad.</p>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <p class="context-empty">No hay estructura interior registrada.</p>
+                        {% endif %}
+                    </details>
+
+                    <details class="context-block">
+                        <summary>Patologías exteriores</summary>
+                        {% if contexto_editor.patologias_exteriores %}
+                        <ul class="context-list">
+                            {% for patologia in contexto_editor.patologias_exteriores %}
+                            <li class="context-line">
+                                <span class="context-label">{{ patologia.zona_exterior or "Exterior" }}</span><br>
+                                {{ patologia.elemento_exterior }} · {{ patologia.patologia }}
+                                {% if patologia.localizacion_dano_exterior %}<br>Localización: {{ patologia.localizacion_dano_exterior }}{% endif %}
+                                {% if patologia.observaciones %}<br>{{ patologia.observaciones }}{% endif %}
+                                {% if patologia.fotos %}<br>Fotos: {% for foto in patologia.fotos %}{{ foto.archivo }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="context-empty">No hay patologías exteriores registradas.</p>
+                        {% endif %}
+                    </details>
+
+                    <details class="context-block">
+                        <summary>Actuaciones y costes</summary>
+                        {% if contexto_editor.actuaciones.actuaciones %}
+                        <ul class="context-list">
+                            {% for actuacion in contexto_editor.actuaciones.actuaciones %}
+                            <li class="context-line">
+                                <span class="context-label">{{ actuacion.titulo }}</span><br>
+                                {% if actuacion.descripcion %}{{ actuacion.descripcion }}<br>{% endif %}
+                                Subtotal: {{ formatear_numero_es(actuacion.subtotal, 2) }} €
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="context-empty">No hay actuaciones económicas registradas.</p>
+                        {% endif %}
+                    </details>
+                </aside>
+            </div>
+        </form>
+        {% for capitulo in capitulos %}
+            {% for version in capitulo.versiones %}
+            <form id="restore-{{ capitulo.clave }}-{{ version.id }}" method="post" action="/informes-v2/{{ expediente.id }}/capitulos/{{ capitulo.clave }}/restaurar/{{ version.id }}"></form>
+            {% endfor %}
+        {% endfor %}
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+    <script>
+        (function () {
+            const autosaveUrl = "/informes-v2/{{ expediente.id }}/autosave";
+            const expedienteId = "{{ expediente.id }}";
+            const statusEl = document.getElementById("autosave-status");
+            const textareas = Array.from(document.querySelectorAll("[data-autosave-campo]"));
+            const pendingTimers = new Map();
+            const dirtyFields = new Set();
+            const savingFields = new Set();
+            const conflictFields = new Set();
+            const debounceMs = 1000;
+
+            function setStatus(text, state) {
+                if (!statusEl) {
+                    return;
+                }
+                statusEl.textContent = text;
+                statusEl.className = "autosave-status " + state;
+            }
+
+            function markDirty(textarea) {
+                const campo = textarea.dataset.autosaveCampo;
+                dirtyFields.add(campo);
+                saveLocalDraft(textarea);
+                if (conflictFields.has(campo)) {
+                    setChapterStatus(campo, "Conflicto", "conflict");
+                    setStatus("Conflicto. Recarga antes de continuar con ese capítulo.", "error");
+                    return;
+                }
+                setChapterStatus(campo, "Cambios pendientes", "dirty");
+                setStatus("Sin guardar", "dirty");
+            }
+
+            function storageKey(campo) {
+                return "informe-v2-local:" + expedienteId + ":" + campo;
+            }
+
+            function getUpdatedInput(campo) {
+                return document.querySelector('[data-autosave-updated-at="' + campo + '"]');
+            }
+
+            function getKnownUpdatedAt(campo) {
+                const updatedInput = getUpdatedInput(campo);
+                return updatedInput ? updatedInput.value || "" : "";
+            }
+
+            function setKnownUpdatedAt(campo, updatedAt) {
+                const updatedInput = getUpdatedInput(campo);
+                if (updatedInput && updatedAt) {
+                    updatedInput.value = updatedAt;
+                }
+            }
+
+            function setChapterStatus(campo, text, state) {
+                const status = document.querySelector('[data-chapter-status="' + campo + '"]');
+                if (!status) {
+                    return;
+                }
+                status.textContent = text;
+                status.className = "chapter-save-status " + state;
+            }
+
+            function parseUtcTimestamp(timestamp) {
+                if (!timestamp) {
+                    return null;
+                }
+                const raw = String(timestamp).trim();
+                if (!raw) {
+                    return null;
+                }
+                if (/Z$|[+-]\d{2}:?\d{2}$/.test(raw)) {
+                    return new Date(raw);
+                }
+                if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?$/.test(raw)) {
+                    return new Date(raw.replace(/\s+/, "T") + "Z");
+                }
+                if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(raw)) {
+                    return new Date(raw + "Z");
+                }
+                return new Date(raw);
+            }
+
+            function formatLocalTime(timestamp) {
+                const date = parseUtcTimestamp(timestamp);
+                if (!date || Number.isNaN(date.getTime())) {
+                    return "";
+                }
+                return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+            }
+
+            function formatLocalDateTime(timestamp) {
+                const date = parseUtcTimestamp(timestamp);
+                if (!date || Number.isNaN(date.getTime())) {
+                    return "";
+                }
+                return date.toLocaleDateString("es-ES") + " " + date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+            }
+
+            function refreshVisibleTimestamps() {
+                document.querySelectorAll("[data-utc-timestamp]").forEach(function (element) {
+                    const value = element.dataset.utcTimestamp || "";
+                    const formatted = element.dataset.format === "time" ? formatLocalTime(value) : formatLocalDateTime(value);
+                    if (formatted) {
+                        element.textContent = formatted;
+                    }
+                });
+            }
+
+            function readLocalDraft(campo) {
+                try {
+                    const raw = window.localStorage.getItem(storageKey(campo));
+                    return raw ? JSON.parse(raw) : null;
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            function saveLocalDraft(textarea) {
+                const campo = textarea.dataset.autosaveCampo;
+                try {
+                    window.localStorage.setItem(
+                        storageKey(campo),
+                        JSON.stringify({
+                            valor: textarea.value,
+                            saved_at: new Date().toISOString(),
+                            updated_at: getKnownUpdatedAt(campo),
+                        })
+                    );
+                } catch (error) {
+                    setChapterStatus(campo, "Error", "error");
+                    setStatus("No se pudo guardar copia local.", "error");
+                }
+            }
+
+            function clearLocalDraft(campo) {
+                try {
+                    window.localStorage.removeItem(storageKey(campo));
+                } catch (error) {
+                    return;
+                }
+            }
+
+            function showLocalRecovery(textarea, draft) {
+                const campo = textarea.dataset.autosaveCampo;
+                const panel = document.querySelector('[data-local-recovery="' + campo + '"]');
+                if (!panel || !draft || draft.valor === textarea.value) {
+                    return;
+                }
+                panel.classList.add("visible");
+                setChapterStatus(campo, "Copia local disponible", "local");
+                setStatus("Hay copias locales recuperables.", "dirty");
+            }
+
+            function hideLocalRecovery(campo) {
+                const panel = document.querySelector('[data-local-recovery="' + campo + '"]');
+                if (panel) {
+                    panel.classList.remove("visible");
+                }
+            }
+
+            async function saveField(textarea) {
+                const campo = textarea.dataset.autosaveCampo;
+                if (!campo) {
+                    return;
+                }
+                if (conflictFields.has(campo)) {
+                    setChapterStatus(campo, "Conflicto", "conflict");
+                    setStatus("Conflicto. Recarga antes de continuar con ese capítulo.", "error");
+                    return;
+                }
+                const existingTimer = pendingTimers.get(campo);
+                if (existingTimer) {
+                    window.clearTimeout(existingTimer);
+                    pendingTimers.delete(campo);
+                }
+
+                dirtyFields.delete(campo);
+                savingFields.add(campo);
+                setChapterStatus(campo, "Guardando", "saving");
+                setStatus("Guardando...", "saving");
+
+                const body = new FormData();
+                body.append("campo", campo);
+                body.append("valor", textarea.value);
+                body.append("updated_at", getKnownUpdatedAt(campo));
+                body.append("timestamp", String(Date.now()));
+
+                try {
+                    const response = await fetch(autosaveUrl, {
+                        method: "POST",
+                        body: body,
+                        credentials: "same-origin",
+                        headers: { "X-Requested-With": "XMLHttpRequest" },
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        if (response.status === 409) {
+                            conflictFields.add(campo);
+                            dirtyFields.add(campo);
+                            savingFields.delete(campo);
+                            setChapterStatus(campo, "Conflicto", "conflict");
+                            setStatus(data.error || "Conflicto de autosalvado.", "error");
+                            return;
+                        }
+                        throw new Error(data.error || "Autosave HTTP " + response.status);
+                    }
+                    setKnownUpdatedAt(campo, data.updated_at);
+                    clearLocalDraft(campo);
+                    hideLocalRecovery(campo);
+                    savingFields.delete(campo);
+                    const horaCapitulo = formatLocalTime(data.updated_at);
+                    setChapterStatus(campo, "Guardado" + (horaCapitulo ? " " + horaCapitulo : ""), "saved");
+                    if (dirtyFields.size === 0 && savingFields.size === 0) {
+                        const titulo = textarea.dataset.autosaveTitulo || campo;
+                        const hora = formatLocalTime(data.updated_at);
+                        setStatus("Guardado " + titulo + (hora ? " a " + hora : ""), "saved");
+                    }
+                } catch (error) {
+                    savingFields.delete(campo);
+                    dirtyFields.add(campo);
+                    setChapterStatus(campo, "Error", "error");
+                    setStatus(error.message || "Error al guardar. Usa Guardar datos o revisa la conexión.", "error");
+                }
+            }
+
+            function scheduleSave(textarea) {
+                const campo = textarea.dataset.autosaveCampo;
+                if (conflictFields.has(campo)) {
+                    return;
+                }
+                const existingTimer = pendingTimers.get(campo);
+                if (existingTimer) {
+                    window.clearTimeout(existingTimer);
+                }
+                pendingTimers.set(
+                    campo,
+                    window.setTimeout(function () {
+                        pendingTimers.delete(campo);
+                        saveField(textarea);
+                    }, debounceMs)
+                );
+            }
+
+            textareas.forEach(function (textarea) {
+                const campo = textarea.dataset.autosaveCampo;
+                const knownUpdatedAt = getKnownUpdatedAt(campo);
+                const knownTime = formatLocalTime(knownUpdatedAt);
+                setChapterStatus(campo, knownUpdatedAt ? "Guardado" + (knownTime ? " " + knownTime : "") : "Listo", knownUpdatedAt ? "saved" : "ready");
+                showLocalRecovery(textarea, readLocalDraft(campo));
+                textarea.addEventListener("input", function () {
+                    markDirty(textarea);
+                    scheduleSave(textarea);
+                });
+                textarea.addEventListener("change", function () {
+                    saveField(textarea);
+                });
+                textarea.addEventListener("blur", function () {
+                    if (dirtyFields.has(textarea.dataset.autosaveCampo)) {
+                        saveField(textarea);
+                    }
+                });
+            });
+
+            document.querySelectorAll("[data-local-recover]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    const campo = button.dataset.localRecover;
+                    const textarea = document.querySelector('[data-autosave-campo="' + campo + '"]');
+                    const draft = readLocalDraft(campo);
+                    if (!textarea || !draft) {
+                        return;
+                    }
+                    textarea.value = draft.valor || "";
+                    hideLocalRecovery(campo);
+                    markDirty(textarea);
+                    scheduleSave(textarea);
+                });
+            });
+
+            document.querySelectorAll("[data-local-discard]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    const campo = button.dataset.localDiscard;
+                    clearLocalDraft(campo);
+                    hideLocalRecovery(campo);
+                    if (!conflictFields.has(campo)) {
+                        const knownUpdatedAt = getKnownUpdatedAt(campo);
+                        const knownTime = formatLocalTime(knownUpdatedAt);
+                        setChapterStatus(campo, knownUpdatedAt ? "Guardado" + (knownTime ? " " + knownTime : "") : "Listo", knownUpdatedAt ? "saved" : "ready");
+                    }
+                });
+            });
+
+            refreshVisibleTimestamps();
+
+            window.addEventListener("beforeunload", function (event) {
+                if (pendingTimers.size === 0 && dirtyFields.size === 0 && savingFields.size === 0) {
+                    return;
+                }
+                textareas.forEach(function (textarea) {
+                    const campo = textarea.dataset.autosaveCampo;
+                    if (dirtyFields.has(campo) && navigator.sendBeacon) {
+                        const body = new FormData();
+                        body.append("campo", campo);
+                        body.append("valor", textarea.value);
+                        body.append("updated_at", getKnownUpdatedAt(campo));
+                        body.append("timestamp", String(Date.now()));
+                        navigator.sendBeacon(autosaveUrl, body);
+                    }
+                });
+                event.preventDefault();
+                event.returnValue = "Hay cambios pendientes de guardar.";
+            });
+        })();
+    </script>
+</body>
+
+</html>

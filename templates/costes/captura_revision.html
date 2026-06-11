@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Revisión de captura de costes</title>
+    <style>
+        .costes-captura-review-page {
+            max-width: 1480px;
+        }
+
+        .costes-review-grid {
+            display: grid;
+            grid-template-columns: minmax(420px, 0.9fr) minmax(0, 1.1fr);
+            gap: 14px;
+            align-items: start;
+        }
+
+        .costes-review-image {
+            width: 100%;
+            max-height: 780px;
+            object-fit: contain;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+
+        .costes-form-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .costes-form-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .costes-descomp-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .costes-descomp-table {
+            border-collapse: collapse;
+            min-width: 1280px;
+            width: 100%;
+        }
+
+        .costes-descomp-table th,
+        .costes-descomp-table td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 8px 6px;
+            vertical-align: top;
+        }
+
+        .costes-descomp-table th {
+            color: #4b5563;
+            font-size: 0.78rem;
+            text-align: left;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .costes-col-codigo { width: 140px; }
+        .costes-col-tipo { width: 150px; }
+        .costes-col-unidad { width: 90px; }
+        .costes-col-resumen { min-width: 360px; }
+        .costes-col-numero { width: 150px; }
+        .costes-col-orden { width: 90px; }
+        .costes-col-acciones { width: 110px; }
+
+        .costes-descomp-table input,
+        .costes-descomp-table select {
+            box-sizing: border-box;
+            min-width: 0;
+            width: 100%;
+        }
+
+        .costes-form-wide {
+            grid-column: span 2;
+        }
+
+        .costes-form-full {
+            grid-column: 1 / -1;
+        }
+
+        .costes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .costes-descomp-remove {
+            align-self: end;
+            color: #b91c1c;
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+
+        .costes-notice {
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            color: #92400e;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .costes-ocr-text {
+            max-height: 220px;
+            overflow: auto;
+            white-space: pre-wrap;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.86rem;
+            line-height: 1.45;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+            padding: 10px;
+        }
+
+        .costes-warning-list {
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            color: #92400e;
+            border-radius: 8px;
+            padding: 10px 14px;
+        }
+
+        .costes-detection-summary {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-top: 12px;
+            background: #ffffff;
+        }
+
+        .costes-detection-summary ul {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px 12px;
+            padding-left: 18px;
+        }
+
+        .costes-detected {
+            color: #166534;
+        }
+
+        .costes-missing {
+            color: #b91c1c;
+        }
+
+        .costes-field-missing {
+            outline: 2px solid #fca5a5;
+            outline-offset: 1px;
+            background: #fff7f7;
+        }
+
+        @media (max-width: 1100px) {
+            .costes-review-grid,
+            .costes-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .costes-form-wide,
+            .costes-form-full {
+                grid-column: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-captura-review-page">
+        <header class="card">
+            <h1>Revisión de captura</h1>
+            <p class="subtitle">Estado: {{ captura.estado }} · Fuente: {{ captura.fuente_descripcion or 'Pantallazo' }}</p>
+            <p class="costes-notice">Extracción asistida local: el OCR solo prellena campos. Revisión manual obligatoria antes de guardar.</p>
+            {% if mensaje %}<p class="success">{{ mensaje }}</p>{% endif %}
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </header>
+
+        <div class="costes-review-grid">
+            <aside class="card" aria-labelledby="captura-imagen-title">
+                <h2 id="captura-imagen-title">Imagen original</h2>
+                <div class="costes-actions">
+                    <a class="boton secundario" href="/uploads/{{ captura.archivo_imagen }}" target="_blank" rel="noopener">Abrir imagen</a>
+                    <form method="post" action="/costes/capturas/{{ captura.id }}/extraer">
+                        <button class="boton" type="submit">Extraer desde imagen</button>
+                    </form>
+                </div>
+                <img class="costes-review-image" src="/uploads/{{ captura.archivo_imagen }}" alt="Pantallazo para revisión manual de costes">
+                {% if captura.fuente_observaciones %}<p class="subtitle">{{ captura.fuente_observaciones }}</p>{% endif %}
+                {% if advertencias_ocr %}
+                <div class="costes-warning-list">
+                    <strong>Advertencias de extracción</strong>
+                    <ul>
+                        {% for advertencia in advertencias_ocr %}
+                        <li>{{ advertencia }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if campos_detectados or confianza_ocr or version_parser %}
+                <div class="costes-detection-summary">
+                    <strong>Campos detectados</strong>
+                    {% if version_parser %}<p class="subtitle">Parser: {{ version_parser }}{% if captura.updated_at %} · Extracción: {{ captura.updated_at }}{% endif %}{% if confianza_ocr.score is defined %} · Confianza {{ confianza_ocr.score }}{% endif %}</p>{% endif %}
+                    {% if campos_detectados %}
+                    <ul>
+                        {% for campo, detectado in campos_detectados.items() %}
+                        <li class="{{ 'costes-detected' if detectado else 'costes-missing' }}">{{ campo }}: {{ 'detectado' if detectado else 'pendiente' }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if texto_detectado %}
+                <details>
+                    <summary>Texto OCR detectado</summary>
+                    <pre class="costes-ocr-text">{{ texto_detectado }}</pre>
+                </details>
+                {% elif ocr_disponible %}
+                <p class="empty">El OCR local se ejecutó, pero no devolvió texto.</p>
+                {% endif %}
+            </aside>
+
+            <section class="card" aria-labelledby="revision-form-title">
+                <h2 id="revision-form-title">Crear partida borrador</h2>
+                <form method="post" action="/costes/capturas/{{ captura.id }}">
+                    <div class="costes-form-grid">
+                        <label class="costes-form-wide" for="base_id">
+                            Base
+                            <select id="base_id" name="base_id">
+                                {% if bases %}
+                                {% for base in bases %}
+                                <option value="{{ base.id }}" {% if captura.base_id == base.id %}selected{% endif %}>{{ base.nombre }}</option>
+                                {% endfor %}
+                                {% else %}
+                                <option value="">Crear base básica</option>
+                                {% endif %}
+                            </select>
+                        </label>
+                        {% if not bases %}
+                        <label class="costes-form-wide" for="base_nombre">
+                            Nombre de base
+                            <input id="base_nombre" name="base_nombre" type="text" value="Base manual de costes">
+                        </label>
+                        <label class="costes-form-full" for="base_descripcion">
+                            Descripción de base
+                            <input id="base_descripcion" name="base_descripcion" type="text" value="Base creada desde captura COSTES-2B">
+                        </label>
+                        {% endif %}
+                        <label class="costes-form-wide" for="capitulo_id">
+                            Capítulo
+                            <select id="capitulo_id" name="capitulo_id">
+                                <option value="">Sin capítulo</option>
+                                {% for capitulo in capitulos %}
+                                <option value="{{ capitulo.id }}">{{ capitulo.codigo }} · {{ capitulo.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label for="codigo">
+                            Código
+                            <input id="codigo" name="codigo" type="text" value="{{ datos_parseados.codigo or '' }}" required class="{{ 'costes-field-missing' if campos_detectados and not campos_detectados.codigo else '' }}">
+                        </label>
+                        <label for="unidad">
+                            Unidad
+                            <input id="unidad" name="unidad" type="text" value="{{ datos_parseados.unidad or '' }}" required class="{{ 'costes-field-missing' if campos_detectados and not campos_detectados.unidad else '' }}">
+                        </label>
+                        <label class="costes-form-wide" for="resumen">
+                            Resumen
+                            <input id="resumen" name="resumen" type="text" value="{{ datos_parseados.resumen or '' }}" required class="{{ 'costes-field-missing' if campos_detectados and not campos_detectados.resumen else '' }}">
+                        </label>
+                        <label for="precio">
+                            Precio
+                            <input id="precio" name="precio" type="number" min="0" step="0.01" value="{{ datos_parseados.precio if datos_parseados.precio is not none else 0 }}" class="{{ 'costes-field-missing' if campos_detectados and not campos_detectados.precio else '' }}">
+                        </label>
+                        <label for="moneda">
+                            Moneda
+                            <input id="moneda" name="moneda" type="text" value="{{ datos_parseados.moneda or 'EUR' }}">
+                        </label>
+                        <label for="fecha_base">
+                            Fecha base
+                            <input id="fecha_base" name="fecha_base" type="date" value="{{ datos_parseados.fecha_base or datos.fecha_base or '' }}">
+                        </label>
+                        <label for="provincia">
+                            Provincia
+                            <input id="provincia" name="provincia" type="text" value="{{ datos_parseados.provincia or datos.provincia or '' }}">
+                        </label>
+                        <label class="costes-form-full" for="descripcion">
+                            Descripción
+                            <textarea id="descripcion" name="descripcion" rows="4">{{ datos_parseados.descripcion or '' }}</textarea>
+                        </label>
+                    </div>
+
+                    <h3>Descompuestos</h3>
+                    <div class="costes-descomp-table-wrap">
+                        <table class="costes-descomp-table">
+                            <thead>
+                                <tr>
+                                    <th class="costes-col-codigo">Código</th>
+                                    <th class="costes-col-tipo">Tipo</th>
+                                    <th class="costes-col-unidad">Unidad</th>
+                                    <th class="costes-col-resumen">Resumen</th>
+                                    <th class="costes-col-numero">Precio unitario</th>
+                                    <th class="costes-col-numero">Rendimiento</th>
+                                    <th class="costes-col-numero">Importe</th>
+                                    <th class="costes-col-orden">Orden</th>
+                                    <th class="costes-col-acciones">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="descompuestos-list">
+                        {% for item in descompuestos_sugeridos %}
+                        <tr data-descomp-row>
+                            <td class="costes-col-codigo">
+                                <input name="descomp_codigo" type="text" value="{{ item.codigo or '' }}">
+                            </td>
+                            <td class="costes-col-tipo">
+                                <select name="descomp_tipo">
+                                    {% for tipo in tipos_descompuesto %}
+                                    <option value="{{ tipo }}" {% if (item.tipo or 'material') == tipo %}selected{% endif %}>{{ tipo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="costes-col-unidad">
+                                <input name="descomp_unidad" type="text" value="{{ item.unidad or '' }}">
+                            </td>
+                            <td class="costes-col-resumen">
+                                <input name="descomp_resumen" type="text" value="{{ item.resumen or '' }}">
+                            </td>
+                            <td class="costes-col-numero">
+                                <input name="descomp_precio_unitario" type="number" step="0.0001" value="{{ item.precio_unitario or '' }}">
+                            </td>
+                            <td class="costes-col-numero">
+                                <input name="descomp_rendimiento" type="number" step="0.0001" value="{{ item.rendimiento or '' }}">
+                            </td>
+                            <td class="costes-col-numero">
+                                <input name="descomp_importe" type="number" step="0.01" value="{{ item.importe or '' }}" placeholder="Auto">
+                            </td>
+                            <td class="costes-col-orden">
+                                <input name="descomp_orden" type="number" step="1" value="{{ item.orden or loop.index }}">
+                            </td>
+                            <td class="costes-col-acciones">
+                                <button class="boton secundario costes-descomp-remove" type="button" data-remove-descompuesto>Eliminar</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="costes-actions">
+                        <button class="boton secundario" type="button" id="add-descompuesto">Añadir descompuesto</button>
+                    </div>
+
+                    <div class="costes-actions">
+                        <button class="boton" type="submit">Guardar partida borrador</button>
+                        <a class="boton secundario" href="/costes/capturas">Volver a capturas</a>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+    <template id="descompuesto-template">
+        <tr data-descomp-row>
+            <td class="costes-col-codigo">
+                <input name="descomp_codigo" type="text" value="">
+            </td>
+            <td class="costes-col-tipo">
+                <select name="descomp_tipo">
+                    {% for tipo in tipos_descompuesto %}
+                    <option value="{{ tipo }}" {% if tipo == 'material' %}selected{% endif %}>{{ tipo }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td class="costes-col-unidad">
+                <input name="descomp_unidad" type="text" value="">
+            </td>
+            <td class="costes-col-resumen">
+                <input name="descomp_resumen" type="text" value="">
+            </td>
+            <td class="costes-col-numero">
+                <input name="descomp_precio_unitario" type="number" step="0.0001" value="">
+            </td>
+            <td class="costes-col-numero">
+                <input name="descomp_rendimiento" type="number" step="0.0001" value="">
+            </td>
+            <td class="costes-col-numero">
+                <input name="descomp_importe" type="number" step="0.01" value="" placeholder="Auto">
+            </td>
+            <td class="costes-col-orden">
+                <input name="descomp_orden" type="number" step="1" value="">
+            </td>
+            <td class="costes-col-acciones">
+                <button class="boton secundario costes-descomp-remove" type="button" data-remove-descompuesto>Eliminar</button>
+            </td>
+        </tr>
+    </template>
+    <script>
+        (function () {
+            const list = document.getElementById("descompuestos-list");
+            const addButton = document.getElementById("add-descompuesto");
+            const template = document.getElementById("descompuesto-template");
+
+            function nextOrder() {
+                const rows = list.querySelectorAll("[data-descomp-row]");
+                return rows.length + 1;
+            }
+
+            function bindRemove(button) {
+                button.addEventListener("click", function () {
+                    const row = button.closest("[data-descomp-row]");
+                    if (row) {
+                        row.remove();
+                    }
+                });
+            }
+
+            if (!list || !addButton || !template) {
+                return;
+            }
+
+            list.querySelectorAll("[data-remove-descompuesto]").forEach(bindRemove);
+            addButton.addEventListener("click", function () {
+                const fragment = template.content.cloneNode(true);
+                const row = fragment.querySelector("[data-descomp-row]");
+                const orden = row.querySelector('input[name="descomp_orden"]');
+                if (orden) {
+                    orden.value = nextOrder();
+                }
+                const removeButton = row.querySelector("[data-remove-descompuesto]");
+                if (removeButton) {
+                    bindRemove(removeButton);
+                }
+                list.appendChild(row);
+            });
+        })();
+    </script>
+</body>
+</html>

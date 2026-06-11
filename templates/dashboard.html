@@ -3,127 +3,524 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <link rel="stylesheet" href="/static/mobile.css?v=11">
     <title>Dashboard</title>
 </head>
-<body>
+<body class="dashboard-cockpit-page">
     {% include "partials/_app_shell_start.html" %}
-<div class="page dashboard-page">
-<div class="card dashboard-hero-card">
-            <h1>Dashboard</h1>
-            <p class="subtitle">Vista rápida para operar el día.</p>
-            <div class="actions">
-                <form method="post" action="/backups/crear">
-                    <button class="boton secundario" type="submit">Crear backup</button>
-                </form>
-                <a class="boton secundario" href="/facturacion/exportar-trimestre">Exportar trimestre</a>
+    <div class="page dashboard-page dashboard-cockpit">
+        <header class="card dashboard-hero-card dashboard-cockpit-hero">
+            <div>
+                <p class="dashboard-kicker">Cockpit operativo</p>
+                <h1>Dashboard</h1>
+                <p class="subtitle">Qué necesita hacer hoy el despacho.</p>
             </div>
-        </div>
-
-        <div class="card dashboard-card dashboard-card-primary">
-            <h2>Leads</h2>
-            <p><strong>Nuevos:</strong> {{ leads.nuevos }}</p>
-            <p><strong>Contactados:</strong> {{ leads.contactados }}</p>
-            <p><strong>Pendientes respuesta:</strong> {{ leads.pendientes_respuesta }}</p>
-            {% if leads.tareas_hoy %}
-            <h3>Tareas vencidas o de hoy</h3>
-            {% for tarea in leads.tareas_hoy %}
-            <div class="inner-card">
-                <p><strong>{{ tarea.titulo }}</strong></p>
-                <p>{{ tarea.lead_nombre or 'Lead' }} · {{ tarea.fecha_programada or 'Sin fecha' }}</p>
+            <div class="dashboard-hero-metrics" aria-label="Resumen comercial">
+                <a href="/leads?estado=nuevo">
+                    <span>{{ leads.nuevos }}</span>
+                    <small>Leads nuevos</small>
+                </a>
+                <a href="/propuestas?estado=enviada">
+                    <span>{{ propuestas.enviadas }}</span>
+                    <small>Propuestas enviadas</small>
+                </a>
+                <a href="/expedientes">
+                    <span>{{ expedientes.ultimos|length }}</span>
+                    <small>Expedientes recientes</small>
+                </a>
             </div>
-            {% endfor %}
-            {% endif %}
-            <div class="actions"><a class="boton secundario" href="/leads">Ver leads</a></div>
-        </div>
+        </header>
 
-        <div class="card dashboard-card dashboard-card-primary">
-            <h2>Propuestas</h2>
-            <p><strong>Enviadas:</strong> {{ propuestas.enviadas }}</p>
-            <p><strong>Aceptadas sin expediente:</strong> {{ propuestas.aceptadas_sin_expediente }}</p>
-            {% if propuestas.borradores %}
-            <h3>Borradores recientes</h3>
-            {% for propuesta in propuestas.borradores %}
-            <p><a href="/propuestas/{{ propuesta.id }}">{{ propuesta.numero_propuesta }}</a> · {{ propuesta.fecha }}</p>
-            {% endfor %}
-            {% endif %}
-            <div class="actions"><a class="boton secundario" href="/propuestas">Ver propuestas</a></div>
-        </div>
+        <form class="card dashboard-filters" method="get" action="/dashboard" aria-label="Filtros del cockpit">
+            <label>
+                Periodo
+                <select name="periodo">
+                    {% for value, label in periodo_options %}
+                    <option value="{{ value }}" {% if filters.periodo == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Tipo
+                <select name="tipo">
+                    {% for value, label in tipo_options %}
+                    <option value="{{ value }}" {% if filters.tipo == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Estado
+                <select name="estado">
+                    {% for value, label in estado_options %}
+                    <option value="{{ value }}" {% if filters.estado == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <button class="boton secundario" type="submit">Filtrar</button>
+            <a class="boton secundario" href="/dashboard">Limpiar</a>
+        </form>
 
-        <div class="card dashboard-card dashboard-card-primary">
-            <h2>Expedientes</h2>
-            {% if expedientes.ultimos %}
-            <h3>Últimos</h3>
-            {% for expediente in expedientes.ultimos %}
-            <p><a href="/detalle-expediente/{{ expediente.id }}">{{ expediente.numero_expediente }}</a> · {{ expediente.cliente }}</p>
-            {% endfor %}
-            {% endif %}
-            {% if expedientes.sin_factura %}
-            <h3>Sin factura</h3>
-            {% for expediente in expedientes.sin_factura %}
-            <p><a href="/detalle-expediente/{{ expediente.id }}">{{ expediente.numero_expediente }}</a> · {{ expediente.cliente }}</p>
-            {% endfor %}
-            {% endif %}
-            {% if expedientes.desde_propuestas %}
-            <h3>Desde propuestas</h3>
-            {% for expediente in expedientes.desde_propuestas %}
-            <p><a href="/detalle-expediente/{{ expediente.id }}">{{ expediente.numero_expediente }}</a> · {{ expediente.numero_propuesta }}</p>
-            {% endfor %}
-            {% endif %}
-            <div class="actions"><a class="boton secundario" href="/expedientes">Ver expedientes</a></div>
-        </div>
-
-        <div class="card dashboard-card dashboard-card-admin">
-            <h2>Facturación</h2>
-            <p><strong>Pendiente de cobro:</strong> {{ format_money(total_pendiente) }} €</p>
-            {% if facturas_borrador %}
-            <h3>Borradores</h3>
-            {% for factura in facturas_borrador %}
-            <p><a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or ('Borrador #' ~ factura.id) }}</a> · {{ nombre_cliente(factura) }}</p>
-            {% endfor %}
-            {% endif %}
-            {% if facturas_pendientes %}
-            <h3>Emitidas pendientes</h3>
-            {% for factura in facturas_pendientes %}
-            <p><a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or factura.id }}</a> · {{ format_money(factura.total) }} €</p>
-            {% endfor %}
-            {% endif %}
-            <div class="actions"><a class="boton secundario" href="/facturacion">Ver facturación</a></div>
-        </div>
-
-        <div class="card dashboard-card dashboard-card-admin">
-            <h2>IVA T{{ trimestre_actual }} {{ year_actual }}</h2>
-            <p><strong>IVA repercutido:</strong> {{ format_money(resumen_iva.iva_repercutido) }} €</p>
-            <p><strong>IVA soportado:</strong> {{ format_money(resumen_iva.iva_soportado) }} €</p>
-            <p><strong>Resultado estimado:</strong> {{ format_money(resumen_iva.resultado_estimado) }} €</p>
-            <div class="actions">
-                <a class="boton secundario" href="/facturacion/iva?year={{ year_actual }}&trimestre={{ trimestre_actual }}">Resumen IVA</a>
+        <section class="dashboard-section dashboard-today dashboard-priority-section" aria-labelledby="dashboard-hoy-title">
+            <div class="dashboard-section-heading">
+                <h2 id="dashboard-hoy-title">Hoy</h2>
+                <p>Prioridad de operación, seguimiento y conversión.</p>
             </div>
-        </div>
+            <div class="dashboard-today-grid">
+                <article class="card dashboard-card dashboard-card-primary dashboard-worklist">
+                    <h3>Seguimientos pendientes hoy</h3>
+                    {% if leads.tareas_hoy %}
+                    <ul class="dashboard-list">
+                        {% for tarea in leads.tareas_hoy %}
+                        <li>
+                            <a href="/leads/{{ tarea.lead_id }}">{{ tarea.titulo }}</a>
+                            <span>
+                                {{ tarea.lead_nombre or 'Lead' }} · {{ tarea.fecha_programada or 'Sin fecha' }} ·
+                                {% if tarea.dias_retraso and tarea.dias_retraso > 0 %}
+                                {{ tarea.dias_retraso }} días de retraso ·
+                                {% endif %}
+                                <span class="{{ estado_badge_class(tarea.estado) }}">{{ label_estado(tarea.estado) }}</span>
+                            </span>
+                            {% if tarea.estado == 'pendiente' %}
+                            <form class="dashboard-inline-action" method="post" action="/leads/{{ tarea.lead_id }}/tareas/{{ tarea.id }}/hecha">
+                                <button class="boton secundario" type="submit">Marcar hecha</button>
+                            </form>
+                            <a class="dashboard-inline-link" href="/leads/{{ tarea.lead_id }}">Nueva tarea</a>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">No hay seguimientos de prospección vencidos o para hoy.</p>
+                    {% endif %}
+                </article>
 
-        <div class="card dashboard-card dashboard-card-admin">
-            <h2>Gastos</h2>
-            <p><strong>Total deducible trimestre:</strong> {{ format_money(resumen_iva.total_gastos) }} €</p>
-            {% if gastos_ultimos %}
-            <h3>Últimos gastos</h3>
-            {% for gasto in gastos_ultimos %}
-            <p><a href="/gastos/{{ gasto.id }}">{{ gasto.proveedor }}</a> · {{ gasto.concepto }} · {{ format_money(gasto.total) }} €</p>
-            {% endfor %}
-            {% endif %}
-            <div class="actions"><a class="boton secundario" href="/gastos">Ver gastos</a></div>
-        </div>
+                <article class="card dashboard-card dashboard-card-primary dashboard-worklist">
+                    <h3>Seguimientos próximos</h3>
+                    {% if leads.seguimientos_proximos %}
+                    <ul class="dashboard-list">
+                        {% for tarea in leads.seguimientos_proximos %}
+                        <li>
+                            <a href="/leads/{{ tarea.lead_id }}">{{ tarea.titulo }}</a>
+                            <span>{{ tarea.lead_nombre or 'Lead' }} · {{ tarea.fecha_programada or 'Sin fecha' }} · <span class="{{ estado_badge_class(tarea.estado) }}">{{ label_estado(tarea.estado) }}</span></span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">No hay seguimientos próximos programados.</p>
+                    {% endif %}
+                </article>
 
-        <div class="card dashboard-card dashboard-card-admin">
-            <h2>Backups</h2>
-            {% if backups %}
-            {% for backup in backups %}
-            <p>{{ backup.nombre }} · {{ backup.fecha.strftime('%Y-%m-%d %H:%M') }}</p>
-            {% endfor %}
-            {% else %}
-            <p class="empty">Todavía no hay backups.</p>
-            {% endif %}
-            <div class="actions"><a class="boton secundario" href="/backups">Ver backups</a></div>
-        </div>
+                <article class="card dashboard-card dashboard-card-primary dashboard-worklist">
+                    <h3>Propuestas pendientes</h3>
+                    {% if propuestas.pendientes %}
+                    <ul class="dashboard-list">
+                        {% for propuesta in propuestas.pendientes %}
+                        <li>
+                            <a href="/propuestas/{{ propuesta.id }}">{{ propuesta.numero_propuesta }}</a>
+                            <span><span class="{{ estado_badge_class(propuesta.estado) }}">{{ label_estado(propuesta.estado) }}</span> · {{ propuesta.lead_nombre or propuesta.cliente_nombre or propuesta.fecha }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">No hay propuestas pendientes destacables.</p>
+                    {% endif %}
+                </article>
+
+                <article class="card dashboard-card dashboard-card-primary dashboard-worklist">
+                    <h3>Actividad reciente</h3>
+                    {% if leads.recientes or emails.recientes %}
+                    <ul class="dashboard-list">
+                        {% for lead in leads.recientes[:3] %}
+                        <li>
+                            <a href="/leads/{{ lead.id }}">{{ lead.nombre }}</a>
+                            <span>Lead · <span class="{{ estado_badge_class(lead.estado) }}">{{ label_estado(lead.estado) }}</span> · {{ lead.created_at or 'Sin fecha' }}</span>
+                        </li>
+                        {% endfor %}
+                        {% for email in emails.recientes[:3] %}
+                        <li>
+                            <span>{{ email.asunto }}</span>
+                            <span>Email · {{ email.destinatario }} · <span class="{{ estado_badge_class(email.estado) }}">{{ label_estado(email.estado) }}</span> · {{ email.fecha_envio or 'Sin fecha' }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">No hay leads ni emails recientes.</p>
+                    {% endif %}
+                </article>
+            </div>
+        </section>
+
+        <section class="dashboard-section dashboard-desktop-grid dashboard-operative-section" aria-labelledby="dashboard-operativo-title">
+            <article class="card dashboard-card dashboard-panel dashboard-panel-wide">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2 id="dashboard-operativo-title">Actividad operativa</h2>
+                        <p>Resultado de los filtros actuales para navegar y priorizar trabajo real.</p>
+                    </div>
+                    <span class="dashboard-filter-summary">{{ filters.tipo }} · {{ filters.periodo }}{% if filters.estado %} · {{ label_estado(filters.estado) }}{% endif %}</span>
+                </div>
+                {% if actividad_operativa %}
+                <div class="dashboard-table-wrap">
+                    <table class="dashboard-table dashboard-operative-table">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Registro</th>
+                                <th>Estado</th>
+                                <th>Fecha</th>
+                                <th>Detalle</th>
+                                <th>Acceso</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in actividad_operativa %}
+                            <tr>
+                                <td>{{ item.tipo }}</td>
+                                <td>
+                                    {% if item.href %}
+                                    <a href="{{ item.href }}">{{ item.titulo }}</a>
+                                    {% else %}
+                                    {{ item.titulo }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.estado %}
+                                    <span class="{{ estado_badge_class(item.estado) }}">{{ label_estado(item.estado) }}</span>
+                                    {% else %}
+                                    <span class="muted">Sin estado</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.fecha or 'Sin fecha' }}</td>
+                                <td>{{ item.detalle }}</td>
+                                <td>
+                                    {% if item.href %}
+                                    <a href="{{ item.href }}">Abrir</a>
+                                    {% endif %}
+                                    {% if item.accion_href %}
+                                    <a href="{{ item.accion_href }}">{{ item.accion_label }}</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="empty">No hay actividad para los filtros actuales.</p>
+                {% endif %}
+            </article>
+
+            <article class="card dashboard-card dashboard-panel">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2>Tareas filtradas</h2>
+                        <p>Seguimientos existentes reutilizados desde leads.</p>
+                    </div>
+                </div>
+                {% if tareas_operativas %}
+                <ul class="dashboard-list">
+                    {% for tarea in tareas_operativas %}
+                    <li>
+                        <a href="/leads/{{ tarea.lead_id }}">{{ tarea.titulo }}</a>
+                        <span>{{ tarea.lead_nombre or 'Lead' }} · {{ tarea.fecha_programada or 'Sin fecha' }} · <span class="{{ estado_badge_class(tarea.estado) }}">{{ label_estado(tarea.estado) }}</span></span>
+                        {% if tarea.estado == 'pendiente' %}
+                        <form class="dashboard-inline-action" method="post" action="/leads/{{ tarea.lead_id }}/tareas/{{ tarea.id }}/hecha">
+                            <button class="boton secundario" type="submit">Marcar hecha</button>
+                        </form>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="empty">No hay tareas para los filtros actuales.</p>
+                {% endif %}
+            </article>
+        </section>
+
+        <section class="dashboard-section dashboard-desktop-grid dashboard-capture-section" aria-labelledby="dashboard-captacion-title">
+            <article class="card dashboard-card dashboard-panel dashboard-panel-wide">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2 id="dashboard-captacion-title">Captación</h2>
+                        <p>Leads abiertos y recientes con origen, estado y última actividad disponible.</p>
+                    </div>
+                    <a class="boton secundario" href="/leads">Ver leads</a>
+                </div>
+                {% if leads.recientes %}
+                <div class="dashboard-table-wrap">
+                    <table class="dashboard-table">
+                        <thead>
+                            <tr>
+                                <th>Lead</th>
+                                <th>Estado</th>
+                                <th>Origen</th>
+                                <th>Contacto</th>
+                                <th>Última actividad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for lead in leads.recientes %}
+                            <tr>
+                                <td><a href="/leads/{{ lead.id }}">{{ lead.nombre }}</a></td>
+                                <td><span class="{{ estado_badge_class(lead.estado) }}">{{ label_estado(lead.estado) }}</span></td>
+                                <td>{{ lead.origen or 'Sin origen' }}</td>
+                                <td>
+                                    {{ contacto_principal(lead) }}
+                                    {% if lead.cliente_id %}
+                                    · <a href="/clientes/{{ lead.cliente_id }}">Cliente</a>
+                                    {% endif %}
+                                </td>
+                                <td>{{ lead.ultima_actividad or lead.updated_at or lead.created_at or 'Sin fecha' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="empty">No hay leads para mostrar.</p>
+                {% endif %}
+            </article>
+
+            <article class="card dashboard-card dashboard-panel">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2>Prospección</h2>
+                        <p>Prescriptores y avance comercial sobre leads existentes.</p>
+                    </div>
+                </div>
+                <dl class="dashboard-admin-metrics dashboard-prospecting-metrics">
+                    <div>
+                        <dt>Administradores</dt>
+                        <dd><a href="/leads?tipo=administrador_fincas">{{ leads.administradores }}</a></dd>
+                    </div>
+                    <div>
+                        <dt>Abogados</dt>
+                        <dd><a href="/leads?tipo=abogado">{{ leads.abogados }}</a></dd>
+                    </div>
+                    <div>
+                        <dt>Pendientes contacto</dt>
+                        <dd><a href="/leads?estado=pendiente">{{ leads.pendientes_contacto }}</a></dd>
+                    </div>
+                    <div>
+                        <dt>Respondidos</dt>
+                        <dd><a href="/leads?estado=respondio">{{ leads.respondidos }}</a></dd>
+                    </div>
+                    <div>
+                        <dt>Reuniones</dt>
+                        <dd><a href="/leads?estado=reunion">{{ leads.reuniones }}</a></dd>
+                    </div>
+                </dl>
+            </article>
+
+            <article class="card dashboard-card dashboard-panel">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2>Pipeline</h2>
+                        <p>Etapas construidas solo con estados existentes.</p>
+                    </div>
+                </div>
+                <ol class="dashboard-pipeline">
+                    {% for etapa in pipeline %}
+                    <li>
+                        <a href="{{ etapa.href }}">
+                            <span>{{ etapa.label }}</span>
+                            <strong>{{ etapa.total }}</strong>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </article>
+        </section>
+
+        <section class="dashboard-section dashboard-desktop-grid dashboard-communication-section" aria-labelledby="dashboard-comunicacion-title">
+            <article class="card dashboard-card dashboard-panel dashboard-panel-wide">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2 id="dashboard-comunicacion-title">Comunicación</h2>
+                        <p>Últimos emails enviados registrados internamente. Solo lectura.</p>
+                    </div>
+                    <a class="boton secundario" href="/emails/contactos">Contactos email</a>
+                </div>
+                {% if emails.recientes %}
+                <div class="dashboard-table-wrap">
+                    <table class="dashboard-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Destinatario</th>
+                                <th>Asunto</th>
+                                <th>Estado</th>
+                                <th>Relación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for email in emails.recientes %}
+                            <tr>
+                                <td>{{ email.fecha_envio or 'Sin fecha' }}</td>
+                                <td>{{ email.destinatario }}</td>
+                                <td>{{ email.asunto }}</td>
+                                <td><span class="{{ estado_badge_class(email.estado) }}">{{ label_estado(email.estado) }}</span></td>
+                                <td>
+                                    {% set relacion_href = relacion_email_href(email) %}
+                                    {% if relacion_href %}
+                                    <a href="{{ relacion_href }}">{{ relacion_email(email) }}</a>
+                                    {% else %}
+                                    {{ relacion_email(email) }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="empty">No hay emails enviados registrados.</p>
+                {% endif %}
+            </article>
+
+            <article class="card dashboard-card dashboard-panel dashboard-card-admin">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2>Administración</h2>
+                        <p>Métricas secundarias para no perder contexto.</p>
+                    </div>
+                </div>
+                <dl class="dashboard-admin-metrics">
+                    <div>
+                        <dt>Pendiente de cobro</dt>
+                        <dd>{{ format_money(total_pendiente) }} €</dd>
+                    </div>
+                    <div>
+                        <dt>IVA T{{ trimestre_actual }} {{ year_actual }}</dt>
+                        <dd>{{ format_money(resumen_iva.resultado_estimado) }} €</dd>
+                    </div>
+                    <div>
+                        <dt>Gastos trimestre</dt>
+                        <dd>{{ format_money(resumen_iva.total_gastos) }} €</dd>
+                    </div>
+                </dl>
+                <div class="dashboard-admin-links">
+                    <a href="/facturacion">Facturación</a>
+                    <a href="/facturacion/iva?year={{ year_actual }}&trimestre={{ trimestre_actual }}">IVA</a>
+                    <a href="/gastos">Gastos</a>
+                </div>
+            </article>
+        </section>
+
+        <section class="dashboard-section dashboard-desktop-grid dashboard-campaign-section" aria-labelledby="dashboard-campanas-title">
+            <article class="card dashboard-card dashboard-panel dashboard-panel-wide">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2 id="dashboard-campanas-title">Campañas / Próximos pasos</h2>
+                        <p>Preparación manual sin crear entidad nueva ni automatizar envíos.</p>
+                    </div>
+                    <a class="boton secundario" href="/emails">Ver emails</a>
+                </div>
+                <div class="dashboard-campaign-grid">
+                    <div>
+                        <h3>Prescriptores recientes</h3>
+                        {% if campanas.prescriptores %}
+                        <ul class="dashboard-list">
+                            {% for lead in campanas.prescriptores %}
+                            <li>
+                                <a href="/leads/{{ lead.id }}">{{ lead.nombre }}</a>
+                                <span>{{ lead.origen or 'Sin origen' }} · <span class="{{ estado_badge_class(lead.estado) }}">{{ label_estado(lead.estado) }}</span></span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="empty">No hay leads recientes marcados como abogados o administradores.</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h3>Emails recientes</h3>
+                        {% if emails.recientes %}
+                        <ul class="dashboard-list">
+                            {% for email in emails.recientes[:4] %}
+                            <li>
+                                <span>{{ email.asunto }}</span>
+                                <span>{{ email.destinatario }} · <span class="{{ estado_badge_class(email.estado) }}">{{ label_estado(email.estado) }}</span></span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="empty">No hay emails recientes para revisar.</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h3>Seguimientos pendientes</h3>
+                        {% if tareas_operativas %}
+                        <ul class="dashboard-list">
+                            {% for tarea in tareas_operativas[:4] %}
+                            <li>
+                                <a href="/leads/{{ tarea.lead_id }}">{{ tarea.titulo }}</a>
+                                <span>{{ tarea.fecha_programada or 'Sin fecha' }} · <span class="{{ estado_badge_class(tarea.estado) }}">{{ label_estado(tarea.estado) }}</span></span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="empty">No hay seguimientos pendientes en el periodo filtrado.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="dashboard-section dashboard-admin-secondary dashboard-admin-section" aria-labelledby="dashboard-admin-title">
+            <div class="dashboard-section-heading">
+                <h2 id="dashboard-admin-title">Administración secundaria</h2>
+                <p>Expedientes, propuestas y facturación quedan disponibles sin competir con captación.</p>
+            </div>
+            <div class="dashboard-admin-grid">
+                <article class="card dashboard-card dashboard-card-admin">
+                    <h3>Expedientes recientes</h3>
+                    {% if expedientes.ultimos %}
+                    <ul class="dashboard-list">
+                        {% for expediente in expedientes.ultimos %}
+                        <li>
+                            <a href="/detalle-expediente/{{ expediente.id }}">{{ expediente.numero_expediente }}</a>
+                            <span>{{ expediente.cliente }} · {{ expediente.direccion }}{% if estado_expediente(expediente) %} · <span class="{{ estado_badge_class(estado_expediente(expediente)) }}">{{ label_estado(estado_expediente(expediente)) }}</span>{% endif %}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">No hay expedientes recientes.</p>
+                    {% endif %}
+                </article>
+
+                <article class="card dashboard-card dashboard-card-admin">
+                    <h3>Facturas pendientes</h3>
+                    {% if facturas_pendientes %}
+                    <ul class="dashboard-list">
+                        {% for factura in facturas_pendientes %}
+                        <li>
+                            <a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or factura.id }}</a>
+                            <span>{{ nombre_cliente(factura) }} · {{ format_money(factura.total) }} €</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">No hay facturas emitidas pendientes.</p>
+                    {% endif %}
+                </article>
+
+                <article class="card dashboard-card dashboard-card-admin">
+                    <h3>Borradores de propuesta</h3>
+                    {% if propuestas.borradores %}
+                    <ul class="dashboard-list">
+                        {% for propuesta in propuestas.borradores %}
+                        <li>
+                            <a href="/propuestas/{{ propuesta.id }}">{{ propuesta.numero_propuesta }}</a>
+                            <span>{{ propuesta.fecha or 'Sin fecha' }} · <span class="{{ estado_badge_class(propuesta.estado) }}">{{ label_estado(propuesta.estado) }}</span></span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="empty">No hay borradores recientes.</p>
+                    {% endif %}
+                </article>
+            </div>
+        </section>
     </div>
     {% include "partials/_app_shell_end.html" %}
 </body>

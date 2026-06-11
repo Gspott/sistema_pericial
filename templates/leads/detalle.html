@@ -14,6 +14,9 @@
             <p class="subtitle">Seguimiento completo del lead sin convertirlo automáticamente en cliente.</p>
             <div class="actions">
                 <a class="boton" href="/leads/{{ lead.id }}/editar">Editar lead</a>
+                {% if lead.email %}
+                <a class="boton secundario" href="/emails/nuevo?lead_id={{ lead.id }}">Enviar presentación</a>
+                {% endif %}
                 <a class="boton secundario" href="/propuestas/nueva?lead_id={{ lead.id }}">Crear propuesta</a>
                 {% if lead.cliente_id %}
                 <a class="boton secundario" href="/clientes/{{ lead.cliente_id }}">Ver cliente</a>
@@ -32,10 +35,9 @@
             <h2>Datos del lead</h2>
             <p><strong>Email:</strong> {{ lead.email or 'Sin indicar' }}</p>
             <p><strong>Teléfono:</strong> {{ lead.telefono or 'Sin indicar' }}</p>
-            <p><strong>Origen:</strong> {{ lead.origen or 'Sin indicar' }}</p>
+            <p><strong>Tipo / categoría:</strong> {{ label_tipo_prospeccion(lead.origen) }}</p>
             <p><strong>Servicio solicitado:</strong> {{ lead.servicio_solicitado or 'Sin indicar' }}</p>
-            {% set lead_estado_clase = 'estado-pendiente' if lead.estado in ['nuevo', 'contactado', 'pendiente_respuesta'] else 'estado-borrador' %}
-            <p><strong>Estado:</strong> <span class="estado-badge {{ lead_estado_clase }}">{{ lead.estado.replace('_', ' ') }}</span></p>
+            <p><strong>Estado:</strong> <span class="{{ lead_estado_badge_class(lead.estado) }}">{{ label_estado(lead.estado) }}</span></p>
             <p><strong>Prioridad:</strong> {{ lead.prioridad or 'Sin indicar' }}</p>
             <p><strong>Mensaje:</strong> {{ lead.mensaje or 'Sin mensaje inicial' }}</p>
             <p><strong>Notas:</strong> {{ lead.notas or 'Sin notas internas' }}</p>

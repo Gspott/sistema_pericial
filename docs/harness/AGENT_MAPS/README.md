@@ -7,6 +7,8 @@ Mapas legibles para que Codex entienda rutas, datos y flujos criticos sin cargar
 - [route_map.md](route_map.md): areas de rutas conocidas.
 - [db_map.md](db_map.md): mapa prudente de SQLite y reglas de uso.
 - [critical_flows.md](critical_flows.md): flujos operativos principales.
+- [crm_dashboard_map.md](crm_dashboard_map.md): reutilizacion para dashboard
+  operativo, captacion y CRM ligero.
 
 ## Reglas
 
@@ -14,4 +16,3 @@ Mapas legibles para que Codex entienda rutas, datos y flujos criticos sin cargar
 - No leer DB real para completar mapas.
 - Actualizar mapas cuando una tarea verifique codigo real.
 - Mantenerlos como indices, no como duplicados completos del codigo.
-

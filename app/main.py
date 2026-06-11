@@ -49,6 +49,7 @@ from app.config import (
 from app.database import init_db
 from app.routers import backups as backups_router
 from app.routers import clientes as clientes_router
+from app.routers import costes as costes_router
 from app.routers import dashboard as dashboard_router
 from app.routers import emails as emails_router
 from app.routers import facturacion as facturacion_router
@@ -63,6 +64,7 @@ from app.services.informe import (
     generar_informe,
     generar_informe_docx_editable_bytes,
     generar_informe_pdf_bytes,
+    generar_informe_v2_pdf_bytes,
     nombre_archivo_docx_editable_informe,
     nombre_archivo_pdf_informe,
     limpiar_nombre_archivo,
@@ -79,6 +81,7 @@ app = FastAPI()
 STATIC_PATH = Path(STATIC_DIR)
 TEMPLATES_PATH = Path(TEMPLATES_DIR)
 UPLOAD_PATH = Path(UPLOAD_DIR)
+DOCUMENTOS_EXPEDIENTE_UPLOAD_DIR = UPLOAD_PATH / "expediente_documentos"
 DB_FILE = Path(DB_PATH)
 
 ensure_directories()
@@ -1278,6 +1281,44 @@ def guardar_uploads_contextuales(
         if nombre:
             nombres.append(nombre)
     return nombres
+
+
+def normalizar_tipo_documental_anexo_a(tipo: str | None) -> str:
+    tipo_limpio = limpiar_texto(tipo)
+    return tipo_limpio if tipo_limpio in TIPOS_DOCUMENTALES_ANEXO_A else "Otro"
+
+
+def es_pdf_aportado_valido(archivo: UploadFile | None) -> bool:
+    if not archivo or not archivo.filename:
+        return False
+    extension = os.path.splitext(archivo.filename)[1].lower()
+    mime = limpiar_texto(archivo.content_type).lower()
+    return extension == ".pdf" and mime in ("", "application/pdf", "application/x-pdf")
+
+
+def guardar_documento_pdf_expediente(
+    archivo: UploadFile | None,
+    expediente_id: int,
+) -> tuple[str, str, str]:
+    if not es_pdf_aportado_valido(archivo):
+        raise ValueError("Solo se admiten documentos PDF.")
+
+    assert archivo is not None
+    carpeta = DOCUMENTOS_EXPEDIENTE_UPLOAD_DIR / str(expediente_id)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    nombre_destino = f"{uuid4().hex}.pdf"
+    ruta_destino = carpeta / nombre_destino
+    with ruta_destino.open("wb") as buffer:
+        shutil.copyfileobj(archivo.file, buffer)
+    ruta_relativa = f"expediente_documentos/{expediente_id}/{nombre_destino}"
+    return ruta_relativa, limpiar_texto(archivo.filename), limpiar_texto(archivo.content_type)
+
+
+def nombre_visible_documento_desde_archivo(nombre_original: str | None) -> str:
+    nombre = limpiar_texto(nombre_original)
+    if not nombre:
+        return "Documento aportado"
+    return limpiar_texto(Path(nombre).stem) or "Documento aportado"
 
 
 TESTIGO_FOTO_EXT_PERMITIDAS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
@@ -5811,6 +5852,2222 @@ def get_owned_registro(cur, registro_id: int, user_id: int):
     ).fetchone()
 
 
+def parsear_decimal_coste_patologia(valor, default: float = 0.0) -> float:
+    texto = limpiar_texto(valor).replace("€", "").replace(" ", "")
+    if not texto:
+        return default
+    if "," in texto and "." in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    elif "," in texto:
+        texto = texto.replace(",", ".")
+    try:
+        return float(texto)
+    except ValueError:
+        return default
+
+
+def obtener_costes_patologia(cur, patologia_id: int):
+    return cur.execute(
+        """
+        SELECT
+            pc.*,
+            cc.codigo AS concepto_codigo,
+            cc.resumen AS concepto_resumen,
+            cc.estado AS concepto_estado,
+            cb.nombre AS base_nombre,
+            cb.origen AS base_origen
+        FROM patologia_costes pc
+        JOIN costes_conceptos cc ON cc.id = pc.concepto_id
+        JOIN costes_bases cb ON cb.id = cc.base_id
+        WHERE pc.patologia_id = ?
+        ORDER BY pc.created_at DESC, pc.id DESC
+        """,
+        (patologia_id,),
+    ).fetchall()
+
+
+def buscar_partidas_coste_para_patologia(cur, q: str):
+    q_limpia = limpiar_texto(q)
+    if not q_limpia:
+        return []
+    patron = f"%{q_limpia.lower()}%"
+    return cur.execute(
+        """
+        SELECT
+            cc.id, cc.codigo, cc.unidad, cc.resumen, cc.descripcion,
+            cc.precio, cc.moneda, cc.estado, cb.nombre AS base_nombre
+        FROM costes_conceptos cc
+        JOIN costes_bases cb ON cb.id = cc.base_id
+        WHERE
+            cc.estado = 'validado'
+            AND (
+                lower(cc.codigo) LIKE ?
+                OR lower(cc.resumen) LIKE ?
+                OR lower(COALESCE(cc.descripcion, '')) LIKE ?
+            )
+        ORDER BY cc.codigo COLLATE NOCASE, cc.resumen COLLATE NOCASE
+        LIMIT 20
+        """,
+        (patron, patron, patron),
+    ).fetchall()
+
+
+def calcular_total_costes_patologia(costes) -> float:
+    return round(sum(float(item["importe"] or 0) for item in costes), 2)
+
+
+def preparar_presupuesto_reparacion_expediente(cur, expediente_id: int):
+    filas = cur.execute(
+        """
+        SELECT
+            pc.id AS vinculo_id,
+            pc.patologia_id,
+            pc.descripcion_actuacion,
+            pc.cantidad,
+            pc.unidad,
+            pc.precio_unitario,
+            pc.importe,
+            pc.estado AS vinculo_estado,
+            pc.observaciones AS vinculo_observaciones,
+            rp.patologia,
+            rp.elemento,
+            rp.localizacion_dano,
+            rp.detalle_localizacion,
+            rp.observaciones AS patologia_observaciones,
+            es.nombre AS estancia_nombre,
+            cc.codigo AS concepto_codigo,
+            cc.resumen AS concepto_resumen,
+            cc.estado AS concepto_estado,
+            cb.nombre AS base_nombre,
+            cb.origen AS base_origen,
+            cap.codigo AS capitulo_codigo,
+            cap.nombre AS capitulo_nombre
+        FROM patologia_costes pc
+        JOIN registros_patologias rp ON rp.id = pc.patologia_id
+        JOIN visitas v ON v.id = rp.visita_id
+        LEFT JOIN estancias es ON es.id = rp.estancia_id
+        JOIN costes_conceptos cc ON cc.id = pc.concepto_id
+        JOIN costes_bases cb ON cb.id = cc.base_id
+        LEFT JOIN costes_capitulos cap ON cap.id = cc.capitulo_id
+        WHERE v.expediente_id = ?
+        ORDER BY es.nombre COLLATE NOCASE, rp.id, pc.id
+        """,
+        (expediente_id,),
+    ).fetchall()
+
+    patologias_por_id: dict[int, dict] = {}
+    resumen_capitulos: dict[str, dict] = {}
+    total = 0.0
+
+    for fila in filas:
+        patologia_id = fila["patologia_id"]
+        patologia = patologias_por_id.setdefault(
+            patologia_id,
+            {
+                "id": patologia_id,
+                "patologia": fila["patologia"],
+                "elemento": fila["elemento"],
+                "localizacion_dano": fila["localizacion_dano"],
+                "detalle_localizacion": fila["detalle_localizacion"],
+                "observaciones": fila["patologia_observaciones"],
+                "estancia_nombre": fila["estancia_nombre"],
+                "partidas": [],
+                "subtotal": 0.0,
+            },
+        )
+        importe = round(float(fila["importe"] or 0), 2)
+        partida = dict(fila)
+        partida["importe"] = importe
+        patologia["partidas"].append(partida)
+        patologia["subtotal"] = round(patologia["subtotal"] + importe, 2)
+        total = round(total + importe, 2)
+
+        clave_capitulo = limpiar_texto(fila["capitulo_codigo"])
+        nombre_capitulo = limpiar_texto(fila["capitulo_nombre"])
+        if not clave_capitulo:
+            codigo = limpiar_texto(fila["concepto_codigo"])
+            clave_capitulo = codigo.split(".")[0] if "." in codigo else codigo[:3]
+            nombre_capitulo = f"Sin capítulo · {clave_capitulo or 'sin código'}"
+        resumen = resumen_capitulos.setdefault(
+            clave_capitulo,
+            {
+                "codigo": clave_capitulo,
+                "nombre": nombre_capitulo or clave_capitulo,
+                "importe": 0.0,
+            },
+        )
+        resumen["importe"] = round(resumen["importe"] + importe, 2)
+
+    return {
+        "patologias": list(patologias_por_id.values()),
+        "resumen_capitulos": sorted(
+            resumen_capitulos.values(),
+            key=lambda item: (item["codigo"] or "", item["nombre"] or ""),
+        ),
+        "total_pem": round(total, 2),
+        "tiene_costes": bool(filas),
+    }
+
+
+def buscar_partidas_coste_para_actuacion(cur, q: str):
+    q_limpia = limpiar_texto(q)
+    if not q_limpia:
+        return []
+    patron = f"%{q_limpia.lower()}%"
+    return cur.execute(
+        """
+        SELECT
+            cc.id, cc.codigo, cc.unidad, cc.resumen, cc.descripcion,
+            cc.precio, cc.moneda, cc.estado,
+            cb.nombre AS base_nombre, cb.origen AS base_origen
+        FROM costes_conceptos cc
+        JOIN costes_bases cb ON cb.id = cc.base_id
+        WHERE
+            cc.estado = 'validado'
+            AND (
+                lower(cc.codigo) LIKE ?
+                OR lower(cc.resumen) LIKE ?
+                OR lower(COALESCE(cc.descripcion, '')) LIKE ?
+            )
+        ORDER BY cc.codigo COLLATE NOCASE, cc.resumen COLLATE NOCASE
+        LIMIT 25
+        """,
+        (patron, patron, patron),
+    ).fetchall()
+
+
+def preparar_actuaciones_reparacion_expediente(cur, expediente_id: int):
+    actuaciones = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT *
+            FROM actuaciones_reparacion
+            WHERE expediente_id = ?
+            ORDER BY orden ASC, id ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+    ]
+
+    actuaciones_por_id = {}
+    total = 0.0
+    for actuacion in actuaciones:
+        actuacion["partidas"] = []
+        actuacion["subtotal"] = 0.0
+        actuaciones_por_id[actuacion["id"]] = actuacion
+
+    if actuaciones_por_id:
+        placeholders = ",".join("?" for _ in actuaciones_por_id)
+        partidas = cur.execute(
+            f"""
+            SELECT
+                ap.*,
+                cc.codigo AS concepto_codigo,
+                cc.resumen AS concepto_resumen,
+                cc.estado AS concepto_estado,
+                cb.nombre AS base_nombre,
+                cb.origen AS base_origen
+            FROM actuacion_partidas ap
+            JOIN costes_conceptos cc ON cc.id = ap.concepto_id
+            JOIN costes_bases cb ON cb.id = cc.base_id
+            WHERE ap.actuacion_id IN ({placeholders})
+            ORDER BY ap.id ASC
+            """,
+            tuple(actuaciones_por_id.keys()),
+        ).fetchall()
+        for fila in partidas:
+            partida = dict(fila)
+            importe = round(float(partida.get("importe") or 0), 2)
+            partida["importe"] = importe
+            actuacion = actuaciones_por_id[partida["actuacion_id"]]
+            actuacion["partidas"].append(partida)
+            actuacion["subtotal"] = round(actuacion["subtotal"] + importe, 2)
+            total = round(total + importe, 2)
+
+    return {
+        "actuaciones": actuaciones,
+        "total_pem": round(total, 2),
+        "tiene_actuaciones": bool(actuaciones),
+    }
+
+
+PERICIAL_LIMITACION_KEYWORDS = (
+    "no se pudo acceder",
+    "no se puede comprobar",
+    "sin realizar catas",
+    "sin catas",
+    "pruebas destructivas",
+    "ensayos destructivos",
+    "elementos ocultos",
+    "documentación aportada",
+    "documentacion aportada",
+    "escasa visibilidad",
+    "ausencia de luz",
+    "no consta",
+    "pendiente de comprobar",
+)
+
+PERICIAL_RECOMENDACION_KEYWORDS = (
+    "revisar",
+    "inspeccionar",
+    "comprobar",
+    "seguimiento",
+    "recomend",
+    "actuar",
+    "prevenir",
+    "moho",
+    "insectos",
+    "madera",
+    "estructura",
+    "urgencia",
+    "desaconseja",
+)
+
+
+INFORME_V2_CAPITULOS = [
+    {"clave": "resumen_ejecutivo", "titulo": "Resumen ejecutivo", "orden": 1},
+    {"clave": "antecedentes_objeto", "titulo": "Antecedentes y objeto", "orden": 2},
+    {"clave": "metodologia", "titulo": "Metodología", "orden": 3},
+    {"clave": "limitaciones", "titulo": "Limitaciones", "orden": 4},
+    {"clave": "analisis_causal", "titulo": "Análisis causal", "orden": 5},
+    {
+        "clave": "inventario_resumido_danos",
+        "titulo": "Inventario resumido de daños",
+        "orden": 6,
+    },
+    {
+        "clave": "actuaciones_verificadas",
+        "titulo": "Actuaciones verificadas",
+        "orden": 7,
+    },
+    {"clave": "propuesta_reparacion", "titulo": "Propuesta de reparación", "orden": 8},
+    {"clave": "valoracion_economica", "titulo": "Valoración económica", "orden": 9},
+    {
+        "clave": "recomendaciones_tecnicas",
+        "titulo": "Recomendaciones técnicas",
+        "orden": 10,
+    },
+    {"clave": "conclusiones_tecnicas", "titulo": "Conclusiones técnicas", "orden": 11},
+    {
+        "clave": "conclusiones_periciales",
+        "titulo": "Conclusiones periciales",
+        "orden": 12,
+    },
+    {
+        "clave": "anexo_e_partida_4",
+        "titulo": "ANEXO E. Análisis de ejecución de la partida nº 4",
+        "orden": 13,
+    },
+    {
+        "clave": "anexo_f_mediciones",
+        "titulo": "ANEXO F. Justificación de mediciones",
+        "orden": 14,
+    },
+]
+
+INFORME_V2_CAPITULOS_POR_CLAVE = {
+    capitulo["clave"]: capitulo for capitulo in INFORME_V2_CAPITULOS
+}
+
+
+INFORME_V2_CLAVES_FUERA_CUERPO_PDF = {
+    "conclusiones_tecnicas",
+    "conclusiones_periciales",
+    "anexo_e_partida_4",
+    "anexo_f_mediciones",
+}
+
+
+TIPOS_DOCUMENTALES_ANEXO_A = (
+    "Presupuesto",
+    "Factura",
+    "Informe técnico",
+    "Certificado",
+    "Correo electrónico",
+    "Documento registral/catastral",
+    "Fotografía histórica",
+    "Otro",
+)
+
+
+def contenido_base_anexo_e_partida_4_v2() -> str:
+    return (
+        "E.1 Objeto\n\n"
+        "El presente anexo tiene por objeto analizar la ejecución material de la partida nº 4 incluida en el presupuesto de reparación de cubierta aportado para su estudio, verificando su adecuación técnica respecto a los trabajos realmente observados durante la inspección.\n\n"
+        "E.2 Documentación analizada\n\n"
+        "Para la elaboración del presente análisis se ha tenido en consideración la documentación aportada por la propiedad, el presupuesto de reparación de cubierta, el reportaje fotográfico disponible y la inspección visual realizada durante la visita técnica.\n\n"
+        "E.3 Descripción de la partida analizada\n\n"
+        "[Completar descripción de la partida nº 4 según presupuesto aportado.]\n\n"
+        "E.4 Comprobaciones realizadas\n\n"
+        "[Completar comprobaciones efectuadas durante la inspección.]\n\n"
+        "E.5 Valoración técnica\n\n"
+        "[Completar valoración sobre ejecución correcta, parcial, insuficiente o no verificable.]\n\n"
+        "E.6 Conclusión\n\n"
+        "[Completar conclusión técnica sobre la partida analizada.]"
+    )
+
+
+def contenido_base_anexo_f_mediciones_v2() -> str:
+    return (
+        "F.1 Criterios de medición\n\n"
+        "Las mediciones empleadas en la valoración económica se han obtenido a partir de la inspección realizada, de las superficies afectadas observadas durante la visita y de las comprobaciones efectuadas mediante reportaje fotográfico y documentación disponible.\n\n"
+        "F.2 Desarrollo de mediciones\n\n"
+        "[Completar desglose de mediciones por estancia, zona o actuación.]\n\n"
+        "F.3 Observaciones\n\n"
+        "[Completar observaciones sobre estimaciones, limitaciones, mediciones indirectas o zonas no accesibles.]"
+    )
+
+
+def normalizar_busqueda_pericial(texto: str) -> str:
+    texto = limpiar_texto(texto).lower()
+    texto = unicodedata.normalize("NFKD", texto)
+    return "".join(c for c in texto if not unicodedata.combining(c))
+
+
+def dividir_fragmentos_periciales(texto: str) -> list[str]:
+    texto = limpiar_texto(texto)
+    if not texto:
+        return []
+    partes = re.split(r"[\n\r]+|(?<=[.!?])\s+", texto)
+    return [limpiar_texto(parte) for parte in partes if limpiar_texto(parte)]
+
+
+def extraer_candidatos_periciales(
+    fuentes: list[dict],
+    keywords: tuple[str, ...],
+    limite: int = 12,
+) -> list[dict]:
+    candidatos = []
+    vistos = set()
+    keywords_norm = [normalizar_busqueda_pericial(item) for item in keywords]
+    for fuente in fuentes:
+        origen = limpiar_texto(fuente.get("origen"))
+        texto = limpiar_texto(fuente.get("texto"))
+        for fragmento in dividir_fragmentos_periciales(texto):
+            fragmento_norm = normalizar_busqueda_pericial(fragmento)
+            if not any(keyword in fragmento_norm for keyword in keywords_norm):
+                continue
+            clave = fragmento_norm[:220]
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            candidatos.append(
+                {
+                    "origen": origen or "Texto técnico",
+                    "texto": fragmento,
+                }
+            )
+            if len(candidatos) >= limite:
+                return candidatos
+    return candidatos
+
+
+def estado_capitulo_pericial(completo: bool, parcial: bool = False) -> str:
+    if completo:
+        return "completo"
+    if parcial:
+        return "parcial"
+    return "pendiente"
+
+
+def generar_borrador_informe_v2(
+    expediente: dict,
+    visitas: list[dict],
+    inventario: list[dict],
+    metricas: dict,
+    actuaciones: dict,
+    limitaciones_candidatas: list[dict],
+    recomendaciones_candidatas: list[dict],
+) -> list[dict]:
+    numero = limpiar_texto(expediente.get("numero_expediente")) or "sin numero"
+    descripcion = limpiar_texto(expediente.get("descripcion_dano"))
+    causa = limpiar_texto(expediente.get("causa_probable"))
+    pruebas = limpiar_texto(expediente.get("pruebas_indicios"))
+    evolucion = limpiar_texto(expediente.get("evolucion_preexistencia"))
+    propuesta = limpiar_texto(expediente.get("propuesta_reparacion"))
+    urgencia = limpiar_texto(expediente.get("urgencia_gravedad"))
+    total_patologias = (
+        metricas.get("patologias_interiores", 0)
+        + metricas.get("patologias_exteriores", 0)
+    )
+    pem_total = formatear_numero_es(metricas.get("pem_total"), 2)
+    roles_causa = [
+        item
+        for item in inventario
+        if "causa" in normalizar_busqueda_pericial(item.get("rol_patologia_observado"))
+    ]
+    roles_efecto = [
+        item
+        for item in inventario
+        if "efecto" in normalizar_busqueda_pericial(item.get("rol_patologia_observado"))
+    ]
+    tecnicos = sorted(
+        {
+            limpiar_texto(visita.get("tecnico"))
+            for visita in visitas
+            if limpiar_texto(visita.get("tecnico"))
+        }
+    )
+    climas = [
+        limpiar_texto(visita.get("climatologia"))
+        for visita in visitas
+        if limpiar_texto(visita.get("climatologia"))
+    ]
+
+    resumen_parrafos = [
+        (
+            f"El expediente {numero} documenta {descripcion}."
+            if descripcion
+            else f"El expediente {numero} no tiene todavia una descripcion de danos formal."
+        ),
+        (
+            f"La causa probable consignada es: {causa}."
+            if causa
+            else "No consta causa probable informada en los datos existentes."
+        ),
+        (
+            f"El alcance registrado incluye {total_patologias} patologias y "
+            f"{metricas.get('fotografias', 0)} fotografias. "
+            f"La valoracion economica disponible asciende a {pem_total} EUR de PEM."
+        ),
+    ]
+
+    metodologia_parrafos = [
+        (
+            f"Constan {len(visitas)} visita(s) asociadas al expediente"
+            + (f", realizadas por {', '.join(tecnicos)}." if tecnicos else ".")
+            if visitas
+            else "No constan visitas registradas para construir la metodologia."
+        ),
+        (
+            "La climatologia disponible indica: " + " / ".join(climas) + "."
+            if climas
+            else "No consta resumen climatologico asociado a las visitas."
+        ),
+        (
+            f"El soporte grafico disponible incluye {metricas.get('fotografias', 0)} "
+            "fotografias vinculadas a visita, estancias o patologias."
+        ),
+    ]
+
+    if limitaciones_candidatas:
+        limitaciones_parrafos = [
+            "Como limitaciones tecnicas candidatas se identifican: "
+            + "; ".join(
+                f"{item['origen']}: {item['texto']}"
+                for item in limitaciones_candidatas[:5]
+            )
+            + "."
+        ]
+    else:
+        limitaciones_parrafos = [
+            "No se han detectado limitaciones candidatas con los datos actuales; "
+            "este capitulo requiere revision expresa del tecnico."
+        ]
+
+    analisis_parrafos = [
+        (
+            f"El analisis causal parte de la causa probable registrada: {causa}."
+            if causa
+            else "No consta causa probable suficiente para redactar el analisis causal."
+        ),
+        (
+            f"Los indicios recogidos son: {pruebas}."
+            if pruebas
+            else "No constan pruebas o indicios formalizados en el expediente."
+        ),
+        (
+            f"Se han identificado {len(roles_causa)} patologia(s) con rol causa y "
+            f"{len(roles_efecto)} con rol efecto."
+            if roles_causa or roles_efecto
+            else "No hay roles causa/efecto suficientes en las patologias; la relacion causal debe revisarse manualmente."
+        ),
+    ]
+
+    recomendaciones_fuente = []
+    for etiqueta, texto in [
+        ("Urgencia / gravedad", urgencia),
+        ("Evolucion / preexistencia", evolucion),
+        ("Propuesta de reparacion", propuesta),
+    ]:
+        if texto:
+            recomendaciones_fuente.append(f"{etiqueta}: {texto}")
+    recomendaciones_fuente.extend(
+        f"{item['origen']}: {item['texto']}"
+        for item in recomendaciones_candidatas[:5]
+    )
+    recomendaciones_parrafos = [
+        (
+            "Las recomendaciones candidatas derivadas de los datos actuales son: "
+            + "; ".join(recomendaciones_fuente)
+            + "."
+        )
+        if recomendaciones_fuente
+        else "No se han detectado recomendaciones tecnicas candidatas; este capitulo requiere redaccion tecnica."
+    ]
+
+    return [
+        {
+            "titulo": "Resumen ejecutivo",
+            "parrafos": resumen_parrafos,
+            "fuentes": [
+                "descripcion_dano",
+                "causa_probable",
+                "patologias",
+                "fotografias",
+                "actuaciones_reparacion",
+            ],
+        },
+        {
+            "titulo": "Metodologia",
+            "parrafos": metodologia_parrafos,
+            "fuentes": ["visitas", "climatologia_visitas", "fotografias"],
+        },
+        {
+            "titulo": "Limitaciones",
+            "parrafos": limitaciones_parrafos,
+            "fuentes": ["limitaciones candidatas derivadas"],
+        },
+        {
+            "titulo": "Analisis causal",
+            "parrafos": analisis_parrafos,
+            "fuentes": [
+                "causa_probable",
+                "pruebas_indicios",
+                "roles causa/efecto",
+            ],
+        },
+        {
+            "titulo": "Recomendaciones",
+            "parrafos": recomendaciones_parrafos,
+            "fuentes": [
+                "urgencia_gravedad",
+                "evolucion_preexistencia",
+                "propuesta_reparacion",
+                "recomendaciones candidatas derivadas",
+            ],
+        },
+    ]
+
+
+def unir_parrafos_borrador(bloque: dict | None) -> str:
+    if not bloque:
+        return ""
+    return "\n\n".join(limpiar_texto(parrafo) for parrafo in bloque.get("parrafos", []) if limpiar_texto(parrafo))
+
+
+def generar_contenido_inicial_editor_v2(workbench: dict) -> dict[str, str]:
+    expediente = workbench["expediente"]
+    metricas = workbench["metricas"]
+    borradores = {
+        bloque["titulo"]: bloque
+        for bloque in workbench.get("borrador_informe", [])
+    }
+    inventario = workbench.get("inventario", [])
+    actuaciones = workbench.get("actuaciones", {})
+
+    lineas_inventario = []
+    for item in inventario:
+        zona = limpiar_texto(item.get("zona")) or "Zona sin identificar"
+        patologia = limpiar_texto(item.get("patologia")) or "Patología sin identificar"
+        elemento = limpiar_texto(item.get("elemento")) or "Elemento sin identificar"
+        rol = limpiar_texto(item.get("rol_patologia_observado")) or "rol pendiente"
+        fotos = item.get("fotos") or 0
+        lineas_inventario.append(
+            f"- {zona}: {patologia} en {elemento} ({rol}, {fotos} foto(s))."
+        )
+
+    lineas_actuaciones = []
+    for actuacion in actuaciones.get("actuaciones", []):
+        lineas_actuaciones.append(
+            f"- {actuacion.get('titulo')}: {formatear_numero_es(actuacion.get('subtotal'), 2)} EUR."
+        )
+        for partida in actuacion.get("partidas", []):
+            lineas_actuaciones.append(
+                "  - "
+                f"{partida.get('descripcion_snapshot') or partida.get('concepto_resumen')}: "
+                f"{formatear_numero_es(partida.get('cantidad'), 4)} "
+                f"{partida.get('unidad_snapshot') or ''} x "
+                f"{formatear_numero_es(partida.get('precio_unitario_snapshot'), 2)} EUR = "
+                f"{formatear_numero_es(partida.get('importe'), 2)} EUR."
+            )
+
+    objeto = limpiar_texto(expediente.get("objeto_pericia"))
+    antecedentes = objeto or (
+        "El presente informe tiene por objeto analizar los daños descritos en el expediente "
+        f"{limpiar_texto(expediente.get('numero_expediente'))}, valorar su alcance técnico "
+        "y ordenar la información disponible para su revisión pericial."
+    )
+    propuesta = limpiar_texto(expediente.get("propuesta_reparacion"))
+    causa = limpiar_texto(expediente.get("causa_probable"))
+    pruebas = limpiar_texto(expediente.get("pruebas_indicios"))
+
+    return {
+        "resumen_ejecutivo": unir_parrafos_borrador(borradores.get("Resumen ejecutivo")),
+        "antecedentes_objeto": antecedentes,
+        "metodologia": unir_parrafos_borrador(borradores.get("Metodologia")),
+        "limitaciones": unir_parrafos_borrador(borradores.get("Limitaciones")),
+        "analisis_causal": unir_parrafos_borrador(borradores.get("Analisis causal")),
+        "inventario_resumido_danos": "\n".join(lineas_inventario)
+        or "No hay inventario resumido de daños disponible.",
+        "actuaciones_verificadas": "\n".join(lineas_actuaciones)
+        or "No constan actuaciones verificadas en los datos existentes.",
+        "propuesta_reparacion": propuesta or "No consta propuesta de reparación formal.",
+        "valoracion_economica": (
+            f"La valoración económica disponible asciende a "
+            f"{formatear_numero_es(metricas.get('pem_total'), 2)} EUR de PEM."
+        ),
+        "recomendaciones_tecnicas": unir_parrafos_borrador(
+            borradores.get("Recomendaciones")
+        ),
+        "conclusiones_tecnicas": (
+            f"De los datos actuales se desprende como causa probable: {causa}."
+            if causa
+            else "Conclusiones técnicas pendientes de redacción."
+        ),
+        "conclusiones_periciales": (
+            f"Los indicios disponibles ({pruebas}) deberán integrarse en una conclusión pericial final defendible."
+            if pruebas
+            else "Conclusiones periciales pendientes de redacción."
+        ),
+        "anexo_e_partida_4": contenido_base_anexo_e_partida_4_v2(),
+        "anexo_f_mediciones": contenido_base_anexo_f_mediciones_v2(),
+    }
+
+
+def obtener_capitulos_guardados_informe_v2(cur, expediente_id: int) -> dict[str, dict]:
+    filas = cur.execute(
+        """
+        SELECT *
+        FROM informe_v2_capitulos
+        WHERE expediente_id = ?
+        ORDER BY orden ASC, id ASC
+        """,
+        (expediente_id,),
+    ).fetchall()
+    return {fila["clave"]: dict(fila) for fila in filas}
+
+
+def obtener_versiones_informe_v2(cur, expediente_id: int) -> dict[str, list[dict]]:
+    filas = cur.execute(
+        """
+        SELECT *
+        FROM informe_v2_capitulo_versiones
+        WHERE expediente_id = ?
+        ORDER BY clave ASC, created_at DESC, id DESC
+        """,
+        (expediente_id,),
+    ).fetchall()
+    versiones: dict[str, list[dict]] = {}
+    for fila in filas:
+        version = dict(fila)
+        versiones.setdefault(version["clave"], []).append(version)
+    return versiones
+
+
+def build_informe_v2_contexto(cur, expediente, workbench: dict | None = None) -> dict:
+    expediente_id = expediente["id"]
+    expediente_dict = dict(expediente)
+    workbench = workbench or preparar_pericial_workbench(cur, expediente)
+    estructura = cargar_estructura_multiunidad(cur, expediente_id)
+    resumen_registro = preparar_resumen_registro_expediente(cur, expediente_id)
+    visitas = workbench.get("visitas", [])
+    visita_ids = [visita["id"] for visita in visitas]
+
+    patologias_por_estancia: dict[int, list[dict]] = {}
+    patologias_exteriores = []
+
+    if visita_ids:
+        placeholders = ",".join("?" for _ in visita_ids)
+        patologias_rows = cur.execute(
+            f"""
+            SELECT rp.*,
+                   e.nombre AS estancia_nombre,
+                   e.planta AS estancia_planta,
+                   u.identificador AS unidad_identificador,
+                   n.nombre_nivel AS nivel_nombre
+            FROM registros_patologias rp
+            JOIN estancias e ON e.id = rp.estancia_id
+            LEFT JOIN unidades_expediente u ON u.id = e.unidad_id
+            LEFT JOIN niveles_edificio n ON n.id = u.nivel_id
+            WHERE rp.visita_id IN ({placeholders})
+            ORDER BY e.nombre COLLATE NOCASE, rp.id ASC
+            """,
+            tuple(visita_ids),
+        ).fetchall()
+        for row in patologias_rows:
+            patologia = enriquecer_registro_con_fotos(
+                cur,
+                row,
+                "registro_patologia_fotos",
+                "registro_id",
+                "foto",
+            )
+            patologias_por_estancia.setdefault(patologia["estancia_id"], []).append(
+                patologia
+            )
+
+        patologias_exteriores_rows = cur.execute(
+            f"""
+            SELECT rpe.*,
+                   v.fecha AS visita_fecha,
+                   u.identificador AS unidad_identificador,
+                   n.nombre_nivel AS nivel_nombre
+            FROM registros_patologias_exteriores rpe
+            JOIN visitas v ON v.id = rpe.visita_id
+            LEFT JOIN unidades_expediente u ON u.id = v.unidad_id
+            LEFT JOIN niveles_edificio n ON n.id = v.nivel_id
+            WHERE rpe.visita_id IN ({placeholders})
+            ORDER BY COALESCE(rpe.zona_exterior, '') COLLATE NOCASE, rpe.id ASC
+            """,
+            tuple(visita_ids),
+        ).fetchall()
+        for row in patologias_exteriores_rows:
+            patologias_exteriores.append(
+                enriquecer_registro_con_fotos(
+                    cur,
+                    row,
+                    "registro_patologia_exterior_fotos",
+                    "registro_id",
+                    "foto",
+                )
+            )
+
+    for grupo in resumen_registro.get("grupos_unidades", []):
+        for unidad in grupo.get("unidades", []):
+            for estancia in unidad.get("estancias", []):
+                fotos_estancia = obtener_fotos_relacionadas(
+                    cur,
+                    "estancia_fotos",
+                    "estancia_id",
+                    estancia["id"],
+                )
+                for foto in fotos_estancia:
+                    foto["url"] = f"/uploads/{foto['archivo']}"
+                estancia["fotos"] = fotos_estancia
+                estancia["patologias"] = patologias_por_estancia.get(estancia["id"], [])
+                estancia["datos_tecnicos"] = [
+                    {"label": "Tipo", "valor": limpiar_texto(estancia.get("tipo_estancia"))},
+                    {"label": "Planta", "valor": limpiar_texto(estancia.get("planta"))},
+                    {
+                        "label": "Ventilación",
+                        "valor": limpiar_texto(estancia.get("ventilacion")),
+                    },
+                    {
+                        "label": "Pavimento",
+                        "valor": limpiar_texto(estancia.get("acabado_pavimento")),
+                    },
+                    {
+                        "label": "Paramento",
+                        "valor": limpiar_texto(estancia.get("acabado_paramento")),
+                    },
+                    {
+                        "label": "Techo",
+                        "valor": limpiar_texto(estancia.get("acabado_techo")),
+                    },
+                ]
+
+    observaciones = []
+    for etiqueta, valor in [
+        ("Descripción del daño", expediente_dict.get("descripcion_dano")),
+        ("Causa probable", expediente_dict.get("causa_probable")),
+        ("Pruebas e indicios", expediente_dict.get("pruebas_indicios")),
+        ("Limitaciones", expediente_dict.get("alcance_limitaciones")),
+        ("Propuesta de reparación", expediente_dict.get("propuesta_reparacion")),
+    ]:
+        texto = limpiar_texto(valor)
+        if texto:
+            observaciones.append({"origen": etiqueta, "texto": texto})
+    for visita in visitas:
+        texto = limpiar_texto(visita.get("observaciones_visita"))
+        if texto:
+            observaciones.append(
+                {
+                    "origen": f"Visita {visita.get('fecha') or visita.get('id')}",
+                    "texto": texto,
+                }
+            )
+
+    return {
+        "expediente": {
+            "numero_expediente": limpiar_texto(expediente_dict.get("numero_expediente")),
+            "cliente": limpiar_texto(expediente_dict.get("cliente")),
+            "direccion": limpiar_texto(expediente_dict.get("direccion")),
+            "ciudad": limpiar_texto(expediente_dict.get("ciudad")),
+            "provincia": limpiar_texto(expediente_dict.get("provincia")),
+            "tipo_inmueble": limpiar_texto(expediente_dict.get("tipo_inmueble")),
+        },
+        "visitas": visitas,
+        "niveles": estructura["niveles"],
+        "unidades": estructura["unidades"],
+        "grupos_unidades": resumen_registro.get("grupos_unidades", []),
+        "patologias_exteriores": patologias_exteriores,
+        "fotos_exteriores": resumen_registro.get("visita_fotos_exteriores", []),
+        "observaciones": observaciones,
+        "actuaciones": workbench.get("actuaciones", {}),
+    }
+
+
+def preparar_editor_informe_v2(cur, expediente) -> dict:
+    workbench = preparar_pericial_workbench(cur, expediente)
+    contexto_editor = build_informe_v2_contexto(cur, expediente, workbench)
+    iniciales = generar_contenido_inicial_editor_v2(workbench)
+    guardados = obtener_capitulos_guardados_informe_v2(cur, expediente["id"])
+    versiones = obtener_versiones_informe_v2(cur, expediente["id"])
+    capitulos = []
+
+    for definicion in INFORME_V2_CAPITULOS:
+        clave = definicion["clave"]
+        guardado = guardados.get(clave)
+        if guardado:
+            contenido = limpiar_texto(guardado.get("contenido"))
+            editado_manual = bool(guardado.get("editado_manual"))
+            generado_desde = limpiar_texto(guardado.get("generado_desde"))
+            updated_at = limpiar_texto(guardado.get("updated_at"))
+        else:
+            contenido = limpiar_texto(iniciales.get(clave))
+            editado_manual = False
+            generado_desde = "pericial-wb-2"
+            updated_at = ""
+
+        estado = "vacío"
+        if contenido and editado_manual:
+            estado = "editado"
+        elif contenido:
+            estado = "generado"
+
+        capitulos.append(
+            {
+                **definicion,
+                "contenido": contenido,
+                "generado_desde": generado_desde,
+                "editado_manual": editado_manual,
+                "updated_at": updated_at,
+                "estado": estado,
+                "guardado": bool(guardado),
+                "versiones": versiones.get(clave, []),
+            }
+        )
+
+    return {
+        **workbench,
+        "contexto_editor": contexto_editor,
+        "capitulos": capitulos,
+        "capitulos_guardados": len(guardados),
+    }
+
+
+def guardar_capitulos_informe_v2(cur, expediente_id: int, form_data):
+    for definicion in INFORME_V2_CAPITULOS:
+        clave = definicion["clave"]
+        contenido = limpiar_texto(form_data.get(f"contenido_{clave}"))
+        guardar_capitulo_informe_v2(
+            cur,
+            expediente_id,
+            clave,
+            contenido,
+            origen_version="manual",
+        )
+
+
+def detectar_conflictos_guardado_manual_informe_v2(
+    cur,
+    expediente_id: int,
+    form_data,
+) -> list[str]:
+    guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
+    conflictos = []
+    for definicion in INFORME_V2_CAPITULOS:
+        clave = definicion["clave"]
+        guardado = guardados.get(clave)
+        if not guardado:
+            continue
+        updated_at_actual = limpiar_texto(guardado.get("updated_at"))
+        updated_at_cargado = limpiar_texto(form_data.get(f"updated_at_{clave}"))
+        if updated_at_actual and updated_at_actual != updated_at_cargado:
+            conflictos.append(definicion["titulo"])
+    return conflictos
+
+
+def guardar_capitulo_informe_v2(
+    cur,
+    expediente_id: int,
+    clave: str,
+    contenido: str,
+    origen_version: str = "manual",
+):
+    definicion = INFORME_V2_CAPITULOS_POR_CLAVE.get(limpiar_texto(clave))
+    if not definicion:
+        raise ValueError("Campo no permitido para informe V2.")
+    contenido_limpio = limpiar_texto(contenido)
+    fila_actual = cur.execute(
+        """
+        SELECT contenido, updated_at
+        FROM informe_v2_capitulos
+        WHERE expediente_id = ? AND clave = ?
+        """,
+        (expediente_id, definicion["clave"]),
+    ).fetchone()
+    if fila_actual and limpiar_texto(fila_actual["contenido"]) != contenido_limpio:
+        crear_snapshot_capitulo_informe_v2(
+            cur,
+            expediente_id,
+            definicion["clave"],
+            limpiar_texto(fila_actual["contenido"]),
+            limpiar_texto(fila_actual["updated_at"]),
+            origen_version,
+        )
+    cur.execute(
+        """
+        INSERT INTO informe_v2_capitulos (
+            expediente_id, clave, titulo, orden, contenido,
+            generado_desde, editado_manual, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(expediente_id, clave) DO UPDATE SET
+            titulo = excluded.titulo,
+            orden = excluded.orden,
+            contenido = excluded.contenido,
+            generado_desde = COALESCE(informe_v2_capitulos.generado_desde, excluded.generado_desde),
+            editado_manual = 1,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            expediente_id,
+            definicion["clave"],
+            definicion["titulo"],
+            definicion["orden"],
+            contenido_limpio,
+            "pericial-wb-2",
+        ),
+    )
+
+
+def crear_snapshot_capitulo_informe_v2(
+    cur,
+    expediente_id: int,
+    clave: str,
+    contenido: str,
+    updated_at_original: str,
+    origen: str,
+):
+    cur.execute(
+        """
+        INSERT INTO informe_v2_capitulo_versiones (
+            expediente_id, clave, contenido, updated_at_original, origen
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            expediente_id,
+            clave,
+            contenido,
+            limpiar_texto(updated_at_original),
+            limpiar_texto(origen) or "manual",
+        ),
+    )
+    cur.execute(
+        """
+        DELETE FROM informe_v2_capitulo_versiones
+        WHERE expediente_id = ?
+          AND clave = ?
+          AND id IN (
+              SELECT id
+              FROM informe_v2_capitulo_versiones
+              WHERE expediente_id = ? AND clave = ?
+              ORDER BY created_at DESC, id DESC
+              LIMIT -1 OFFSET 50
+          )
+        """,
+        (expediente_id, clave, expediente_id, clave),
+    )
+
+
+def limpiar_contenido_pdf_v2(contenido: str) -> str:
+    texto = limpiar_texto(contenido)
+    if not texto:
+        return ""
+
+    patrones_internos = [
+        r"\btexto generado autom[aá]ticamente\b",
+        r"\brequiere revisi[oó]n t[eé]cnica\b",
+        r"\bcontenido guardado\b",
+        r"\b[uú]ltima actualizaci[oó]n\b",
+        r"\bdiagn[oó]stico\b",
+        r"\bpendiente de revisi[oó]n\b",
+    ]
+    for patron in patrones_internos:
+        texto = re.sub(patron, "", texto, flags=re.IGNORECASE)
+
+    texto = re.sub(
+        r"-\s*([^:\n]+):\s*([^(.\n]+?)\s+en\s+([^(.\n]+?)\s*\((?:rol pendiente|[^,)]*),\s*(\d+)\s*foto\(s\)\)\.",
+        lambda match: (
+            f"{match.group(1).strip()}:\n"
+            f"Se observan {match.group(2).strip().lower()} en "
+            f"{match.group(3).strip().lower()}, documentados mediante reportaje fotográfico."
+        ),
+        texto,
+        flags=re.IGNORECASE,
+    )
+    texto = re.sub(r"\s*\(rol pendiente(?:,\s*\d+\s*foto\(s\))?\)", "", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"\s*\(\d+\s*foto\(s\)\)", "", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"[ \t]{2,}", " ", texto)
+    texto = re.sub(r"\n{3,}", "\n\n", texto)
+    return texto.strip(" \n\t·-")
+
+
+def imagen_url_pdf_v2(nombre_archivo: str | None, base_url: str = "") -> str:
+    nombre = limpiar_texto(nombre_archivo)
+    if not nombre:
+        return ""
+    prefijo = base_url.rstrip("/")
+    return f"{prefijo}/uploads/{nombre}" if prefijo else f"/uploads/{nombre}"
+
+
+def valor_campo_informe_v2(campos: list[dict], etiqueta: str) -> str:
+    for campo in campos or []:
+        if limpiar_texto(campo.get("label")).lower() == etiqueta.lower():
+            valor = limpiar_texto(campo.get("value"))
+            return "" if valor == "-" else valor
+    return ""
+
+
+ANEXO_B_MAX_FOTOS_POR_GRUPO = 6
+
+
+ANEXO_B_CATEGORIAS = [
+    {
+        "codigo": "B.1",
+        "clave": "filtraciones_humedades",
+        "titulo": "FILTRACIONES Y HUMEDADES",
+        "intro": (
+            "Las siguientes imágenes muestran evidencias compatibles con entrada "
+            "de agua, humedades y afecciones derivadas."
+        ),
+        "keywords": (
+            "filtracion",
+            "infiltracion",
+            "humedad",
+            "humedades",
+            "entrada de agua",
+            "agua",
+            "cubierta",
+            "eflorescencia",
+            "eflorescencias",
+            "salina",
+            "salinas",
+            "escorrentia",
+        ),
+    },
+    {
+        "codigo": "B.2",
+        "clave": "revestimientos_acabados",
+        "titulo": "DETERIORO DE REVESTIMIENTOS Y ACABADOS",
+        "intro": (
+            "Las siguientes imágenes muestran deterioros observados en "
+            "revestimientos y acabados interiores."
+        ),
+        "keywords": (
+            "deterioro",
+            "revestimiento",
+            "revestimientos",
+            "acabado",
+            "acabados",
+            "paramento",
+            "paramentos",
+            "techo",
+            "pavimento",
+            "pintura",
+            "yeso",
+            "desprendimiento",
+            "fisura",
+            "desconchado",
+        ),
+    },
+    {
+        "codigo": "B.3",
+        "clave": "mohos_colonizacion",
+        "titulo": "MOHOS Y COLONIZACIÓN BIOLÓGICA",
+        "intro": (
+            "Las siguientes imágenes muestran indicios de mohos, manchas "
+            "biológicas o colonización superficial asociada a humedad."
+        ),
+        "keywords": (
+            "moho",
+            "mohos",
+            "hongos",
+            "colonizacion",
+            "biologica",
+            "biológico",
+            "biologica",
+            "microorganismo",
+            "mancha negra",
+        ),
+    },
+    {
+        "codigo": "B.4",
+        "clave": "carpinterias_auxiliares",
+        "titulo": "DAÑOS EN CARPINTERÍAS Y ELEMENTOS AUXILIARES",
+        "intro": (
+            "Las siguientes imágenes documentan daños apreciables en "
+            "carpinterías, encuentros y elementos auxiliares."
+        ),
+        "keywords": (
+            "carpinteria",
+            "carpinterias",
+            "puerta",
+            "ventana",
+            "marco",
+            "premarco",
+            "rodapie",
+            "zócalo",
+            "zocalo",
+            "barandilla",
+            "elemento auxiliar",
+        ),
+    },
+    {
+        "codigo": "B.5",
+        "clave": "exteriores_fachada",
+        "titulo": "DAÑOS EXTERIORES Y FACHADA",
+        "intro": (
+            "Las siguientes imágenes recogen daños o indicios localizados en "
+            "zonas exteriores, fachada, cubierta o elementos de envolvente."
+        ),
+        "keywords": (
+            "exterior",
+            "fachada",
+            "cubierta",
+            "cornisa",
+            "revestimiento exterior",
+            "terraza",
+            "patio",
+            "medianera",
+            "envolvente",
+            "alero",
+            "peto",
+            "bajante",
+            "canalon",
+        ),
+    },
+    {
+        "codigo": "B.6",
+        "clave": "otras_evidencias",
+        "titulo": "OTRAS EVIDENCIAS FOTOGRÁFICAS",
+        "intro": (
+            "Las siguientes imágenes completan el reportaje fotográfico cuando "
+            "no existe información suficiente para clasificarlas en los grupos anteriores."
+        ),
+        "keywords": (),
+    },
+]
+
+
+def normalizar_texto_clasificacion_v2(*valores) -> str:
+    texto = " ".join(limpiar_texto(valor) for valor in valores if limpiar_texto(valor))
+    texto = unicodedata.normalize("NFKD", texto.lower())
+    return "".join(c for c in texto if not unicodedata.combining(c))
+
+
+def clasificar_foto_anexo_b_v2(foto: dict) -> str:
+    def categoria_por_texto(texto: str) -> str:
+        if not texto:
+            return ""
+        if any(palabra in texto for palabra in ("moho", "hongos", "colonizacion", "biologica")):
+            return "mohos_colonizacion"
+        if any(palabra in texto for palabra in ("carpinteria", "puerta", "ventana", "marco", "rodapie", "zocalo")):
+            return "carpinterias_auxiliares"
+        if (
+            any(palabra in texto for palabra in ("revestimiento", "acabado", "paramento", "techo", "pavimento"))
+            and any(palabra in texto for palabra in ("deterioro", "desprendimiento", "desconchado", "fisura"))
+        ):
+            return "revestimientos_acabados"
+        if any(palabra in texto for palabra in ("fachada", "cornisa", "exterior", "terraza", "medianera", "alero", "peto", "bajante", "canalon")):
+            return "exteriores_fachada"
+        if any(palabra in texto for palabra in ("filtracion", "infiltracion", "humedad", "humedades", "entrada de agua", "agua", "cubierta", "eflorescencia", "eflorescencias", "salina", "salinas", "escorrentia")):
+            return "filtraciones_humedades"
+        for categoria in ANEXO_B_CATEGORIAS:
+            if categoria["clave"] == "otras_evidencias":
+                continue
+            if any(normalizar_texto_clasificacion_v2(keyword) in texto for keyword in categoria["keywords"]):
+                return categoria["clave"]
+        return ""
+
+    fuentes_prioritarias = [
+        (foto.get("patologia"), foto.get("categoria_dano")),
+        (foto.get("elemento"),),
+        (foto.get("pie"), foto.get("estancia"), foto.get("observaciones")),
+    ]
+    for fuentes in fuentes_prioritarias:
+        texto = normalizar_texto_clasificacion_v2(*fuentes)
+        if not texto:
+            continue
+        clave = categoria_por_texto(texto)
+        if clave:
+            return clave
+    return "otras_evidencias"
+
+
+def construir_grupos_fotograficos_anexo_b_v2(
+    fotos: list[dict],
+    max_por_grupo: int = ANEXO_B_MAX_FOTOS_POR_GRUPO,
+) -> list[dict]:
+    prioridad_origen = {
+        "patologia": 0,
+        "patologia_exterior": 0,
+        "estancia": 1,
+        "visita": 2,
+    }
+    grupos_por_clave = {
+        categoria["clave"]: {
+            **categoria,
+            "fotos": [],
+            "total_clasificadas": 0,
+            "omitidas": 0,
+        }
+        for categoria in ANEXO_B_CATEGORIAS
+    }
+    for foto in fotos:
+        clave = clasificar_foto_anexo_b_v2(foto)
+        grupo = grupos_por_clave[clave]
+        grupo["total_clasificadas"] += 1
+        foto = {**foto, "grupo_clave": clave}
+        grupo["fotos"].append(foto)
+
+    for grupo in grupos_por_clave.values():
+        grupo["fotos"].sort(
+            key=lambda foto: (
+                prioridad_origen.get(limpiar_texto(foto.get("origen")), 3),
+                0 if limpiar_texto(foto.get("patologia")) else 1,
+                limpiar_texto(foto.get("estancia")).lower(),
+                limpiar_texto(foto.get("pie")).lower(),
+            )
+        )
+        total = len(grupo["fotos"])
+        grupo["fotos"] = grupo["fotos"][:max_por_grupo]
+        grupo["omitidas"] = max(0, total - len(grupo["fotos"]))
+
+    return [
+        grupo
+        for categoria in ANEXO_B_CATEGORIAS
+        for grupo in [grupos_por_clave[categoria["clave"]]]
+        if grupo["total_clasificadas"] or categoria["clave"] != "otras_evidencias"
+    ]
+
+
+def agregar_documento_anexo_v2(
+    documentos: list[dict],
+    vistos: set[tuple[str, str, str]],
+    nombre: str,
+    tipo: str = "",
+    fecha: str = "",
+    descripcion: str = "",
+) -> None:
+    nombre = limpiar_texto(nombre)
+    if not nombre:
+        return
+    item = {
+        "nombre": nombre,
+        "tipo": limpiar_texto(tipo),
+        "fecha": limpiar_texto(fecha),
+        "descripcion": limpiar_texto(descripcion),
+    }
+    clave = (item["nombre"].lower(), item["tipo"].lower(), item["descripcion"].lower())
+    if clave in vistos:
+        return
+    vistos.add(clave)
+    documentos.append(item)
+
+
+def obtener_documentos_aportados_expediente(cur, expediente_id: int) -> list[dict]:
+    filas = cur.execute(
+        """
+        SELECT *
+        FROM expediente_documentos
+        WHERE expediente_id = ?
+        ORDER BY orden ASC, id ASC
+        """,
+        (expediente_id,),
+    ).fetchall()
+    documentos = []
+    for fila in filas:
+        item = dict(fila)
+        item["fecha"] = limpiar_texto(item.get("created_at"))[:10]
+        documentos.append(item)
+    return documentos
+
+
+def siguiente_orden_documento_expediente(cur, expediente_id: int) -> int:
+    fila = cur.execute(
+        """
+        SELECT COALESCE(MAX(orden), 0) AS orden_max
+        FROM expediente_documentos
+        WHERE expediente_id = ?
+        """,
+        (expediente_id,),
+    ).fetchone()
+    return int(fila["orden_max"] or 0) + 10
+
+
+def get_owned_expediente_documento(cur, documento_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT ed.*, e.owner_user_id, e.id AS expediente_id
+        FROM expediente_documentos ed
+        JOIN expedientes e ON e.id = ed.expediente_id
+        WHERE ed.id = ? AND e.owner_user_id = ?
+        """,
+        (documento_id, user_id),
+    ).fetchone()
+
+
+def recopilar_documentacion_anexo_v2(
+    expediente: dict,
+    contexto_base: dict,
+    documentos_aportados: list[dict] | None = None,
+) -> list[dict]:
+    if documentos_aportados:
+        return [
+            {
+                "orden": documento.get("orden"),
+                "nombre": limpiar_texto(documento.get("nombre_visible")),
+                "tipo": limpiar_texto(documento.get("tipo_documento")),
+                "fecha": limpiar_texto(documento.get("fecha") or documento.get("created_at"))[:10],
+                "descripcion": limpiar_texto(documento.get("descripcion")),
+            }
+            for documento in documentos_aportados
+            if limpiar_texto(documento.get("nombre_visible"))
+        ]
+
+    documentos = []
+    vistos = set()
+    if limpiar_texto(expediente.get("imagen_catastro")):
+        agregar_documento_anexo_v2(
+            documentos,
+            vistos,
+            "Imagen catastral asociada al expediente",
+            "Imagen",
+            "",
+            expediente.get("imagen_catastro"),
+        )
+    if limpiar_texto(expediente.get("referencia_catastral")):
+        agregar_documento_anexo_v2(
+            documentos,
+            vistos,
+            "Referencia catastral consignada",
+            "Dato documental",
+            "",
+            expediente.get("referencia_catastral"),
+        )
+
+    anexo_economico = contexto_base.get("anexo_economico_reparacion") or {}
+    for fuente in anexo_economico.get("fuentes") or []:
+        nombre = limpiar_texto(fuente.get("nombre"))
+        origen = limpiar_texto(fuente.get("origen"))
+        version = limpiar_texto(fuente.get("version"))
+        agregar_documento_anexo_v2(
+            documentos,
+            vistos,
+            nombre,
+            origen or "Fuente económica",
+            "",
+            f"Versión: {version}" if version else "",
+        )
+    return documentos
+
+
+def agregar_foto_anexo_v2(
+    fotos: list[dict],
+    vistos: set[str],
+    figura: dict,
+    estancia: str = "",
+    pie: str = "",
+    patologia: str = "",
+    elemento: str = "",
+    categoria_dano: str = "",
+    observaciones: str = "",
+    origen: str = "",
+) -> None:
+    archivo = limpiar_texto(figura.get("archivo"))
+    url = limpiar_texto(figura.get("url"))
+    if not archivo or archivo in vistos:
+        return
+    vistos.add(archivo)
+    fotos.append(
+        {
+            "archivo": archivo,
+            "url": url,
+            "pie": limpiar_texto(pie) or limpiar_texto(figura.get("caption")),
+            "estancia": limpiar_texto(estancia) or "Sin estancia asociada",
+            "patologia": limpiar_texto(patologia),
+            "elemento": limpiar_texto(elemento),
+            "categoria_dano": limpiar_texto(categoria_dano),
+            "observaciones": limpiar_texto(observaciones),
+            "origen": limpiar_texto(origen),
+        }
+    )
+
+
+def recopilar_fotografias_anexo_v2(contexto_base: dict) -> list[dict]:
+    fotos = []
+    vistos = set()
+    for visita in contexto_base.get("visitas") or []:
+        for foto in visita.get("fotos_exteriores") or []:
+            agregar_foto_anexo_v2(
+                fotos,
+                vistos,
+                foto.get("figura") or {},
+                "Exterior",
+                foto.get("descripcion"),
+                elemento="Exterior",
+                origen="visita",
+            )
+    for estancia in contexto_base.get("estancias") or []:
+        nombre_estancia = limpiar_texto(estancia.get("nombre")) or "Estancia"
+        for figura in estancia.get("fotos") or []:
+            agregar_foto_anexo_v2(
+                fotos,
+                vistos,
+                figura,
+                nombre_estancia,
+                origen="estancia",
+            )
+        for patologia in estancia.get("patologias") or []:
+            elemento = valor_campo_informe_v2(patologia.get("campos"), "Elemento")
+            observaciones = valor_campo_informe_v2(patologia.get("campos"), "Observaciones")
+            for figura in patologia.get("fotos") or []:
+                agregar_foto_anexo_v2(
+                    fotos,
+                    vistos,
+                    figura,
+                    nombre_estancia,
+                    patologia=patologia.get("titulo"),
+                    elemento=elemento,
+                    observaciones=observaciones,
+                    origen="patologia",
+                )
+    for zona in contexto_base.get("patologias_exteriores") or []:
+        nombre_zona = limpiar_texto(zona.get("zona")) or "Exterior"
+        for patologia in zona.get("patologias") or []:
+            elemento = valor_campo_informe_v2(patologia.get("campos"), "Elemento exterior")
+            observaciones = valor_campo_informe_v2(patologia.get("campos"), "Observaciones")
+            for figura in patologia.get("fotos") or []:
+                agregar_foto_anexo_v2(
+                    fotos,
+                    vistos,
+                    figura,
+                    nombre_zona,
+                    patologia=patologia.get("titulo"),
+                    elemento=elemento,
+                    observaciones=observaciones,
+                    origen="patologia_exterior",
+                )
+    return fotos
+
+
+def recopilar_fichas_danos_anexo_v2(contexto_base: dict) -> list[dict]:
+    fichas = []
+    for estancia in contexto_base.get("estancias") or []:
+        danos = []
+        elementos = []
+        observaciones = []
+        fotos = []
+        vistos_fotos = set()
+        nombre_estancia = limpiar_texto(estancia.get("nombre")) or "Estancia sin identificar"
+
+        observacion_estancia = valor_campo_informe_v2(estancia.get("campos"), "Observaciones técnicas")
+        if observacion_estancia:
+            observaciones.append(observacion_estancia)
+        for figura in estancia.get("fotos") or []:
+            agregar_foto_anexo_v2(fotos, vistos_fotos, figura, nombre_estancia)
+
+        for patologia in estancia.get("patologias") or []:
+            titulo = limpiar_texto(patologia.get("titulo"))
+            if titulo and titulo not in danos:
+                danos.append(titulo)
+            elemento = valor_campo_informe_v2(patologia.get("campos"), "Elemento")
+            if elemento and elemento not in elementos:
+                elementos.append(elemento)
+            observacion = valor_campo_informe_v2(patologia.get("campos"), "Observaciones")
+            if observacion and observacion not in observaciones:
+                observaciones.append(observacion)
+            for figura in patologia.get("fotos") or []:
+                agregar_foto_anexo_v2(fotos, vistos_fotos, figura, nombre_estancia)
+
+        fichas.append(
+            {
+                "tipo": "estancia",
+                "nombre": nombre_estancia,
+                "nivel": limpiar_texto(estancia.get("nivel")),
+                "unidad": limpiar_texto(estancia.get("unidad")),
+                "danos": danos,
+                "elementos": elementos,
+                "fotos": fotos,
+                "observaciones": observaciones,
+            }
+        )
+
+    for zona in contexto_base.get("patologias_exteriores") or []:
+        danos = []
+        elementos = []
+        observaciones = []
+        fotos = []
+        vistos_fotos = set()
+        nombre_zona = limpiar_texto(zona.get("zona")) or "Zona exterior"
+        for patologia in zona.get("patologias") or []:
+            titulo = limpiar_texto(patologia.get("titulo"))
+            if titulo and titulo not in danos:
+                danos.append(titulo)
+            elemento = valor_campo_informe_v2(patologia.get("campos"), "Elemento exterior")
+            if elemento and elemento not in elementos:
+                elementos.append(elemento)
+            observacion = valor_campo_informe_v2(patologia.get("campos"), "Observaciones")
+            if observacion and observacion not in observaciones:
+                observaciones.append(observacion)
+            for figura in patologia.get("fotos") or []:
+                agregar_foto_anexo_v2(fotos, vistos_fotos, figura, nombre_zona)
+        fichas.append(
+            {
+                "tipo": "zona exterior",
+                "nombre": nombre_zona,
+                "nivel": "Exterior",
+                "unidad": "",
+                "danos": danos,
+                "elementos": elementos,
+                "fotos": fotos,
+                "observaciones": observaciones,
+            }
+        )
+    return fichas
+
+
+def preparar_anexos_pdf_informe_v2(
+    expediente: dict,
+    contexto_base: dict,
+    capitulo_anexo_e: dict | None = None,
+    capitulo_anexo_f: dict | None = None,
+    documentos_aportados: list[dict] | None = None,
+) -> dict:
+    anexo_economico = {**(contexto_base.get("anexo_economico_reparacion") or {})}
+    anexo_economico["total_pem_formateado"] = (
+        f"{formatear_numero_es(anexo_economico.get('total_pem'), 2)} €"
+    )
+    fotografias = recopilar_fotografias_anexo_v2(contexto_base)
+    return {
+        "documentacion": recopilar_documentacion_anexo_v2(
+            expediente,
+            contexto_base,
+            documentos_aportados,
+        ),
+        "fotografias": fotografias,
+        "fotografias_grupos": construir_grupos_fotograficos_anexo_b_v2(fotografias),
+        "fotografias_max_por_grupo": ANEXO_B_MAX_FOTOS_POR_GRUPO,
+        "fichas_danos": recopilar_fichas_danos_anexo_v2(contexto_base),
+        "valoracion": anexo_economico,
+        "analisis_partida_4": preparar_analisis_partida_4_anexo_v2(
+            anexo_economico,
+            capitulo_anexo_e,
+        ),
+        "justificacion_mediciones": preparar_justificacion_mediciones_anexo_v2(
+            capitulo_anexo_f
+        ),
+    }
+
+
+def preparar_justificacion_mediciones_anexo_v2(capitulo_anexo_f: dict | None = None) -> dict:
+    contenido = limpiar_texto((capitulo_anexo_f or {}).get("contenido_pdf"))
+    if not contenido:
+        contenido = contenido_base_anexo_f_mediciones_v2()
+    return {
+        "contenido_pdf": contenido,
+        "guardado": bool((capitulo_anexo_f or {}).get("guardado")),
+        "editado_manual": bool((capitulo_anexo_f or {}).get("editado_manual")),
+    }
+
+
+def preparar_analisis_partida_4_anexo_v2(
+    anexo_economico: dict,
+    capitulo_anexo_e: dict | None = None,
+) -> dict:
+    partidas = []
+    for actuacion in anexo_economico.get("actuaciones") or []:
+        for partida in actuacion.get("partidas") or []:
+            partidas.append(
+                {
+                    "actuacion": limpiar_texto(actuacion.get("titulo")),
+                    "codigo": limpiar_texto(partida.get("codigo") or partida.get("concepto_codigo")),
+                    "descripcion": limpiar_texto(
+                        partida.get("partida")
+                        or partida.get("descripcion_snapshot")
+                        or partida.get("concepto_resumen")
+                    ),
+                    "medicion": partida.get("cantidad"),
+                    "unidad": limpiar_texto(partida.get("unidad") or partida.get("unidad_snapshot")),
+                    "importe": partida.get("importe"),
+                }
+            )
+    partida_4 = partidas[3] if len(partidas) >= 4 else None
+    contenido = limpiar_texto((capitulo_anexo_e or {}).get("contenido_pdf"))
+    if not contenido:
+        contenido = contenido_base_anexo_e_partida_4_v2()
+    return {
+        "numero_partida": 4,
+        "partida": partida_4,
+        "total_partidas_estructuradas": len(partidas),
+        "contenido_pdf": contenido,
+        "guardado": bool((capitulo_anexo_e or {}).get("guardado")),
+        "editado_manual": bool((capitulo_anexo_e or {}).get("editado_manual")),
+    }
+
+
+def preparar_conclusiones_pdf_informe_v2(capitulos: list[dict]) -> dict:
+    conclusiones = []
+    for clave in ("conclusiones_tecnicas", "conclusiones_periciales"):
+        capitulo = next((item for item in capitulos if item["clave"] == clave), None)
+        if capitulo and capitulo["contenido_pdf"]:
+            conclusiones.append(
+                {
+                    "titulo": capitulo["titulo"],
+                    "contenido_pdf": capitulo["contenido_pdf"],
+                    "clave": clave,
+                }
+            )
+    return {
+        "numero": 13,
+        "titulo": "Conclusiones",
+        "bloques": conclusiones,
+    }
+
+
+def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dict:
+    expediente_dict = dict(expediente)
+    expediente_id = expediente_dict["id"]
+    guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
+    capitulos = []
+
+    for definicion in INFORME_V2_CAPITULOS:
+        guardado = guardados.get(definicion["clave"])
+        contenido = limpiar_texto(guardado.get("contenido")) if guardado else ""
+        capitulos.append(
+            {
+                **definicion,
+                "contenido": contenido,
+                "contenido_pdf": limpiar_contenido_pdf_v2(contenido),
+                "guardado": bool(guardado),
+                "editado_manual": bool(guardado.get("editado_manual")) if guardado else False,
+                "updated_at": limpiar_texto(guardado.get("updated_at")) if guardado else "",
+            }
+        )
+
+    capitulos_principales = [
+        capitulo
+        for capitulo in capitulos
+        if capitulo["clave"] not in INFORME_V2_CLAVES_FUERA_CUERPO_PDF
+    ]
+    for indice, capitulo in enumerate(capitulos_principales, start=3):
+        capitulo["numero_pdf"] = indice
+    conclusiones = preparar_conclusiones_pdf_informe_v2(capitulos)
+
+    ultima_visita = cur.execute(
+        """
+        SELECT fecha, tecnico
+        FROM visitas
+        WHERE expediente_id = ?
+        ORDER BY fecha DESC, id DESC
+        LIMIT 1
+        """,
+        (expediente_id,),
+    ).fetchone()
+    contexto_base = build_informe_context(
+        expediente_id,
+        base_url=base_url,
+        incluir_anexo_economico_reparacion=True,
+    )
+    capitulo_anexo_e = next(
+        (capitulo for capitulo in capitulos if capitulo["clave"] == "anexo_e_partida_4"),
+        None,
+    )
+    capitulo_anexo_f = next(
+        (capitulo for capitulo in capitulos if capitulo["clave"] == "anexo_f_mediciones"),
+        None,
+    )
+    documentos_aportados = obtener_documentos_aportados_expediente(cur, expediente_id)
+    anexos = preparar_anexos_pdf_informe_v2(
+        expediente_dict,
+        contexto_base,
+        capitulo_anexo_e,
+        capitulo_anexo_f,
+        documentos_aportados,
+    )
+    indice = [
+        {"numero": 1, "titulo": "Portada"},
+        {"numero": 2, "titulo": "Índice"},
+    ]
+    indice.extend(
+        {
+            "numero": capitulo["numero_pdf"],
+            "titulo": capitulo["titulo"],
+        }
+        for capitulo in capitulos_principales
+    )
+    indice.append({"numero": conclusiones["numero"], "titulo": "Conclusiones"})
+    indice.extend(
+        [
+            {"numero": "A", "titulo": "Documentación aportada"},
+            {"numero": "B", "titulo": "Reportaje fotográfico"},
+            {"numero": "C", "titulo": "Fichas de daños por estancia"},
+            {"numero": "D", "titulo": "Valoración económica detallada"},
+            {"numero": "E", "titulo": "Análisis de ejecución de la partida nº 4"},
+            {"numero": "F", "titulo": "Justificación de mediciones"},
+        ]
+    )
+
+    expediente_dict["tipo_trabajo_label"] = etiquetar_opcion(
+        expediente_dict.get("tipo_informe", ""), TIPO_INFORME_LABELS
+    )
+    return {
+        "expediente": expediente_dict,
+        "capitulos": capitulos_principales,
+        "capitulos_editor": capitulos,
+        "conclusiones": conclusiones,
+        "indice": indice,
+        "anexos": anexos,
+        "capitulos_guardados": len(guardados),
+        "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
+        "tecnico": limpiar_texto(ultima_visita["tecnico"]) if ultima_visita else "",
+        "fecha_visita": limpiar_texto(ultima_visita["fecha"]) if ultima_visita else "",
+    }
+
+
+def nombre_archivo_pdf_informe_v2(expediente) -> str:
+    numero = limpiar_nombre_archivo(expediente["numero_expediente"] or "expediente")
+    return f"Informe-V2-{numero}.pdf"
+
+
+def preparar_pericial_workbench(cur, expediente) -> dict:
+    expediente_id = expediente["id"]
+    expediente_dict = dict(expediente)
+    visitas = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT v.*, cv.resumen AS climatologia
+            FROM visitas v
+            LEFT JOIN climatologia_visitas cv ON cv.id = (
+                SELECT id
+                FROM climatologia_visitas
+                WHERE visita_id = v.id
+                ORDER BY id DESC
+                LIMIT 1
+            )
+            WHERE v.expediente_id = ?
+            ORDER BY v.fecha ASC, v.id ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+    ]
+    visita_ids = [visita["id"] for visita in visitas]
+
+    metricas = {
+        "visitas": len(visitas),
+        "estancias": 0,
+        "patologias_interiores": 0,
+        "patologias_exteriores": 0,
+        "fotografias": 0,
+        "actuaciones": 0,
+        "pem_total": 0.0,
+    }
+
+    if visita_ids:
+        placeholders = ",".join("?" for _ in visita_ids)
+        metricas["estancias"] = cur.execute(
+            f"SELECT COUNT(*) FROM estancias WHERE visita_id IN ({placeholders})",
+            tuple(visita_ids),
+        ).fetchone()[0]
+        metricas["patologias_interiores"] = cur.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM registros_patologias
+            WHERE visita_id IN ({placeholders})
+            """,
+            tuple(visita_ids),
+        ).fetchone()[0]
+        metricas["patologias_exteriores"] = cur.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM registros_patologias_exteriores
+            WHERE visita_id IN ({placeholders})
+            """,
+            tuple(visita_ids),
+        ).fetchone()[0]
+        fotos_visita = cur.execute(
+            f"SELECT COUNT(*) FROM visita_fotos WHERE visita_id IN ({placeholders})",
+            tuple(visita_ids),
+        ).fetchone()[0]
+        fotos_estancia = cur.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM estancia_fotos ef
+            JOIN estancias e ON e.id = ef.estancia_id
+            WHERE e.visita_id IN ({placeholders})
+            """,
+            tuple(visita_ids),
+        ).fetchone()[0]
+        fotos_patologia = cur.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM registro_patologia_fotos rpf
+            JOIN registros_patologias rp ON rp.id = rpf.registro_id
+            WHERE rp.visita_id IN ({placeholders})
+            """,
+            tuple(visita_ids),
+        ).fetchone()[0]
+        fotos_patologia_exterior = cur.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM registro_patologia_exterior_fotos rpf
+            JOIN registros_patologias_exteriores rp ON rp.id = rpf.registro_id
+            WHERE rp.visita_id IN ({placeholders})
+            """,
+            tuple(visita_ids),
+        ).fetchone()[0]
+        metricas["fotografias"] = (
+            fotos_visita + fotos_estancia + fotos_patologia + fotos_patologia_exterior
+        )
+
+    actuaciones = preparar_actuaciones_reparacion_expediente(cur, expediente_id)
+    metricas["actuaciones"] = len(actuaciones["actuaciones"])
+    metricas["pem_total"] = actuaciones["total_pem"]
+    documentos_aportados = obtener_documentos_aportados_expediente(cur, expediente_id)
+
+    inventario = []
+    if visita_ids:
+        placeholders = ",".join("?" for _ in visita_ids)
+        inventario.extend(
+            [
+                {
+                    **dict(row),
+                    "tipo": "interior",
+                    "zona": row["estancia_nombre"],
+                    "nivel_unidad": " · ".join(
+                        item
+                        for item in [
+                            limpiar_texto(row["nombre_nivel"]),
+                            limpiar_texto(row["identificador_unidad"]),
+                            limpiar_texto(row["planta"]),
+                        ]
+                        if item
+                    ),
+                    "edit_url": f"/editar-registro/{row['id']}",
+                }
+                for row in cur.execute(
+                    f"""
+                    SELECT
+                        rp.id,
+                        rp.elemento,
+                        rp.patologia,
+                        rp.localizacion_dano,
+                        rp.detalle_localizacion,
+                        rp.observaciones,
+                        rp.rol_patologia_observado,
+                        e.nombre AS estancia_nombre,
+                        e.planta,
+                        n.nombre_nivel,
+                        u.identificador AS identificador_unidad,
+                        (
+                            SELECT COUNT(*)
+                            FROM registro_patologia_fotos rpf
+                            WHERE rpf.registro_id = rp.id
+                        ) AS fotos
+                    FROM registros_patologias rp
+                    JOIN estancias e ON e.id = rp.estancia_id
+                    LEFT JOIN unidades_expediente u ON u.id = e.unidad_id
+                    LEFT JOIN niveles_edificio n ON n.id = u.nivel_id
+                    WHERE rp.visita_id IN ({placeholders})
+                    ORDER BY e.nombre COLLATE NOCASE, rp.id
+                    """,
+                    tuple(visita_ids),
+                ).fetchall()
+            ]
+        )
+        inventario.extend(
+            [
+                {
+                    **dict(row),
+                    "tipo": "exterior",
+                    "zona": row["zona_exterior"],
+                    "nivel_unidad": "Exterior",
+                    "elemento": row["elemento_exterior"],
+                    "localizacion_dano": row["localizacion_dano_exterior"],
+                    "detalle_localizacion": "",
+                    "rol_patologia_observado": "",
+                    "edit_url": f"/editar-registro-exterior/{row['id']}",
+                }
+                for row in cur.execute(
+                    f"""
+                    SELECT
+                        rpe.id,
+                        rpe.zona_exterior,
+                        rpe.elemento_exterior,
+                        rpe.localizacion_dano_exterior,
+                        rpe.patologia,
+                        rpe.observaciones,
+                        (
+                            SELECT COUNT(*)
+                            FROM registro_patologia_exterior_fotos rpf
+                            WHERE rpf.registro_id = rpe.id
+                        ) AS fotos
+                    FROM registros_patologias_exteriores rpe
+                    WHERE rpe.visita_id IN ({placeholders})
+                    ORDER BY rpe.zona_exterior COLLATE NOCASE, rpe.id
+                    """,
+                    tuple(visita_ids),
+                ).fetchall()
+            ]
+        )
+
+    fuentes_texto = [
+        {"origen": "Descripción del daño", "texto": expediente_dict.get("descripcion_dano")},
+        {"origen": "Causa probable", "texto": expediente_dict.get("causa_probable")},
+        {"origen": "Pruebas e indicios", "texto": expediente_dict.get("pruebas_indicios")},
+        {
+            "origen": "Evolución / preexistencia",
+            "texto": expediente_dict.get("evolucion_preexistencia"),
+        },
+        {
+            "origen": "Propuesta de reparación",
+            "texto": expediente_dict.get("propuesta_reparacion"),
+        },
+        {"origen": "Urgencia / gravedad", "texto": expediente_dict.get("urgencia_gravedad")},
+    ]
+    for visita in visitas:
+        fuentes_texto.append(
+            {
+                "origen": f"Visita {visita.get('fecha') or visita.get('id')}",
+                "texto": visita.get("observaciones_visita"),
+            }
+        )
+    if visita_ids:
+        placeholders = ",".join("?" for _ in visita_ids)
+        fuentes_texto.extend(
+            {
+                "origen": f"Estancia {row['nombre']}",
+                "texto": row["observaciones"],
+            }
+            for row in cur.execute(
+                f"""
+                SELECT nombre, observaciones
+                FROM estancias
+                WHERE visita_id IN ({placeholders})
+                  AND TRIM(COALESCE(observaciones, '')) <> ''
+                """,
+                tuple(visita_ids),
+            ).fetchall()
+        )
+        fuentes_texto.extend(
+            {
+                "origen": f"Patología {row['patologia']}",
+                "texto": row["observaciones"],
+            }
+            for row in cur.execute(
+                f"""
+                SELECT patologia, observaciones
+                FROM registros_patologias
+                WHERE visita_id IN ({placeholders})
+                  AND TRIM(COALESCE(observaciones, '')) <> ''
+                """,
+                tuple(visita_ids),
+            ).fetchall()
+        )
+
+    limitaciones_candidatas = extraer_candidatos_periciales(
+        fuentes_texto, PERICIAL_LIMITACION_KEYWORDS
+    )
+    recomendaciones_candidatas = extraer_candidatos_periciales(
+        fuentes_texto, PERICIAL_RECOMENDACION_KEYWORDS
+    )
+
+    tiene_descripcion = bool(limpiar_texto(expediente_dict.get("descripcion_dano")))
+    tiene_causa = bool(limpiar_texto(expediente_dict.get("causa_probable")))
+    tiene_pruebas = bool(limpiar_texto(expediente_dict.get("pruebas_indicios")))
+    tiene_propuesta = bool(limpiar_texto(expediente_dict.get("propuesta_reparacion")))
+    tiene_metodologia = bool(limpiar_texto(expediente_dict.get("metodologia_pericial")))
+    tiene_limitaciones = bool(limpiar_texto(expediente_dict.get("alcance_limitaciones")))
+    tiene_roles = any(limpiar_texto(item.get("rol_patologia_observado")) for item in inventario)
+
+    diagnostico = [
+        {
+            "capitulo": "Resumen ejecutivo",
+            "estado": estado_capitulo_pericial(False, tiene_descripcion and tiene_causa),
+            "nota": "Puede componerse con descripción, causa, daños y PEM; no se guarda en esta fase.",
+        },
+        {
+            "capitulo": "Metodología",
+            "estado": estado_capitulo_pericial(tiene_metodologia, bool(visitas)),
+            "nota": "Usa visitas existentes; falta texto formal si el campo está vacío.",
+        },
+        {
+            "capitulo": "Limitaciones",
+            "estado": estado_capitulo_pericial(
+                tiene_limitaciones, bool(limitaciones_candidatas)
+            ),
+            "nota": "Diagnóstico desde campo existente y textos técnicos; no se guarda.",
+        },
+        {
+            "capitulo": "Análisis causal",
+            "estado": estado_capitulo_pericial(tiene_causa and tiene_pruebas and tiene_roles, tiene_causa and tiene_pruebas),
+            "nota": "Causa y pruebas existen; roles causa/efecto mejoran la defensa.",
+        },
+        {
+            "capitulo": "Inventario de daños",
+            "estado": estado_capitulo_pericial(bool(inventario)),
+            "nota": "Derivado de patologías interiores y exteriores.",
+        },
+        {
+            "capitulo": "Actuaciones verificadas",
+            "estado": estado_capitulo_pericial(False, actuaciones["tiene_actuaciones"]),
+            "nota": "Hay actuaciones económicas, pero no estado de verificación.",
+        },
+        {
+            "capitulo": "Propuesta de reparación",
+            "estado": estado_capitulo_pericial(tiene_propuesta),
+            "nota": "Texto existente; revisar mezcla con recomendaciones.",
+        },
+        {
+            "capitulo": "Valoración económica",
+            "estado": estado_capitulo_pericial(actuaciones["total_pem"] > 0),
+            "nota": "Basada en actuaciones y partidas snapshot.",
+        },
+        {
+            "capitulo": "Recomendaciones",
+            "estado": estado_capitulo_pericial(False, bool(recomendaciones_candidatas)),
+            "nota": "Candidatas derivadas de textos; no se guardan.",
+        },
+        {
+            "capitulo": "Conclusiones",
+            "estado": estado_capitulo_pericial(False, tiene_causa and bool(inventario)),
+            "nota": "Requiere síntesis técnica/pericial final.",
+        },
+    ]
+
+    advertencias = []
+    for campo, etiqueta in [
+        ("objeto_pericia", "Objeto pericial vacío"),
+        ("metodologia_pericial", "Metodología pericial formal vacía"),
+        ("alcance_limitaciones", "Ausencia de limitaciones formales"),
+    ]:
+        if not limpiar_texto(expediente_dict.get(campo)):
+            advertencias.append(etiqueta)
+    if not tiene_roles and metricas["patologias_interiores"]:
+        advertencias.append("No hay roles técnicos causa/efecto informados")
+    if actuaciones["tiene_actuaciones"]:
+        advertencias.append("Actuaciones económicas sin estado de verificación")
+    else:
+        advertencias.append("No hay actuaciones económicas registradas")
+    if actuaciones["total_pem"] > 0:
+        advertencias.append("No hay trazabilidad formal daño-reparación-coste")
+    if not limitaciones_candidatas and not tiene_limitaciones:
+        advertencias.append("No se han detectado limitaciones candidatas")
+
+    borrador_informe = generar_borrador_informe_v2(
+        expediente_dict,
+        visitas,
+        inventario,
+        metricas,
+        actuaciones,
+        limitaciones_candidatas,
+        recomendaciones_candidatas,
+    )
+
+    fecha_referencia = visitas[-1]["fecha"] if visitas else ""
+    expediente_dict["tipo_trabajo_label"] = etiquetar_opcion(
+        expediente_dict.get("tipo_informe", ""), TIPO_INFORME_LABELS
+    )
+    return {
+        "expediente": expediente_dict,
+        "fecha_referencia": fecha_referencia,
+        "ultima_visita_id": visitas[-1]["id"] if visitas else None,
+        "metricas": metricas,
+        "diagnostico": diagnostico,
+        "inventario": inventario,
+        "visitas": visitas,
+        "limitaciones_candidatas": limitaciones_candidatas,
+        "recomendaciones_candidatas": recomendaciones_candidatas,
+        "borrador_informe": borrador_informe,
+        "actuaciones": actuaciones,
+        "documentos_aportados": documentos_aportados,
+        "tipos_documentales_anexo_a": TIPOS_DOCUMENTALES_ANEXO_A,
+        "advertencias": advertencias,
+    }
+
+
+def get_owned_actuacion_reparacion(cur, actuacion_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT ar.*, e.owner_user_id, e.numero_expediente
+        FROM actuaciones_reparacion ar
+        JOIN expedientes e ON e.id = ar.expediente_id
+        WHERE ar.id = ? AND e.owner_user_id = ?
+        """,
+        (actuacion_id, user_id),
+    ).fetchone()
+
+
+def get_owned_actuacion_partida(cur, partida_id: int, user_id: int):
+    return cur.execute(
+        """
+        SELECT ap.*, ar.expediente_id, e.owner_user_id
+        FROM actuacion_partidas ap
+        JOIN actuaciones_reparacion ar ON ar.id = ap.actuacion_id
+        JOIN expedientes e ON e.id = ar.expediente_id
+        WHERE ap.id = ? AND e.owner_user_id = ?
+        """,
+        (partida_id, user_id),
+    ).fetchone()
+
+
+def redirect_actuaciones_reparacion(
+    expediente_id: int,
+    mensaje: str = "",
+    error: str = "",
+    actuacion_id: int | None = None,
+    q: str = "",
+):
+    url = f"/expedientes/{expediente_id}/actuaciones-reparacion"
+    params = []
+    if mensaje:
+        params.append(f"mensaje={quote_plus(mensaje)}")
+    if error:
+        params.append(f"error={quote_plus(error)}")
+    if actuacion_id:
+        params.append(f"actuacion_id={actuacion_id}")
+    if q:
+        params.append(f"q={quote_plus(q)}")
+    if params:
+        url = f"{url}?{'&'.join(params)}"
+    return RedirectResponse(url=url, status_code=303)
+
+
+def redirect_editar_registro_costes(
+    registro_id: int,
+    mensaje: str = "",
+    error: str = "",
+    aviso: str = "",
+):
+    params = []
+    if mensaje:
+        params.append(f"mensaje={quote_plus(mensaje)}")
+    if error:
+        params.append(f"error={quote_plus(error)}")
+    if aviso:
+        params.append(f"aviso={quote_plus(aviso)}")
+    url = f"/editar-registro/{registro_id}"
+    if params:
+        url = f"{url}?{'&'.join(params)}"
+    return RedirectResponse(url=url, status_code=303)
+
+
 def get_owned_registro_exterior(cur, registro_id: int, user_id: int):
     return cur.execute(
         """
@@ -6154,6 +8411,7 @@ async def auth_middleware(request: Request, call_next):
 
 app.include_router(backups_router.router)
 app.include_router(clientes_router.router)
+app.include_router(costes_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(emails_router.router)
 app.include_router(facturacion_router.router)
@@ -7077,6 +9335,346 @@ def guardar_expediente(
     )
 
 
+@app.get("/expedientes/{expediente_id}/presupuesto-reparacion", response_class=HTMLResponse)
+def presupuesto_reparacion_expediente(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        presupuesto = preparar_presupuesto_reparacion_expediente(cur, expediente_id)
+    finally:
+        conn.close()
+
+    expediente_data = dict(expediente)
+    expediente_data["tipo_informe_label"] = etiquetar_opcion(
+        expediente_data.get("tipo_informe", ""),
+        TIPO_INFORME_LABELS,
+    )
+
+    return render_template(
+        request,
+        "presupuesto_reparacion.html",
+        {
+            "expediente": expediente_data,
+            "presupuesto": presupuesto,
+            "formatear_numero_es": formatear_numero_es,
+        },
+    )
+
+
+@app.get("/expedientes/{expediente_id}/actuaciones-reparacion", response_class=HTMLResponse)
+def actuaciones_reparacion_expediente(
+    request: Request,
+    expediente_id: int,
+    q: str = "",
+    actuacion_id: int | None = None,
+    mensaje: str = "",
+    error: str = "",
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        actuaciones = preparar_actuaciones_reparacion_expediente(cur, expediente_id)
+        presupuesto_patologias = preparar_presupuesto_reparacion_expediente(cur, expediente_id)
+        partidas_encontradas = buscar_partidas_coste_para_actuacion(cur, q)
+    finally:
+        conn.close()
+
+    expediente_data = dict(expediente)
+    expediente_data["tipo_informe_label"] = etiquetar_opcion(
+        expediente_data.get("tipo_informe", ""),
+        TIPO_INFORME_LABELS,
+    )
+
+    return render_template(
+        request,
+        "actuaciones_reparacion.html",
+        {
+            "expediente": expediente_data,
+            "actuaciones": actuaciones,
+            "tiene_presupuesto_patologias": presupuesto_patologias["tiene_costes"],
+            "partidas_encontradas": partidas_encontradas,
+            "q": q,
+            "actuacion_id": actuacion_id,
+            "mensaje": mensaje,
+            "error": error,
+            "formatear_numero_es": formatear_numero_es,
+        },
+    )
+
+
+@app.post("/expedientes/{expediente_id}/actuaciones-reparacion")
+def crear_actuacion_reparacion(
+    request: Request,
+    expediente_id: int,
+    titulo: str = Form(...),
+    descripcion: str = Form(""),
+    observaciones: str = Form(""),
+    orden: str = Form(""),
+):
+    current_user = get_current_user(request)
+    titulo_limpio = limpiar_texto(titulo)
+    if not titulo_limpio:
+        return redirect_actuaciones_reparacion(
+            expediente_id,
+            error="La actuación necesita un título.",
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        orden_num = parsear_entero_positivo(orden)
+        if not orden_num:
+            orden_num = (
+                cur.execute(
+                    """
+                    SELECT COALESCE(MAX(orden), 0) + 1
+                    FROM actuaciones_reparacion
+                    WHERE expediente_id = ?
+                    """,
+                    (expediente_id,),
+                ).fetchone()[0]
+                or 1
+            )
+        cur.execute(
+            """
+            INSERT INTO actuaciones_reparacion (
+                expediente_id, titulo, descripcion, observaciones, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                titulo_limpio,
+                limpiar_texto(descripcion),
+                limpiar_texto(observaciones),
+                orden_num,
+            ),
+        )
+        actuacion_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_actuaciones_reparacion(
+        expediente_id,
+        mensaje="Actuación creada.",
+        actuacion_id=actuacion_id,
+    )
+
+
+@app.post("/actuaciones-reparacion/{actuacion_id}/actualizar")
+def actualizar_actuacion_reparacion(
+    request: Request,
+    actuacion_id: int,
+    titulo: str = Form(...),
+    descripcion: str = Form(""),
+    observaciones: str = Form(""),
+    orden: str = Form(""),
+):
+    current_user = get_current_user(request)
+    titulo_limpio = limpiar_texto(titulo)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        actuacion = get_owned_actuacion_reparacion(cur, actuacion_id, current_user["id"])
+        require_row(actuacion, "Actuación no encontrada")
+        expediente_id = actuacion["expediente_id"]
+        if not titulo_limpio:
+            return redirect_actuaciones_reparacion(
+                expediente_id,
+                error="La actuación necesita un título.",
+                actuacion_id=actuacion_id,
+            )
+        orden_num = parsear_entero_positivo(orden) or 0
+        cur.execute(
+            """
+            UPDATE actuaciones_reparacion
+            SET titulo = ?, descripcion = ?, observaciones = ?,
+                orden = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                titulo_limpio,
+                limpiar_texto(descripcion),
+                limpiar_texto(observaciones),
+                orden_num,
+                actuacion_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_actuaciones_reparacion(
+        expediente_id,
+        mensaje="Actuación actualizada.",
+        actuacion_id=actuacion_id,
+    )
+
+
+@app.post("/actuaciones-reparacion/{actuacion_id}/borrar")
+def borrar_actuacion_reparacion(request: Request, actuacion_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        actuacion = get_owned_actuacion_reparacion(cur, actuacion_id, current_user["id"])
+        require_row(actuacion, "Actuación no encontrada")
+        expediente_id = actuacion["expediente_id"]
+        cur.execute("DELETE FROM actuacion_partidas WHERE actuacion_id = ?", (actuacion_id,))
+        cur.execute("DELETE FROM actuaciones_reparacion WHERE id = ?", (actuacion_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_actuaciones_reparacion(
+        expediente_id,
+        mensaje="Actuación borrada.",
+    )
+
+
+@app.post("/actuaciones-reparacion/{actuacion_id}/partidas")
+def anadir_partida_actuacion_reparacion(
+    request: Request,
+    actuacion_id: int,
+    concepto_id: int = Form(...),
+    cantidad: str = Form("1"),
+    q: str = Form(""),
+):
+    current_user = get_current_user(request)
+    cantidad_num = round(parsear_decimal_coste_patologia(cantidad, 0), 4)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        actuacion = get_owned_actuacion_reparacion(cur, actuacion_id, current_user["id"])
+        require_row(actuacion, "Actuación no encontrada")
+        expediente_id = actuacion["expediente_id"]
+        if cantidad_num <= 0:
+            return redirect_actuaciones_reparacion(
+                expediente_id,
+                error="La cantidad debe ser mayor que cero.",
+                actuacion_id=actuacion_id,
+                q=q,
+            )
+        concepto = cur.execute(
+            """
+            SELECT id, codigo, unidad, resumen, descripcion, precio, estado
+            FROM costes_conceptos
+            WHERE id = ?
+            """,
+            (concepto_id,),
+        ).fetchone()
+        require_row(concepto, "Partida de coste no encontrada")
+        precio_unitario = round(float(concepto["precio"] or 0), 4)
+        importe = round(cantidad_num * precio_unitario, 2)
+        descripcion_snapshot = (
+            limpiar_texto(concepto["descripcion"])
+            or limpiar_texto(concepto["resumen"])
+            or limpiar_texto(concepto["codigo"])
+        )
+        cur.execute(
+            """
+            INSERT INTO actuacion_partidas (
+                actuacion_id, concepto_id, descripcion_snapshot,
+                unidad_snapshot, precio_unitario_snapshot, cantidad,
+                importe, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                actuacion_id,
+                concepto_id,
+                descripcion_snapshot,
+                concepto["unidad"],
+                precio_unitario,
+                cantidad_num,
+                importe,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_actuaciones_reparacion(
+        expediente_id,
+        mensaje="Partida añadida a la actuación.",
+        actuacion_id=actuacion_id,
+        q=q,
+    )
+
+
+@app.post("/actuacion-partidas/{partida_id}/actualizar")
+def actualizar_partida_actuacion_reparacion(
+    request: Request,
+    partida_id: int,
+    cantidad: str = Form("1"),
+):
+    current_user = get_current_user(request)
+    cantidad_num = round(parsear_decimal_coste_patologia(cantidad, 0), 4)
+    if cantidad_num <= 0:
+        cantidad_num = 0
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        partida = get_owned_actuacion_partida(cur, partida_id, current_user["id"])
+        require_row(partida, "Partida de actuación no encontrada")
+        expediente_id = partida["expediente_id"]
+        importe = round(
+            cantidad_num * float(partida["precio_unitario_snapshot"] or 0),
+            2,
+        )
+        cur.execute(
+            """
+            UPDATE actuacion_partidas
+            SET cantidad = ?, importe = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (cantidad_num, importe, partida_id),
+        )
+        conn.commit()
+        actuacion_id = partida["actuacion_id"]
+    finally:
+        conn.close()
+
+    return redirect_actuaciones_reparacion(
+        expediente_id,
+        mensaje="Partida actualizada.",
+        actuacion_id=actuacion_id,
+    )
+
+
+@app.post("/actuacion-partidas/{partida_id}/borrar")
+def borrar_partida_actuacion_reparacion(request: Request, partida_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        partida = get_owned_actuacion_partida(cur, partida_id, current_user["id"])
+        require_row(partida, "Partida de actuación no encontrada")
+        expediente_id = partida["expediente_id"]
+        actuacion_id = partida["actuacion_id"]
+        cur.execute("DELETE FROM actuacion_partidas WHERE id = ?", (partida_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_actuaciones_reparacion(
+        expediente_id,
+        mensaje="Partida borrada.",
+        actuacion_id=actuacion_id,
+    )
+
+
 @app.get("/detalle-expediente/{expediente_id}", response_class=HTMLResponse)
 def detalle_expediente(request: Request, expediente_id: int):
     current_user = get_current_user(request)
@@ -7112,6 +9710,8 @@ def detalle_expediente(request: Request, expediente_id: int):
     visitas_data = []
     resumen_tipo = {}
     revision_informe = preparar_pendientes_revision_expediente(cur, expediente_id)
+    presupuesto_reparacion = preparar_presupuesto_reparacion_expediente(cur, expediente_id)
+    actuaciones_reparacion = preparar_actuaciones_reparacion_expediente(cur, expediente_id)
 
     for visita in visitas:
         visita_data = dict(visita)
@@ -7458,6 +10058,10 @@ def detalle_expediente(request: Request, expediente_id: int):
             "visitas": visitas_data,
             "resumen_tipo": resumen_tipo,
             "revision_informe": revision_informe,
+            "tiene_presupuesto_reparacion": (
+                presupuesto_reparacion["tiene_costes"]
+                or actuaciones_reparacion["total_pem"] > 0
+            ),
             "niveles_edificio": estructura_multiunidad["niveles"],
             "unidades_expediente": estructura_multiunidad["unidades"],
             "unidades_sin_nivel": estructura_multiunidad["sin_nivel"],
@@ -7469,6 +10073,457 @@ def detalle_expediente(request: Request, expediente_id: int):
             "tipo_anejo_options": TIPO_ANEJO_OPTIONS,
             "mensaje": limpiar_texto(request.query_params.get("mensaje")),
             "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.get("/expedientes/{expediente_id}/pericial-workbench", response_class=HTMLResponse)
+def pericial_workbench_expediente(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El workbench pericial solo aplica a expedientes de patologías.",
+            )
+        workbench = preparar_pericial_workbench(cur, expediente)
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "pericial_workbench.html",
+        {
+            "workbench": workbench,
+            "expediente": workbench["expediente"],
+            "metricas": workbench["metricas"],
+            "diagnostico": workbench["diagnostico"],
+            "inventario": workbench["inventario"],
+            "visitas": workbench["visitas"],
+            "limitaciones_candidatas": workbench["limitaciones_candidatas"],
+            "recomendaciones_candidatas": workbench["recomendaciones_candidatas"],
+            "borrador_informe": workbench["borrador_informe"],
+            "actuaciones": workbench["actuaciones"],
+            "documentos_aportados": workbench["documentos_aportados"],
+            "tipos_documentales_anexo_a": workbench["tipos_documentales_anexo_a"],
+            "advertencias": workbench["advertencias"],
+            "formatear_numero_es": formatear_numero_es,
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+def redirect_pericial_workbench(expediente_id: int, mensaje: str = "", error: str = ""):
+    url = f"/expedientes/{expediente_id}/pericial-workbench"
+    params = []
+    if mensaje:
+        params.append(f"mensaje={quote_plus(mensaje)}")
+    if error:
+        params.append(f"error={quote_plus(error)}")
+    if params:
+        url = f"{url}?{'&'.join(params)}"
+    return RedirectResponse(url=url, status_code=303)
+
+
+@app.post("/expedientes/{expediente_id}/pericial-workbench/documentos")
+def subir_documento_anexo_a_workbench(
+    request: Request,
+    expediente_id: int,
+    archivo: UploadFile | None = File(None),
+    nombre_visible: str = Form(""),
+    descripcion: str = Form(""),
+    tipo_documento: str = Form("Otro"),
+    orden: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El gestor documental del Anexo A solo aplica a expedientes de patologías.",
+            )
+        try:
+            archivo_ruta, nombre_original, mime_type = guardar_documento_pdf_expediente(
+                archivo,
+                expediente_id,
+            )
+        except ValueError as exc:
+            return redirect_pericial_workbench(expediente_id, error=str(exc))
+        orden_int = parse_optional_int(orden)
+        if orden_int is None:
+            orden_int = siguiente_orden_documento_expediente(cur, expediente_id)
+        nombre = limpiar_texto(nombre_visible) or nombre_visible_documento_desde_archivo(
+            nombre_original
+        )
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                nombre,
+                limpiar_texto(descripcion),
+                normalizar_tipo_documental_anexo_a(tipo_documento),
+                archivo_ruta,
+                nombre_original,
+                mime_type,
+                orden_int,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_pericial_workbench(
+        expediente_id,
+        mensaje="Documento incorporado al Anexo A.",
+    )
+
+
+@app.post("/expedientes/{expediente_id}/pericial-workbench/documentos/{documento_id}")
+def actualizar_documento_anexo_a_workbench(
+    request: Request,
+    expediente_id: int,
+    documento_id: int,
+    nombre_visible: str = Form(""),
+    descripcion: str = Form(""),
+    tipo_documento: str = Form("Otro"),
+    orden: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        documento = get_owned_expediente_documento(cur, documento_id, current_user["id"])
+        require_row(documento, "Documento no encontrado")
+        if documento["expediente_id"] != expediente_id:
+            raise HTTPException(status_code=404, detail="Documento no encontrado")
+        orden_int = parse_optional_int(orden)
+        if orden_int is None:
+            orden_int = int(documento["orden"] or 0)
+        nombre = limpiar_texto(nombre_visible) or documento["nombre_visible"]
+        cur.execute(
+            """
+            UPDATE expediente_documentos
+            SET nombre_visible = ?,
+                descripcion = ?,
+                tipo_documento = ?,
+                orden = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                nombre,
+                limpiar_texto(descripcion),
+                normalizar_tipo_documental_anexo_a(tipo_documento),
+                orden_int,
+                documento_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_pericial_workbench(
+        expediente_id,
+        mensaje="Documento actualizado.",
+    )
+
+
+@app.get("/expedientes/{expediente_id}/informe-v2-editor", response_class=HTMLResponse)
+def informe_v2_editor(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El editor V2 solo aplica a expedientes de patologías.",
+            )
+        editor = preparar_editor_informe_v2(cur, expediente)
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "informe_v2_editor.html",
+        {
+            "editor": editor,
+            "expediente": editor["expediente"],
+            "capitulos": editor["capitulos"],
+            "contexto_editor": editor["contexto_editor"],
+            "metricas": editor["metricas"],
+            "limitaciones_candidatas": editor["limitaciones_candidatas"],
+            "recomendaciones_candidatas": editor["recomendaciones_candidatas"],
+            "actuaciones": editor["actuaciones"],
+            "formatear_numero_es": formatear_numero_es,
+            "mensaje": limpiar_texto(request.query_params.get("mensaje")),
+            "error": limpiar_texto(request.query_params.get("error")),
+        },
+    )
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2-editor")
+async def guardar_informe_v2_editor(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El editor V2 solo aplica a expedientes de patologías.",
+            )
+        conflictos = detectar_conflictos_guardado_manual_informe_v2(
+            cur,
+            expediente_id,
+            form_data,
+        )
+        if conflictos:
+            capitulos = ", ".join(conflictos[:4])
+            if len(conflictos) > 4:
+                capitulos += f" y {len(conflictos) - 4} más"
+            return RedirectResponse(
+                url=(
+                    f"/expedientes/{expediente_id}/informe-v2-editor?"
+                    f"error={quote_plus('Hay cambios más recientes guardados automáticamente en: ' + capitulos + '. Recarga la página antes de guardar manualmente.')}"
+                ),
+                status_code=303,
+            )
+        guardar_capitulos_informe_v2(cur, expediente_id, form_data)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/expedientes/{expediente_id}/informe-v2-editor?mensaje=Informe%20V2%20guardado.",
+        status_code=303,
+    )
+
+
+@app.post("/informes-v2/{expediente_id}/autosave")
+async def autosave_informe_v2(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+    campo = limpiar_texto(form_data.get("campo"))
+    valor = limpiar_texto(form_data.get("valor"))
+    updated_at_cliente = limpiar_texto(form_data.get("updated_at"))
+
+    if campo not in INFORME_V2_CAPITULOS_POR_CLAVE:
+        return JSONResponse(
+            {"ok": False, "error": "Campo no permitido para informe V2."},
+            status_code=400,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "El autosalvado V2 solo aplica a expedientes de patologías.",
+                },
+                status_code=400,
+            )
+
+        fila_actual = cur.execute(
+            """
+            SELECT contenido, updated_at
+            FROM informe_v2_capitulos
+            WHERE expediente_id = ? AND clave = ?
+            """,
+            (expediente_id, campo),
+        ).fetchone()
+        if fila_actual:
+            updated_at_actual = limpiar_texto(fila_actual["updated_at"])
+            contenido_actual = limpiar_texto(fila_actual["contenido"])
+            if updated_at_actual != updated_at_cliente:
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "error": "Hay una versión más reciente de este capítulo. Recarga antes de autosalvar.",
+                        "code": "conflict",
+                        "campo": campo,
+                        "updated_at": updated_at_actual,
+                    },
+                    status_code=409,
+                )
+            if not valor and contenido_actual:
+                return JSONResponse(
+                    {
+                        "ok": False,
+                        "error": "El autosalvado no vacía capítulos con contenido existente. Usa Guardar datos si quieres dejarlo vacío.",
+                        "code": "empty_autosave",
+                        "campo": campo,
+                        "updated_at": updated_at_actual,
+                    },
+                    status_code=422,
+                )
+
+        guardar_capitulo_informe_v2(
+            cur,
+            expediente_id,
+            campo,
+            valor,
+            origen_version="autosave",
+        )
+        conn.commit()
+        fila = cur.execute(
+            """
+            SELECT updated_at
+            FROM informe_v2_capitulos
+            WHERE expediente_id = ? AND clave = ?
+            """,
+            (expediente_id, campo),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "campo": campo,
+            "updated_at": limpiar_texto(fila["updated_at"]) if fila else "",
+        }
+    )
+
+
+@app.post("/informes-v2/{expediente_id}/capitulos/{clave}/restaurar/{version_id}")
+def restaurar_version_informe_v2(
+    request: Request,
+    expediente_id: int,
+    clave: str,
+    version_id: int,
+):
+    current_user = get_current_user(request)
+    clave_limpia = limpiar_texto(clave)
+    if clave_limpia not in INFORME_V2_CAPITULOS_POR_CLAVE:
+        return redirect_detalle_expediente(
+            expediente_id,
+            error="Campo no permitido para informe V2.",
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El editor V2 solo aplica a expedientes de patologías.",
+            )
+        version = cur.execute(
+            """
+            SELECT *
+            FROM informe_v2_capitulo_versiones
+            WHERE id = ? AND expediente_id = ? AND clave = ?
+            """,
+            (version_id, expediente_id, clave_limpia),
+        ).fetchone()
+        if not version:
+            return RedirectResponse(
+                url=(
+                    f"/expedientes/{expediente_id}/informe-v2-editor?"
+                    f"error={quote_plus('Versión de historial no encontrada.')}"
+                ),
+                status_code=303,
+            )
+
+        guardar_capitulo_informe_v2(
+            cur,
+            expediente_id,
+            clave_limpia,
+            limpiar_texto(version["contenido"]),
+            origen_version="restauracion",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=(
+            f"/expedientes/{expediente_id}/informe-v2-editor?"
+            f"mensaje={quote_plus('Versión restaurada en el capítulo seleccionado.')}"
+        ),
+        status_code=303,
+    )
+
+
+@app.get("/informes-v2/{expediente_id}/respaldo.json")
+def descargar_respaldo_informe_v2(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            raise HTTPException(
+                status_code=400,
+                detail="El respaldo V2 solo aplica a expedientes de patologías.",
+            )
+        guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
+    finally:
+        conn.close()
+
+    capitulos = []
+    for definicion in INFORME_V2_CAPITULOS:
+        guardado = guardados.get(definicion["clave"])
+        capitulos.append(
+            {
+                "clave": definicion["clave"],
+                "titulo": definicion["titulo"],
+                "orden": definicion["orden"],
+                "contenido": limpiar_texto(guardado.get("contenido")) if guardado else "",
+                "updated_at": limpiar_texto(guardado.get("updated_at")) if guardado else "",
+                "guardado": bool(guardado),
+            }
+        )
+
+    payload = {
+        "expediente": {
+            "id": expediente["id"],
+            "numero_expediente": limpiar_texto(expediente["numero_expediente"]),
+            "direccion": limpiar_texto(expediente["direccion"]),
+            "cliente": limpiar_texto(expediente["cliente"]),
+            "tipo_informe": limpiar_texto(expediente["tipo_informe"]),
+        },
+        "fecha_exportacion": datetime.now().isoformat(timespec="seconds"),
+        "capitulos": capitulos,
+    }
+    numero = limpiar_nombre_archivo(expediente["numero_expediente"] or str(expediente_id))
+    return JSONResponse(
+        payload,
+        headers={
+            "Content-Disposition": f'attachment; filename="informe-v2-respaldo-{numero}.json"'
         },
     )
 
@@ -12362,7 +15417,15 @@ def guardar_registro(
 
 
 @app.get("/editar-registro/{registro_id}", response_class=HTMLResponse)
-def editar_registro(request: Request, registro_id: int, next: str = Query("")):
+def editar_registro(
+    request: Request,
+    registro_id: int,
+    next: str = Query(""),
+    cost_q: str = Query(""),
+    mensaje: str = Query(""),
+    error: str = Query(""),
+    aviso: str = Query(""),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -12397,6 +15460,9 @@ def editar_registro(request: Request, registro_id: int, next: str = Query("")):
     ).fetchall()
 
     objeto_visita_label = describir_objeto_visita(registro)
+    costes_patologia = obtener_costes_patologia(cur, registro_id)
+    total_costes_patologia = calcular_total_costes_patologia(costes_patologia)
+    partidas_coste = buscar_partidas_coste_para_patologia(cur, cost_q)
 
     conn.close()
 
@@ -12408,9 +15474,169 @@ def editar_registro(request: Request, registro_id: int, next: str = Query("")):
             "estancias": estancias,
             "patologias": patologias,
             "objeto_visita_label": objeto_visita_label,
+            "costes_patologia": costes_patologia,
+            "total_costes_patologia": total_costes_patologia,
+            "partidas_coste": partidas_coste,
+            "cost_q": limpiar_texto(cost_q),
+            "mensaje": limpiar_texto(mensaje),
+            "error": limpiar_texto(error),
+            "aviso": limpiar_texto(aviso),
             "next_url": normalizar_redirect_interno(next),
         },
     )
+
+
+@app.post("/patologias/{registro_id}/costes")
+def vincular_coste_patologia(
+    request: Request,
+    registro_id: int,
+    concepto_id: int = Form(...),
+    cantidad: str = Form("1"),
+    descripcion_actuacion: str = Form(""),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+    cantidad_num = round(parsear_decimal_coste_patologia(cantidad, 0), 4)
+    if cantidad_num <= 0:
+        return redirect_editar_registro_costes(
+            registro_id,
+            error="La cantidad debe ser mayor que cero.",
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        registro = get_owned_registro(cur, registro_id, current_user["id"])
+        require_row(registro, "Registro no encontrado")
+        concepto = cur.execute(
+            """
+            SELECT id, codigo, unidad, resumen, precio, estado
+            FROM costes_conceptos
+            WHERE id = ?
+            """,
+            (concepto_id,),
+        ).fetchone()
+        require_row(concepto, "Partida de coste no encontrada")
+        precio_unitario = round(float(concepto["precio"] or 0), 4)
+        importe = round(cantidad_num * precio_unitario, 2)
+        estado_vinculo = "incluido" if concepto["estado"] == "validado" else "borrador"
+        descripcion = limpiar_texto(descripcion_actuacion) or concepto["resumen"]
+        aviso = ""
+        if concepto["estado"] != "validado":
+            aviso = "La partida base está en borrador; el coste vinculado queda marcado como borrador."
+        cur.execute(
+            """
+            INSERT INTO patologia_costes (
+                patologia_id, concepto_id, descripcion_actuacion,
+                cantidad, unidad, precio_unitario, importe, estado,
+                observaciones, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                registro_id,
+                concepto_id,
+                descripcion,
+                cantidad_num,
+                concepto["unidad"],
+                precio_unitario,
+                importe,
+                estado_vinculo,
+                limpiar_texto(observaciones),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_editar_registro_costes(
+        registro_id,
+        mensaje="Partida vinculada al coste de subsanación.",
+        aviso=aviso,
+    )
+
+
+@app.post("/patologias/costes/{vinculo_id}/actualizar")
+def actualizar_coste_patologia(
+    request: Request,
+    vinculo_id: int,
+    cantidad: str = Form("1"),
+    descripcion_actuacion: str = Form(""),
+    estado: str = Form("incluido"),
+    observaciones: str = Form(""),
+):
+    current_user = get_current_user(request)
+    cantidad_num = round(parsear_decimal_coste_patologia(cantidad, 0), 4)
+    if cantidad_num <= 0:
+        cantidad_num = 0
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        vinculo = cur.execute(
+            """
+            SELECT pc.*, rp.id AS registro_id
+            FROM patologia_costes pc
+            JOIN registros_patologias rp ON rp.id = pc.patologia_id
+            WHERE pc.id = ?
+            """,
+            (vinculo_id,),
+        ).fetchone()
+        require_row(vinculo, "Coste de patología no encontrado")
+        registro = get_owned_registro(cur, vinculo["registro_id"], current_user["id"])
+        require_row(registro, "Registro no encontrado")
+        estado_limpio = limpiar_texto(estado)
+        if estado_limpio not in ("borrador", "incluido"):
+            estado_limpio = "incluido"
+        precio_unitario = float(vinculo["precio_unitario"] or 0)
+        importe = round(cantidad_num * precio_unitario, 2)
+        cur.execute(
+            """
+            UPDATE patologia_costes
+            SET descripcion_actuacion = ?, cantidad = ?, importe = ?,
+                estado = ?, observaciones = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                limpiar_texto(descripcion_actuacion),
+                cantidad_num,
+                importe,
+                estado_limpio,
+                limpiar_texto(observaciones),
+                vinculo_id,
+            ),
+        )
+        conn.commit()
+        registro_id = vinculo["registro_id"]
+    finally:
+        conn.close()
+
+    return redirect_editar_registro_costes(registro_id, mensaje="Coste actualizado.")
+
+
+@app.post("/patologias/costes/{vinculo_id}/borrar")
+def borrar_coste_patologia(request: Request, vinculo_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        vinculo = cur.execute(
+            """
+            SELECT pc.id, pc.patologia_id AS registro_id
+            FROM patologia_costes pc
+            WHERE pc.id = ?
+            """,
+            (vinculo_id,),
+        ).fetchone()
+        require_row(vinculo, "Coste de patología no encontrado")
+        registro = get_owned_registro(cur, vinculo["registro_id"], current_user["id"])
+        require_row(registro, "Registro no encontrado")
+        cur.execute("DELETE FROM patologia_costes WHERE id = ?", (vinculo_id,))
+        conn.commit()
+        registro_id = vinculo["registro_id"]
+    finally:
+        conn.close()
+
+    return redirect_editar_registro_costes(registro_id, mensaje="Coste borrado.")
 
 
 @app.post("/actualizar-registro/{registro_id}")
@@ -12937,7 +16163,11 @@ def generar_informe_endpoint(request: Request, expediente_id: int):
 
 
 @app.get("/informes/{expediente_id}/imprimir", response_class=HTMLResponse)
-def imprimir_informe_pdf(request: Request, expediente_id: int):
+def imprimir_informe_pdf(
+    request: Request,
+    expediente_id: int,
+    incluir_anexo_economico_reparacion: str = Query(""),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -12946,7 +16176,11 @@ def imprimir_informe_pdf(request: Request, expediente_id: int):
     conn.close()
 
     require_row(expediente, "Expediente no encontrado")
-    contexto = build_informe_context(expediente_id)
+    incluir_anexo = limpiar_texto(incluir_anexo_economico_reparacion) == "1"
+    contexto = build_informe_context(
+        expediente_id,
+        incluir_anexo_economico_reparacion=incluir_anexo,
+    )
 
     return render_template(
         request,
@@ -12959,7 +16193,11 @@ def imprimir_informe_pdf(request: Request, expediente_id: int):
 
 
 @app.get("/generar-informe-pdf/{expediente_id}")
-def generar_informe_pdf_endpoint(request: Request, expediente_id: int):
+def generar_informe_pdf_endpoint(
+    request: Request,
+    expediente_id: int,
+    incluir_anexo_economico_reparacion: str = Query(""),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -12968,7 +16206,11 @@ def generar_informe_pdf_endpoint(request: Request, expediente_id: int):
     conn.close()
 
     require_row(expediente, "Expediente no encontrado")
-    pdf_bytes = generar_informe_pdf_bytes(request, expediente_id)
+    pdf_bytes = generar_informe_pdf_bytes(
+        request,
+        expediente_id,
+        incluir_anexo_economico_reparacion=limpiar_texto(incluir_anexo_economico_reparacion) == "1",
+    )
     nombre_archivo = nombre_archivo_pdf_informe(expediente)
 
     return StreamingResponse(
@@ -12980,8 +16222,46 @@ def generar_informe_pdf_endpoint(request: Request, expediente_id: int):
     )
 
 
+@app.get("/generar-informe-v2-pdf/{expediente_id}")
+def generar_informe_v2_pdf_endpoint(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El PDF V2 solo aplica a expedientes de patologías.",
+            )
+        contexto = preparar_contexto_pdf_informe_v2(
+            cur,
+            expediente,
+            base_url=str(request.base_url).rstrip("/"),
+        )
+    finally:
+        conn.close()
+
+    pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
+    nombre_archivo = nombre_archivo_pdf_informe_v2(expediente)
+
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{nombre_archivo}"',
+        },
+    )
+
+
 @app.get("/generar-informe-docx-editable/{expediente_id}")
-def generar_informe_docx_editable_endpoint(request: Request, expediente_id: int):
+def generar_informe_docx_editable_endpoint(
+    request: Request,
+    expediente_id: int,
+    incluir_anexo_economico_reparacion: str = Query(""),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -12990,7 +16270,10 @@ def generar_informe_docx_editable_endpoint(request: Request, expediente_id: int)
     conn.close()
 
     require_row(expediente, "Expediente no encontrado")
-    docx_bytes = generar_informe_docx_editable_bytes(expediente_id)
+    docx_bytes = generar_informe_docx_editable_bytes(
+        expediente_id,
+        incluir_anexo_economico_reparacion=limpiar_texto(incluir_anexo_economico_reparacion) == "1",
+    )
     nombre_archivo = nombre_archivo_docx_editable_informe(expediente)
 
     return StreamingResponse(
