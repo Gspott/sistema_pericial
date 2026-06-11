@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Informe Pericial V2 {{ expediente.numero_expediente }}</title>
+    <style>
+        :root {
+            color: #1f2933;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            line-height: 1.55;
+            --ink: #1f2933;
+            --muted: #6b7280;
+            --line: #d8dee6;
+            --soft: #f8fafc;
+        }
+
+        body {
+            background: #eef1f4;
+            margin: 0;
+        }
+
+        .document {
+            background: #fff;
+            box-sizing: border-box;
+            margin: 0 auto 24px;
+            min-height: 297mm;
+            padding: 20mm;
+            width: 210mm;
+        }
+
+        .cover {
+            align-items: center;
+            border-bottom: 2px solid var(--ink);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 12mm;
+            min-height: 255mm;
+            justify-content: center;
+            page-break-after: always;
+            text-align: center;
+        }
+
+        .cover h1 {
+            font-size: 30px;
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        .cover .subtitle {
+            color: #4b5563;
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .cover-meta {
+            border: 1px solid var(--line);
+            display: grid;
+            grid-template-columns: 42mm 1fr;
+            max-width: 150mm;
+            text-align: left;
+            width: 100%;
+        }
+
+        .cover-meta div {
+            border-bottom: 1px solid #e5e9ef;
+            padding: 7px 9px;
+        }
+
+        .cover-meta div:nth-child(odd) {
+            background: var(--soft);
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .toc {
+            min-height: 255mm;
+            page-break-after: always;
+        }
+
+        h2 {
+            border-bottom: 1px solid var(--line);
+            break-after: avoid;
+            color: #2f3a45;
+            font-size: 16px;
+            margin: 24px 0 12px;
+            padding-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        h3 {
+            color: #24313d;
+            font-size: 14px;
+            margin: 16px 0 8px;
+        }
+
+        .toc-list {
+            border-top: 1px solid var(--line);
+            margin-top: 14px;
+        }
+
+        .toc-row {
+            border-bottom: 1px solid #e5e9ef;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 24px 1fr;
+            padding: 8px 0;
+        }
+
+        .toc-number {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .chapter {
+            break-inside: auto;
+            page-break-inside: auto;
+        }
+
+        .chapter-content {
+            white-space: pre-line;
+        }
+
+        .conclusion-block,
+        .damage-sheet,
+        .doc-table,
+        .valuation-table {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .annex-cover {
+            align-items: center;
+            display: flex;
+            min-height: 245mm;
+            justify-content: center;
+            page-break-before: always;
+            page-break-after: always;
+            text-align: center;
+        }
+
+        .annex-cover h2 {
+            border: 0;
+            font-size: 24px;
+            margin: 0;
+        }
+
+        .annex-section {
+            page-break-before: always;
+        }
+
+        .annex-section > h2 {
+            border-bottom: 2px solid var(--ink);
+            font-size: 17px;
+            letter-spacing: 0;
+            margin-bottom: 16px;
+            padding-bottom: 7px;
+        }
+
+        .empty-note {
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        .doc-table,
+        .valuation-table {
+            border-collapse: collapse;
+            margin-top: 12px;
+            width: 100%;
+        }
+
+        .doc-table th,
+        .doc-table td,
+        .valuation-table th,
+        .valuation-table td {
+            border: 1px solid var(--line);
+            padding: 6px 7px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .doc-table th,
+        .valuation-table th {
+            background: var(--soft);
+            color: #374151;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .photo-grid,
+        .evidence-grid {
+            display: grid;
+            gap: 14px 12px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: 14px;
+        }
+
+        .photo-group {
+            break-inside: auto;
+            margin: 16px 0 22px;
+            page-break-inside: auto;
+        }
+
+        .photo-group h3 {
+            border-bottom: 1px solid #e5e9ef;
+            padding-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .photo-intro {
+            color: #374151;
+            margin: 0 0 8px;
+        }
+
+        .photo-limit-note {
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 8px;
+        }
+
+        .photo-figure-id {
+            color: var(--ink);
+            display: block;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        figure {
+            break-inside: avoid;
+            margin: 0;
+            page-break-inside: avoid;
+        }
+
+        figure img {
+            display: block;
+            height: 78mm;
+            object-fit: contain;
+            width: 100%;
+        }
+
+        figcaption {
+            color: #4b5563;
+            font-size: 11px;
+            line-height: 1.35;
+            margin-top: 5px;
+        }
+
+        .damage-sheet {
+            break-inside: avoid;
+            margin: 0;
+            padding: 0;
+        }
+
+        .damage-sheet + .damage-sheet {
+            page-break-before: always;
+        }
+
+        .damage-sheet h3 {
+            border-bottom: 1px solid var(--line);
+            font-size: 22px;
+            margin: 0 0 8px;
+            padding-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .damage-meta {
+            color: var(--muted);
+            font-size: 12px;
+            margin: 0 0 14px;
+        }
+
+        .annex-list {
+            margin: 4px 0 10px 18px;
+            padding: 0;
+        }
+
+        .money {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .valuation-total {
+            border-top: 2px solid var(--ink);
+            font-weight: 700;
+        }
+
+        .economic-summary {
+            border-bottom: 2px solid var(--ink);
+            border-top: 2px solid var(--ink);
+            margin: 6px 0 18px;
+            padding: 12px 0;
+        }
+
+        .economic-summary-label {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0;
+            text-transform: uppercase;
+        }
+
+        .economic-summary-value {
+            color: var(--ink);
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-top: 3px;
+        }
+
+        .valuation-table.clean-table th,
+        .valuation-table.clean-table td {
+            border-left: 0;
+            border-right: 0;
+        }
+
+        .valuation-table.clean-table th {
+            background: #fff;
+            border-top: 1px solid var(--ink);
+        }
+
+        .valuation-table.clean-table td {
+            border-color: #e5e9ef;
+        }
+
+        .analysis-block {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .analysis-block p {
+            margin: 6px 0 10px;
+        }
+
+        .analysis-block ul {
+            margin: 4px 0 12px 18px;
+            padding: 0;
+        }
+
+        .quoted-partida {
+            background: var(--soft);
+            border: 1px solid var(--line);
+            margin: 10px 0 12px;
+            padding: 10px;
+        }
+
+        @page anexo-d-landscape {
+            size: A4 landscape;
+            margin: 15mm 10mm 18mm;
+        }
+
+        .annex-d-landscape {
+            page: anexo-d-landscape;
+        }
+
+        .annex-d-landscape .valuation-table th:first-child,
+        .annex-d-landscape .valuation-table td:first-child {
+            text-align: left;
+        }
+
+        .annex-d-landscape .valuation-table th:nth-child(n + 2),
+        .annex-d-landscape .valuation-table td:nth-child(n + 2) {
+            text-align: right;
+        }
+
+        .annex-d-landscape .amount,
+        .annex-d-landscape .economic-summary-value {
+            font-weight: 700;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .document {
+                box-shadow: none;
+                margin: 0;
+                min-height: auto;
+                width: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    {% macro numero_es_2(valor) -%}
+    {{- "{:,.2f}".format((valor or 0)|float).replace(",", "X").replace(".", ",").replace("X", ".") -}}
+    {%- endmacro %}
+    {% macro unidad_pdf(unidad) -%}
+    {{- (unidad or "")|replace("m2", "m²")|replace("M2", "m²") -}}
+    {%- endmacro %}
+
+    <main class="document">
+        <section class="cover">
+            <div>
+                <p class="subtitle">Sistema Pericial</p>
+                <h1>Informe Pericial V2</h1>
+                <p class="subtitle">{{ expediente.tipo_trabajo_label or expediente.tipo_informe }}</p>
+            </div>
+            <div class="cover-meta">
+                <div>Expediente</div><div>{{ expediente.numero_expediente }}</div>
+                <div>Dirección</div><div>{{ expediente.direccion or "-" }}</div>
+                <div>Cliente</div><div>{{ expediente.cliente or "-" }}</div>
+                <div>Técnico</div><div>{{ tecnico or "-" }}</div>
+                <div>Fecha de visita</div><div>{{ fecha_visita or "-" }}</div>
+                <div>Fecha de emisión</div><div>{{ fecha_emision }}</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Índice</h2>
+            <div class="toc-list">
+                {% for item in indice %}
+                <div class="toc-row">
+                    <span class="toc-number">{{ item.numero }}</span>
+                    <span>{{ item.titulo }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% for capitulo in capitulos %}
+        <section class="chapter">
+            <h2>{{ capitulo.numero_pdf }}. {{ capitulo.titulo }}</h2>
+            {% if capitulo.contenido_pdf %}
+            <div class="chapter-content">{{ capitulo.contenido_pdf }}</div>
+            {% endif %}
+        </section>
+        {% endfor %}
+
+        <section class="chapter">
+            <h2>{{ conclusiones.numero }}. {{ conclusiones.titulo }}</h2>
+            {% if conclusiones.bloques %}
+            {% for bloque in conclusiones.bloques %}
+            <article class="conclusion-block">
+                {% if conclusiones.bloques|length > 1 %}
+                <h3>{{ bloque.titulo }}</h3>
+                {% endif %}
+                <div class="chapter-content">{{ bloque.contenido_pdf }}</div>
+            </article>
+            {% endfor %}
+            {% else %}
+            <p class="empty-note">No constan conclusiones guardadas para este informe V2.</p>
+            {% endif %}
+        </section>
+
+        <section class="annex-cover">
+            <h2>ANEXOS</h2>
+        </section>
+
+        <section class="annex-section">
+            <h2>ANEXO A. DOCUMENTACIÓN APORTADA</h2>
+            {% if anexos.documentacion %}
+            <table class="doc-table">
+                <thead>
+                    <tr>
+                        <th>Orden</th>
+                        <th>Documento</th>
+                        <th>Tipo</th>
+                        <th>Fecha</th>
+                        <th>Descripción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for documento in anexos.documentacion %}
+                    <tr>
+                        <td>{{ documento.orden or loop.index }}</td>
+                        <td>{{ documento.nombre }}</td>
+                        <td>{{ documento.tipo or "-" }}</td>
+                        <td>{{ documento.fecha or "-" }}</td>
+                        <td>{{ documento.descripcion or "-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty-note">No consta documentación aportada estructurada asociada al expediente.</p>
+            {% endif %}
+        </section>
+
+        <section class="annex-section">
+            <h2>ANEXO B. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS</h2>
+            {% if anexos.fotografias_grupos %}
+            {% set figura_b = namespace(valor=0) %}
+            {% for grupo in anexos.fotografias_grupos %}
+            <article class="photo-group">
+                <h3>{{ grupo.codigo }} {{ grupo.titulo }}</h3>
+                <p class="photo-intro">{{ grupo.intro }}</p>
+                {% if grupo.fotos %}
+                <div class="photo-grid">
+                    {% for foto in grupo.fotos %}
+                    {% set figura_b.valor = figura_b.valor + 1 %}
+                    <figure>
+                        <img src="{{ foto.url }}" alt="Fotografía del expediente">
+                        <figcaption>
+                            <span class="photo-figure-id">Figura B-{{ figura_b.valor }}</span>
+                            {{ foto.pie or "Fotografía del expediente" }}
+                        </figcaption>
+                    </figure>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="empty-note">No constan fotografías clasificadas en este grupo.</p>
+                {% endif %}
+                {% if grupo.omitidas %}
+                <p class="photo-limit-note">
+                    Se muestran {{ grupo.fotos|length }} fotografías representativas de {{ grupo.total_clasificadas }} clasificadas en este grupo.
+                </p>
+                {% endif %}
+            </article>
+            {% endfor %}
+            {% else %}
+            <p class="empty-note">No constan fotografías asociadas al expediente.</p>
+            {% endif %}
+        </section>
+
+        <section class="annex-section">
+            <h2>ANEXO C. FICHAS DE DAÑOS POR ESTANCIA</h2>
+            {% if anexos.fichas_danos %}
+            {% for ficha in anexos.fichas_danos %}
+            <article class="damage-sheet">
+                <h3>C.{{ loop.index }} {{ ficha.nombre }}</h3>
+                {% if ficha.nivel or ficha.unidad %}
+                <p class="damage-meta">
+                    {% if ficha.nivel %}{{ ficha.nivel }}{% endif %}{% if ficha.nivel and ficha.unidad %} · {% endif %}{% if ficha.unidad %}{{ ficha.unidad }}{% endif %}
+                </p>
+                {% endif %}
+
+                <strong>Daños observados:</strong>
+                {% if ficha.danos %}
+                <ul class="annex-list">
+                    {% for dano in ficha.danos %}
+                    <li>{{ dano }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="empty-note">No constan daños registrados.</p>
+                {% endif %}
+
+                <strong>Evidencias fotográficas:</strong>
+                {% if ficha.fotos %}
+                <div class="evidence-grid">
+                    {% for foto in ficha.fotos %}
+                    <figure>
+                        <img src="{{ foto.url }}" alt="Evidencia fotográfica">
+                        <figcaption>{{ foto.pie or "Evidencia fotográfica" }}</figcaption>
+                    </figure>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="empty-note">No constan fotografías asociadas.</p>
+                {% endif %}
+
+                <strong>Observaciones:</strong>
+                {% if ficha.observaciones %}
+                <ul class="annex-list">
+                    {% for observacion in ficha.observaciones %}
+                    <li>{{ observacion }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="empty-note">No constan observaciones registradas.</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+            {% else %}
+            <p class="empty-note">No constan estancias o zonas con daños registrados.</p>
+            {% endif %}
+        </section>
+
+        <section class="annex-section annex-d-landscape">
+            <h2>ANEXO D. VALORACIÓN ECONÓMICA DETALLADA</h2>
+            {% if anexos.valoracion and anexos.valoracion.tiene_costes %}
+            <div class="economic-summary">
+                <div class="economic-summary-label">PRESUPUESTO DE EJECUCIÓN MATERIAL</div>
+                <div class="economic-summary-value">{{ anexos.valoracion.total_pem_formateado }}</div>
+            </div>
+            {% for actuacion in anexos.valoracion.actuaciones %}
+            <h3>{{ actuacion.titulo }}</h3>
+            {% if actuacion.descripcion %}
+            <p>{{ actuacion.descripcion }}</p>
+            {% endif %}
+            <table class="valuation-table clean-table">
+                <thead>
+                    <tr>
+                        <th>Partida</th>
+                        <th>Medición</th>
+                        <th>Precio unitario</th>
+                        <th>Importe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for partida in actuacion.partidas %}
+                    <tr>
+                        <td>
+                            {% if partida.codigo or partida.concepto_codigo %}<strong>{{ partida.codigo or partida.concepto_codigo }}</strong><br>{% endif %}
+                            {{ partida.partida or partida.descripcion_snapshot or partida.concepto_resumen or "-" }}
+                        </td>
+                        <td class="money">{{ numero_es_2(partida.cantidad) }} {{ unidad_pdf(partida.unidad or partida.unidad_snapshot) }}</td>
+                        <td class="money">{{ numero_es_2(partida.precio_unitario or partida.precio_unitario_snapshot) }} €</td>
+                        <td class="money amount">{{ numero_es_2(partida.importe) }} €</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="valuation-total">
+                        <td colspan="3">Subtotal actuación</td>
+                        <td class="money amount">{{ numero_es_2(actuacion.subtotal) }} €</td>
+                    </tr>
+                </tbody>
+            </table>
+            {% endfor %}
+            {% else %}
+            <p class="empty-note">No constan actuaciones económicas registradas para el expediente.</p>
+            {% endif %}
+        </section>
+
+        <section class="annex-section">
+            <h2>ANEXO E. ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4 DEL PRESUPUESTO DE REPARACIÓN DE CUBIERTA</h2>
+            {% if anexos.analisis_partida_4.contenido_pdf %}
+            <article class="analysis-block chapter-content">{{ anexos.analisis_partida_4.contenido_pdf }}</article>
+            {% else %}
+            <p class="empty-note">No consta contenido editable para el Anexo E.</p>
+            {% endif %}
+        </section>
+
+        <section class="annex-section">
+            <h2>ANEXO F. JUSTIFICACIÓN DE MEDICIONES</h2>
+            {% if anexos.justificacion_mediciones.contenido_pdf %}
+            <article class="analysis-block chapter-content">{{ anexos.justificacion_mediciones.contenido_pdf }}</article>
+            {% else %}
+            <p class="empty-note">No consta contenido editable para el Anexo F.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+
+</html>

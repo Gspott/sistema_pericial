@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Importaciones BC3</title>
+    <style>
+        .costes-bc3-page {
+            max-width: 1180px;
+        }
+
+        .costes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .costes-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        @media (max-width: 760px) {
+            .costes-actions {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-bc3-page">
+        <header class="card">
+            <div class="costes-actions">
+                <a class="boton secundario" href="/costes">Partidas</a>
+                <a class="boton" href="/costes/bc3/importar">Importar BC3</a>
+            </div>
+            <h1>Importaciones BC3</h1>
+            <p class="subtitle">Fuentes BC3 trazadas en la base propia de costes.</p>
+            {% if mensaje %}<p class="success">{{ mensaje }}</p>{% endif %}
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        </header>
+
+        <section class="card" aria-labelledby="bc3-importaciones-title">
+            <h2 id="bc3-importaciones-title">Listado</h2>
+            {% if importaciones %}
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Base</th>
+                            <th>Archivo</th>
+                            <th>Descripción</th>
+                            <th>Conceptos base</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in importaciones %}
+                        <tr>
+                            <td>{{ item.created_at }}</td>
+                            <td>{{ item.base_nombre or 'Sin base' }}</td>
+                            <td class="costes-code">{{ item.archivo_original }}</td>
+                            <td>{{ item.descripcion }}</td>
+                            <td>{{ item.conceptos_base }}</td>
+                            <td><a class="boton secundario" href="/costes/bc3/importaciones/{{ item.id }}">Ver</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty">Todavía no hay importaciones BC3.</p>
+            {% endif %}
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

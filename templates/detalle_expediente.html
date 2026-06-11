@@ -255,6 +255,8 @@
                 <a class="boton" href="/registrar-patologias/{{ ultima_visita.id }}">Registrar patologías</a>
                 {% elif expediente.es_informe_patologias %}
                 <a class="boton" href="/registrar-patologias/{{ ultima_visita.id }}">Continuar patologías</a>
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/actuaciones-reparacion">Actuaciones de reparación</a>
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/presupuesto-reparacion">Presupuesto de reparación</a>
                 {% else %}
                 <a class="boton" href="/nueva-visita/{{ expediente.id }}?visita_id={{ ultima_visita.id }}">Continuar visita</a>
                 {% endif %}
@@ -287,6 +289,14 @@
                     <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
                     <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
                 </div>
+                {% if tiene_presupuesto_reparacion %}
+                <div class="actions informe-actions">
+                    <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir?incluir_anexo_economico_reparacion=1">Ver informe con anexo económico</a>
+                    <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}?incluir_anexo_economico_reparacion=1">Descargar PDF con anexo económico</a>
+                    <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}?incluir_anexo_economico_reparacion=1">Descargar DOCX con anexo económico</a>
+                </div>
+                <p class="workbench-access-note">Anexo económico informativo/pericial basado en PEM, sin IVA ni presupuesto comercial.</p>
+                {% endif %}
                 {% else %}
                 <div>
                     <p class="informe-action-title">Sin pendientes críticos detectados</p>
@@ -297,6 +307,14 @@
                     <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
                     <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
                 </div>
+                {% if tiene_presupuesto_reparacion %}
+                <div class="actions informe-actions">
+                    <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir?incluir_anexo_economico_reparacion=1">Ver informe con anexo económico</a>
+                    <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}?incluir_anexo_economico_reparacion=1">Descargar PDF con anexo económico</a>
+                    <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}?incluir_anexo_economico_reparacion=1">Descargar DOCX con anexo económico</a>
+                </div>
+                <p class="workbench-access-note">Anexo económico informativo/pericial basado en PEM, sin IVA ni presupuesto comercial.</p>
+                {% endif %}
                 {% endif %}
             </div>
             {% endif %}
@@ -318,8 +336,18 @@
                     <p class="workbench-access-note">Análisis técnico de comparables, homogeneización y ponderación.</p>
                 </div>
                 {% endif %}
+                {% if expediente.es_informe_patologias %}
+                <div>
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/pericial-workbench">Workbench pericial</a>
+                    <p class="workbench-access-note">Diagnóstico V2 de escritorio para redactar y revisar el informe pericial.</p>
+                </div>
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/actuaciones-reparacion">Actuaciones de reparación</a>
+                {% endif %}
                 <a class="boton secundario" href="/facturacion/facturas/nueva?expediente_id={{ expediente.id }}">Crear factura</a>
                 <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe PDF</a>
+                {% if tiene_presupuesto_reparacion %}
+                <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir?incluir_anexo_economico_reparacion=1">Ver informe con anexo económico</a>
+                {% endif %}
                 <a class="boton secundario" href="/generar-informe-pdf/{{ expediente.id }}">Descargar PDF</a>
                 <a class="boton secundario" href="/generar-informe-docx-editable/{{ expediente.id }}">Descargar DOCX editable</a>
                 <a class="boton secundario" href="/generar-informe/{{ expediente.id }}">Generar DOCX antiguo</a>

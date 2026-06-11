@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Detalle importación BC3</title>
+    <style>
+        .costes-bc3-page {
+            max-width: 1180px;
+        }
+
+        .costes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .costes-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            white-space: nowrap;
+        }
+
+        .costes-money {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-bc3-page">
+        <header class="card">
+            <h1>Importación BC3</h1>
+            <p class="subtitle">{{ fuente.descripcion }} · {{ fuente.created_at }}</p>
+            <p>Base: {{ fuente.base_nombre or 'Sin base' }}</p>
+            <p>Archivo trazado: <span class="costes-code">{{ fuente.archivo_original }}</span></p>
+            <div class="costes-actions">
+                <a class="boton" href="/costes?base_id={{ fuente.base_id }}">Ver base</a>
+                <a class="boton secundario" href="/costes/bc3/importaciones">Volver</a>
+            </div>
+        </header>
+
+        <section class="card" aria-labelledby="bc3-conceptos-title">
+            <h2 id="bc3-conceptos-title">Conceptos de la base</h2>
+            {% if conceptos %}
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Unidad</th>
+                            <th>Resumen</th>
+                            <th>Precio</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for concepto in conceptos %}
+                        <tr>
+                            <td class="costes-code"><a href="/costes/{{ concepto.id }}">{{ concepto.codigo }}</a></td>
+                            <td>{{ concepto.unidad }}</td>
+                            <td>{{ concepto.resumen }}</td>
+                            <td class="costes-money">{{ format_money(concepto.precio) }}</td>
+                            <td>{{ label_estado(concepto.estado) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty">No hay conceptos asociados a esta base.</p>
+            {% endif %}
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

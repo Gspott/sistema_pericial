@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Costes de reparación</title>
+    <style>
+        .costes-workbench {
+            max-width: 1480px;
+        }
+
+        .costes-header,
+        .costes-filter-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .costes-header {
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+        }
+
+        .costes-filter-form {
+            grid-template-columns: minmax(260px, 2fr) minmax(160px, 1fr) minmax(220px, 1.4fr) auto;
+            align-items: end;
+        }
+
+        .costes-money,
+        .costes-date {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .costes-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            white-space: nowrap;
+        }
+
+        .costes-summary-cell {
+            min-width: 260px;
+        }
+
+        .costes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .costes-actions form {
+            margin: 0;
+        }
+
+        .costes-actions button {
+            white-space: nowrap;
+        }
+
+        @media (max-width: 900px) {
+            .costes-header,
+            .costes-filter-form {
+                grid-template-columns: 1fr;
+            }
+
+            .costes-actions {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page costes-workbench">
+        <header class="card costes-header">
+            <div>
+                <h1>Costes de reparación</h1>
+                <p class="subtitle">Workbench manual para partidas propias tipo BC3/FIEBDC, todavía desconectado de patologías.</p>
+            </div>
+            <div class="costes-actions">
+                <a class="boton secundario" href="/costes/bc3/importaciones">Importaciones BC3</a>
+                <a class="boton secundario" href="/costes/bc3/importar">Importar BC3</a>
+                <a class="boton secundario" href="/costes/capturas">Capturas</a>
+                <a class="boton" href="/costes/nuevo">Nueva partida</a>
+            </div>
+        </header>
+
+        {% if mensaje %}<div class="card"><p class="success">{{ mensaje }}</p></div>{% endif %}
+        {% if error %}<div class="card"><p class="error">{{ error }}</p></div>{% endif %}
+
+        <section class="card" aria-labelledby="costes-filtros-title">
+            <h2 id="costes-filtros-title">Filtros</h2>
+            <form class="costes-filter-form" method="get" action="/costes">
+                <label for="q">
+                    Buscar
+                    <input id="q" name="q" type="search" value="{{ filters.q }}" placeholder="Código, resumen o descripción">
+                </label>
+                <label for="estado">
+                    Estado
+                    <select id="estado" name="estado">
+                        <option value="" {% if not filters.estado %}selected{% endif %}>Todos</option>
+                        <option value="borrador" {% if filters.estado == 'borrador' %}selected{% endif %}>Borrador</option>
+                        <option value="validado" {% if filters.estado == 'validado' %}selected{% endif %}>Validado</option>
+                    </select>
+                </label>
+                <label for="base_id">
+                    Base
+                    <select id="base_id" name="base_id">
+                        <option value="" {% if not filters.base_id %}selected{% endif %}>Todas</option>
+                        {% for base in bases %}
+                        <option value="{{ base.id }}" {% if filters.base_id == base.id %}selected{% endif %}>{{ base.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <button class="boton secundario" type="submit">Filtrar</button>
+            </form>
+        </section>
+
+        <section class="card" aria-labelledby="costes-listado-title">
+            <h2 id="costes-listado-title">Partidas</h2>
+            {% if conceptos %}
+            <div class="dashboard-table-wrap">
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Unidad</th>
+                            <th>Resumen</th>
+                            <th>Precio</th>
+                            <th>Estado</th>
+                            <th>Base</th>
+                            <th>Provincia</th>
+                            <th>Fecha base</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for concepto in conceptos %}
+                        <tr>
+                            <td class="costes-code">{{ concepto.codigo }}</td>
+                            <td>{{ concepto.unidad }}</td>
+                            <td class="costes-summary-cell">
+                                <a href="/costes/{{ concepto.id }}">{{ concepto.resumen }}</a>
+                                {% if concepto.descripcion %}<br><span class="muted">{{ concepto.descripcion }}</span>{% endif %}
+                            </td>
+                            <td class="costes-money">{{ format_money(concepto.precio) }} {{ concepto.moneda or 'EUR' }}</td>
+                            <td><span class="{{ estado_badge_class(concepto.estado) }}">{{ label_estado(concepto.estado) }}</span></td>
+                            <td>{{ concepto.base_nombre }}</td>
+                            <td>{{ concepto.provincia or 'Sin provincia' }}</td>
+                            <td class="costes-date">{{ concepto.fecha_base or 'Sin fecha' }}</td>
+                            <td>
+                                {% set usos = usos_por_concepto.get(concepto.id, {"patologias": 0, "actuaciones": 0}) %}
+                                <div class="costes-actions">
+                                    <a class="boton secundario" href="/costes/{{ concepto.id }}">Ver/editar</a>
+                                    <form method="post" action="/costes/{{ concepto.id }}/eliminar" onsubmit="return confirm('¿Seguro que deseas eliminar esta partida? Esta acción no se puede deshacer.');">
+                                        <button class="boton secundario" type="submit">Eliminar</button>
+                                    </form>
+                                </div>
+                                {% if usos.patologias or usos.actuaciones %}
+                                <small class="muted">Usada en {{ usos.actuaciones }} actuaciones y {{ usos.patologias }} patologías.</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty">Todavía no hay partidas de costes con estos filtros.</p>
+            {% endif %}
+        </section>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>
