@@ -443,11 +443,18 @@ def asegurar_tabla_informe_v2_capitulos(cur):
             contenido TEXT,
             generado_desde TEXT,
             editado_manual INTEGER NOT NULL DEFAULT 0,
+            estado_revision TEXT NOT NULL DEFAULT 'Pendiente',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT,
             FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
         )
         """
+    )
+    asegurar_columna(
+        cur,
+        "informe_v2_capitulos",
+        "estado_revision",
+        "TEXT NOT NULL DEFAULT 'Pendiente'",
     )
     cur.execute(
         """

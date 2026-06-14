@@ -409,6 +409,23 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Informe pericial V2" in response.text
     assert "Resumen ejecutivo" in response.text
     assert "contenido_resumen_ejecutivo" in response.text
+    assert response.text.count('data-chapter-help-toggle="') == len(
+        main_module.INFORME_V2_CAPITULOS
+    )
+    assert response.text.count('data-review-state="') == len(
+        main_module.INFORME_V2_CAPITULOS
+    )
+    assert "Estado de capítulos" in response.text
+    assert "Terminados:" in response.text
+    assert "Bloqueados:" in response.text
+    assert "Estado: En revisión" not in response.text
+    assert "Guía editorial. No se imprime en el PDF." in response.text
+    assert "Función:</strong> Ofrecer una visión sintética del informe." in response.text
+    assert "Relación:</strong> Resume el contenido del resto del informe." in response.text
+    assert "Diagnóstico del informe" in response.text
+    assert "Control determinista de completitud. No se imprime en el PDF." in response.text
+    assert "Completitud:" in response.text
+    assert "Capítulos obligatorios" in response.text
     assert "Contexto del expediente" in response.text
     assert "Información de apoyo. No se imprime en el PDF." in response.text
     assert "Zona blanca/editor: contenido del Informe V2." in response.text
@@ -444,6 +461,11 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "contenido_anexo_e_partida_4" in response.text
     assert "ANEXO F. Justificación de mediciones" in response.text
     assert "contenido_anexo_f_mediciones" in response.text
+    assert 'data-autosave-campo="conclusiones_periciales"' in response.text
+    assert "contenido_conclusiones_periciales" in response.text
+    assert "contenido_conclusiones_tecnicas" not in response.text
+    assert "Conclusiones técnicas</h2>" not in response.text
+    assert "Conclusiones periciales</h2>" not in response.text
     assert "[Completar conclusión técnica sobre la partida analizada.]" in response.text
     assert "[Completar desglose de mediciones por estancia, zona o actuación.]" in response.text
     assert "El expediente EXP-PER-WB-1 documenta Daños por agua" in response.text
@@ -499,6 +521,134 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Anexo F manual definitivo" in response.text
     assert "Editado manualmente" in response.text
     assert "El expediente EXP-PER-WB-1 documenta Daños por agua" not in response.text
+
+
+def test_informe_v2_diagnostico_detecta_errores_y_advertencias(isolated_import):
+    main_module = isolated_import("app.main")
+
+    capitulos = [
+        {
+            **capitulo,
+            "contenido": (
+                "x" * 320
+                if capitulo["clave"]
+                in {
+                    "resumen_ejecutivo",
+                    "metodologia",
+                    "analisis_causal",
+                    "inventario_resumido_danos",
+                    "actuaciones_verificadas",
+                    "propuesta_reparacion",
+                }
+                else ""
+            ),
+        }
+        for capitulo in main_module.INFORME_V2_CAPITULOS
+    ]
+    workbench = {
+        "metricas": {
+            "visitas": 1,
+            "patologias_interiores": 2,
+            "patologias_exteriores": 0,
+            "fotografias": 12,
+        },
+        "actuaciones": {"actuaciones": [{"partidas": [{"importe": 100}]}]},
+    }
+
+    diagnostico = main_module.evaluar_diagnostico_informe_v2(capitulos, workbench)
+
+    assert diagnostico["estado"]["clave"] == "incompleto"
+    assert diagnostico["porcentaje"] == 75
+    assert any(item["clave"] == "valoracion_economica" for item in diagnostico["errores"])
+    assert any(item["clave"] == "conclusiones_periciales" for item in diagnostico["errores"])
+    assert any(
+        item["clave"] == "recomendaciones_tecnicas"
+        for item in diagnostico["advertencias"]
+    )
+    assert any(
+        item["clave"] == "inventario_resumido_danos"
+        for item in diagnostico["advertencias"]
+    )
+
+
+def test_informe_v2_estado_revision_guarda_y_persiste_sin_tocar_contenido(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_estado_revision")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        columnas = {
+            row["name"]
+            for row in cur.execute("PRAGMA table_info(informe_v2_capitulos)").fetchall()
+        }
+        assert "estado_revision" in columnas
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, titulo, orden, contenido,
+                generado_desde, editado_manual, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "resumen_ejecutivo",
+                "Resumen ejecutivo",
+                1,
+                "Resumen existente.",
+                "pericial-editor-1",
+            ),
+        )
+        fila = cur.execute(
+            """
+            SELECT estado_revision
+            FROM informe_v2_capitulos
+            WHERE expediente_id = ? AND clave = ?
+            """,
+            (expediente_id, "resumen_ejecutivo"),
+        ).fetchone()
+        assert fila["estado_revision"] == "Pendiente"
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.post(
+        f"/informes-v2/{expediente_id}/capitulos/inventario_resumido_danos/estado",
+        data={"estado_revision": "En revisión"},
+    )
+    assert response.status_code == 200
+    assert response.json()["estado_revision"] == "En revisión"
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        estado = cur.execute(
+            """
+            SELECT contenido, editado_manual, estado_revision, updated_at
+            FROM informe_v2_capitulos
+            WHERE expediente_id = ? AND clave = ?
+            """,
+            (expediente_id, "inventario_resumido_danos"),
+        ).fetchone()
+        assert estado["contenido"] is None
+        assert estado["editado_manual"] == 0
+        assert estado["estado_revision"] == "En revisión"
+        assert estado["updated_at"] is None
+    finally:
+        conn.close()
+
+    editor_response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+    assert editor_response.status_code == 200
+    assert 'data-review-state="inventario_resumido_danos"' in editor_response.text
+    assert '<option value="En revisión" selected>En revisión</option>' in editor_response.text
+    assert "No hay inventario resumido de daños disponible." not in editor_response.text
 
 
 def test_informe_v2_guardado_manual_detecta_conflicto_updated_at(isolated_import):
@@ -1243,7 +1393,7 @@ def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
     contexto = capturado["contexto"]
     assert contexto["capitulos_guardados"] == 0
     assert len(contexto["capitulos_editor"]) == len(main_module.INFORME_V2_CAPITULOS)
-    assert len(contexto["capitulos"]) == len(main_module.INFORME_V2_CAPITULOS) - 4
+    assert len(contexto["capitulos"]) == len(main_module.INFORME_V2_CAPITULOS) - 3
     assert all(capitulo["contenido"] == "" for capitulo in contexto["capitulos_editor"])
     assert contexto["anexos"]["analisis_partida_4"]["contenido_pdf"].startswith("E.1 Objeto")
     assert contexto["anexos"]["analisis_partida_4"]["guardado"] is False
@@ -1329,6 +1479,100 @@ def test_pdf_v2_limpia_vocabulario_interno_sin_modificar_contenido_guardado(
     ][0]
     assert capitulo["contenido"] == contenido_guardado
     assert capitulo["contenido_pdf"] != contenido_guardado
+
+
+def test_informe_v2_conclusiones_periciales_prioridad_y_fallback_legacy(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_conclusiones_legacy")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, titulo, orden, contenido,
+                generado_desde, editado_manual, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "conclusiones_tecnicas",
+                "Conclusiones técnicas",
+                11,
+                "Conclusión técnica histórica heredada.",
+                "pericial-editor-1",
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    capturado = {}
+
+    def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
+        return b"%PDF-1.4\n%PDF V2 conclusiones fallback test\n"
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    client = _autenticar_cliente(main_module, user_id)
+
+    editor_response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+    assert editor_response.status_code == 200
+    assert "Conclusión técnica histórica heredada." in editor_response.text
+    assert "contenido_conclusiones_periciales" in editor_response.text
+    assert "contenido_conclusiones_tecnicas" not in editor_response.text
+
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}")
+    assert response.status_code == 200
+    html = capturado["html"]
+    contexto = capturado["contexto"]
+    assert html.count("13. Conclusiones") == 1
+    assert "Conclusión técnica histórica heredada." in html
+    assert "Conclusiones técnicas" not in html
+    assert "Conclusiones periciales" not in html
+    assert len(contexto["conclusiones"]["bloques"]) == 1
+    assert contexto["conclusiones"]["bloques"][0]["clave"] == "conclusiones_periciales"
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, titulo, orden, contenido,
+                generado_desde, editado_manual, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "conclusiones_periciales",
+                "Conclusiones",
+                11,
+                "Conclusión pericial prioritaria.",
+                "pericial-editor-1",
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}")
+    assert response.status_code == 200
+    html = capturado["html"]
+    assert html.count("13. Conclusiones") == 1
+    assert "Conclusión pericial prioritaria." in html
+    assert "Conclusión técnica histórica heredada." not in html
 
 
 def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
@@ -1567,8 +1811,18 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     html = capturado["html"]
 
     assert "13. Conclusiones" in html
-    assert "Conclusión técnica redactada por el técnico." in html
+    assert "Diagnóstico del informe" not in html
+    assert "Control determinista de completitud. No se imprime en el PDF." not in html
+    assert "Estado de capítulos" not in html
+    assert "Terminados:" not in html
+    assert "Bloqueados:" not in html
+    assert "Guía editorial. No se imprime en el PDF." not in html
+    assert html.count("13. Conclusiones") == 1
+    assert len(contexto["conclusiones"]["bloques"]) == 1
+    assert "Conclusión técnica redactada por el técnico." not in html
     assert "Conclusión pericial redactada por el técnico." in html
+    assert "Conclusiones técnicas" not in html
+    assert "Conclusiones periciales" not in html
     assert "14. Conclusiones periciales" not in html
     assert "ANEXO A. DOCUMENTACIÓN APORTADA" in html
     assert "Presupuesto pericial de reparación" in html

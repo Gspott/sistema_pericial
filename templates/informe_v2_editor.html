@@ -150,6 +150,76 @@
             margin: 0;
         }
 
+        .chapter-title-row {
+            align-items: center;
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+        }
+
+        .chapter-help-toggle {
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 0.78rem;
+            font-weight: 800;
+            height: 24px;
+            justify-content: center;
+            line-height: 1;
+            padding: 0;
+            width: 24px;
+        }
+
+        .chapter-help-toggle:hover,
+        .chapter-help-toggle[aria-expanded="true"] {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+
+        .chapter-review-state {
+            align-items: center;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #475569;
+            display: inline-flex;
+            font-size: 0.76rem;
+            font-weight: 800;
+            gap: 5px;
+            padding: 3px 7px;
+        }
+
+        .chapter-review-state select {
+            background: transparent;
+            border: 0;
+            color: #0f172a;
+            font: inherit;
+            padding: 0;
+        }
+
+        .chapter-review-state.saving {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+
+        .chapter-review-state.saved {
+            background: #ecfdf5;
+            border-color: #86efac;
+            color: #166534;
+        }
+
+        .chapter-review-state.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
         .chapter-meta {
             color: #64748b;
             font-size: 0.78rem;
@@ -293,6 +363,43 @@
             padding: 8px;
         }
 
+        .chapter-help {
+            background: #f8fafc;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            color: #334155;
+            margin: 8px 0;
+            padding: 9px;
+        }
+
+        .chapter-help[hidden] {
+            display: none;
+        }
+
+        .chapter-help-title {
+            color: #1d4ed8;
+            font-size: 0.78rem;
+            font-weight: 800;
+            margin: 0 0 7px;
+        }
+
+        .chapter-help-list {
+            display: grid;
+            gap: 5px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .chapter-help-list li {
+            font-size: 0.82rem;
+            line-height: 1.35;
+        }
+
+        .chapter-help-list strong {
+            color: #0f172a;
+        }
+
         .history-list {
             display: grid;
             gap: 8px;
@@ -407,6 +514,134 @@
             margin: 8px 0 0;
         }
 
+        .diagnostic-summary {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            margin-top: 9px;
+            padding: 9px;
+        }
+
+        .diagnostic-state {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            padding: 8px;
+        }
+
+        .diagnostic-state.incompleto {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .diagnostic-state.revisar {
+            background: #fff7ed;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
+
+        .diagnostic-state.apto {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .diagnostic-progress {
+            background: #e2e8f0;
+            border-radius: 999px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .diagnostic-progress span {
+            background: #2563eb;
+            display: block;
+            height: 100%;
+        }
+
+        .diagnostic-items {
+            display: grid;
+            gap: 6px;
+            list-style: none;
+            margin: 8px 0 0;
+            padding: 0;
+        }
+
+        .diagnostic-item {
+            border-top: 1px solid #e2e8f0;
+            color: #334155;
+            font-size: 0.82rem;
+            padding-top: 6px;
+        }
+
+        .diagnostic-item:first-child {
+            border-top: 0;
+            padding-top: 0;
+        }
+
+        .diagnostic-indicator {
+            align-items: center;
+            display: flex;
+            gap: 6px;
+            justify-content: space-between;
+        }
+
+        .diagnostic-dot {
+            border-radius: 999px;
+            display: inline-block;
+            height: 9px;
+            width: 9px;
+        }
+
+        .diagnostic-dot.ok {
+            background: #16a34a;
+        }
+
+        .diagnostic-dot.error {
+            background: #dc2626;
+        }
+
+        .manual-state-counts {
+            display: grid;
+            gap: 6px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            list-style: none;
+            margin: 8px 0 0;
+            padding: 0;
+        }
+
+        .manual-state-counts li {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            color: #334155;
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding: 6px;
+        }
+
+        .manual-state-label.pendiente {
+            color: #991b1b;
+        }
+
+        .manual-state-label.borrador {
+            color: #475569;
+        }
+
+        .manual-state-label.revision {
+            color: #9a3412;
+        }
+
+        .manual-state-label.terminado {
+            color: #166534;
+        }
+
+        .manual-state-label.bloqueado {
+            color: #7f1d1d;
+        }
+
         .actions {
             display: flex;
             flex-wrap: wrap;
@@ -477,7 +712,20 @@
                     <section class="chapter-editor" id="capitulo-{{ capitulo.clave }}">
                         <div class="chapter-head">
                             <div>
-                                <h2>{{ capitulo.orden }}. {{ capitulo.titulo }}</h2>
+                                <div class="chapter-title-row">
+                                    <h2>{{ capitulo.orden }}. {{ capitulo.titulo }}</h2>
+                                    {% if capitulo.ayuda %}
+                                    <button class="chapter-help-toggle" type="button" data-chapter-help-toggle="{{ capitulo.clave }}" aria-controls="chapter-help-{{ capitulo.clave }}" aria-expanded="false" title="Ver guía editorial">ⓘ</button>
+                                    {% endif %}
+                                    <label class="chapter-review-state" data-review-state-wrapper="{{ capitulo.clave }}">
+                                        Estado:
+                                        <select data-review-state="{{ capitulo.clave }}" aria-label="Estado de revisión de {{ capitulo.titulo }}">
+                                            {% for estado_opcion in estados_revision_opciones %}
+                                            <option value="{{ estado_opcion }}" {% if capitulo.estado_revision == estado_opcion %}selected{% endif %}>{{ estado_opcion }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </label>
+                                </div>
                                 <p class="chapter-meta">
                                     {% if capitulo.editado_manual %}
                                     Editado manualmente{% if capitulo.updated_at %} · Última actualización <span data-utc-timestamp="{{ capitulo.updated_at }}" data-format="datetime">{{ capitulo.updated_at }}</span>{% endif %}
@@ -491,6 +739,17 @@
                                 <span class="chapter-save-status ready" data-chapter-status="{{ capitulo.clave }}">Listo</span>
                             </div>
                         </div>
+                        {% if capitulo.ayuda %}
+                        <aside class="chapter-help" id="chapter-help-{{ capitulo.clave }}" data-chapter-help="{{ capitulo.clave }}" hidden>
+                            <p class="chapter-help-title">Guía editorial. No se imprime en el PDF.</p>
+                            <ul class="chapter-help-list">
+                                <li><strong>Función:</strong> {{ capitulo.ayuda.funcion }}</li>
+                                <li><strong>Incluir:</strong> {{ capitulo.ayuda.incluir }}</li>
+                                <li><strong>Evitar:</strong> {{ capitulo.ayuda.evitar }}</li>
+                                <li><strong>Relación:</strong> {{ capitulo.ayuda.relacion }}</li>
+                            </ul>
+                        </aside>
+                        {% endif %}
                         <input type="hidden" name="updated_at_{{ capitulo.clave }}" value="{{ capitulo.updated_at }}" data-autosave-updated-at="{{ capitulo.clave }}">
                         <div class="local-recovery" data-local-recovery="{{ capitulo.clave }}">
                             <p>Copia local disponible para este capítulo.</p>
@@ -535,6 +794,73 @@
                         <li class="evidence-item">Limitaciones candidatas: <strong>{{ limitaciones_candidatas | length }}</strong></li>
                         <li class="evidence-item">Recomendaciones candidatas: <strong>{{ recomendaciones_candidatas | length }}</strong></li>
                     </ul>
+
+                    <section class="diagnostic-summary" aria-label="Diagnóstico del informe">
+                        <h3>Diagnóstico del informe</h3>
+                        <p class="editor-note">Control determinista de completitud. No se imprime en el PDF.</p>
+                        <div class="diagnostic-state {{ diagnostico_informe.estado.clave }}">
+                            {{ diagnostico_informe.estado.texto }}
+                            <p class="chapter-meta">{{ diagnostico_informe.estado.detalle }}</p>
+                        </div>
+                        <p class="chapter-meta">Completitud: <strong>{{ diagnostico_informe.porcentaje }}%</strong> · {{ diagnostico_informe.completos }}/{{ diagnostico_informe.total_obligatorios }} capítulos obligatorios</p>
+                        <div class="diagnostic-progress" aria-hidden="true"><span style="width: {{ diagnostico_informe.porcentaje }}%;"></span></div>
+
+                        <details class="context-block" open>
+                            <summary>Errores ({{ diagnostico_informe.errores | length }})</summary>
+                            {% if diagnostico_informe.errores %}
+                            <ul class="diagnostic-items">
+                                {% for item in diagnostico_informe.errores %}
+                                <li class="diagnostic-item"><strong>{{ item.capitulo }}:</strong> {{ item.mensaje }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="context-empty">Sin errores detectados.</p>
+                            {% endif %}
+                        </details>
+
+                        <details class="context-block">
+                            <summary>Advertencias ({{ diagnostico_informe.advertencias | length }})</summary>
+                            {% if diagnostico_informe.advertencias %}
+                            <ul class="diagnostic-items">
+                                {% for item in diagnostico_informe.advertencias %}
+                                <li class="diagnostic-item"><strong>{{ item.capitulo }}:</strong> {{ item.mensaje }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="context-empty">Sin advertencias detectadas.</p>
+                            {% endif %}
+                        </details>
+
+                        <details class="context-block">
+                            <summary>Capítulos obligatorios</summary>
+                            <ul class="diagnostic-items">
+                                {% for item in diagnostico_informe.indicadores %}
+                                <li class="diagnostic-item diagnostic-indicator">
+                                    <span><span class="diagnostic-dot {{ 'ok' if item.completo else 'error' }}"></span> {{ item.titulo }}</span>
+                                    <span>{{ item.caracteres }} caracteres</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+
+                        <details class="context-block" open>
+                            <summary>Estado de capítulos</summary>
+                            <ul class="manual-state-counts">
+                                <li><span class="manual-state-label terminado">Terminados:</span> {{ estados_revision.conteos["Terminado"] }}</li>
+                                <li><span class="manual-state-label revision">En revisión:</span> {{ estados_revision.conteos["En revisión"] }}</li>
+                                <li><span class="manual-state-label borrador">Borrador:</span> {{ estados_revision.conteos["Borrador"] }}</li>
+                                <li><span class="manual-state-label pendiente">Pendientes:</span> {{ estados_revision.conteos["Pendiente"] }}</li>
+                                <li><span class="manual-state-label bloqueado">Bloqueados:</span> {{ estados_revision.conteos["Bloqueado"] }}</li>
+                            </ul>
+                            <ul class="diagnostic-items">
+                                {% for item in estados_revision.indicadores %}
+                                <li class="diagnostic-item">
+                                    <span class="manual-state-label {{ item.clase }}">{{ item.icono }} {{ item.titulo }} · {{ item.estado }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                    </section>
 
                     <details class="context-block" open>
                         <summary>Resumen de expediente</summary>
@@ -694,6 +1020,59 @@
             const savingFields = new Set();
             const conflictFields = new Set();
             const debounceMs = 1000;
+
+            async function saveReviewState(select) {
+                const campo = select.dataset.reviewState;
+                const wrapper = document.querySelector('[data-review-state-wrapper="' + campo + '"]');
+                if (!campo) {
+                    return;
+                }
+                if (wrapper) {
+                    wrapper.className = "chapter-review-state saving";
+                }
+                const body = new FormData();
+                body.append("estado_revision", select.value);
+                try {
+                    const response = await fetch("/informes-v2/" + expedienteId + "/capitulos/" + campo + "/estado", {
+                        method: "POST",
+                        body: body,
+                        credentials: "same-origin",
+                        headers: { "X-Requested-With": "XMLHttpRequest" },
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || "No se pudo guardar el estado.");
+                    }
+                    if (wrapper) {
+                        wrapper.className = "chapter-review-state saved";
+                    }
+                    setStatus("Estado actualizado: " + data.estado_revision, "saved");
+                } catch (error) {
+                    if (wrapper) {
+                        wrapper.className = "chapter-review-state error";
+                    }
+                    setStatus(error.message || "Error al guardar el estado.", "error");
+                }
+            }
+
+            document.querySelectorAll("[data-review-state]").forEach(function (select) {
+                select.addEventListener("change", function () {
+                    saveReviewState(select);
+                });
+            });
+
+            document.querySelectorAll("[data-chapter-help-toggle]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    const campo = button.dataset.chapterHelpToggle;
+                    const panel = document.querySelector('[data-chapter-help="' + campo + '"]');
+                    if (!panel) {
+                        return;
+                    }
+                    const expanded = button.getAttribute("aria-expanded") === "true";
+                    button.setAttribute("aria-expanded", expanded ? "false" : "true");
+                    panel.hidden = expanded;
+                });
+            });
 
             function setStatus(text, state) {
                 if (!statusEl) {

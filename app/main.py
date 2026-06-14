@@ -6148,23 +6148,103 @@ INFORME_V2_CAPITULOS = [
         "titulo": "Recomendaciones técnicas",
         "orden": 10,
     },
-    {"clave": "conclusiones_tecnicas", "titulo": "Conclusiones técnicas", "orden": 11},
     {
         "clave": "conclusiones_periciales",
-        "titulo": "Conclusiones periciales",
-        "orden": 12,
+        "titulo": "Conclusiones",
+        "orden": 11,
     },
     {
         "clave": "anexo_e_partida_4",
         "titulo": "ANEXO E. Análisis de ejecución de la partida nº 4",
-        "orden": 13,
+        "orden": 12,
     },
     {
         "clave": "anexo_f_mediciones",
         "titulo": "ANEXO F. Justificación de mediciones",
-        "orden": 14,
+        "orden": 13,
     },
 ]
+
+INFORME_V2_AYUDAS_CAPITULOS = {
+    "resumen_ejecutivo": {
+        "funcion": "Ofrecer una visión sintética del informe.",
+        "incluir": "Encargo, daños principales, causa probable, reparación propuesta y coste estimado si procede.",
+        "evitar": "Desarrollo técnico completo o inventarios detallados.",
+        "relacion": "Resume el contenido del resto del informe.",
+    },
+    "antecedentes_objeto": {
+        "funcion": "Delimitar el encargo y el objeto del dictamen.",
+        "incluir": "Antecedentes relevantes, alcance solicitado, inmueble afectado y documentación de partida.",
+        "evitar": "Entrar en conclusiones, valoración económica o inventario detallado.",
+        "relacion": "Sitúa el marco del análisis que desarrollan los capítulos posteriores.",
+    },
+    "metodologia": {
+        "funcion": "Explicar cómo se realizó el análisis.",
+        "incluir": "Visita, documentación consultada, inspecciones y criterios aplicados.",
+        "evitar": "Conclusiones técnicas o económicas.",
+        "relacion": "Justifica la validez del análisis posterior.",
+    },
+    "limitaciones": {
+        "funcion": "Identificar restricciones del trabajo realizado.",
+        "incluir": "Zonas no accesibles, documentación no disponible o condicionantes relevantes.",
+        "evitar": "Justificar conclusiones débiles.",
+        "relacion": "Contextualiza el alcance del dictamen.",
+    },
+    "analisis_causal": {
+        "funcion": "Explicar la relación entre causa y daño.",
+        "incluir": "Mecanismo lesional, indicios observados y razonamiento técnico.",
+        "evitar": "Repetir el inventario completo de daños.",
+        "relacion": "Sirve de base para conclusiones y reparación.",
+    },
+    "inventario_resumido_danos": {
+        "funcion": "Describir los daños observados.",
+        "incluir": "Ubicación, alcance y características de cada lesión.",
+        "evitar": "Explicaciones causales extensas.",
+        "relacion": "Documenta los hechos observados.",
+    },
+    "actuaciones_verificadas": {
+        "funcion": "Recoger intervenciones ya ejecutadas o comprobadas.",
+        "incluir": "Trabajos realizados y evidencias observadas.",
+        "evitar": "Propuestas futuras.",
+        "relacion": "Complementa el análisis causal.",
+    },
+    "propuesta_reparacion": {
+        "funcion": "Definir las medidas correctoras recomendadas.",
+        "incluir": "Actuaciones necesarias para resolver los daños.",
+        "evitar": "Desarrollo económico detallado.",
+        "relacion": "Se valora económicamente en el capítulo siguiente.",
+    },
+    "valoracion_economica": {
+        "funcion": "Cuantificar económicamente la reparación.",
+        "incluir": "Importes, criterios y alcance económico.",
+        "evitar": "Justificar técnicamente cada reparación.",
+        "relacion": "Desarrolla económicamente la propuesta de reparación.",
+    },
+    "recomendaciones_tecnicas": {
+        "funcion": "Aportar medidas preventivas o de seguimiento.",
+        "incluir": "Mantenimiento, inspecciones futuras o controles recomendados.",
+        "evitar": "Repetir conclusiones.",
+        "relacion": "Complementa la reparación propuesta.",
+    },
+    "conclusiones_periciales": {
+        "funcion": "Cerrar el dictamen.",
+        "incluir": "Síntesis técnica, síntesis económica y dictamen final.",
+        "evitar": "Copiar literalmente capítulos anteriores.",
+        "relacion": "Resume el criterio pericial final.",
+    },
+    "anexo_e_partida_4": {
+        "funcion": "Analizar de forma específica la ejecución de la partida nº 4.",
+        "incluir": "Objeto del análisis, comprobaciones, valoración técnica y conclusión de la partida.",
+        "evitar": "Repetir el presupuesto completo o sustituir la valoración general.",
+        "relacion": "Complementa la valoración económica detallada.",
+    },
+    "anexo_f_mediciones": {
+        "funcion": "Justificar mediciones y criterios de cuantificación.",
+        "incluir": "Criterios de medición, unidades, zonas computadas y observaciones de alcance.",
+        "evitar": "Duplicar la redacción de propuesta o conclusiones.",
+        "relacion": "Da soporte a la valoración económica y a los anexos de coste.",
+    },
+}
 
 INFORME_V2_CAPITULOS_POR_CLAVE = {
     capitulo["clave"]: capitulo for capitulo in INFORME_V2_CAPITULOS
@@ -6172,11 +6252,32 @@ INFORME_V2_CAPITULOS_POR_CLAVE = {
 
 
 INFORME_V2_CLAVES_FUERA_CUERPO_PDF = {
-    "conclusiones_tecnicas",
     "conclusiones_periciales",
     "anexo_e_partida_4",
     "anexo_f_mediciones",
 }
+
+INFORME_V2_CLAVE_CONCLUSIONES = "conclusiones_periciales"
+INFORME_V2_CLAVE_CONCLUSIONES_LEGACY = "conclusiones_tecnicas"
+
+INFORME_V2_ESTADOS_REVISION = (
+    "Pendiente",
+    "Borrador",
+    "En revisión",
+    "Terminado",
+    "Bloqueado",
+)
+
+INFORME_V2_CAPITULOS_OBLIGATORIOS_DIAGNOSTICO = (
+    "resumen_ejecutivo",
+    "metodologia",
+    "analisis_causal",
+    "inventario_resumido_danos",
+    "actuaciones_verificadas",
+    "propuesta_reparacion",
+    "valoracion_economica",
+    "conclusiones_periciales",
+)
 
 
 TIPOS_DOCUMENTALES_ANEXO_A = (
@@ -6566,6 +6667,221 @@ def obtener_versiones_informe_v2(cur, expediente_id: int) -> dict[str, list[dict
     return versiones
 
 
+def resolver_capitulo_guardado_editor_v2(
+    guardados: dict[str, dict], clave: str
+) -> tuple[dict | None, str]:
+    guardado = guardados.get(clave)
+    contenido = limpiar_texto(guardado.get("contenido")) if guardado else ""
+    if clave != INFORME_V2_CLAVE_CONCLUSIONES or contenido:
+        return guardado, contenido
+
+    guardado_legacy = guardados.get(INFORME_V2_CLAVE_CONCLUSIONES_LEGACY)
+    contenido_legacy = (
+        limpiar_texto(guardado_legacy.get("contenido")) if guardado_legacy else ""
+    )
+    if contenido_legacy:
+        return guardado, contenido_legacy
+    return guardado, contenido
+
+
+def normalizar_estado_revision_informe_v2(valor: str | None) -> str:
+    estado = limpiar_texto(valor)
+    return estado if estado in INFORME_V2_ESTADOS_REVISION else "Pendiente"
+
+
+def resumir_estados_revision_informe_v2(capitulos: list[dict]) -> dict:
+    conteos = {estado: 0 for estado in INFORME_V2_ESTADOS_REVISION}
+    indicadores = []
+    iconos = {
+        "Pendiente": "✗",
+        "Borrador": "•",
+        "En revisión": "⚠",
+        "Terminado": "✓",
+        "Bloqueado": "⛔",
+    }
+    clases = {
+        "Pendiente": "pendiente",
+        "Borrador": "borrador",
+        "En revisión": "revision",
+        "Terminado": "terminado",
+        "Bloqueado": "bloqueado",
+    }
+    for capitulo in capitulos:
+        estado = normalizar_estado_revision_informe_v2(capitulo.get("estado_revision"))
+        conteos[estado] += 1
+        indicadores.append(
+            {
+                "clave": capitulo["clave"],
+                "titulo": capitulo["titulo"],
+                "estado": estado,
+                "icono": iconos[estado],
+                "clase": clases[estado],
+            }
+        )
+    return {
+        "conteos": conteos,
+        "indicadores": indicadores,
+        "opciones": INFORME_V2_ESTADOS_REVISION,
+    }
+
+
+def evaluar_diagnostico_informe_v2(capitulos: list[dict], workbench: dict) -> dict:
+    capitulos_por_clave = {capitulo["clave"]: capitulo for capitulo in capitulos}
+    metricas = workbench.get("metricas", {})
+    actuaciones = workbench.get("actuaciones", {})
+    total_patologias = int(metricas.get("patologias_interiores") or 0) + int(
+        metricas.get("patologias_exteriores") or 0
+    )
+    total_visitas = int(metricas.get("visitas") or 0)
+    total_fotos = int(metricas.get("fotografias") or 0)
+    total_actuaciones = len(actuaciones.get("actuaciones") or [])
+    total_partidas = sum(
+        len(actuacion.get("partidas") or [])
+        for actuacion in actuaciones.get("actuaciones") or []
+    )
+
+    errores = []
+    advertencias = []
+    indicadores = []
+
+    def contenido(clave: str) -> str:
+        return limpiar_texto(capitulos_por_clave.get(clave, {}).get("contenido"))
+
+    def titulo(clave: str) -> str:
+        return limpiar_texto(capitulos_por_clave.get(clave, {}).get("titulo")) or clave
+
+    def agregar_error(clave: str, mensaje: str):
+        errores.append({"capitulo": titulo(clave), "clave": clave, "mensaje": mensaje})
+
+    def agregar_advertencia(clave: str, mensaje: str):
+        advertencias.append(
+            {"capitulo": titulo(clave), "clave": clave, "mensaje": mensaje}
+        )
+
+    def longitud(clave: str) -> int:
+        return len(contenido(clave))
+
+    reglas_error_vacio = {
+        "resumen_ejecutivo": "El resumen ejecutivo está vacío.",
+        "metodologia": "La metodología está vacía.",
+        "analisis_causal": "El análisis causal está vacío.",
+        "inventario_resumido_danos": "El inventario de daños está vacío.",
+        "actuaciones_verificadas": "Las actuaciones verificadas están vacías.",
+        "propuesta_reparacion": "La propuesta de reparación está vacía.",
+        "valoracion_economica": "La valoración económica está vacía.",
+        "conclusiones_periciales": "Las conclusiones están vacías.",
+    }
+    for clave, mensaje in reglas_error_vacio.items():
+        if not contenido(clave):
+            agregar_error(clave, mensaje)
+
+    if 0 < longitud("resumen_ejecutivo") < 300:
+        agregar_advertencia(
+            "resumen_ejecutivo",
+            "El resumen ejecutivo contiene menos de 300 caracteres.",
+        )
+    if 0 < longitud("metodologia") < 200:
+        agregar_advertencia("metodologia", "La metodología contiene menos de 200 caracteres.")
+    if total_patologias and longitud("inventario_resumido_danos") < 500:
+        agregar_advertencia(
+            "inventario_resumido_danos",
+            "Existen patologías registradas y el inventario de daños es breve.",
+        )
+    if total_visitas and longitud("actuaciones_verificadas") < 200:
+        agregar_advertencia(
+            "actuaciones_verificadas",
+            "Existen visitas registradas y las actuaciones verificadas están vacías o son muy breves.",
+        )
+    if total_actuaciones and not contenido("propuesta_reparacion"):
+        agregar_advertencia(
+            "propuesta_reparacion",
+            "Existen actuaciones de reparación registradas y la propuesta está vacía.",
+        )
+    if total_partidas and not contenido("valoracion_economica"):
+        agregar_advertencia(
+            "valoracion_economica",
+            "Existen partidas de coste registradas y la valoración económica está vacía.",
+        )
+    if not contenido("recomendaciones_tecnicas"):
+        agregar_advertencia("recomendaciones_tecnicas", "Las recomendaciones están vacías.")
+    if 0 < longitud("conclusiones_periciales") < 250:
+        agregar_advertencia(
+            "conclusiones_periciales",
+            "Las conclusiones contienen menos de 250 caracteres.",
+        )
+    if total_patologias and not contenido("inventario_resumido_danos"):
+        agregar_advertencia(
+            "inventario_resumido_danos",
+            "Hay patologías registradas que no se han trasladado al inventario de daños.",
+        )
+    if total_visitas and not contenido("actuaciones_verificadas"):
+        agregar_advertencia(
+            "actuaciones_verificadas",
+            "Hay visitas registradas que no se reflejan en actuaciones verificadas.",
+        )
+    if total_actuaciones and not contenido("propuesta_reparacion"):
+        agregar_advertencia(
+            "propuesta_reparacion",
+            "Hay actuaciones registradas que no se han trasladado a la propuesta.",
+        )
+    if total_partidas and not contenido("valoracion_economica"):
+        agregar_advertencia(
+            "valoracion_economica",
+            "Hay costes registrados que no se han trasladado a la valoración económica.",
+        )
+    if total_fotos > 10 and longitud("inventario_resumido_danos") < 250:
+        agregar_advertencia(
+            "inventario_resumido_danos",
+            "Hay más de 10 fotografías registradas y el inventario de daños es extremadamente reducido.",
+        )
+
+    claves_con_error = {item["clave"] for item in errores}
+    completos = 0
+    for clave in INFORME_V2_CAPITULOS_OBLIGATORIOS_DIAGNOSTICO:
+        completo = clave not in claves_con_error
+        if completo:
+            completos += 1
+        indicadores.append(
+            {
+                "clave": clave,
+                "titulo": titulo(clave),
+                "completo": completo,
+                "caracteres": longitud(clave),
+            }
+        )
+
+    total_obligatorios = len(INFORME_V2_CAPITULOS_OBLIGATORIOS_DIAGNOSTICO)
+    porcentaje = round((completos / total_obligatorios) * 100) if total_obligatorios else 0
+    if errores:
+        estado = {
+            "clave": "incompleto",
+            "texto": "Incompleto",
+            "detalle": "Existen errores que deben revisarse antes de emitir.",
+        }
+    elif advertencias:
+        estado = {
+            "clave": "revisar",
+            "texto": "Revisar",
+            "detalle": "No hay errores, pero existen advertencias editoriales.",
+        }
+    else:
+        estado = {
+            "clave": "apto",
+            "texto": "Apto para emisión",
+            "detalle": "No hay errores ni advertencias detectadas.",
+        }
+
+    return {
+        "estado": estado,
+        "porcentaje": porcentaje,
+        "errores": errores,
+        "advertencias": advertencias,
+        "indicadores": indicadores,
+        "total_obligatorios": total_obligatorios,
+        "completos": completos,
+    }
+
+
 def build_informe_v2_contexto(cur, expediente, workbench: dict | None = None) -> dict:
     expediente_id = expediente["id"]
     expediente_dict = dict(expediente)
@@ -6719,12 +7035,19 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
 
     for definicion in INFORME_V2_CAPITULOS:
         clave = definicion["clave"]
-        guardado = guardados.get(clave)
-        if guardado:
-            contenido = limpiar_texto(guardado.get("contenido"))
-            editado_manual = bool(guardado.get("editado_manual"))
-            generado_desde = limpiar_texto(guardado.get("generado_desde"))
-            updated_at = limpiar_texto(guardado.get("updated_at"))
+        guardado, contenido_guardado = resolver_capitulo_guardado_editor_v2(
+            guardados, clave
+        )
+        guardado_editado_manual = bool(guardado.get("editado_manual")) if guardado else False
+        if contenido_guardado or guardado_editado_manual:
+            contenido = contenido_guardado
+            editado_manual = guardado_editado_manual
+            generado_desde = (
+                limpiar_texto(guardado.get("generado_desde"))
+                if guardado
+                else "conclusiones-tecnicas-legacy"
+            )
+            updated_at = limpiar_texto(guardado.get("updated_at")) if guardado else ""
         else:
             contenido = limpiar_texto(iniciales.get(clave))
             editado_manual = False
@@ -6744,15 +7067,24 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
                 "generado_desde": generado_desde,
                 "editado_manual": editado_manual,
                 "updated_at": updated_at,
+                "estado_revision": normalizar_estado_revision_informe_v2(
+                    guardado.get("estado_revision") if guardado else ""
+                ),
                 "estado": estado,
                 "guardado": bool(guardado),
                 "versiones": versiones.get(clave, []),
+                "ayuda": INFORME_V2_AYUDAS_CAPITULOS.get(clave, {}),
             }
         )
+
+    diagnostico_informe = evaluar_diagnostico_informe_v2(capitulos, workbench)
+    estados_revision = resumir_estados_revision_informe_v2(capitulos)
 
     return {
         **workbench,
         "contexto_editor": contexto_editor,
+        "diagnostico_informe": diagnostico_informe,
+        "estados_revision": estados_revision,
         "capitulos": capitulos,
         "capitulos_guardados": len(guardados),
     }
@@ -7523,16 +7855,22 @@ def preparar_analisis_partida_4_anexo_v2(
 
 def preparar_conclusiones_pdf_informe_v2(capitulos: list[dict]) -> dict:
     conclusiones = []
-    for clave in ("conclusiones_tecnicas", "conclusiones_periciales"):
-        capitulo = next((item for item in capitulos if item["clave"] == clave), None)
-        if capitulo and capitulo["contenido_pdf"]:
-            conclusiones.append(
-                {
-                    "titulo": capitulo["titulo"],
-                    "contenido_pdf": capitulo["contenido_pdf"],
-                    "clave": clave,
-                }
-            )
+    capitulo = next(
+        (
+            item
+            for item in capitulos
+            if item["clave"] == INFORME_V2_CLAVE_CONCLUSIONES
+        ),
+        None,
+    )
+    if capitulo and capitulo["contenido_pdf"]:
+        conclusiones.append(
+            {
+                "titulo": "Conclusiones",
+                "contenido_pdf": capitulo["contenido_pdf"],
+                "clave": INFORME_V2_CLAVE_CONCLUSIONES,
+            }
+        )
     return {
         "numero": 13,
         "titulo": "Conclusiones",
@@ -7547,8 +7885,9 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
     capitulos = []
 
     for definicion in INFORME_V2_CAPITULOS:
-        guardado = guardados.get(definicion["clave"])
-        contenido = limpiar_texto(guardado.get("contenido")) if guardado else ""
+        guardado, contenido = resolver_capitulo_guardado_editor_v2(
+            guardados, definicion["clave"]
+        )
         capitulos.append(
             {
                 **definicion,
@@ -10272,6 +10611,9 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "expediente": editor["expediente"],
             "capitulos": editor["capitulos"],
             "contexto_editor": editor["contexto_editor"],
+            "diagnostico_informe": editor["diagnostico_informe"],
+            "estados_revision": editor["estados_revision"],
+            "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
             "metricas": editor["metricas"],
             "limitaciones_candidatas": editor["limitaciones_candidatas"],
             "recomendaciones_candidatas": editor["recomendaciones_candidatas"],
@@ -10411,6 +10753,74 @@ async def autosave_informe_v2(request: Request, expediente_id: int):
             "ok": True,
             "campo": campo,
             "updated_at": limpiar_texto(fila["updated_at"]) if fila else "",
+        }
+    )
+
+
+@app.post("/informes-v2/{expediente_id}/capitulos/{clave}/estado")
+async def guardar_estado_revision_informe_v2(
+    request: Request,
+    expediente_id: int,
+    clave: str,
+):
+    current_user = get_current_user(request)
+    clave_limpia = limpiar_texto(clave)
+    definicion = INFORME_V2_CAPITULOS_POR_CLAVE.get(clave_limpia)
+    if not definicion:
+        return JSONResponse(
+            {"ok": False, "error": "Campo no permitido para informe V2."},
+            status_code=400,
+        )
+
+    form_data = await request.form()
+    estado = limpiar_texto(form_data.get("estado_revision"))
+    if estado not in INFORME_V2_ESTADOS_REVISION:
+        return JSONResponse(
+            {"ok": False, "error": "Estado de revisión no permitido."},
+            status_code=400,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "El estado V2 solo aplica a expedientes de patologías.",
+                },
+                status_code=400,
+            )
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, titulo, orden, contenido,
+                generado_desde, editado_manual, estado_revision
+            )
+            VALUES (?, ?, ?, ?, NULL, ?, 0, ?)
+            ON CONFLICT(expediente_id, clave) DO UPDATE SET
+                estado_revision = excluded.estado_revision
+            """,
+            (
+                expediente_id,
+                definicion["clave"],
+                definicion["titulo"],
+                definicion["orden"],
+                "pericial-wb-2",
+                estado,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "campo": definicion["clave"],
+            "estado_revision": estado,
         }
     )
 
