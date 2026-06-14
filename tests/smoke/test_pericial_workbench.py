@@ -426,6 +426,16 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Control determinista de completitud. No se imprime en el PDF." in response.text
     assert "Completitud:" in response.text
     assert "Capítulos obligatorios" in response.text
+    assert "Anexos derivados" in response.text
+    assert "Anexo B · Reportaje fotográfico" in response.text
+    assert "Fotografías detectadas: <strong>1</strong>" in response.text
+    assert "Patologías con fotografías: <strong>1</strong>" in response.text
+    assert "✓ Disponible" in response.text
+    assert "El reportaje fotográfico se generará automáticamente agrupado por patología. No es necesario describir individualmente cada fotografía." in response.text
+    assert "Anexo C · Fichas de daños" in response.text
+    assert "Estancias con daños: <strong>1</strong>" in response.text
+    assert "Patologías interiores: <strong>1</strong>" in response.text
+    assert "Las fichas de daños se generarán automáticamente agrupadas por estancia. No es necesario reproducir aquí el inventario completo de daños estancia por estancia." in response.text
     assert "Contexto del expediente" in response.text
     assert "Información de apoyo. No se imprime en el PDF." in response.text
     assert "Zona blanca/editor: contenido del Informe V2." in response.text
@@ -521,6 +531,52 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Anexo F manual definitivo" in response.text
     assert "Editado manualmente" in response.text
     assert "El expediente EXP-PER-WB-1 documenta Daños por agua" not in response.text
+
+
+def test_informe_v2_anexos_derivados_sin_fotos_ni_danos(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_editor_sin_anexos")
+        cur.execute(
+            """
+            INSERT INTO expedientes (
+                numero_expediente, tipo_informe, destinatario, cliente,
+                direccion, ciudad, provincia, tipo_inmueble, owner_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "EXP-SIN-ANEXOS",
+                "patologias",
+                "particular",
+                "Cliente sin anexos",
+                "Calle sin anexos 1",
+                "Madrid",
+                "Madrid",
+                "Vivienda",
+                user_id,
+            ),
+        )
+        expediente_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+
+    assert response.status_code == 200
+    assert "Anexos derivados" in response.text
+    assert "Fotografías detectadas: <strong>0</strong>" in response.text
+    assert "Patologías con fotografías: <strong>0</strong>" in response.text
+    assert "Estancias con daños: <strong>0</strong>" in response.text
+    assert "Patologías interiores: <strong>0</strong>" in response.text
+    assert response.text.count("No disponible") >= 2
 
 
 def test_informe_v2_diagnostico_detecta_errores_y_advertencias(isolated_import):
@@ -1816,6 +1872,9 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Estado de capítulos" not in html
     assert "Terminados:" not in html
     assert "Bloqueados:" not in html
+    assert "Anexos derivados" not in html
+    assert "El reportaje fotográfico se generará automáticamente agrupado por patología" not in html
+    assert "Las fichas de daños se generarán automáticamente agrupadas por estancia" not in html
     assert "Guía editorial. No se imprime en el PDF." not in html
     assert html.count("13. Conclusiones") == 1
     assert len(contexto["conclusiones"]["bloques"]) == 1

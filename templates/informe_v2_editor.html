@@ -400,6 +400,16 @@
             color: #0f172a;
         }
 
+        .chapter-help-warning {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            color: #1e3a8a;
+            font-size: 0.82rem;
+            margin: 8px 0 0;
+            padding: 8px;
+        }
+
         .history-list {
             display: grid;
             gap: 8px;
@@ -603,6 +613,33 @@
             background: #dc2626;
         }
 
+        .derived-annex-grid {
+            display: grid;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .derived-annex-card {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 9px;
+        }
+
+        .derived-annex-card h4 {
+            color: #0f172a;
+            font-size: 0.9rem;
+            margin: 0 0 6px;
+        }
+
+        .derived-annex-card.available {
+            border-color: #bbf7d0;
+        }
+
+        .derived-annex-card.unavailable {
+            background: #f8fafc;
+        }
+
         .manual-state-counts {
             display: grid;
             gap: 6px;
@@ -748,6 +785,11 @@
                                 <li><strong>Evitar:</strong> {{ capitulo.ayuda.evitar }}</li>
                                 <li><strong>Relación:</strong> {{ capitulo.ayuda.relacion }}</li>
                             </ul>
+                            {% if capitulo.ayuda.avisos %}
+                            {% for aviso in capitulo.ayuda.avisos %}
+                            <p class="chapter-help-warning">{{ aviso }}</p>
+                            {% endfor %}
+                            {% endif %}
                         </aside>
                         {% endif %}
                         <input type="hidden" name="updated_at_{{ capitulo.clave }}" value="{{ capitulo.updated_at }}" data-autosave-updated-at="{{ capitulo.clave }}">
@@ -844,6 +886,18 @@
                         </details>
 
                         <details class="context-block" open>
+                            <summary>Anexos derivados</summary>
+                            <ul class="diagnostic-items">
+                                {% for item in diagnostico_informe.anexos_derivados %}
+                                <li class="diagnostic-item diagnostic-indicator">
+                                    <span>{{ item.titulo }}</span>
+                                    <span>{{ item.texto }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+
+                        <details class="context-block" open>
                             <summary>Estado de capítulos</summary>
                             <ul class="manual-state-counts">
                                 <li><span class="manual-state-label terminado">Terminados:</span> {{ estados_revision.conteos["Terminado"] }}</li>
@@ -860,6 +914,29 @@
                                 {% endfor %}
                             </ul>
                         </details>
+                    </section>
+
+                    <section class="diagnostic-summary" aria-label="Anexos derivados">
+                        <h3>Anexos derivados</h3>
+                        <p class="editor-note">Información generada automáticamente. No se imprime desde este panel.</p>
+                        <div class="derived-annex-grid">
+                            <article class="derived-annex-card {{ 'available' if anexos_derivados.anexo_b.disponible else 'unavailable' }}">
+                                <h4>Anexo B · Reportaje fotográfico</h4>
+                                <ul class="context-list">
+                                    <li class="context-line">Fotografías detectadas: <strong>{{ anexos_derivados.anexo_b.fotografias }}</strong></li>
+                                    <li class="context-line">Patologías con fotografías: <strong>{{ anexos_derivados.anexo_b.patologias_con_fotos }}</strong></li>
+                                </ul>
+                                <p class="chapter-help-warning">{{ anexos_derivados.anexo_b.mensaje }}</p>
+                            </article>
+                            <article class="derived-annex-card {{ 'available' if anexos_derivados.anexo_c.disponible else 'unavailable' }}">
+                                <h4>Anexo C · Fichas de daños</h4>
+                                <ul class="context-list">
+                                    <li class="context-line">Estancias con daños: <strong>{{ anexos_derivados.anexo_c.estancias_con_danos }}</strong></li>
+                                    <li class="context-line">Patologías interiores: <strong>{{ anexos_derivados.anexo_c.patologias_interiores }}</strong></li>
+                                </ul>
+                                <p class="chapter-help-warning">{{ anexos_derivados.anexo_c.mensaje }}</p>
+                            </article>
+                        </div>
                     </section>
 
                     <details class="context-block" open>

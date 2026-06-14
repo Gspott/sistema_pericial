@@ -6725,6 +6725,58 @@ def resumir_estados_revision_informe_v2(capitulos: list[dict]) -> dict:
     }
 
 
+def preparar_anexos_derivados_editor_v2(contexto_editor: dict) -> dict:
+    total_fotos = 0
+    patologias_con_fotos = set()
+    estancias_con_danos = set()
+    patologias_interiores = 0
+
+    total_fotos += len(contexto_editor.get("fotos_exteriores") or [])
+
+    for grupo in contexto_editor.get("grupos_unidades") or []:
+        for unidad in grupo.get("unidades") or []:
+            for estancia in unidad.get("estancias") or []:
+                total_fotos += len(estancia.get("fotos") or [])
+                patologias = estancia.get("patologias") or []
+                if patologias:
+                    estancias_con_danos.add(estancia.get("id"))
+                for patologia in patologias:
+                    patologias_interiores += 1
+                    fotos_patologia = patologia.get("fotos") or []
+                    total_fotos += len(fotos_patologia)
+                    if fotos_patologia:
+                        patologias_con_fotos.add(f"interior-{patologia.get('id')}")
+
+    for patologia in contexto_editor.get("patologias_exteriores") or []:
+        fotos_patologia = patologia.get("fotos") or []
+        total_fotos += len(fotos_patologia)
+        if fotos_patologia:
+            patologias_con_fotos.add(f"exterior-{patologia.get('id')}")
+
+    anexo_b_disponible = total_fotos > 0
+    anexo_c_disponible = bool(estancias_con_danos) or patologias_interiores > 0
+    return {
+        "anexo_b": {
+            "disponible": anexo_b_disponible,
+            "fotografias": total_fotos,
+            "patologias_con_fotos": len(patologias_con_fotos),
+            "mensaje": (
+                "El reportaje fotográfico se generará automáticamente agrupado por patología. "
+                "No es necesario describir individualmente cada fotografía."
+            ),
+        },
+        "anexo_c": {
+            "disponible": anexo_c_disponible,
+            "estancias_con_danos": len(estancias_con_danos),
+            "patologias_interiores": patologias_interiores,
+            "mensaje": (
+                "Las fichas de daños se generarán automáticamente agrupadas por estancia. "
+                "No es necesario reproducir aquí el inventario completo de daños estancia por estancia."
+            ),
+        },
+    }
+
+
 def evaluar_diagnostico_informe_v2(capitulos: list[dict], workbench: dict) -> dict:
     capitulos_por_clave = {capitulo["clave"]: capitulo for capitulo in capitulos}
     metricas = workbench.get("metricas", {})
@@ -7028,6 +7080,7 @@ def build_informe_v2_contexto(cur, expediente, workbench: dict | None = None) ->
 def preparar_editor_informe_v2(cur, expediente) -> dict:
     workbench = preparar_pericial_workbench(cur, expediente)
     contexto_editor = build_informe_v2_contexto(cur, expediente, workbench)
+    anexos_derivados = preparar_anexos_derivados_editor_v2(contexto_editor)
     iniciales = generar_contenido_inicial_editor_v2(workbench)
     guardados = obtener_capitulos_guardados_informe_v2(cur, expediente["id"])
     versiones = obtener_versiones_informe_v2(cur, expediente["id"])
@@ -7060,6 +7113,25 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         elif contenido:
             estado = "generado"
 
+        ayuda = dict(INFORME_V2_AYUDAS_CAPITULOS.get(clave, {}))
+        avisos_ayuda = []
+        if anexos_derivados["anexo_b"]["disponible"] and clave in {
+            "resumen_ejecutivo",
+            "inventario_resumido_danos",
+            "analisis_causal",
+            "conclusiones_periciales",
+        }:
+            avisos_ayuda.append(anexos_derivados["anexo_b"]["mensaje"])
+        if anexos_derivados["anexo_c"]["disponible"] and clave in {
+            "inventario_resumido_danos",
+            "analisis_causal",
+            "propuesta_reparacion",
+            "conclusiones_periciales",
+        }:
+            avisos_ayuda.append(anexos_derivados["anexo_c"]["mensaje"])
+        if ayuda:
+            ayuda["avisos"] = avisos_ayuda
+
         capitulos.append(
             {
                 **definicion,
@@ -7073,16 +7145,29 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
                 "estado": estado,
                 "guardado": bool(guardado),
                 "versiones": versiones.get(clave, []),
-                "ayuda": INFORME_V2_AYUDAS_CAPITULOS.get(clave, {}),
+                "ayuda": ayuda,
             }
         )
 
     diagnostico_informe = evaluar_diagnostico_informe_v2(capitulos, workbench)
+    diagnostico_informe["anexos_derivados"] = [
+        {
+            "titulo": "Anexo B",
+            "texto": "✓ Disponible" if anexos_derivados["anexo_b"]["disponible"] else "No disponible",
+            "disponible": anexos_derivados["anexo_b"]["disponible"],
+        },
+        {
+            "titulo": "Anexo C",
+            "texto": "✓ Disponible" if anexos_derivados["anexo_c"]["disponible"] else "No disponible",
+            "disponible": anexos_derivados["anexo_c"]["disponible"],
+        },
+    ]
     estados_revision = resumir_estados_revision_informe_v2(capitulos)
 
     return {
         **workbench,
         "contexto_editor": contexto_editor,
+        "anexos_derivados": anexos_derivados,
         "diagnostico_informe": diagnostico_informe,
         "estados_revision": estados_revision,
         "capitulos": capitulos,
@@ -10611,6 +10696,7 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "expediente": editor["expediente"],
             "capitulos": editor["capitulos"],
             "contexto_editor": editor["contexto_editor"],
+            "anexos_derivados": editor["anexos_derivados"],
             "diagnostico_informe": editor["diagnostico_informe"],
             "estados_revision": editor["estados_revision"],
             "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
