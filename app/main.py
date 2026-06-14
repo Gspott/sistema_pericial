@@ -6777,6 +6777,121 @@ def preparar_anexos_derivados_editor_v2(contexto_editor: dict) -> dict:
     }
 
 
+def contar_menciones_editoriales_v2(texto: str, terminos: tuple[str, ...]) -> int:
+    texto_normalizado = limpiar_texto(texto).lower()
+    return sum(
+        len(
+            re.findall(
+                rf"(?<!\w){re.escape(termino)}(?!\w)",
+                texto_normalizado,
+            )
+        )
+        for termino in terminos
+    )
+
+
+def evaluar_advertencias_editoriales_informe_v2(
+    capitulos: list[dict],
+    anexos_derivados: dict,
+) -> list[dict]:
+    capitulos_por_clave = {capitulo["clave"]: capitulo for capitulo in capitulos}
+    advertencias = []
+
+    def contenido(clave: str) -> str:
+        return limpiar_texto(capitulos_por_clave.get(clave, {}).get("contenido"))
+
+    def titulo(clave: str) -> str:
+        return limpiar_texto(capitulos_por_clave.get(clave, {}).get("titulo")) or clave
+
+    def agregar(clave: str, explicacion: str, recomendacion: str, regla: str):
+        advertencias.append(
+            {
+                "icono": "⚠",
+                "clave": clave,
+                "capitulo": titulo(clave),
+                "explicacion": explicacion,
+                "recomendacion": recomendacion,
+                "regla": regla,
+            }
+        )
+
+    claves_redaccion = [
+        capitulo["clave"]
+        for capitulo in capitulos
+        if capitulo["clave"] not in {"anexo_e_partida_4", "anexo_f_mediciones"}
+    ]
+    if anexos_derivados.get("anexo_b", {}).get("disponible"):
+        terminos_fotos = ("foto", "fotografía", "imagen", "figura")
+        for clave in claves_redaccion:
+            if contar_menciones_editoriales_v2(contenido(clave), terminos_fotos) >= 5:
+                agregar(
+                    clave,
+                    "El capítulo contiene numerosas referencias a fotografías. Parte del contenido podría estar ya cubierto por el Anexo B (reportaje fotográfico).",
+                    "Reduzca las menciones foto a foto y deje el detalle visual al anexo automático.",
+                    "A",
+                )
+
+    if anexos_derivados.get("anexo_c", {}).get("disponible"):
+        terminos_estancias = (
+            "estancia",
+            "dormitorio",
+            "cocina",
+            "baño",
+            "salón",
+            "habitación",
+        )
+        for clave in claves_redaccion:
+            if contar_menciones_editoriales_v2(contenido(clave), terminos_estancias) >= 5:
+                agregar(
+                    clave,
+                    "El capítulo contiene un inventario detallado de estancias o daños por estancia. Parte de la información podría estar ya cubierta por el Anexo C.",
+                    "Mantenga aquí la síntesis y deje el detalle estancia por estancia a las fichas automáticas.",
+                    "B",
+                )
+
+    if contar_menciones_editoriales_v2(
+        contenido("conclusiones_periciales"),
+        ("antecedentes", "cronología", "visita", "inspección realizada", "fecha de visita"),
+    ) >= 3:
+        agregar(
+            "conclusiones_periciales",
+            "Las conclusiones contienen elementos propios de antecedentes o cronología. Considere mantener las conclusiones centradas en las respuestas periciales.",
+            "Traslade el relato temporal a antecedentes o metodología y reserve conclusiones para el dictamen final.",
+            "C",
+        )
+
+    if contar_menciones_editoriales_v2(
+        contenido("antecedentes_objeto"),
+        (
+            "concluye",
+            "se concluye",
+            "por tanto",
+            "se determina",
+            "responsabilidad",
+            "causa principal",
+        ),
+    ) >= 3:
+        agregar(
+            "antecedentes_objeto",
+            "Los antecedentes parecen incluir conclusiones periciales. Considere reservar las conclusiones para el capítulo específico.",
+            "Deje en antecedentes solo encargo, contexto y objeto; mueva el criterio final a Conclusiones.",
+            "D",
+        )
+
+    if contar_menciones_editoriales_v2(
+        contenido("valoracion_economica"),
+        ("origen del daño", "causa", "mecanismo lesional", "etiología"),
+    ) >= 3:
+        agregar(
+            "valoracion_economica",
+            "La valoración económica parece incluir análisis causal. Considere reservar el análisis técnico para los capítulos de daños y conclusiones.",
+            "Mantenga la valoración centrada en importes, mediciones y alcance económico.",
+            "E",
+        )
+
+    return advertencias
+
+
 def evaluar_diagnostico_informe_v2(capitulos: list[dict], workbench: dict) -> dict:
     capitulos_por_clave = {capitulo["clave"]: capitulo for capitulo in capitulos}
     metricas = workbench.get("metricas", {})
@@ -7149,6 +7264,18 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
             }
         )
 
+    advertencias_editoriales = evaluar_advertencias_editoriales_informe_v2(
+        capitulos,
+        anexos_derivados,
+    )
+    claves_con_advertencia_editorial = {
+        advertencia["clave"] for advertencia in advertencias_editoriales
+    }
+    for capitulo in capitulos:
+        capitulo["advertencia_editorial"] = (
+            capitulo["clave"] in claves_con_advertencia_editorial
+        )
+
     diagnostico_informe = evaluar_diagnostico_informe_v2(capitulos, workbench)
     diagnostico_informe["anexos_derivados"] = [
         {
@@ -7162,6 +7289,7 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
             "disponible": anexos_derivados["anexo_c"]["disponible"],
         },
     ]
+    diagnostico_informe["advertencias_editoriales"] = advertencias_editoriales
     estados_revision = resumir_estados_revision_informe_v2(capitulos)
 
     return {

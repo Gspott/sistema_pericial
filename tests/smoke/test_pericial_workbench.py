@@ -425,6 +425,8 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Diagnóstico del informe" in response.text
     assert "Control determinista de completitud. No se imprime en el PDF." in response.text
     assert "Completitud:" in response.text
+    assert "Advertencias editoriales:" in response.text
+    assert "Advertencias editoriales (" in response.text
     assert "Capítulos obligatorios" in response.text
     assert "Anexos derivados" in response.text
     assert "Anexo B · Reportaje fotográfico" in response.text
@@ -577,6 +579,133 @@ def test_informe_v2_anexos_derivados_sin_fotos_ni_danos(isolated_import):
     assert "Estancias con daños: <strong>0</strong>" in response.text
     assert "Patologías interiores: <strong>0</strong>" in response.text
     assert response.text.count("No disponible") >= 2
+
+
+def _capitulos_informe_v2_para_advertencias(main_module, contenidos):
+    return [
+        {
+            **capitulo,
+            "contenido": contenidos.get(capitulo["clave"], ""),
+        }
+        for capitulo in main_module.INFORME_V2_CAPITULOS
+    ]
+
+
+def test_informe_v2_advertencias_editoriales_detectan_redundancias(isolated_import):
+    main_module = isolated_import("app.main")
+
+    capitulos = _capitulos_informe_v2_para_advertencias(
+        main_module,
+        {
+            "resumen_ejecutivo": "foto fotografía imagen figura foto",
+            "inventario_resumido_danos": "estancia dormitorio cocina baño salón habitación",
+            "conclusiones_periciales": "antecedentes cronología visita",
+            "antecedentes_objeto": "se concluye por tanto responsabilidad",
+            "valoracion_economica": "origen del daño causa mecanismo lesional",
+        },
+    )
+    anexos = {
+        "anexo_b": {"disponible": True},
+        "anexo_c": {"disponible": True},
+    }
+
+    advertencias = main_module.evaluar_advertencias_editoriales_informe_v2(
+        capitulos,
+        anexos,
+    )
+    reglas = {item["regla"] for item in advertencias}
+
+    assert {"A", "B", "C", "D", "E"} <= reglas
+    assert any(
+        item["clave"] == "resumen_ejecutivo" and "Anexo B" in item["explicacion"]
+        for item in advertencias
+    )
+    assert any(
+        item["clave"] == "inventario_resumido_danos"
+        and "Anexo C" in item["explicacion"]
+        for item in advertencias
+    )
+    assert any(
+        item["clave"] == "conclusiones_periciales"
+        and "cronología" in item["explicacion"]
+        for item in advertencias
+    )
+    assert any(
+        item["clave"] == "antecedentes_objeto"
+        and "conclusiones periciales" in item["explicacion"]
+        for item in advertencias
+    )
+    assert any(
+        item["clave"] == "valoracion_economica"
+        and "análisis causal" in item["explicacion"]
+        for item in advertencias
+    )
+
+
+def test_informe_v2_advertencias_editoriales_expediente_limpio(isolated_import):
+    main_module = isolated_import("app.main")
+
+    capitulos = _capitulos_informe_v2_para_advertencias(
+        main_module,
+        {
+            "resumen_ejecutivo": "Síntesis pericial breve sin repeticiones.",
+            "antecedentes_objeto": "Se describe el encargo y el alcance solicitado.",
+            "conclusiones_periciales": "Dictamen final centrado en causa, reparación y alcance económico.",
+        },
+    )
+    anexos = {
+        "anexo_b": {"disponible": False},
+        "anexo_c": {"disponible": False},
+    }
+
+    advertencias = main_module.evaluar_advertencias_editoriales_informe_v2(
+        capitulos,
+        anexos,
+    )
+
+    assert advertencias == []
+
+
+def test_informe_v2_advertencias_editoriales_renderizan_panel_y_badge(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_editor_advertencias")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, titulo, orden, contenido,
+                generado_desde, editado_manual, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "resumen_ejecutivo",
+                "Resumen ejecutivo",
+                1,
+                "foto fotografía imagen figura foto",
+                "pericial-editor-1",
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+
+    assert response.status_code == 200
+    assert "Advertencias editoriales:" in response.text
+    assert "Advertencias editoriales (" in response.text
+    assert "⚠ Posible redundancia detectada" in response.text
+    assert "El capítulo contiene numerosas referencias a fotografías." in response.text
+    assert "No se imprime en el PDF." in response.text
 
 
 def test_informe_v2_diagnostico_detecta_errores_y_advertencias(isolated_import):
@@ -1875,6 +2004,8 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Anexos derivados" not in html
     assert "El reportaje fotográfico se generará automáticamente agrupado por patología" not in html
     assert "Las fichas de daños se generarán automáticamente agrupadas por estancia" not in html
+    assert "Advertencias editoriales" not in html
+    assert "Posible redundancia detectada" not in html
     assert "Guía editorial. No se imprime en el PDF." not in html
     assert html.count("13. Conclusiones") == 1
     assert len(contexto["conclusiones"]["bloques"]) == 1

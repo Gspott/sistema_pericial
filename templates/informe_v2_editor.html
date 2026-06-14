@@ -410,6 +410,18 @@
             padding: 8px;
         }
 
+        .editorial-warning-badge {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 999px;
+            color: #9a3412;
+            display: inline-flex;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 7px;
+            white-space: nowrap;
+        }
+
         .history-list {
             display: grid;
             gap: 8px;
@@ -754,6 +766,9 @@
                                     {% if capitulo.ayuda %}
                                     <button class="chapter-help-toggle" type="button" data-chapter-help-toggle="{{ capitulo.clave }}" aria-controls="chapter-help-{{ capitulo.clave }}" aria-expanded="false" title="Ver guía editorial">ⓘ</button>
                                     {% endif %}
+                                    {% if capitulo.advertencia_editorial %}
+                                    <span class="editorial-warning-badge">⚠ Posible redundancia detectada</span>
+                                    {% endif %}
                                     <label class="chapter-review-state" data-review-state-wrapper="{{ capitulo.clave }}">
                                         Estado:
                                         <select data-review-state="{{ capitulo.clave }}" aria-label="Estado de revisión de {{ capitulo.titulo }}">
@@ -845,6 +860,7 @@
                             <p class="chapter-meta">{{ diagnostico_informe.estado.detalle }}</p>
                         </div>
                         <p class="chapter-meta">Completitud: <strong>{{ diagnostico_informe.porcentaje }}%</strong> · {{ diagnostico_informe.completos }}/{{ diagnostico_informe.total_obligatorios }} capítulos obligatorios</p>
+                        <p class="chapter-meta">Advertencias editoriales: <strong>{{ diagnostico_informe.advertencias_editoriales | length }}</strong></p>
                         <div class="diagnostic-progress" aria-hidden="true"><span style="width: {{ diagnostico_informe.porcentaje }}%;"></span></div>
 
                         <details class="context-block" open>
@@ -870,6 +886,22 @@
                             </ul>
                             {% else %}
                             <p class="context-empty">Sin advertencias detectadas.</p>
+                            {% endif %}
+                        </details>
+
+                        <details class="context-block" open>
+                            <summary>Advertencias editoriales ({{ diagnostico_informe.advertencias_editoriales | length }})</summary>
+                            {% if diagnostico_informe.advertencias_editoriales %}
+                            <ul class="diagnostic-items">
+                                {% for item in diagnostico_informe.advertencias_editoriales %}
+                                <li class="diagnostic-item">
+                                    <strong>{{ item.icono }} {{ item.capitulo }}:</strong> {{ item.explicacion }}<br>
+                                    <span class="helper-text">{{ item.recomendacion }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="context-empty">Sin advertencias editoriales detectadas.</p>
                             {% endif %}
                         </details>
 
