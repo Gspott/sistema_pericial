@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import re
+import unicodedata
 from io import BytesIO
 from datetime import datetime
 from collections import OrderedDict
@@ -5786,22 +5787,26 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
         ) from exc
 
     template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
-    html = template.render(
-        {
-            "request": request,
-            "current_user": getattr(request.state, "current_user", None),
-            "modo_pdf": True,
-            **contexto,
-        }
-    )
+    numero_expediente = str((contexto.get("expediente") or {}).get("numero_expediente") or "").strip()
+    pie_expediente = f"Informe Pericial · Expediente {numero_expediente}" if numero_expediente else "Informe Pericial"
 
-    try:
+    def renderizar_html(contexto_pdf: dict) -> str:
+        return template.render(
+            {
+                "request": request,
+                "current_user": getattr(request.state, "current_user", None),
+                "modo_pdf": True,
+                **contexto_pdf,
+            }
+        )
+
+    def generar_pdf_desde_html(html: str) -> bytes:
         with sync_playwright() as p:
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 794, "height": 1123})
             page.emulate_media(media="print")
             page.set_content(html, wait_until="networkidle")
-            pdf_bytes = page.pdf(
+            pdf = page.pdf(
                 format="A4",
                 margin={
                     "top": "15mm",
@@ -5814,21 +5819,106 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
                 footer_template=(
                     "<div style='width:100%;font-family:Arial,Helvetica,sans-serif;"
                     "font-size:8px;color:#6b7280;text-align:center;'>"
-                    "Informe Pericial V2 · Página <span class='pageNumber'></span> de "
-                    "<span class='totalPages'></span>"
+                    f"{pie_expediente}"
                     "</div>"
                 ),
                 print_background=True,
                 prefer_css_page_size=True,
             )
             browser.close()
+            return pdf
+
+    try:
+        pdf_bytes = generar_pdf_desde_html(renderizar_html(contexto))
+        indice_paginas = extraer_paginas_indice_informe_v2(
+            pdf_bytes,
+            contexto.get("indice") or [],
+        )
+        desplazamiento_anexo_a = int(contexto.get("desplazamiento_paginas_anexo_a") or 0)
+        if desplazamiento_anexo_a:
+            for item in contexto.get("indice") or []:
+                clave = item.get("clave")
+                if item.get("grupo") == "anexos" and clave != "anexo_a" and clave in indice_paginas:
+                    indice_paginas[clave] += desplazamiento_anexo_a
+        if indice_paginas:
+            contexto_con_indice = {
+                **contexto,
+                "indice_paginas": indice_paginas,
+            }
+            pdf_bytes = generar_pdf_desde_html(renderizar_html(contexto_con_indice))
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail="No se pudo generar el PDF V2 del informe.",
+            detail="No se pudo generar el PDF del informe.",
         ) from exc
 
     return pdf_bytes
+
+
+def normalizar_texto_indice_pdf_v2(texto: str) -> str:
+    texto = unicodedata.normalize("NFKD", str(texto or "").lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", " ", texto).strip()
+
+
+def extraer_paginas_indice_informe_v2(pdf_bytes: bytes, indice: list[dict]) -> dict[str, int]:
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(BytesIO(pdf_bytes))
+    except Exception:
+        return {}
+
+    textos_paginas = []
+    for pagina in reader.pages:
+        try:
+            textos_paginas.append(normalizar_texto_indice_pdf_v2(pagina.extract_text() or ""))
+        except Exception:
+            textos_paginas.append("")
+
+    paginas: dict[str, int] = {}
+    ultima_pagina_anexo: int | None = None
+    for item in indice:
+        clave = str(item.get("clave") or "")
+        if not clave:
+            continue
+        if clave == "portada":
+            paginas[clave] = 1
+            continue
+        patrones = []
+        numero = str(item.get("numero") or "").strip()
+        titulo = str(item.get("titulo") or "").strip()
+        if clave == "indice":
+            patrones = ["indice"]
+        elif item.get("grupo") == "anexos":
+            patrones = [f"ANEXO {numero} {titulo}"]
+        else:
+            patrones = [f"{numero} {titulo}"]
+        patrones_normalizados = [
+            normalizar_texto_indice_pdf_v2(patron)
+            for patron in patrones
+            if patron
+        ]
+        if clave == "indice":
+            pagina_inicio_busqueda = 1
+        elif item.get("grupo") == "anexos":
+            pagina_inicio_busqueda = max(
+                4,
+                (ultima_pagina_anexo + 1)
+                if ultima_pagina_anexo is not None
+                else (paginas.get("conclusiones", 3) + 1),
+            )
+        else:
+            pagina_inicio_busqueda = 4
+        for indice_pagina, texto_pagina in enumerate(textos_paginas, start=1):
+            if indice_pagina < pagina_inicio_busqueda:
+                continue
+            if all(patron in texto_pagina for patron in patrones_normalizados):
+                paginas[clave] = indice_pagina
+                if item.get("grupo") == "anexos":
+                    ultima_pagina_anexo = indice_pagina
+                break
+    return paginas
 
 
 def generar_informe_inspeccion(cur, expediente, visitas, doc: Document) -> None:

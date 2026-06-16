@@ -1,3 +1,6 @@
+from io import BytesIO
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 
@@ -215,9 +218,9 @@ def test_pericial_workbench_renderiza_diagnostico_y_datos(isolated_import):
     response = client.get(f"/expedientes/{expediente_id}/pericial-workbench")
 
     assert response.status_code == 200
-    assert "Workbench pericial V2" in response.text
-    assert "Diagnóstico V2" in response.text
-    assert "Borrador informe V2" in response.text
+    assert "Workbench pericial" in response.text
+    assert "Diagnóstico" in response.text
+    assert "Borrador de informe" in response.text
     assert "Texto generado autom" in response.text
     assert "Requiere revisi" in response.text
     assert "El expediente EXP-PER-WB-1 documenta Daños por agua" in response.text
@@ -236,7 +239,7 @@ def test_pericial_workbench_renderiza_diagnostico_y_datos(isolated_import):
     assert "Reposición de falso techo" in response.text
     assert "365,70" in response.text
     assert "/informe-v2-editor" in response.text
-    assert "Editar informe V2" in response.text
+    assert "Editar informe" in response.text
 
 
 def test_workbench_gestiona_documentos_anexo_a_y_respeta_ownership(isolated_import):
@@ -295,6 +298,10 @@ def test_workbench_gestiona_documentos_anexo_a_y_respeta_ownership(isolated_impo
         )
         assert documento["archivo_ruta"].endswith(".pdf")
         documento_id = documento["id"]
+        ruta_documento = documento["archivo_ruta"]
+        archivo_documento = main_module.resolver_ruta_upload_relativa_segura(ruta_documento)
+        assert archivo_documento is not None
+        assert archivo_documento.exists()
     finally:
         conn.close()
 
@@ -302,6 +309,12 @@ def test_workbench_gestiona_documentos_anexo_a_y_respeta_ownership(isolated_impo
     assert listado.status_code == 200
     assert "Presupuesto de reparación de cubierta" in listado.text
     assert "Presupuesto aportado por la propiedad." in listado.text
+    assert "Eliminar" in listado.text
+    assert "¿Seguro que quieres eliminar este documento del Anexo A?" in listado.text
+    assert (
+        f"/expedientes/{expediente_id}/pericial-workbench/documentos/{documento_id}/eliminar"
+        in listado.text
+    )
     assert "presupuesto-interno-019-26.pdf" not in listado.text
     assert "expediente_documentos/" not in listado.text
 
@@ -342,6 +355,80 @@ def test_workbench_gestiona_documentos_anexo_a_y_respeta_ownership(isolated_impo
         },
     )
     assert forbidden.status_code == 404
+
+    forbidden_delete = otro_cliente.post(
+        f"/expedientes/{expediente_id}/pericial-workbench/documentos/{documento_id}/eliminar",
+        follow_redirects=False,
+    )
+    assert forbidden_delete.status_code == 404
+    assert archivo_documento is not None
+    assert archivo_documento.exists()
+
+    delete_response = client.post(
+        f"/expedientes/{expediente_id}/pericial-workbench/documentos/{documento_id}/eliminar",
+        follow_redirects=False,
+    )
+    assert delete_response.status_code == 303
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        eliminado = cur.execute(
+            "SELECT * FROM expediente_documentos WHERE id = ?",
+            (documento_id,),
+        ).fetchone()
+        assert eliminado is None
+    finally:
+        conn.close()
+    assert not archivo_documento.exists()
+
+    listado_sin_documento = client.get(f"/expedientes/{expediente_id}/pericial-workbench")
+    assert listado_sin_documento.status_code == 200
+    assert "Presupuesto pericial revisado" not in listado_sin_documento.text
+    assert "No hay documentos PDF aportados gestionados para el Anexo A." in listado_sin_documento.text
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "Documento sin archivo físico",
+                "Debe poder eliminarse aunque el PDF ya no exista.",
+                "Otro",
+                f"expediente_documentos/{expediente_id}/no-existe.pdf",
+                "no-existe.pdf",
+                30,
+            ),
+        )
+        documento_sin_archivo_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    missing_delete = client.post(
+        f"/expedientes/{expediente_id}/pericial-workbench/documentos/{documento_sin_archivo_id}/eliminar",
+        follow_redirects=False,
+    )
+    assert missing_delete.status_code == 303
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        eliminado = cur.execute(
+            "SELECT * FROM expediente_documentos WHERE id = ?",
+            (documento_sin_archivo_id,),
+        ).fetchone()
+        assert eliminado is None
+    finally:
+        conn.close()
 
 
 def test_detalle_expediente_muestra_workbench_solo_en_patologias(isolated_import):
@@ -406,7 +493,7 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
 
     assert response.status_code == 200
-    assert "Informe pericial V2" in response.text
+    assert "Informe pericial" in response.text
     assert "Resumen ejecutivo" in response.text
     assert "contenido_resumen_ejecutivo" in response.text
     assert response.text.count('data-chapter-help-toggle="') == len(
@@ -438,9 +525,12 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Estancias con daños: <strong>1</strong>" in response.text
     assert "Patologías interiores: <strong>1</strong>" in response.text
     assert "Las fichas de daños se generarán automáticamente agrupadas por estancia. No es necesario reproducir aquí el inventario completo de daños estancia por estancia." in response.text
+    assert "PDF de mediciones para Anexo F" in response.text
+    assert "Adjunta aquí la hoja de cálculo de mediciones exportada a PDF. Se incorporará al informe final después del Anexo F." in response.text
+    assert f"/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf" in response.text
     assert "Contexto del expediente" in response.text
     assert "Información de apoyo. No se imprime en el PDF." in response.text
-    assert "Zona blanca/editor: contenido del Informe V2." in response.text
+    assert "Zona blanca/editor: contenido del informe." in response.text
     assert "Estructura: nivel → unidad → estancia" in response.text
     assert "Dormitorio" in response.text
     assert "Natural" in response.text
@@ -579,6 +669,157 @@ def test_informe_v2_anexos_derivados_sin_fotos_ni_danos(isolated_import):
     assert "Estancias con daños: <strong>0</strong>" in response.text
     assert "Patologías interiores: <strong>0</strong>" in response.text
     assert response.text.count("No disponible") >= 2
+
+
+def test_informe_v2_pdf_mediciones_anexo_f_subir_reemplazar_eliminar(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_editor_pdf_mediciones")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    editor_inicial = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+
+    assert editor_inicial.status_code == 200
+    assert "PDF de mediciones para Anexo F" in editor_inicial.text
+    assert "Subir PDF" in editor_inicial.text
+    assert "Adjunta aquí la hoja de cálculo de mediciones exportada a PDF." in editor_inicial.text
+
+    invalido = client.post(
+        f"/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf",
+        files={
+            "archivo": (
+                "mediciones.txt",
+                b"no es pdf",
+                "text/plain",
+            )
+        },
+        follow_redirects=False,
+    )
+    assert invalido.status_code == 303
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        total = cur.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM expediente_documentos
+            WHERE expediente_id = ? AND tipo_documento = ?
+            """,
+            (expediente_id, main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
+        ).fetchone()["total"]
+    finally:
+        conn.close()
+    assert total == 0
+
+    subida = client.post(
+        f"/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf",
+        files={
+            "archivo": (
+                "mediciones-anexo-f.pdf",
+                b"%PDF-1.4\n% mediciones primera version\n",
+                "application/pdf",
+            )
+        },
+        follow_redirects=False,
+    )
+    assert subida.status_code == 303
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        documento = cur.execute(
+            """
+            SELECT *
+            FROM expediente_documentos
+            WHERE expediente_id = ? AND tipo_documento = ?
+            """,
+            (expediente_id, main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
+        ).fetchone()
+        assert documento is not None
+        assert documento["nombre_visible"] == "PDF de mediciones para Anexo F"
+        assert documento["archivo_nombre_original"] == "mediciones-anexo-f.pdf"
+        primera_ruta = documento["archivo_ruta"]
+        primera_path = main_module.resolver_ruta_upload_relativa_segura(primera_ruta)
+        assert primera_path is not None
+        assert primera_path.exists()
+    finally:
+        conn.close()
+
+    editor_con_pdf = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+    assert editor_con_pdf.status_code == 200
+    assert "mediciones-anexo-f.pdf" in editor_con_pdf.text
+    assert "Ver/descargar" in editor_con_pdf.text
+    assert "Reemplazar PDF" in editor_con_pdf.text
+    assert "Eliminar" in editor_con_pdf.text
+
+    reemplazo = client.post(
+        f"/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf",
+        files={
+            "archivo": (
+                "mediciones-revisadas.pdf",
+                b"%PDF-1.4\n% mediciones revisadas\n",
+                "application/pdf",
+            )
+        },
+        follow_redirects=False,
+    )
+    assert reemplazo.status_code == 303
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        documentos = cur.execute(
+            """
+            SELECT *
+            FROM expediente_documentos
+            WHERE expediente_id = ? AND tipo_documento = ?
+            """,
+            (expediente_id, main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
+        ).fetchall()
+        assert len(documentos) == 1
+        assert documentos[0]["archivo_nombre_original"] == "mediciones-revisadas.pdf"
+        segunda_path = main_module.resolver_ruta_upload_relativa_segura(
+            documentos[0]["archivo_ruta"]
+        )
+        assert segunda_path is not None
+        assert segunda_path.exists()
+    finally:
+        conn.close()
+    assert primera_path is not None
+    assert not primera_path.exists()
+
+    eliminacion = client.post(
+        f"/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf/eliminar",
+        follow_redirects=False,
+    )
+    assert eliminacion.status_code == 303
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        total = cur.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM expediente_documentos
+            WHERE expediente_id = ? AND tipo_documento = ?
+            """,
+            (expediente_id, main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
+        ).fetchone()["total"]
+    finally:
+        conn.close()
+    assert total == 0
+    assert segunda_path is not None
+    assert not segunda_path.exists()
 
 
 def _capitulos_informe_v2_para_advertencias(main_module, contenidos):
@@ -961,7 +1202,7 @@ def test_informe_v2_guardado_manual_permite_updated_at_vigente(isolated_import):
     )
 
     assert response.status_code == 303
-    assert "mensaje=Informe%20V2%20guardado" in response.headers["location"]
+    assert "mensaje=Informe%20guardado" in response.headers["location"]
 
     conn = get_connection()
     try:
@@ -1506,7 +1747,7 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
 
     def fake_pdf_bytes(request, contexto):
         capturado["contexto"] = contexto
-        return b"%PDF-1.4\n%PDF V2 test\n"
+        return b"%PDF-1.4\n%PDF test\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
     client = _autenticar_cliente(main_module, user_id)
@@ -1517,13 +1758,13 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
     pdf_response = client.get(f"/generar-informe-v2-pdf/{expediente_id}")
 
     assert workbench_response.status_code == 200
-    assert "Generar PDF V2" in workbench_response.text
+    assert "Generar PDF" in workbench_response.text
     assert editor_response.status_code == 200
-    assert "Generar PDF V2" in editor_response.text
+    assert "Generar PDF" in editor_response.text
     assert classic_response.status_code == 200
     assert pdf_response.status_code == 200
     assert pdf_response.headers["content-type"] == "application/pdf"
-    assert "Informe-V2-EXP-PER-WB-1.pdf" in pdf_response.headers["content-disposition"]
+    assert "Informe-EXP-PER-WB-1.pdf" in pdf_response.headers["content-disposition"]
 
     contexto = capturado["contexto"]
     resumen = [
@@ -1568,7 +1809,7 @@ def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
 
     def fake_pdf_bytes(request, contexto):
         capturado["contexto"] = contexto
-        return b"%PDF-1.4\n%PDF V2 empty test\n"
+        return b"%PDF-1.4\n%PDF empty test\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
     client = _autenticar_cliente(main_module, user_id)
@@ -1584,6 +1825,375 @@ def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
     assert contexto["anexos"]["analisis_partida_4"]["guardado"] is False
     assert contexto["anexos"]["justificacion_mediciones"]["contenido_pdf"].startswith("F.1 Criterios de medición")
     assert contexto["anexos"]["justificacion_mediciones"]["guardado"] is False
+    assert contexto["pdf_mediciones_anexo_f"] is None
+
+
+def test_pdf_v2_anexa_pdf_mediciones_tras_anexo_f(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_mediciones")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "PDF de mediciones para Anexo F",
+                "Desarrollo completo de mediciones incorporado al informe.",
+                main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES,
+                f"expediente_documentos/{expediente_id}/mediciones.pdf",
+                "mediciones-completas.pdf",
+                900,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    capturado = {}
+
+    def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
+        return b"%PDF-1.4\n%PDF con separador F4\n"
+
+    def fake_fusion(pdf_informe, documentos_anexo_a, pdf_mediciones):
+        capturado["fusion_pdf_informe"] = pdf_informe
+        capturado["fusion_documentos_anexo_a"] = documentos_anexo_a
+        capturado["fusion_pdf_mediciones"] = pdf_mediciones
+        return pdf_informe + b"%PDF_MEDICIONES_ANEXO_F\n"
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    monkeypatch.setattr(main_module, "fusionar_pdf_informe_v2_con_anexos_integrados", fake_fusion)
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}")
+
+    assert response.status_code == 200
+    assert response.content.endswith(b"%PDF_MEDICIONES_ANEXO_F\n")
+    contexto = capturado["contexto"]
+    html = capturado["html"]
+    assert contexto["pdf_mediciones_anexo_f"]["archivo_nombre_original"] == "mediciones-completas.pdf"
+    assert capturado["fusion_documentos_anexo_a"] == []
+    assert capturado["fusion_pdf_mediciones"]["archivo_nombre_original"] == "mediciones-completas.pdf"
+    assert "F.4 Desarrollo completo de mediciones" in html
+    assert "Se incorpora a continuación la hoja de cálculo de mediciones elaborada por el perito." in html
+    assert "Documento incorporado: Desarrollo completo de mediciones." in html
+    assert "mediciones-completas.pdf" not in html
+
+
+def test_pdf_v2_footer_no_muestra_total_paginas(isolated_import):
+    isolated_import("app.main")
+
+    fuente = Path("app/services/informe.py").read_text()
+    bloque_v2 = fuente.split("def generar_informe_v2_pdf_bytes", 1)[1].split(
+        "def normalizar_texto_indice_pdf_v2",
+        1,
+    )[0]
+
+    assert "Informe Pericial · Expediente" in bloque_v2
+    assert "totalPages" not in bloque_v2
+    assert "Página <span class='pageNumber'></span>" not in bloque_v2
+
+
+def test_pdf_v2_anexo_a_respeta_inclusion_y_excluye_adjuntos_internos(isolated_import):
+    main_module = isolated_import("app.main")
+
+    documentos = main_module.recopilar_documentacion_anexo_v2(
+        {},
+        {},
+        [
+            {
+                "orden": 10,
+                "nombre_visible": "Documento incluido",
+                "tipo_documento": "Presupuesto",
+                "archivo_nombre_original": "incluido.pdf",
+                "archivo_ruta": "expediente_documentos/1/incluido_hash.pdf",
+                "descripcion": "Documento que debe imprimirse.",
+                "created_at": "2026-06-15 10:00:00",
+                "incluir_en_pdf": 1,
+            },
+            {
+                "orden": 20,
+                "nombre_visible": "Documento no incluido",
+                "tipo_documento": "Factura",
+                "archivo_nombre_original": "no-incluido.pdf",
+                "archivo_ruta": "expediente_documentos/1/no_incluido_hash.pdf",
+                "descripcion": "Documento que no debe imprimirse.",
+                "created_at": "2026-06-15 10:00:00",
+                "incluir_en_pdf": 0,
+            },
+            {
+                "orden": 30,
+                "nombre_visible": "PDF interno de mediciones",
+                "tipo_documento": main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES,
+                "archivo_nombre_original": "mediciones.pdf",
+                "archivo_ruta": "expediente_documentos/1/mediciones.pdf",
+                "descripcion": "Pertenece al Anexo F, no al Anexo A.",
+                "created_at": "2026-06-15 10:00:00",
+            },
+        ],
+    )
+
+    assert documentos == [
+        {
+            "orden": 10,
+            "nombre": "Documento incluido",
+            "numero_anexo": "A.2",
+            "tipo": "Presupuesto",
+            "fecha": "2026-06-15",
+            "descripcion": "Documento que debe imprimirse.",
+            "archivo_ruta": "expediente_documentos/1/incluido_hash.pdf",
+            "archivo": "incluido.pdf",
+            "mime_type": "",
+            "es_pdf": True,
+        }
+    ]
+
+
+def test_pdf_v2_fusiona_pdfs_aportados_anexo_a_y_omite_no_validos(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader, PdfWriter
+
+    informe = PdfWriter()
+    informe.add_blank_page(width=595, height=842)
+    informe_buffer = BytesIO()
+    informe.write(informe_buffer)
+
+    anexo_a = PdfWriter()
+    anexo_a.add_blank_page(width=595, height=842)
+    anexo_a.add_blank_page(width=595, height=842)
+    ruta_relativa = "expediente_documentos/1/anexo-a.pdf"
+    ruta_anexo = main_module.UPLOAD_PATH / ruta_relativa
+    ruta_anexo.parent.mkdir(parents=True, exist_ok=True)
+    with ruta_anexo.open("wb") as buffer:
+        anexo_a.write(buffer)
+
+    corrupto_relativo = "expediente_documentos/1/corrupto.pdf"
+    ruta_corrupta = main_module.UPLOAD_PATH / corrupto_relativo
+    ruta_corrupta.write_bytes(b"no es un pdf valido")
+
+    fusionado = main_module.fusionar_pdf_informe_v2_con_anexo_a(
+        informe_buffer.getvalue(),
+        [
+            {
+                "nombre": "Documento no PDF",
+                "archivo": "imagen.jpg",
+                "archivo_ruta": "expediente_documentos/1/imagen.jpg",
+                "mime_type": "image/jpeg",
+            },
+            {
+                "nombre": "Documento Anexo A",
+                "archivo": "anexo-a.pdf",
+                "archivo_ruta": ruta_relativa,
+                "mime_type": "application/pdf",
+            },
+            {
+                "nombre": "Documento corrupto",
+                "archivo": "corrupto.pdf",
+                "archivo_ruta": corrupto_relativo,
+                "mime_type": "application/pdf",
+            },
+            {
+                "nombre": "Documento ausente",
+                "archivo": "ausente.pdf",
+                "archivo_ruta": "expediente_documentos/1/ausente.pdf",
+                "mime_type": "application/pdf",
+            },
+        ],
+    )
+
+    assert len(PdfReader(BytesIO(fusionado)).pages) == 3
+
+
+def test_pdf_v2_integra_anexo_a_como_portadilla_mas_documento(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader, PdfWriter
+
+    def pdf_con_paginas(anchos):
+        writer = PdfWriter()
+        for ancho in anchos:
+            writer.add_blank_page(width=ancho, height=842)
+        buffer = BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
+    informe = pdf_con_paginas([500])
+    ruta_relativa = "expediente_documentos/1/anexo-a-integrado.pdf"
+    ruta_anexo = main_module.UPLOAD_PATH / ruta_relativa
+    ruta_anexo.parent.mkdir(parents=True, exist_ok=True)
+    ruta_anexo.write_bytes(pdf_con_paginas([520, 530]))
+
+    corrupto_relativo = "expediente_documentos/1/anexo-a-corrupto.pdf"
+    ruta_corrupta = main_module.UPLOAD_PATH / corrupto_relativo
+    ruta_corrupta.write_bytes(b"no es un pdf valido")
+
+    def fake_portadilla(documento, pdf_integrado):
+        writer = PdfWriter()
+        writer.add_blank_page(width=510 if pdf_integrado else 515, height=842)
+        buffer = BytesIO()
+        writer.write(buffer)
+        return [pagina for pagina in PdfReader(BytesIO(buffer.getvalue())).pages]
+
+    monkeypatch.setattr(
+        main_module,
+        "generar_paginas_portadilla_anexo_a_v2",
+        fake_portadilla,
+    )
+
+    fusionado = main_module.fusionar_pdf_informe_v2_con_anexos_integrados(
+        informe,
+        [
+            {
+                "nombre": "Documento integrado",
+                "numero_anexo": "A.2",
+                "archivo": "anexo-a-integrado.pdf",
+                "archivo_ruta": ruta_relativa,
+                "mime_type": "application/pdf",
+            },
+            {
+                "nombre": "Documento corrupto",
+                "numero_anexo": "A.3",
+                "archivo": "anexo-a-corrupto.pdf",
+                "archivo_ruta": corrupto_relativo,
+                "mime_type": "application/pdf",
+            },
+            {
+                "nombre": "Documento ausente",
+                "numero_anexo": "A.4",
+                "archivo": "ausente.pdf",
+                "archivo_ruta": "expediente_documentos/1/ausente.pdf",
+                "mime_type": "application/pdf",
+            },
+        ],
+        None,
+    )
+
+    anchos = [
+        int(float(pagina.mediabox.width))
+        for pagina in PdfReader(BytesIO(fusionado)).pages
+    ]
+    assert anchos == [500, 510, 520, 530, 515, 515]
+
+
+def test_pdf_v2_endpoint_integra_anexo_a_y_mediciones_en_merge_unico(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_merge_anexo_a")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "Documento Anexo A",
+                "Documento externo aportado.",
+                "Presupuesto",
+                f"expediente_documentos/{expediente_id}/anexo-a.pdf",
+                "anexo-a.pdf",
+                10,
+            ),
+        )
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "PDF interno de mediciones",
+                "Debe quedar fuera de Anexo A.",
+                main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES,
+                f"expediente_documentos/{expediente_id}/mediciones.pdf",
+                "mediciones.pdf",
+                900,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    llamadas = []
+
+    def fake_pdf_bytes(request, contexto):
+        return b"%PDF-1.4\n%PDF base\n"
+
+    def fake_merge(pdf_informe, documentos, pdf_mediciones):
+        llamadas.append(("integrado", pdf_informe, documentos, pdf_mediciones))
+        assert [documento["archivo"] for documento in documentos] == ["anexo-a.pdf"]
+        assert pdf_mediciones["archivo_nombre_original"] == "mediciones.pdf"
+        return pdf_informe + b"ANEXOS_INTEGRADOS\n"
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    monkeypatch.setattr(main_module, "fusionar_pdf_informe_v2_con_anexos_integrados", fake_merge)
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}")
+
+    assert response.status_code == 200
+    assert response.content.endswith(b"ANEXOS_INTEGRADOS\n")
+    assert [llamada[0] for llamada in llamadas] == ["integrado"]
+
+
+def test_informe_v2_fusion_pdf_mediciones_agrega_paginas(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader, PdfWriter
+
+    informe = PdfWriter()
+    informe.add_blank_page(width=595, height=842)
+    informe_buffer = BytesIO()
+    informe.write(informe_buffer)
+
+    mediciones = PdfWriter()
+    mediciones.add_blank_page(width=595, height=842)
+    mediciones.add_blank_page(width=595, height=842)
+    ruta_relativa = "expediente_documentos/1/mediciones.pdf"
+    ruta_mediciones = main_module.UPLOAD_PATH / ruta_relativa
+    ruta_mediciones.parent.mkdir(parents=True, exist_ok=True)
+    with ruta_mediciones.open("wb") as buffer:
+        mediciones.write(buffer)
+
+    fusionado = main_module.fusionar_pdf_informe_v2_con_mediciones(
+        informe_buffer.getvalue(),
+        {"archivo_ruta": ruta_relativa},
+    )
+
+    assert len(PdfReader(BytesIO(fusionado)).pages) == 3
 
 
 def test_pdf_v2_limpia_vocabulario_interno_sin_modificar_contenido_guardado(
@@ -1633,7 +2243,7 @@ def test_pdf_v2_limpia_vocabulario_interno_sin_modificar_contenido_guardado(
         capturado["contexto"] = contexto
         template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
         capturado["html"] = template.render({"request": request, **contexto})
-        return b"%PDF-1.4\n%PDF V2 cleanup test\n"
+        return b"%PDF-1.4\n%PDF cleanup test\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
     client = _autenticar_cliente(main_module, user_id)
@@ -1706,7 +2316,7 @@ def test_informe_v2_conclusiones_periciales_prioridad_y_fallback_legacy(
         capturado["contexto"] = contexto
         template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
         capturado["html"] = template.render({"request": request, **contexto})
-        return b"%PDF-1.4\n%PDF V2 conclusiones fallback test\n"
+        return b"%PDF-1.4\n%PDF conclusiones fallback test\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
     client = _autenticar_cliente(main_module, user_id)
@@ -1985,7 +2595,7 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
         capturado["contexto"] = contexto
         template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
         capturado["html"] = template.render({"request": request, **contexto})
-        return b"%PDF-1.4\n%PDF V2 annexes test\n"
+        return b"%PDF-1.4\n%PDF annexes test\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
     client = _autenticar_cliente(main_module, user_id)
@@ -1996,6 +2606,7 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     html = capturado["html"]
 
     assert "13. Conclusiones" in html
+    assert "Sistema Pericial" not in html
     assert "Diagnóstico del informe" not in html
     assert "Control determinista de completitud. No se imprime en el PDF." not in html
     assert "Estado de capítulos" not in html
@@ -2007,6 +2618,7 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Advertencias editoriales" not in html
     assert "Posible redundancia detectada" not in html
     assert "Guía editorial. No se imprime en el PDF." not in html
+    assert "F.4 Desarrollo completo de mediciones" not in html
     assert html.count("13. Conclusiones") == 1
     assert len(contexto["conclusiones"]["bloques"]) == 1
     assert "Conclusión técnica redactada por el técnico." not in html
@@ -2015,10 +2627,16 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Conclusiones periciales" not in html
     assert "14. Conclusiones periciales" not in html
     assert "ANEXO A. DOCUMENTACIÓN APORTADA" in html
+    assert "A.1 Relación de documentación aportada" in html
+    assert "A.2" in html
+    assert "A.3" in html
     assert "Presupuesto pericial de reparación" in html
     assert "Factura de reparación de cubierta" in html
     assert "Presupuesto base de valoración." in html
+    assert "El documento queda referenciado, pero el PDF aportado no se pudo incorporar físicamente." not in html
+    assert "Documento aportado por la propiedad." not in html
     assert "factura-original-privada.pdf" not in html
+    assert "presupuesto-original-privado.pdf" not in html
     assert "presupuesto_hash.pdf" not in html
     assert "expediente_documentos/" not in html
     assert "ANEXO B. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS" in html
@@ -2071,6 +2689,13 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     ] == [
         "Presupuesto pericial de reparación",
         "Factura de reparación de cubierta",
+    ]
+    assert [
+        documento["archivo"]
+        for documento in contexto["anexos"]["documentacion"]
+    ] == [
+        "presupuesto-original-privado.pdf",
+        "factura-original-privada.pdf",
     ]
     assert len(contexto["anexos"]["fotografias"]) == 12
     grupos = {

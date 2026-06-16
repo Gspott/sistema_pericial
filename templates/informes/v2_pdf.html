@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Informe Pericial V2 {{ expediente.numero_expediente }}</title>
+    <title>Informe Pericial {{ expediente.numero_expediente }}</title>
     <style>
         :root {
             color: #1f2933;
@@ -37,7 +37,7 @@
             display: flex;
             flex-direction: column;
             gap: 12mm;
-            min-height: 255mm;
+            min-height: 238mm;
             justify-content: center;
             page-break-after: always;
             text-align: center;
@@ -76,43 +76,76 @@
         }
 
         .toc {
-            min-height: 255mm;
+            min-height: 238mm;
             page-break-after: always;
         }
 
         h2 {
             border-bottom: 1px solid var(--line);
             break-after: avoid;
+            break-inside: avoid;
             color: #2f3a45;
             font-size: 16px;
             margin: 24px 0 12px;
+            page-break-after: avoid;
+            page-break-inside: avoid;
             padding-bottom: 6px;
             text-transform: uppercase;
         }
 
         h3 {
+            break-after: avoid;
+            break-inside: avoid;
             color: #24313d;
             font-size: 14px;
             margin: 16px 0 8px;
+            page-break-after: avoid;
+            page-break-inside: avoid;
         }
 
         .toc-list {
-            border-top: 1px solid var(--line);
-            margin-top: 14px;
+            margin-top: 18px;
+        }
+
+        .toc-group-title {
+            border-bottom: 1px solid var(--ink);
+            color: var(--ink);
+            font-size: 11px;
+            font-weight: 700;
+            margin: 18px 0 6px;
+            padding-bottom: 5px;
+            text-transform: uppercase;
         }
 
         .toc-row {
-            border-bottom: 1px solid #e5e9ef;
-            display: grid;
-            gap: 10px;
-            grid-template-columns: 24px 1fr;
-            padding: 8px 0;
+            align-items: baseline;
+            display: flex;
+            gap: 8px;
+            padding: 6px 0;
         }
 
         .toc-number {
             color: var(--muted);
             font-size: 12px;
             font-weight: 700;
+            min-width: 26px;
+            text-align: right;
+        }
+
+        .toc-title {
+            flex: 0 1 auto;
+        }
+
+        .toc-leader {
+            border-bottom: 1px dotted #9aa4b2;
+            flex: 1 1 auto;
+            transform: translateY(-3px);
+        }
+
+        .toc-page {
+            color: var(--ink);
+            font-weight: 700;
+            min-width: 24px;
             text-align: right;
         }
 
@@ -135,11 +168,13 @@
 
         .annex-cover {
             align-items: center;
+            break-inside: avoid;
             display: flex;
-            min-height: 245mm;
+            min-height: 230mm;
             justify-content: center;
             page-break-before: always;
             page-break-after: always;
+            page-break-inside: avoid;
             text-align: center;
         }
 
@@ -149,21 +184,80 @@
             margin: 0;
         }
 
+        .annex-letter {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0;
+            margin: 0 0 8px;
+            text-transform: uppercase;
+        }
+
         .annex-section {
             page-break-before: always;
         }
 
         .annex-section > h2 {
             border-bottom: 2px solid var(--ink);
+            break-after: avoid;
+            break-inside: avoid;
             font-size: 17px;
             letter-spacing: 0;
             margin-bottom: 16px;
+            page-break-after: avoid;
+            page-break-inside: avoid;
             padding-bottom: 7px;
         }
 
         .empty-note {
             color: var(--muted);
             font-style: italic;
+        }
+
+        .doc-card-grid {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .doc-card {
+            border: 1px solid var(--line);
+            break-inside: avoid;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 24mm 1fr;
+            page-break-inside: avoid;
+            padding: 10px 12px;
+        }
+
+        .doc-card-order {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .doc-card h3 {
+            margin: 0 0 8px;
+        }
+
+        .doc-card dl {
+            display: grid;
+            grid-template-columns: 26mm 1fr;
+            margin: 0;
+        }
+
+        .doc-card dt,
+        .doc-card dd {
+            border-top: 1px solid #edf0f4;
+            margin: 0;
+            padding: 4px 0;
+        }
+
+        .doc-card dt {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
         }
 
         .doc-table,
@@ -340,6 +434,11 @@
             padding: 0;
         }
 
+        .annex-f-separator {
+            break-before: page;
+            page-break-before: always;
+        }
+
         .quoted-partida {
             background: var(--soft);
             border: 1px solid var(--line);
@@ -393,12 +492,19 @@
     {% macro unidad_pdf(unidad) -%}
     {{- (unidad or "")|replace("m2", "m²")|replace("M2", "m²") -}}
     {%- endmacro %}
+    {% macro separador_anexo(letra, titulo) -%}
+    <section class="annex-cover">
+        <div>
+            <p class="annex-letter">ANEXO {{ letra }}</p>
+            <h2>{{ titulo }}</h2>
+        </div>
+    </section>
+    {%- endmacro %}
 
     <main class="document">
         <section class="cover">
             <div>
-                <p class="subtitle">Sistema Pericial</p>
-                <h1>Informe Pericial V2</h1>
+                <h1>Informe Pericial de Daños Constructivos</h1>
                 <p class="subtitle">{{ expediente.tipo_trabajo_label or expediente.tipo_informe }}</p>
             </div>
             <div class="cover-meta">
@@ -414,10 +520,16 @@
         <section class="toc">
             <h2>Índice</h2>
             <div class="toc-list">
+                <div class="toc-group-title">Cuerpo del informe</div>
                 {% for item in indice %}
+                {% if item.grupo == "anexos" and loop.previtem is defined and loop.previtem.grupo != "anexos" %}
+                <div class="toc-group-title">Anexos</div>
+                {% endif %}
                 <div class="toc-row">
                     <span class="toc-number">{{ item.numero }}</span>
-                    <span>{{ item.titulo }}</span>
+                    <span class="toc-title">{{ item.titulo }}</span>
+                    <span class="toc-leader"></span>
+                    <span class="toc-page">{{ (indice_paginas or {}).get(item.clave, "") }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -444,44 +556,37 @@
             </article>
             {% endfor %}
             {% else %}
-            <p class="empty-note">No constan conclusiones guardadas para este informe V2.</p>
+            <p class="empty-note">No constan conclusiones guardadas para este informe.</p>
             {% endif %}
         </section>
 
-        <section class="annex-cover">
-            <h2>ANEXOS</h2>
-        </section>
-
+        {{ separador_anexo("A", "DOCUMENTACIÓN APORTADA") }}
         <section class="annex-section">
             <h2>ANEXO A. DOCUMENTACIÓN APORTADA</h2>
             {% if anexos.documentacion %}
-            <table class="doc-table">
-                <thead>
-                    <tr>
-                        <th>Orden</th>
-                        <th>Documento</th>
-                        <th>Tipo</th>
-                        <th>Fecha</th>
-                        <th>Descripción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for documento in anexos.documentacion %}
-                    <tr>
-                        <td>{{ documento.orden or loop.index }}</td>
-                        <td>{{ documento.nombre }}</td>
-                        <td>{{ documento.tipo or "-" }}</td>
-                        <td>{{ documento.fecha or "-" }}</td>
-                        <td>{{ documento.descripcion or "-" }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <h3>A.1 Relación de documentación aportada</h3>
+            <div class="doc-card-grid">
+                {% for documento in anexos.documentacion %}
+                <article class="doc-card">
+                    <div class="doc-card-order">{{ documento.numero_anexo or ("A." ~ (loop.index + 1)) }}</div>
+                    <div>
+                        <h3>{{ documento.nombre }}</h3>
+                        <dl>
+                            <dt>Tipo</dt><dd>{{ documento.tipo or "-" }}</dd>
+                            <dt>Fecha</dt><dd>{{ documento.fecha or "-" }}</dd>
+                            <dt>Descripción</dt><dd>{{ documento.descripcion or "-" }}</dd>
+                            <dt>Documento</dt><dd>{{ documento.nombre }}</dd>
+                        </dl>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
             {% else %}
             <p class="empty-note">No consta documentación aportada estructurada asociada al expediente.</p>
             {% endif %}
         </section>
 
+        {{ separador_anexo("B", "REPORTAJE FOTOGRÁFICO") }}
         <section class="annex-section">
             <h2>ANEXO B. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS</h2>
             {% if anexos.fotografias_grupos %}
@@ -518,6 +623,7 @@
             {% endif %}
         </section>
 
+        {{ separador_anexo("C", "FICHAS DE DAÑOS POR ESTANCIA") }}
         <section class="annex-section">
             <h2>ANEXO C. FICHAS DE DAÑOS POR ESTANCIA</h2>
             {% if anexos.fichas_danos %}
@@ -572,6 +678,7 @@
             {% endif %}
         </section>
 
+        {{ separador_anexo("D", "VALORACIÓN ECONÓMICA DETALLADA") }}
         <section class="annex-section annex-d-landscape">
             <h2>ANEXO D. VALORACIÓN ECONÓMICA DETALLADA</h2>
             {% if anexos.valoracion and anexos.valoracion.tiene_costes %}
@@ -617,6 +724,7 @@
             {% endif %}
         </section>
 
+        {{ separador_anexo("E", "ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4") }}
         <section class="annex-section">
             <h2>ANEXO E. ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4 DEL PRESUPUESTO DE REPARACIÓN DE CUBIERTA</h2>
             {% if anexos.analisis_partida_4.contenido_pdf %}
@@ -626,12 +734,20 @@
             {% endif %}
         </section>
 
+        {{ separador_anexo("F", "JUSTIFICACIÓN DE MEDICIONES") }}
         <section class="annex-section">
             <h2>ANEXO F. JUSTIFICACIÓN DE MEDICIONES</h2>
             {% if anexos.justificacion_mediciones.contenido_pdf %}
             <article class="analysis-block chapter-content">{{ anexos.justificacion_mediciones.contenido_pdf }}</article>
             {% else %}
             <p class="empty-note">No consta contenido editable para el Anexo F.</p>
+            {% endif %}
+            {% if anexos.justificacion_mediciones.pdf_adjunto %}
+            <article class="analysis-block annex-f-separator">
+                <h3>F.4 Desarrollo completo de mediciones</h3>
+                <p>Se incorpora a continuación la hoja de cálculo de mediciones elaborada por el perito.</p>
+                <p class="empty-note">Documento incorporado: Desarrollo completo de mediciones.</p>
+            </article>
             {% endif %}
         </section>
     </main>

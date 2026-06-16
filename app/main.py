@@ -1,6 +1,7 @@
 import binascii
 import hashlib
 import hmac
+import html
 import json
 import logging
 import os
@@ -83,6 +84,7 @@ TEMPLATES_PATH = Path(TEMPLATES_DIR)
 UPLOAD_PATH = Path(UPLOAD_DIR)
 DOCUMENTOS_EXPEDIENTE_UPLOAD_DIR = UPLOAD_PATH / "expediente_documentos"
 DB_FILE = Path(DB_PATH)
+TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES = "informe_v2_anexo_f_mediciones"
 
 ensure_directories()
 init_db()
@@ -1312,6 +1314,68 @@ def guardar_documento_pdf_expediente(
         shutil.copyfileobj(archivo.file, buffer)
     ruta_relativa = f"expediente_documentos/{expediente_id}/{nombre_destino}"
     return ruta_relativa, limpiar_texto(archivo.filename), limpiar_texto(archivo.content_type)
+
+
+def resolver_ruta_upload_relativa_segura(ruta_relativa: str | None) -> Path | None:
+    ruta_limpia = limpiar_texto(ruta_relativa).lstrip("/")
+    if not ruta_limpia:
+        return None
+    ruta = (UPLOAD_PATH / ruta_limpia).resolve()
+    raiz_uploads = UPLOAD_PATH.resolve()
+    try:
+        ruta.relative_to(raiz_uploads)
+    except ValueError:
+        return None
+    return ruta
+
+
+def borrar_upload_relativo_si_existe(ruta_relativa: str | None) -> None:
+    ruta = resolver_ruta_upload_relativa_segura(ruta_relativa)
+    if ruta and ruta.exists() and ruta.is_file():
+        ruta.unlink()
+
+
+def documento_expediente_a_dict(documento) -> dict | None:
+    if not documento:
+        return None
+    item = dict(documento)
+    item["url"] = f"/uploads/{item['archivo_ruta']}"
+    return item
+
+
+def obtener_pdf_mediciones_anexo_f_informe_v2(cur, expediente_id: int) -> dict | None:
+    documento = cur.execute(
+        """
+        SELECT *
+        FROM expediente_documentos
+        WHERE expediente_id = ? AND tipo_documento = ?
+        ORDER BY updated_at DESC, created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (expediente_id, TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
+    ).fetchone()
+    return documento_expediente_a_dict(documento)
+
+
+def eliminar_pdfs_mediciones_anexo_f_informe_v2(cur, expediente_id: int) -> int:
+    documentos = cur.execute(
+        """
+        SELECT id, archivo_ruta
+        FROM expediente_documentos
+        WHERE expediente_id = ? AND tipo_documento = ?
+        """,
+        (expediente_id, TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
+    ).fetchall()
+    for documento in documentos:
+        borrar_upload_relativo_si_existe(documento["archivo_ruta"])
+    cur.execute(
+        """
+        DELETE FROM expediente_documentos
+        WHERE expediente_id = ? AND tipo_documento = ?
+        """,
+        (expediente_id, TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
+    )
+    return len(documentos)
 
 
 def nombre_visible_documento_desde_archivo(nombre_original: str | None) -> str:
@@ -7196,6 +7260,10 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
     workbench = preparar_pericial_workbench(cur, expediente)
     contexto_editor = build_informe_v2_contexto(cur, expediente, workbench)
     anexos_derivados = preparar_anexos_derivados_editor_v2(contexto_editor)
+    pdf_mediciones_anexo_f = obtener_pdf_mediciones_anexo_f_informe_v2(
+        cur,
+        expediente["id"],
+    )
     iniciales = generar_contenido_inicial_editor_v2(workbench)
     guardados = obtener_capitulos_guardados_informe_v2(cur, expediente["id"])
     versiones = obtener_versiones_informe_v2(cur, expediente["id"])
@@ -7296,6 +7364,7 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         **workbench,
         "contexto_editor": contexto_editor,
         "anexos_derivados": anexos_derivados,
+        "pdf_mediciones_anexo_f": pdf_mediciones_anexo_f,
         "diagnostico_informe": diagnostico_informe,
         "estados_revision": estados_revision,
         "capitulos": capitulos,
@@ -7344,7 +7413,7 @@ def guardar_capitulo_informe_v2(
 ):
     definicion = INFORME_V2_CAPITULOS_POR_CLAVE.get(limpiar_texto(clave))
     if not definicion:
-        raise ValueError("Campo no permitido para informe V2.")
+        raise ValueError("Campo no permitido para el informe.")
     contenido_limpio = limpiar_texto(contenido)
     fila_actual = cur.execute(
         """
@@ -7773,17 +7842,51 @@ def recopilar_documentacion_anexo_v2(
     documentos_aportados: list[dict] | None = None,
 ) -> list[dict]:
     if documentos_aportados:
-        return [
-            {
-                "orden": documento.get("orden"),
-                "nombre": limpiar_texto(documento.get("nombre_visible")),
-                "tipo": limpiar_texto(documento.get("tipo_documento")),
-                "fecha": limpiar_texto(documento.get("fecha") or documento.get("created_at"))[:10],
-                "descripcion": limpiar_texto(documento.get("descripcion")),
-            }
-            for documento in documentos_aportados
-            if limpiar_texto(documento.get("nombre_visible"))
-        ]
+        documentos = []
+        for documento in documentos_aportados:
+            tipo_documento = limpiar_texto(documento.get("tipo_documento"))
+            if tipo_documento == TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES:
+                continue
+            incluido = True
+            for campo_inclusion in (
+                "incluir_en_anexo_a",
+                "incluir_en_anexo",
+                "incluir_en_pdf",
+            ):
+                if campo_inclusion in documento and documento.get(campo_inclusion) is not None:
+                    incluido = str(documento.get(campo_inclusion)).strip().lower() not in {
+                        "",
+                        "0",
+                        "false",
+                        "no",
+                    }
+                    break
+            if not incluido:
+                continue
+            nombre = limpiar_texto(documento.get("nombre_visible"))
+            if not nombre:
+                continue
+            archivo_original = limpiar_texto(documento.get("archivo_nombre_original"))
+            if not archivo_original:
+                archivo_original = Path(limpiar_texto(documento.get("archivo_ruta"))).name
+            mime_type = limpiar_texto(documento.get("mime_type"))
+            es_pdf = mime_type.lower() in ("application/pdf", "application/x-pdf") or archivo_original.lower().endswith(".pdf")
+            numero_anexo = f"A.{len(documentos) + 2}"
+            documentos.append(
+                {
+                    "orden": documento.get("orden"),
+                    "nombre": nombre,
+                    "numero_anexo": numero_anexo,
+                    "tipo": tipo_documento,
+                    "fecha": limpiar_texto(documento.get("fecha") or documento.get("created_at"))[:10],
+                    "descripcion": limpiar_texto(documento.get("descripcion")),
+                    "archivo": archivo_original,
+                    "archivo_ruta": limpiar_texto(documento.get("archivo_ruta")),
+                    "mime_type": mime_type,
+                    "es_pdf": es_pdf,
+                }
+            )
+        return documentos
 
     documentos = []
     vistos = set()
@@ -7993,6 +8096,7 @@ def preparar_anexos_pdf_informe_v2(
     capitulo_anexo_e: dict | None = None,
     capitulo_anexo_f: dict | None = None,
     documentos_aportados: list[dict] | None = None,
+    pdf_mediciones_anexo_f: dict | None = None,
 ) -> dict:
     anexo_economico = {**(contexto_base.get("anexo_economico_reparacion") or {})}
     anexo_economico["total_pem_formateado"] = (
@@ -8015,12 +8119,16 @@ def preparar_anexos_pdf_informe_v2(
             capitulo_anexo_e,
         ),
         "justificacion_mediciones": preparar_justificacion_mediciones_anexo_v2(
-            capitulo_anexo_f
+            capitulo_anexo_f,
+            pdf_mediciones_anexo_f,
         ),
     }
 
 
-def preparar_justificacion_mediciones_anexo_v2(capitulo_anexo_f: dict | None = None) -> dict:
+def preparar_justificacion_mediciones_anexo_v2(
+    capitulo_anexo_f: dict | None = None,
+    pdf_mediciones_anexo_f: dict | None = None,
+) -> dict:
     contenido = limpiar_texto((capitulo_anexo_f or {}).get("contenido_pdf"))
     if not contenido:
         contenido = contenido_base_anexo_f_mediciones_v2()
@@ -8028,6 +8136,7 @@ def preparar_justificacion_mediciones_anexo_v2(capitulo_anexo_f: dict | None = N
         "contenido_pdf": contenido,
         "guardado": bool((capitulo_anexo_f or {}).get("guardado")),
         "editado_manual": bool((capitulo_anexo_f or {}).get("editado_manual")),
+        "pdf_adjunto": pdf_mediciones_anexo_f,
     }
 
 
@@ -8145,33 +8254,50 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
         None,
     )
     documentos_aportados = obtener_documentos_aportados_expediente(cur, expediente_id)
+    pdf_mediciones_anexo_f = obtener_pdf_mediciones_anexo_f_informe_v2(cur, expediente_id)
     anexos = preparar_anexos_pdf_informe_v2(
         expediente_dict,
         contexto_base,
         capitulo_anexo_e,
         capitulo_anexo_f,
         documentos_aportados,
+        pdf_mediciones_anexo_f,
     )
+    desplazamiento_paginas_anexo_a = 0
+    for documento in anexos.get("documentacion") or []:
+        if documento_anexo_a_pdf_v2(documento):
+            paginas_pdf = contar_paginas_pdf_upload_v2(documento.get("archivo_ruta"))
+            documento["paginas_pdf"] = paginas_pdf
+            desplazamiento_paginas_anexo_a += paginas_pdf + 1
     indice = [
-        {"numero": 1, "titulo": "Portada"},
-        {"numero": 2, "titulo": "Índice"},
+        {"numero": 1, "titulo": "Portada", "grupo": "cuerpo", "clave": "portada"},
+        {"numero": 2, "titulo": "Índice", "grupo": "cuerpo", "clave": "indice"},
     ]
     indice.extend(
         {
             "numero": capitulo["numero_pdf"],
             "titulo": capitulo["titulo"],
+            "grupo": "cuerpo",
+            "clave": capitulo["clave"],
         }
         for capitulo in capitulos_principales
     )
-    indice.append({"numero": conclusiones["numero"], "titulo": "Conclusiones"})
+    indice.append(
+        {
+            "numero": conclusiones["numero"],
+            "titulo": "Conclusiones",
+            "grupo": "cuerpo",
+            "clave": "conclusiones",
+        }
+    )
     indice.extend(
         [
-            {"numero": "A", "titulo": "Documentación aportada"},
-            {"numero": "B", "titulo": "Reportaje fotográfico"},
-            {"numero": "C", "titulo": "Fichas de daños por estancia"},
-            {"numero": "D", "titulo": "Valoración económica detallada"},
-            {"numero": "E", "titulo": "Análisis de ejecución de la partida nº 4"},
-            {"numero": "F", "titulo": "Justificación de mediciones"},
+            {"numero": "A", "titulo": "Documentación aportada", "grupo": "anexos", "clave": "anexo_a"},
+            {"numero": "B", "titulo": "Reportaje fotográfico", "grupo": "anexos", "clave": "anexo_b"},
+            {"numero": "C", "titulo": "Fichas de daños por estancia", "grupo": "anexos", "clave": "anexo_c"},
+            {"numero": "D", "titulo": "Valoración económica detallada", "grupo": "anexos", "clave": "anexo_d"},
+            {"numero": "E", "titulo": "Análisis de ejecución de la partida nº 4", "grupo": "anexos", "clave": "anexo_e"},
+            {"numero": "F", "titulo": "Justificación de mediciones", "grupo": "anexos", "clave": "anexo_f"},
         ]
     )
 
@@ -8185,6 +8311,8 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
         "conclusiones": conclusiones,
         "indice": indice,
         "anexos": anexos,
+        "pdf_mediciones_anexo_f": pdf_mediciones_anexo_f,
+        "desplazamiento_paginas_anexo_a": desplazamiento_paginas_anexo_a,
         "capitulos_guardados": len(guardados),
         "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
         "tecnico": limpiar_texto(ultima_visita["tecnico"]) if ultima_visita else "",
@@ -8194,7 +8322,334 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
 
 def nombre_archivo_pdf_informe_v2(expediente) -> str:
     numero = limpiar_nombre_archivo(expediente["numero_expediente"] or "expediente")
-    return f"Informe-V2-{numero}.pdf"
+    return f"Informe-{numero}.pdf"
+
+
+def contar_paginas_pdf_upload_v2(ruta_relativa: str | None) -> int:
+    ruta_pdf = resolver_ruta_upload_relativa_segura(ruta_relativa)
+    if not ruta_pdf or not ruta_pdf.exists():
+        return 0
+    try:
+        from pypdf import PdfReader
+
+        return len(PdfReader(str(ruta_pdf)).pages)
+    except Exception as exc:
+        logger.warning("No se pudieron contar páginas del PDF externo %s: %s", ruta_relativa, exc)
+        return 0
+
+
+def documento_anexo_a_pdf_v2(documento: dict) -> bool:
+    mime = limpiar_texto(documento.get("mime_type")).lower()
+    archivo = limpiar_texto(documento.get("archivo") or documento.get("archivo_ruta")).lower()
+    return mime in ("application/pdf", "application/x-pdf") or archivo.endswith(".pdf")
+
+
+def normalizar_busqueda_pdf_v2(texto: str) -> str:
+    texto = unicodedata.normalize("NFKD", limpiar_texto(texto).lower())
+    return "".join(c for c in texto if not unicodedata.combining(c))
+
+
+def encontrar_pagina_pdf_v2(reader, patrones: list[str]) -> int | None:
+    patrones_normalizados = [
+        normalizar_busqueda_pdf_v2(patron)
+        for patron in patrones
+        if limpiar_texto(patron)
+    ]
+    if not patrones_normalizados:
+        return None
+    for indice_pagina, pagina in enumerate(reader.pages):
+        try:
+            texto_pagina = normalizar_busqueda_pdf_v2(pagina.extract_text() or "")
+        except Exception:
+            texto_pagina = ""
+        if all(patron in texto_pagina for patron in patrones_normalizados):
+            return indice_pagina
+    return None
+
+
+def leer_paginas_pdf_upload_v2(ruta_relativa: str | None, etiqueta: str) -> list:
+    ruta_pdf = resolver_ruta_upload_relativa_segura(ruta_relativa)
+    if not ruta_pdf or not ruta_pdf.exists():
+        logger.warning("No se pudo integrar %s: archivo no encontrado.", etiqueta)
+        return []
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(str(ruta_pdf))
+        return [pagina for pagina in reader.pages]
+    except Exception as exc:
+        logger.warning("No se pudo integrar %s: %s", etiqueta, exc)
+        return []
+
+
+def generar_paginas_portadilla_anexo_a_v2(documento: dict, pdf_integrado: bool) -> list:
+    try:
+        from playwright.sync_api import sync_playwright
+        from pypdf import PdfReader
+    except ImportError as exc:
+        logger.warning("No se pudo generar portadilla Anexo A: %s", exc)
+        return []
+
+    numero = html.escape(limpiar_texto(documento.get("numero_anexo")) or "A")
+    nombre = html.escape(limpiar_texto(documento.get("nombre")) or "Documento aportado")
+    tipo = html.escape(limpiar_texto(documento.get("tipo")) or "Documento aportado")
+    fecha = html.escape(limpiar_texto(documento.get("fecha")) or "-")
+    descripcion = html.escape(limpiar_texto(documento.get("descripcion")) or "-")
+    estado = (
+        "Documento aportado por la propiedad."
+        if pdf_integrado
+        else "El documento queda referenciado, pero el PDF aportado no se pudo incorporar físicamente."
+    )
+    estado = html.escape(estado)
+    html_portadilla = f"""
+    <!doctype html>
+    <html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <style>
+            @page {{ size: A4; margin: 20mm; }}
+            body {{
+                color: #1f2933;
+                font-family: Arial, Helvetica, sans-serif;
+                margin: 0;
+            }}
+            .page {{
+                align-items: center;
+                border-bottom: 2px solid #1f2933;
+                border-top: 2px solid #1f2933;
+                box-sizing: border-box;
+                display: flex;
+                min-height: 250mm;
+            }}
+            .number {{
+                color: #6b7280;
+                font-size: 14px;
+                font-weight: 700;
+                margin: 0 0 6px;
+            }}
+            h1 {{
+                font-size: 25px;
+                line-height: 1.25;
+                margin: 0 0 18px;
+                text-transform: uppercase;
+            }}
+            .meta {{
+                border-top: 1px solid #d8dee6;
+                color: #374151;
+                font-size: 13px;
+                line-height: 1.55;
+                padding-top: 12px;
+                width: 100%;
+            }}
+            .meta p {{
+                margin: 5px 0;
+            }}
+        </style>
+    </head>
+    <body>
+        <section class="page">
+            <div>
+                <p class="number">{numero}</p>
+                <h1>{nombre}</h1>
+                <div class="meta">
+                    <p><strong>Tipo:</strong> {tipo}</p>
+                    <p><strong>Fecha:</strong> {fecha}</p>
+                    <p><strong>Descripción:</strong> {descripcion}</p>
+                    <p>{estado}</p>
+                </div>
+            </div>
+        </section>
+    </body>
+    </html>
+    """
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 794, "height": 1123})
+            page.emulate_media(media="print")
+            page.set_content(html_portadilla, wait_until="networkidle")
+            pdf_bytes = page.pdf(
+                format="A4",
+                margin={
+                    "top": "0",
+                    "right": "0",
+                    "bottom": "0",
+                    "left": "0",
+                },
+                print_background=True,
+                prefer_css_page_size=True,
+            )
+            browser.close()
+        return [pagina for pagina in PdfReader(BytesIO(pdf_bytes)).pages]
+    except Exception as exc:
+        logger.warning("No se pudo generar portadilla Anexo A %s: %s", nombre, exc)
+        return []
+
+
+def fusionar_pdf_informe_v2_con_anexos_integrados(
+    pdf_informe: bytes,
+    documentos_anexo_a: list[dict] | None,
+    pdf_mediciones: dict | None,
+) -> bytes:
+    documentos_pdf = [
+        documento
+        for documento in documentos_anexo_a or []
+        if documento_anexo_a_pdf_v2(documento)
+    ]
+    if not documentos_pdf and not pdf_mediciones:
+        return pdf_informe
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        logger.warning("No se pudieron integrar PDFs externos: pypdf no está instalado.")
+        return pdf_informe
+
+    try:
+        informe_reader = PdfReader(BytesIO(pdf_informe))
+    except Exception as exc:
+        logger.warning("No se pudo leer el PDF base para integrar anexos externos: %s", exc)
+        return pdf_informe
+
+    inserciones: dict[int, list] = {}
+    pagina_anexo_b = encontrar_pagina_pdf_v2(
+        informe_reader,
+        ["ANEXO B", "REPORTAJE FOTOGRÁFICO"],
+    )
+    pagina_fallback_anexo_a = (
+        max(0, pagina_anexo_b - 1)
+        if pagina_anexo_b is not None
+        else max(0, len(informe_reader.pages) - 1)
+    )
+
+    for indice_documento, documento in enumerate(documentos_pdf, start=2):
+        etiqueta = documento.get("nombre") or documento.get("archivo") or "documento Anexo A"
+        paginas_documento = leer_paginas_pdf_upload_v2(documento.get("archivo_ruta"), f"Anexo A {etiqueta}")
+        paginas_portadilla = generar_paginas_portadilla_anexo_a_v2(
+            documento,
+            bool(paginas_documento),
+        )
+        paginas_unidad_documental = [*paginas_portadilla, *paginas_documento]
+        if not paginas_unidad_documental:
+            continue
+        numero_anexo = limpiar_texto(documento.get("numero_anexo")) or f"A.{indice_documento}"
+        documento["numero_anexo"] = numero_anexo
+        inserciones.setdefault(pagina_fallback_anexo_a, []).extend(paginas_unidad_documental)
+
+    if pdf_mediciones:
+        paginas_mediciones = leer_paginas_pdf_upload_v2(
+            pdf_mediciones.get("archivo_ruta"),
+            "Anexo F.4 Desarrollo completo de mediciones",
+        )
+        if paginas_mediciones:
+            pagina_f4 = encontrar_pagina_pdf_v2(
+                informe_reader,
+                ["F.4", "Desarrollo completo de mediciones"],
+            )
+            if pagina_f4 is None:
+                pagina_f4 = max(0, len(informe_reader.pages) - 1)
+            inserciones.setdefault(pagina_f4, []).extend(paginas_mediciones)
+
+    if not inserciones:
+        return pdf_informe
+
+    writer = PdfWriter()
+    for indice_pagina, pagina in enumerate(informe_reader.pages):
+        writer.add_page(pagina)
+        for pagina_insertada in inserciones.get(indice_pagina, []):
+            writer.add_page(pagina_insertada)
+
+    salida = BytesIO()
+    writer.write(salida)
+    return salida.getvalue()
+
+
+def fusionar_pdf_informe_v2_con_anexo_a(
+    pdf_informe: bytes,
+    documentos_anexo_a: list[dict] | None,
+) -> bytes:
+    documentos_pdf = [
+        documento
+        for documento in documentos_anexo_a or []
+        if documento_anexo_a_pdf_v2(documento)
+    ]
+    if not documentos_pdf:
+        return pdf_informe
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        logger.warning("No se pudo anexar PDFs del Anexo A: pypdf no está instalado.")
+        return pdf_informe
+
+    try:
+        writer = PdfWriter()
+        informe_reader = PdfReader(BytesIO(pdf_informe))
+        for pagina in informe_reader.pages:
+            writer.add_page(pagina)
+    except Exception as exc:
+        logger.warning("No se pudo leer el PDF base para anexar Anexo A: %s", exc)
+        return pdf_informe
+
+    anexado = False
+    for documento in documentos_pdf:
+        ruta_pdf = resolver_ruta_upload_relativa_segura(documento.get("archivo_ruta"))
+        if not ruta_pdf or not ruta_pdf.exists():
+            logger.warning(
+                "No se pudo anexar documento Anexo A %s: archivo no encontrado.",
+                documento.get("archivo") or documento.get("nombre"),
+            )
+            continue
+        try:
+            reader = PdfReader(str(ruta_pdf))
+            for pagina in reader.pages:
+                writer.add_page(pagina)
+            anexado = True
+        except Exception as exc:
+            logger.warning(
+                "No se pudo anexar documento Anexo A %s: %s",
+                documento.get("archivo") or documento.get("nombre"),
+                exc,
+            )
+
+    if not anexado:
+        return pdf_informe
+    salida = BytesIO()
+    writer.write(salida)
+    return salida.getvalue()
+
+
+def fusionar_pdf_informe_v2_con_mediciones(
+    pdf_informe: bytes,
+    pdf_mediciones: dict | None,
+) -> bytes:
+    if not pdf_mediciones:
+        return pdf_informe
+    ruta_pdf = resolver_ruta_upload_relativa_segura(pdf_mediciones.get("archivo_ruta"))
+    if not ruta_pdf or not ruta_pdf.exists():
+        return pdf_informe
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="pypdf no está instalado. Actualiza dependencias para anexar el PDF de mediciones.",
+        ) from exc
+
+    try:
+        writer = PdfWriter()
+        informe_reader = PdfReader(BytesIO(pdf_informe))
+        mediciones_reader = PdfReader(str(ruta_pdf))
+        for pagina in informe_reader.pages:
+            writer.add_page(pagina)
+        for pagina in mediciones_reader.pages:
+            writer.add_page(pagina)
+        salida = BytesIO()
+        writer.write(salida)
+        return salida.getvalue()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo anexar el PDF de mediciones al informe.",
+        ) from exc
 
 
 def preparar_pericial_workbench(cur, expediente) -> dict:
@@ -10683,6 +11138,18 @@ def redirect_pericial_workbench(expediente_id: int, mensaje: str = "", error: st
     return RedirectResponse(url=url, status_code=303)
 
 
+def redirect_informe_v2_editor(expediente_id: int, mensaje: str = "", error: str = ""):
+    url = f"/expedientes/{expediente_id}/informe-v2-editor"
+    params = []
+    if mensaje:
+        params.append(f"mensaje={quote_plus(mensaje)}")
+    if error:
+        params.append(f"error={quote_plus(error)}")
+    if params:
+        url = f"{url}?{'&'.join(params)}"
+    return RedirectResponse(url=url, status_code=303)
+
+
 @app.post("/expedientes/{expediente_id}/pericial-workbench/documentos")
 def subir_documento_anexo_a_workbench(
     request: Request,
@@ -10798,6 +11265,119 @@ def actualizar_documento_anexo_a_workbench(
     )
 
 
+@app.post("/expedientes/{expediente_id}/pericial-workbench/documentos/{documento_id}/eliminar")
+def eliminar_documento_anexo_a_workbench(
+    request: Request,
+    expediente_id: int,
+    documento_id: int,
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        documento = get_owned_expediente_documento(cur, documento_id, current_user["id"])
+        require_row(documento, "Documento no encontrado")
+        if documento["expediente_id"] != expediente_id:
+            raise HTTPException(status_code=404, detail="Documento no encontrado")
+        borrar_upload_relativo_si_existe(documento["archivo_ruta"])
+        cur.execute("DELETE FROM expediente_documentos WHERE id = ?", (documento_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect_pericial_workbench(
+        expediente_id,
+        mensaje="Documento eliminado del Anexo A.",
+    )
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf")
+def subir_pdf_mediciones_anexo_f_informe_v2(
+    request: Request,
+    expediente_id: int,
+    archivo: UploadFile | None = File(None),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    archivo_ruta = ""
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El PDF de mediciones de Anexo F solo aplica a expedientes de patologías.",
+            )
+        try:
+            archivo_ruta, nombre_original, mime_type = guardar_documento_pdf_expediente(
+                archivo,
+                expediente_id,
+            )
+        except ValueError as exc:
+            return redirect_informe_v2_editor(expediente_id, error=str(exc))
+        eliminar_pdfs_mediciones_anexo_f_informe_v2(cur, expediente_id)
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "PDF de mediciones para Anexo F",
+                "Desarrollo completo de mediciones incorporado al informe.",
+                TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES,
+                archivo_ruta,
+                nombre_original,
+                mime_type,
+                900,
+            ),
+        )
+        conn.commit()
+    except Exception:
+        if archivo_ruta:
+            borrar_upload_relativo_si_existe(archivo_ruta)
+        raise
+    finally:
+        conn.close()
+
+    return redirect_informe_v2_editor(
+        expediente_id,
+        mensaje="PDF de mediciones incorporado al Anexo F.",
+    )
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf/eliminar")
+def eliminar_pdf_mediciones_anexo_f_informe_v2(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El PDF de mediciones de Anexo F solo aplica a expedientes de patologías.",
+            )
+        eliminados = eliminar_pdfs_mediciones_anexo_f_informe_v2(cur, expediente_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    mensaje = (
+        "PDF de mediciones eliminado del Anexo F."
+        if eliminados
+        else "No había PDF de mediciones asociado al Anexo F."
+    )
+    return redirect_informe_v2_editor(expediente_id, mensaje=mensaje)
+
+
 @app.get("/expedientes/{expediente_id}/informe-v2-editor", response_class=HTMLResponse)
 def informe_v2_editor(request: Request, expediente_id: int):
     current_user = get_current_user(request)
@@ -10810,7 +11390,7 @@ def informe_v2_editor(request: Request, expediente_id: int):
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             return redirect_detalle_expediente(
                 expediente_id,
-                error="El editor V2 solo aplica a expedientes de patologías.",
+                error="El editor de informe solo aplica a expedientes de patologías.",
             )
         editor = preparar_editor_informe_v2(cur, expediente)
     finally:
@@ -10825,6 +11405,7 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "capitulos": editor["capitulos"],
             "contexto_editor": editor["contexto_editor"],
             "anexos_derivados": editor["anexos_derivados"],
+            "pdf_mediciones_anexo_f": editor["pdf_mediciones_anexo_f"],
             "diagnostico_informe": editor["diagnostico_informe"],
             "estados_revision": editor["estados_revision"],
             "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
@@ -10852,7 +11433,7 @@ async def guardar_informe_v2_editor(request: Request, expediente_id: int):
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             return redirect_detalle_expediente(
                 expediente_id,
-                error="El editor V2 solo aplica a expedientes de patologías.",
+                error="El editor de informe solo aplica a expedientes de patologías.",
             )
         conflictos = detectar_conflictos_guardado_manual_informe_v2(
             cur,
@@ -10876,7 +11457,7 @@ async def guardar_informe_v2_editor(request: Request, expediente_id: int):
         conn.close()
 
     return RedirectResponse(
-        url=f"/expedientes/{expediente_id}/informe-v2-editor?mensaje=Informe%20V2%20guardado.",
+        url=f"/expedientes/{expediente_id}/informe-v2-editor?mensaje=Informe%20guardado.",
         status_code=303,
     )
 
@@ -10891,7 +11472,7 @@ async def autosave_informe_v2(request: Request, expediente_id: int):
 
     if campo not in INFORME_V2_CAPITULOS_POR_CLAVE:
         return JSONResponse(
-            {"ok": False, "error": "Campo no permitido para informe V2."},
+            {"ok": False, "error": "Campo no permitido para el informe."},
             status_code=400,
         )
 
@@ -10904,7 +11485,7 @@ async def autosave_informe_v2(request: Request, expediente_id: int):
             return JSONResponse(
                 {
                     "ok": False,
-                    "error": "El autosalvado V2 solo aplica a expedientes de patologías.",
+                    "error": "El autosalvado del informe solo aplica a expedientes de patologías.",
                 },
                 status_code=400,
             )
@@ -10982,7 +11563,7 @@ async def guardar_estado_revision_informe_v2(
     definicion = INFORME_V2_CAPITULOS_POR_CLAVE.get(clave_limpia)
     if not definicion:
         return JSONResponse(
-            {"ok": False, "error": "Campo no permitido para informe V2."},
+            {"ok": False, "error": "Campo no permitido para el informe."},
             status_code=400,
         )
 
@@ -11003,7 +11584,7 @@ async def guardar_estado_revision_informe_v2(
             return JSONResponse(
                 {
                     "ok": False,
-                    "error": "El estado V2 solo aplica a expedientes de patologías.",
+                    "error": "El estado del informe solo aplica a expedientes de patologías.",
                 },
                 status_code=400,
             )
@@ -11051,7 +11632,7 @@ def restaurar_version_informe_v2(
     if clave_limpia not in INFORME_V2_CAPITULOS_POR_CLAVE:
         return redirect_detalle_expediente(
             expediente_id,
-            error="Campo no permitido para informe V2.",
+            error="Campo no permitido para el informe.",
         )
 
     conn = get_connection()
@@ -11062,7 +11643,7 @@ def restaurar_version_informe_v2(
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             return redirect_detalle_expediente(
                 expediente_id,
-                error="El editor V2 solo aplica a expedientes de patologías.",
+                error="El editor de informe solo aplica a expedientes de patologías.",
             )
         version = cur.execute(
             """
@@ -11112,7 +11693,7 @@ def descargar_respaldo_informe_v2(request: Request, expediente_id: int):
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             raise HTTPException(
                 status_code=400,
-                detail="El respaldo V2 solo aplica a expedientes de patologías.",
+                detail="El respaldo del informe solo aplica a expedientes de patologías.",
             )
         guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
     finally:
@@ -11147,7 +11728,7 @@ def descargar_respaldo_informe_v2(request: Request, expediente_id: int):
     return JSONResponse(
         payload,
         headers={
-            "Content-Disposition": f'attachment; filename="informe-v2-respaldo-{numero}.json"'
+            "Content-Disposition": f'attachment; filename="informe-respaldo-{numero}.json"'
         },
     )
 
@@ -16858,7 +17439,7 @@ def generar_informe_v2_pdf_endpoint(request: Request, expediente_id: int):
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             return redirect_detalle_expediente(
                 expediente_id,
-                error="El PDF V2 solo aplica a expedientes de patologías.",
+                error="El PDF del informe solo aplica a expedientes de patologías.",
             )
         contexto = preparar_contexto_pdf_informe_v2(
             cur,
@@ -16869,6 +17450,11 @@ def generar_informe_v2_pdf_endpoint(request: Request, expediente_id: int):
         conn.close()
 
     pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
+    pdf_bytes = fusionar_pdf_informe_v2_con_anexos_integrados(
+        pdf_bytes,
+        contexto.get("anexos", {}).get("documentacion"),
+        contexto.get("pdf_mediciones_anexo_f"),
+    )
     nombre_archivo = nombre_archivo_pdf_informe_v2(expediente)
 
     return StreamingResponse(

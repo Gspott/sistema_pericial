@@ -220,6 +220,25 @@
             white-space: nowrap;
         }
 
+        .document-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .boton.document-delete {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .boton.document-delete:hover,
+        .boton.document-delete:focus {
+            background: #fee2e2;
+            border-color: #fca5a5;
+            color: #7f1d1d;
+        }
+
         .number-cell {
             font-variant-numeric: tabular-nums;
             text-align: right;
@@ -343,7 +362,7 @@
     <main class="page pericial-workbench">
         <section class="workbench-hero">
             <div>
-                <p class="workbench-kicker">Workbench pericial V2</p>
+                <p class="workbench-kicker">Workbench pericial</p>
                 <h1 class="workbench-title">{{ expediente.numero_expediente }} · {{ expediente.direccion or "Sin dirección" }}</h1>
                 <p class="workbench-subtitle">{{ expediente.cliente }} · {{ expediente.tipo_trabajo_label or expediente.tipo_informe }}{% if workbench.fecha_referencia %} · Fecha {{ workbench.fecha_referencia }}{% endif %}</p>
                 <p class="section-note">Vista de diagnóstico de escritorio y gestor documental del Anexo A. No modifica patologías, no cambia costes y no altera el PDF clásico.</p>
@@ -352,8 +371,8 @@
                 <div class="actions">
                     <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
                     <a class="boton secundario" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
-                    <a class="boton primario" href="/expedientes/{{ expediente.id }}/informe-v2-editor">Editar informe V2</a>
-                    <a class="boton secundario" href="/generar-informe-v2-pdf/{{ expediente.id }}">Generar PDF V2</a>
+                    <a class="boton primario" href="/expedientes/{{ expediente.id }}/informe-v2-editor">Editar informe</a>
+                    <a class="boton secundario" href="/generar-informe-v2-pdf/{{ expediente.id }}">Generar PDF</a>
                     <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe actual</a>
                     <a class="boton secundario" href="/expedientes/{{ expediente.id }}/actuaciones-reparacion">Actuaciones</a>
                 </div>
@@ -380,7 +399,7 @@
             <div class="section-head">
                 <div>
                     <h2>ANEXO A. Documentación aportada</h2>
-                    <p class="section-note">Inventario pericial de PDFs aportados. El nombre visible y el orden son los que aparecerán en el PDF V2.</p>
+                <p class="section-note">Inventario pericial de PDFs aportados. El nombre visible y el orden son los que aparecerán en el PDF.</p>
                 </div>
             </div>
             <form class="document-form" action="/expedientes/{{ expediente.id }}/pericial-workbench/documentos" method="post" enctype="multipart/form-data">
@@ -430,9 +449,14 @@
                             </td>
                             <td>{{ documento.fecha or "-" }}</td>
                             <td>
-                                <form id="{{ form_id }}" action="/expedientes/{{ expediente.id }}/pericial-workbench/documentos/{{ documento.id }}" method="post">
-                                    <button class="boton secundario" type="submit">Guardar</button>
-                                </form>
+                                <div class="document-actions">
+                                    <form id="{{ form_id }}" action="/expedientes/{{ expediente.id }}/pericial-workbench/documentos/{{ documento.id }}" method="post">
+                                        <button class="boton secundario" type="submit">Guardar</button>
+                                    </form>
+                                    <form action="/expedientes/{{ expediente.id }}/pericial-workbench/documentos/{{ documento.id }}/eliminar" method="post" onsubmit="return confirm('¿Seguro que quieres eliminar este documento del Anexo A?');">
+                                        <button class="boton secundario document-delete" type="submit">Eliminar</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -445,8 +469,8 @@
         </section>
 
         <div class="workbench-layout">
-            <aside class="workbench-panel" aria-label="Índice diagnóstico V2">
-                <h2>Diagnóstico V2</h2>
+            <aside class="workbench-panel" aria-label="Índice diagnóstico">
+                <h2>Diagnóstico</h2>
                 <p class="section-note">Estado estimado por capítulo. Diagnóstico derivado, no persistido.</p>
                 <ul class="chapter-list">
                     {% for item in diagnostico %}
@@ -465,7 +489,7 @@
                 <section class="workbench-section">
                     <div class="section-head">
                         <div>
-                            <h2>Borrador informe V2</h2>
+                            <h2>Borrador de informe</h2>
                             <p class="section-note">Texto temporal generado solo con datos existentes. No se guarda ni modifica el informe actual.</p>
                         </div>
                     </div>
@@ -682,7 +706,7 @@
 
                 <section class="workbench-panel">
                     <h2>Evidencias y accesos</h2>
-                    <p class="section-note">Resumen de fuentes reutilizadas para diagnosticar el informe V2.</p>
+                    <p class="section-note">Resumen de fuentes reutilizadas para diagnosticar el informe.</p>
                     <ul class="candidate-list">
                         <li class="candidate-item">Fotografías totales: <strong>{{ metricas.fotografias }}</strong></li>
                         <li class="candidate-item">Patologías interiores: <strong>{{ metricas.patologias_interiores }}</strong></li>

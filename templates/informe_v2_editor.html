@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
-    <title>Editor informe V2 · {{ expediente.numero_expediente }}</title>
+    <title>Editor de informe · {{ expediente.numero_expediente }}</title>
     <style>
         .editor-v2 {
             color: #172033;
@@ -410,6 +410,39 @@
             padding: 8px;
         }
 
+        .annex-pdf-panel {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            display: grid;
+            gap: 10px;
+            margin: 10px 0 12px;
+            padding: 12px;
+        }
+
+        .annex-pdf-panel h3 {
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .annex-pdf-current {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .annex-pdf-input-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .annex-pdf-input-row input[type="file"] {
+            max-width: 100%;
+        }
+
         .editorial-warning-badge {
             background: #fff7ed;
             border: 1px solid #fed7aa;
@@ -717,7 +750,7 @@
     {% include "partials/_app_shell_start.html" %}
     <main class="page editor-v2">
         <section class="editor-hero">
-            <p class="editor-kicker">Informe pericial V2 · Editor estructurado</p>
+            <p class="editor-kicker">Informe pericial · Editor de informe</p>
             <h1 class="editor-title">{{ expediente.numero_expediente }} · {{ expediente.direccion or "Sin dirección" }}</h1>
             <p class="editor-note">{{ expediente.cliente }} · {{ expediente.tipo_trabajo_label or expediente.tipo_informe }}</p>
             <p class="editor-note">La estructura del informe es fija; edita únicamente el contenido técnico. Esta pantalla no modifica el PDF actual.</p>
@@ -726,7 +759,7 @@
             <div class="actions">
                 <a class="boton secundario" href="/expedientes/{{ expediente.id }}/pericial-workbench">Volver al Workbench</a>
                 <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Detalle del expediente</a>
-                <a class="boton primario" href="/generar-informe-v2-pdf/{{ expediente.id }}">Generar PDF V2</a>
+                <a class="boton primario" href="/generar-informe-v2-pdf/{{ expediente.id }}">Generar PDF</a>
                 <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe actual</a>
                 <a class="boton secundario" href="/informes-v2/{{ expediente.id }}/respaldo.json">Descargar respaldo</a>
             </div>
@@ -734,7 +767,7 @@
 
         <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-editor">
             <div class="editor-layout">
-                <aside class="editor-panel" aria-label="Capítulos del informe V2">
+                <aside class="editor-panel" aria-label="Capítulos del informe">
                     <h2>Capítulos</h2>
                     <p class="editor-note">Estado del contenido guardado o precargado.</p>
                     <nav class="chapter-nav">
@@ -750,8 +783,8 @@
                 <div class="editor-main">
                     <div class="save-bar">
                         <span class="editor-note">
-                            <span class="printable-zone-note">Zona blanca/editor: contenido del Informe V2.</span>
-                            Los textos precargados proceden del Workbench; al guardar pasan a contenido manual del informe V2.
+                            <span class="printable-zone-note">Zona blanca/editor: contenido del informe.</span>
+                            Los textos precargados proceden del Workbench; al guardar pasan a contenido manual del informe.
                             <strong id="autosave-status" class="autosave-status ready" aria-live="polite">Listo para editar</strong>
                         </span>
                         <button class="boton primario" type="submit">Guardar datos</button>
@@ -835,6 +868,28 @@
                             <p class="editor-note">Sin versiones anteriores guardadas para este capítulo.</p>
                             {% endif %}
                         </details>
+                        {% if capitulo.clave == "anexo_f_mediciones" %}
+                        <aside class="annex-pdf-panel" aria-label="PDF de mediciones para Anexo F">
+                            <h3>PDF de mediciones para Anexo F</h3>
+                            <p class="editor-note">Adjunta aquí la hoja de cálculo de mediciones exportada a PDF. Se incorporará al informe final después del Anexo F.</p>
+                            {% if pdf_mediciones_anexo_f %}
+                            <div class="annex-pdf-current">
+                                <strong>{{ pdf_mediciones_anexo_f.archivo_nombre_original or pdf_mediciones_anexo_f.nombre_visible }}</strong>
+                                <a class="boton secundario" href="{{ pdf_mediciones_anexo_f.url }}" target="_blank" rel="noopener">Ver/descargar</a>
+                                <button class="boton secundario" type="submit" form="delete-anexo-f-mediciones-pdf">Eliminar</button>
+                            </div>
+                            <div class="annex-pdf-input-row">
+                                <input type="file" name="archivo" accept="application/pdf,.pdf" form="upload-anexo-f-mediciones-pdf" aria-label="Reemplazar PDF de mediciones para Anexo F">
+                                <button class="boton secundario" type="submit" form="upload-anexo-f-mediciones-pdf">Reemplazar PDF</button>
+                            </div>
+                            {% else %}
+                            <div class="annex-pdf-input-row">
+                                <input type="file" name="archivo" accept="application/pdf,.pdf" form="upload-anexo-f-mediciones-pdf" aria-label="Subir PDF de mediciones para Anexo F">
+                                <button class="boton secundario" type="submit" form="upload-anexo-f-mediciones-pdf">Subir PDF</button>
+                            </div>
+                            {% endif %}
+                        </aside>
+                        {% endif %}
                         <textarea class="chapter-textarea" name="contenido_{{ capitulo.clave }}" data-autosave-campo="{{ capitulo.clave }}" data-autosave-titulo="{{ capitulo.titulo }}">{{ capitulo.contenido }}</textarea>
                     </section>
                     {% endfor %}
@@ -1111,6 +1166,8 @@
                 </aside>
             </div>
         </form>
+        <form id="upload-anexo-f-mediciones-pdf" method="post" action="/expedientes/{{ expediente.id }}/informe-v2/anexo-f-mediciones-pdf" enctype="multipart/form-data"></form>
+        <form id="delete-anexo-f-mediciones-pdf" method="post" action="/expedientes/{{ expediente.id }}/informe-v2/anexo-f-mediciones-pdf/eliminar"></form>
         {% for capitulo in capitulos %}
             {% for version in capitulo.versiones %}
             <form id="restore-{{ capitulo.clave }}-{{ version.id }}" method="post" action="/informes-v2/{{ expediente.id }}/capitulos/{{ capitulo.clave }}/restaurar/{{ version.id }}"></form>
