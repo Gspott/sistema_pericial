@@ -24,7 +24,8 @@
                 {% if factura.estado == 'borrador' %}
                 <a class="boton" href="/facturacion/facturas/{{ factura.id }}/editar">Editar factura</a>
                 {% endif %}
-                <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}/imprimir">Imprimir / Guardar PDF</a>
+                <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}/imprimir?modo=cliente">PDF cliente</a>
+                <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}/imprimir?modo=interno">PDF interno</a>
                 <a class="boton secundario" href="/facturacion/configuracion">Configuración fiscal</a>
                 {% if factura.estado == 'borrador' %}
                 <form method="post" action="/facturacion/facturas/{{ factura.id }}/emitir">
@@ -47,6 +48,13 @@
             {% if factura.motivo_rectificacion %}<p><strong>Motivo rectificación:</strong> {{ factura.motivo_rectificacion }}</p>{% endif %}
             <p><strong>Notas:</strong> {{ factura.notas or 'Sin notas' }}</p>
         </div>
+
+        {% if aviso_duplicidad_visual %}
+        <div class="card">
+            <h2>Revisión de claridad</h2>
+            <p class="error">{{ aviso_duplicidad_visual }}</p>
+        </div>
+        {% endif %}
 
         {% if factura.estado in ['emitida', 'cobrada', 'anulada'] and factura.hash_factura %}
         <div class="card">

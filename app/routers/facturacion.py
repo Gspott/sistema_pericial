@@ -9,6 +9,7 @@ from app.services.verifactu import preparar_registro_verifactu
 router = APIRouter()
 
 FACTURA_ESTADOS = ("borrador", "emitida", "cobrada", "anulada")
+FACTURA_IMPRESION_MODOS = ("cliente", "interno")
 CONFIG_FISCAL_DEFAULTS = {
     "nombre_fiscal": "",
     "nif_cif": "",
@@ -70,6 +71,10 @@ def parse_float(valor: str | None, default: float = 0.0) -> float:
 
 def format_money(valor: float | int | None) -> str:
     return f"{float(valor or 0):.2f}"
+
+
+def format_money_text(valor: float | int | None) -> str:
+    return format_money(valor).replace(".", ",")
 
 
 def get_owned_factura(cur, factura_id: int, owner_user_id: int):
@@ -337,6 +342,75 @@ def siguiente_numero_factura(cur, serie: str) -> str:
 
 def suma_cobros(cobros) -> float:
     return sum(float(cobro["importe"] or 0) for cobro in cobros)
+
+
+def obtener_modo_impresion_factura(modo: str | None) -> str:
+    modo_limpio = limpiar_texto(modo).lower()
+    return modo_limpio if modo_limpio in FACTURA_IMPRESION_MODOS else "cliente"
+
+
+def calcular_resumen_pagos_factura(total_factura: float | int | None, cobros) -> dict:
+    total = float(total_factura or 0)
+    total_cobrado = suma_cobros(cobros)
+    pendiente = total - total_cobrado
+    if -0.01 < pendiente < 0.01:
+        pendiente = 0.0
+
+    estado_pago = "sin_cobros"
+    if total_cobrado > 0 and pendiente > 0:
+        estado_pago = "parcial"
+    elif total_cobrado > 0 and pendiente <= 0:
+        estado_pago = "cobrada"
+
+    frase = ""
+    if cobros:
+        if len(cobros) == 1:
+            cobro = cobros[0]
+            metodo = limpiar_texto(cobro["metodo"]) or "método no indicado"
+            frase = (
+                f"Se ha recibido un pago a cuenta de {format_money_text(cobro['importe'])} € "
+                f"mediante {metodo} el {cobro['fecha']}, quedando pendiente de abono "
+                f"{format_money_text(max(pendiente, 0))} €."
+            )
+        else:
+            frase = (
+                f"Se han recibido pagos a cuenta por un total de {format_money_text(total_cobrado)} €, "
+                f"quedando pendiente de abono {format_money_text(max(pendiente, 0))} €."
+            )
+
+    return {
+        "total_factura": total,
+        "total_cobrado": total_cobrado,
+        "pendiente": max(pendiente, 0),
+        "estado_pago": estado_pago,
+        "frase": frase,
+    }
+
+
+def detectar_aviso_duplicidad_visual_factura(lineas, cobros, total_factura: float | int | None) -> str:
+    total_cobrado = suma_cobros(cobros)
+    total = float(total_factura or 0)
+    hay_cobro_parcial = total_cobrado > 0 and total_cobrado < total
+    if not hay_cobro_parcial:
+        return ""
+
+    hay_anticipo = False
+    hay_ordinaria = False
+    for linea in lineas:
+        texto = f"{linea['concepto'] or ''} {linea['descripcion'] or ''}".lower()
+        if "anticipo" in texto:
+            hay_anticipo = True
+        else:
+            hay_ordinaria = True
+
+    if not (hay_anticipo and hay_ordinaria):
+        return ""
+
+    return (
+        "Revisa la claridad de los conceptos: esta factura contiene líneas de anticipo "
+        "y líneas ordinarias. Si la factura corresponde al total del trabajo, los pagos "
+        "a cuenta deberían reflejarse preferentemente en el resumen de pagos."
+    )
 
 
 def obtener_trimestre_actual():
@@ -830,6 +904,12 @@ def detalle_factura(request: Request, factura_id: int):
             raise HTTPException(status_code=404, detail="Factura no encontrada")
         lineas = obtener_lineas_factura(cur, factura_id)
         cobros = obtener_cobros_factura(cur, factura_id, current_user["id"])
+        resumen_pagos = calcular_resumen_pagos_factura(factura["total"], cobros)
+        aviso_duplicidad_visual = detectar_aviso_duplicidad_visual_factura(
+            lineas,
+            cobros,
+            factura["total"],
+        )
         eventos = obtener_eventos_factura(cur, factura_id, current_user["id"])
         rectificativas = obtener_rectificativas_factura(
             cur, factura_id, current_user["id"]
@@ -858,7 +938,9 @@ def detalle_factura(request: Request, factura_id: int):
             "iva_defecto": config_form["iva_defecto"] or 21,
             "irpf_defecto": irpf_sugerido or 0,
             "configuracion_fiscal_completa": bool(config),
-            "total_cobrado": suma_cobros(cobros),
+            "total_cobrado": resumen_pagos["total_cobrado"],
+            "resumen_pagos": resumen_pagos,
+            "aviso_duplicidad_visual": aviso_duplicidad_visual,
             "format_money": format_money,
             "nombre_cliente": nombre_cliente,
         },
@@ -1495,8 +1577,13 @@ def crear_rectificativa_factura(
 
 
 @router.get("/facturacion/facturas/{factura_id}/imprimir", response_class=HTMLResponse)
-def imprimir_factura(request: Request, factura_id: int):
+def imprimir_factura(
+    request: Request,
+    factura_id: int,
+    modo: str = Query("cliente", max_length=20),
+):
     current_user = get_current_user(request)
+    modo_impresion = obtener_modo_impresion_factura(modo)
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -1505,6 +1592,7 @@ def imprimir_factura(request: Request, factura_id: int):
             raise HTTPException(status_code=404, detail="Factura no encontrada")
         lineas = obtener_lineas_factura(cur, factura_id)
         cobros = obtener_cobros_factura(cur, factura_id, current_user["id"])
+        resumen_pagos = calcular_resumen_pagos_factura(factura["total"], cobros)
         config = obtener_configuracion_fiscal(cur, current_user["id"])
         config_form = configuracion_fiscal_para_formulario(config)
     finally:
@@ -1518,7 +1606,10 @@ def imprimir_factura(request: Request, factura_id: int):
             "lineas": lineas,
             "cobros": cobros,
             "config": config_form,
-            "total_cobrado": suma_cobros(cobros),
+            "modo_impresion": modo_impresion,
+            "mostrar_datos_tecnicos": modo_impresion == "interno",
+            "total_cobrado": resumen_pagos["total_cobrado"],
+            "resumen_pagos": resumen_pagos,
             "format_money": format_money,
             "nombre_cliente": nombre_cliente,
         },

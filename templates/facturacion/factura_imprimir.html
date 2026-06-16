@@ -263,6 +263,18 @@
             color: #7c2d12;
         }
 
+        .payment-status.paid {
+            background: #f0fdf4;
+            border-left-color: #15803d;
+            color: #166534;
+        }
+
+        .payment-status.empty {
+            background: #f8fafc;
+            border-left-color: #64748b;
+            color: #334155;
+        }
+
         .conditions-text,
         .pre-line {
             white-space: pre-line;
@@ -345,11 +357,13 @@
 <body>
     {% set lineas = lineas | default([]) %}
     {% set cobros = cobros | default([]) %}
-    {% set total_cobrado = total_cobrado | default(0) %}
-    {% set pendiente_pago = (factura.total or 0) - (total_cobrado or 0) %}
-    {% if pendiente_pago < 0.01 and pendiente_pago > -0.01 %}
-        {% set pendiente_pago = 0 %}
-    {% endif %}
+    {% set resumen_pagos = resumen_pagos | default({}) %}
+    {% set total_cobrado = resumen_pagos.total_cobrado if resumen_pagos.total_cobrado is defined else total_cobrado | default(0) %}
+    {% set pendiente_pago = resumen_pagos.pendiente if resumen_pagos.pendiente is defined else (factura.total or 0) - (total_cobrado or 0) %}
+    {% set estado_pago = resumen_pagos.estado_pago if resumen_pagos.estado_pago is defined else 'sin_cobros' %}
+    {% set frase_pago = resumen_pagos.frase if resumen_pagos.frase is defined else '' %}
+    {% set modo_impresion = modo_impresion | default('cliente') %}
+    {% set mostrar_datos_tecnicos = mostrar_datos_tecnicos | default(false) %}
     {% set tiene_pagos = cobros | length > 0 %}
     {% set tiene_pendiente = pendiente_pago > 0 %}
     {% macro es_numero(valor, mostrar_decimales=true) -%}
@@ -379,6 +393,8 @@
 
     <div class="toolbar no-print">
         <button class="button" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+        <a class="button secondary" href="/facturacion/facturas/{{ factura.id }}/imprimir?modo=cliente">PDF cliente</a>
+        <a class="button secondary" href="/facturacion/facturas/{{ factura.id }}/imprimir?modo=interno">PDF interno</a>
         <a class="button secondary" href="/facturacion/facturas/{{ factura.id }}">Volver a factura</a>
     </div>
 
@@ -413,6 +429,9 @@
                     <div class="value"><span class="status-badge">{{ factura.estado or '-' }}</span></div>
                 </div>
             </div>
+            {% if modo_impresion == 'interno' %}
+            <p class="small-note">Versión interna con datos técnicos de facturación.</p>
+            {% endif %}
             <p class="document-note">Documento de factura por servicios profesionales. Los importes se muestran en euros e incluyen los impuestos y retenciones indicados.</p>
         </header>
 
@@ -531,18 +550,26 @@
                     <strong>{{ dinero(total_cobrado) }}</strong>
                 </div>
                 <div class="amount-row {% if tiene_pendiente %}pending-row{% else %}total-row{% endif %}">
-                    <span>{% if tiene_pendiente %}Pendiente de pago{% else %}Pendiente de pago{% endif %}</span>
+                    <span>{% if tiene_pagos %}Pendiente de pago{% else %}Pendiente de cobro{% endif %}</span>
                     <strong>{{ dinero(pendiente_pago) }}</strong>
                 </div>
             </div>
-            {% if tiene_pendiente %}
+            {% if estado_pago == 'parcial' %}
             <div class="payment-status pending">
                 <strong>Pendiente de pago: {{ dinero(pendiente_pago) }}</strong>
             </div>
-            {% else %}
-            <div class="payment-status">
-                <strong>Factura sin importe pendiente.</strong>
+            {% elif estado_pago == 'cobrada' %}
+            <div class="payment-status paid">
+                <strong>Factura cobrada.</strong>
             </div>
+            {% else %}
+            <div class="payment-status empty">
+                <strong>Pendiente de cobro: {{ dinero(pendiente_pago) }}</strong>
+            </div>
+            {% endif %}
+
+            {% if frase_pago %}
+            <p class="document-note">{{ frase_pago }}</p>
             {% endif %}
 
             {% if tiene_pagos %}
@@ -578,12 +605,15 @@
         </section>
         {% endif %}
 
-        {% if factura.hash_factura %}
+        {% if mostrar_datos_tecnicos and factura.hash_factura %}
         <section class="section doc-card soft">
             <h2>Datos técnicos de facturación</h2>
             <p><span class="label">Hash factura</span><br>{{ factura.hash_factura[:16] }}...</p>
             {% if factura.hash_anterior %}
             <p><span class="label">Hash anterior</span><br>{{ factura.hash_anterior[:16] }}...</p>
+            {% endif %}
+            {% if factura.cadena_hash %}
+            <p><span class="label">Cadena técnica</span><br>{{ factura.cadena_hash }}</p>
             {% endif %}
             <p><span class="label">Estado VeriFactu interno</span><br>{{ factura.verifactu_estado or 'generado' }}</p>
             {% if factura.qr_payload %}<p class="small-note">{{ factura.qr_payload }}</p>{% endif %}

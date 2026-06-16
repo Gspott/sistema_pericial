@@ -177,9 +177,11 @@ def test_factura_imprimir_muestra_resumen_de_pagos(isolated_import):
             """
             INSERT INTO facturas_emitidas (
                 numero_factura, serie, fecha, estado, cliente_id, propuesta_id,
-                expediente_id, concepto_general, notas, owner_user_id
+                expediente_id, concepto_general, notas, hash_factura,
+                hash_anterior, cadena_hash, qr_payload, verifactu_estado,
+                owner_user_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 "F-2026-0001",
@@ -191,6 +193,11 @@ def test_factura_imprimir_muestra_resumen_de_pagos(isolated_import):
                 expediente_id,
                 "Informe pericial expediente 019-26",
                 "Pago realizado el 01/06/2026.",
+                "hash-tecnico-demo",
+                "hash-anterior-demo",
+                "cadena-tecnica-demo",
+                "qr-demo",
+                "generado",
                 user_id,
             ),
         )
@@ -253,7 +260,7 @@ def test_factura_imprimir_muestra_resumen_de_pagos(isolated_import):
         conn.close()
 
     client = _autenticar_cliente(main_module, user_id)
-    response = client.get(f"/facturacion/facturas/{factura_id}/imprimir")
+    response = client.get(f"/facturacion/facturas/{factura_id}/imprimir?modo=cliente")
 
     assert response.status_code == 200
     assert "F-2026-0001" in response.text
@@ -263,7 +270,20 @@ def test_factura_imprimir_muestra_resumen_de_pagos(isolated_import):
     assert "Pagos recibidos" in response.text
     assert "465,97 €" in response.text
     assert "Pendiente de pago" in response.text
+    assert "Se ha recibido un pago a cuenta de 465,97 €" in response.text
     assert "Pago realizado el 01/06/2026" in response.text
+    assert "Datos técnicos de facturación" not in response.text
+    assert "hash-tecnico-demo" not in response.text
+
+    response_interno = client.get(
+        f"/facturacion/facturas/{factura_id}/imprimir?modo=interno"
+    )
+
+    assert response_interno.status_code == 200
+    assert "Datos técnicos de facturación" in response_interno.text
+    assert "hash-tecnico-demo"[:16] in response_interno.text
+    assert "cadena-tecnica-demo" in response_interno.text
+    assert "Estado VeriFactu interno" in response_interno.text
 
 
 def test_factura_imprimir_no_rompe_sin_cobros(isolated_import):
@@ -344,4 +364,189 @@ def test_factura_imprimir_no_rompe_sin_cobros(isolated_import):
     assert "F-2026-0002" in response.text
     assert "Cliente sin cobros" in response.text
     assert "121,00 €" in response.text
+    assert "Pendiente de cobro" in response.text
     assert "No constan pagos registrados en esta factura." in response.text
+
+
+def test_factura_imprimir_cobrada_muestra_estado_cobrada(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.routers.facturacion import calcular_linea, recalcular_totales_factura
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur)
+        cur.execute(
+            """
+            INSERT INTO clientes (nombre, tipo_cliente, owner_user_id)
+            VALUES (?, ?, ?)
+            """,
+            ("Cliente cobrado", "particular", user_id),
+        )
+        cliente_id = cur.lastrowid
+        cur.execute(
+            """
+            INSERT INTO facturas_emitidas (
+                numero_factura, serie, fecha, estado, cliente_id,
+                concepto_general, owner_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "F-2026-0003",
+                "F",
+                "2026-06-03",
+                "cobrada",
+                cliente_id,
+                "Factura cobrada smoke",
+                user_id,
+            ),
+        )
+        factura_id = cur.lastrowid
+        subtotal, iva_importe, irpf_importe, total = calcular_linea(
+            cantidad=1,
+            precio_unitario=100,
+            iva_porcentaje=21,
+            irpf_porcentaje=0,
+        )
+        cur.execute(
+            """
+            INSERT INTO factura_lineas (
+                factura_id, concepto, cantidad, precio_unitario,
+                iva_porcentaje, irpf_porcentaje, subtotal, iva_importe,
+                irpf_importe, total, orden
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                factura_id,
+                "Honorarios demo",
+                1,
+                100,
+                21,
+                0,
+                subtotal,
+                iva_importe,
+                irpf_importe,
+                total,
+                1,
+            ),
+        )
+        recalcular_totales_factura(cur, factura_id)
+        cur.execute(
+            """
+            INSERT INTO cobros (
+                factura_id, fecha, importe, metodo, notas, owner_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (factura_id, "2026-06-03", 121, "Transferencia", "", user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/facturacion/facturas/{factura_id}/imprimir")
+
+    assert response.status_code == 200
+    assert "Factura cobrada." in response.text
+    assert "Pendiente de pago" in response.text
+    assert "0,00 €" in response.text
+
+
+def test_factura_detalle_avisa_posible_duplicidad_visual(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.routers.facturacion import calcular_linea, recalcular_totales_factura
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur)
+        cur.execute(
+            """
+            INSERT INTO clientes (nombre, tipo_cliente, owner_user_id)
+            VALUES (?, ?, ?)
+            """,
+            ("Cliente duplicidad", "particular", user_id),
+        )
+        cliente_id = cur.lastrowid
+        cur.execute(
+            """
+            INSERT INTO facturas_emitidas (
+                numero_factura, serie, fecha, estado, cliente_id,
+                concepto_general, owner_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "F-2026-0004",
+                "F",
+                "2026-06-04",
+                "emitida",
+                cliente_id,
+                "Factura con anticipo y ordinaria",
+                user_id,
+            ),
+        )
+        factura_id = cur.lastrowid
+        for orden, (concepto, precio) in enumerate(
+            (
+                ("Anticipo 50% informe pericial", 50),
+                ("Informe pericial", 100),
+            ),
+            start=1,
+        ):
+            subtotal, iva_importe, irpf_importe, total = calcular_linea(
+                cantidad=1,
+                precio_unitario=precio,
+                iva_porcentaje=21,
+                irpf_porcentaje=0,
+            )
+            cur.execute(
+                """
+                INSERT INTO factura_lineas (
+                    factura_id, concepto, cantidad, precio_unitario,
+                    iva_porcentaje, irpf_porcentaje, subtotal, iva_importe,
+                    irpf_importe, total, orden
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    factura_id,
+                    concepto,
+                    1,
+                    precio,
+                    21,
+                    0,
+                    subtotal,
+                    iva_importe,
+                    irpf_importe,
+                    total,
+                    orden,
+                ),
+            )
+        recalcular_totales_factura(cur, factura_id)
+        cur.execute(
+            """
+            INSERT INTO cobros (
+                factura_id, fecha, importe, metodo, notas, owner_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (factura_id, "2026-06-04", 60.5, "Transferencia", "", user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/facturacion/facturas/{factura_id}")
+
+    assert response.status_code == 200
+    assert "Revisión de claridad" in response.text
+    assert "esta factura contiene líneas de anticipo y líneas ordinarias" in response.text
