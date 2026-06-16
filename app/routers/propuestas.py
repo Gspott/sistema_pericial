@@ -29,6 +29,7 @@ from app.routers.facturacion import (
     recalcular_totales_factura,
     registrar_evento_factura,
 )
+from app.services.economia import construir_timeline_economico_propuesta
 from app.services.propuestas_catalogo import (
     SERVICIOS_CATALOGO,
     SERVICIOS_CATALOGO_OPCIONES,
@@ -952,6 +953,11 @@ def detalle_propuesta(
             cur, propuesta_id, current_user["id"]
         )
         facturas_vinculadas_resumen = resumir_facturas_vinculadas(facturas_vinculadas)
+        timeline_economico = construir_timeline_economico_propuesta(
+            cur,
+            propuesta_id,
+            current_user["id"],
+        )
     finally:
         conn.close()
 
@@ -968,6 +974,7 @@ def detalle_propuesta(
             "servicios_catalogo_preview": construir_catalogo_preview(),
             "facturas_vinculadas": facturas_vinculadas,
             "facturas_vinculadas_resumen": facturas_vinculadas_resumen,
+            "timeline_economico": timeline_economico,
             "format_money": format_money,
             "print_mode": bool(print),
             "mailto_url": construir_mailto_propuesta(request, propuesta),

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Workbench económico</title>
+    <style>
+        .economic-workbench {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .workbench-hero,
+        .workbench-section,
+        .metric-tile {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+        }
+
+        .workbench-hero {
+            background: #f8fafc;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.9fr);
+            margin-bottom: 12px;
+            padding: 14px;
+        }
+
+        .workbench-kicker {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            margin: 0 0 6px;
+            text-transform: uppercase;
+        }
+
+        .workbench-title {
+            font-size: clamp(1.45rem, 2.2vw, 2.15rem);
+            line-height: 1.08;
+            margin: 0 0 8px;
+        }
+
+        .workbench-subtitle,
+        .section-note,
+        .muted {
+            color: #64748b;
+        }
+
+        .workbench-subtitle {
+            margin: 0;
+            max-width: 82ch;
+        }
+
+        .workbench-metrics {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .metric-tile {
+            padding: 9px 10px;
+        }
+
+        .metric-label {
+            color: #64748b;
+            display: block;
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            color: #0f172a;
+            display: block;
+            font-size: 1.05rem;
+            font-variant-numeric: tabular-nums;
+            font-weight: 800;
+        }
+
+        .workbench-section {
+            padding: 12px;
+        }
+
+        .section-head {
+            align-items: start;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .section-head h2 {
+            font-size: 1.05rem;
+            margin: 0;
+        }
+
+        .section-note {
+            font-size: 0.9rem;
+            margin: 4px 0 0;
+        }
+
+        .workbench-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .control-link {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 999px;
+            color: #334155;
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 6px 10px;
+            text-decoration: none;
+        }
+
+        .control-link.active {
+            background: #172033;
+            border-color: #172033;
+            color: #ffffff;
+        }
+
+        .workbench-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .workbench-table {
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            min-width: 1080px;
+            width: 100%;
+        }
+
+        .workbench-table th,
+        .workbench-table td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 7px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .workbench-table th {
+            color: #475569;
+            font-size: 0.73rem;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .number-cell {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .status-pill {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 7px;
+            white-space: nowrap;
+        }
+
+        .status-pill.sin_facturar,
+        .status-pill.borrador {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .status-pill.facturada {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
+
+        .status-pill.cobro_parcial,
+        .status-pill.vencida {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #92400e;
+        }
+
+        .status-pill.cobrada {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .row-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            min-width: 220px;
+        }
+
+        .row-actions .boton,
+        .row-actions form {
+            margin: 0;
+        }
+
+        .row-actions .boton {
+            font-size: 0.78rem;
+            padding: 5px 8px;
+        }
+
+        .inline-form {
+            display: inline;
+        }
+
+        @media (max-width: 980px) {
+            .workbench-hero {
+                grid-template-columns: 1fr;
+            }
+
+            .workbench-metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .economic-workbench,
+            .workbench-hero,
+            .workbench-section {
+                width: 100%;
+            }
+
+            .workbench-hero,
+            .workbench-section {
+                padding: 12px;
+            }
+
+            .workbench-metrics {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page economic-workbench">
+        <section class="workbench-hero">
+            <div>
+                <p class="workbench-kicker">Workbench económico</p>
+                <h1 class="workbench-title">Seguimiento económico del despacho</h1>
+                <p class="workbench-subtitle">Vista de escritorio para revisar propuestas, facturas, cobros y pendientes sin sustituir el listado móvil de facturas ni modificar datos fiscales.</p>
+                <div class="actions">
+                    <a class="boton secundario" href="/facturacion">Facturación</a>
+                    <a class="boton secundario" href="/facturacion/facturas">Listado de facturas</a>
+                    <a class="boton secundario" href="/facturacion/facturas/nueva">Nueva factura</a>
+                </div>
+            </div>
+            <div class="workbench-metrics">
+                <div class="metric-tile">
+                    <span class="metric-label">Facturado mes</span>
+                    <span class="metric-value">{{ format_money(workbench.resumen.facturado_mes) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Cobrado mes</span>
+                    <span class="metric-value">{{ format_money(workbench.resumen.cobrado_mes) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Pendiente total</span>
+                    <span class="metric-value">{{ format_money(workbench.resumen.pendiente_total) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Vencido estimado</span>
+                    <span class="metric-value">{{ format_money(workbench.resumen.vencido_estimado) }} €</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="workbench-section">
+            <div class="section-head">
+                <div>
+                    <h2>Operaciones económicas</h2>
+                    <p class="section-note">{{ workbench.resumen.items_filtrados }} de {{ workbench.resumen.total_items }} registros · vencimiento estimado a {{ workbench.resumen.dias_vencimiento_estimado }} días.</p>
+                </div>
+            </div>
+
+            <nav class="workbench-controls" aria-label="Filtros económicos">
+                {% for filtro in workbench.filtros %}
+                <a class="control-link {% if workbench.filtro == filtro %}active{% endif %}" href="/facturacion/workbench?filtro={{ filtro }}">{{ workbench.estado_labels.get(filtro, 'Pendientes') if filtro not in ['todos', 'pendientes'] else ('Todos' if filtro == 'todos' else 'Pendientes') }}</a>
+                {% endfor %}
+            </nav>
+
+            {% if workbench["items"] %}
+            <div class="workbench-table-wrap">
+                <table class="workbench-table">
+                    <thead>
+                        <tr>
+                            <th>Expediente</th>
+                            <th>Cliente</th>
+                            <th>Propuesta</th>
+                            <th class="number-cell">Facturado</th>
+                            <th class="number-cell">Cobrado</th>
+                            <th class="number-cell">Pendiente</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in workbench["items"] %}
+                        {% set factura = item.factura_principal %}
+                        <tr>
+                            <td>
+                                {% if item.expediente_id %}
+                                <a href="/detalle-expediente/{{ item.expediente_id }}">{{ item.numero_expediente or ('Expediente #' ~ item.expediente_id) }}</a>
+                                {% else %}
+                                <span class="muted">Sin expediente</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.cliente_nombre }}</td>
+                            <td>
+                                {% if item.propuesta_id %}
+                                <a href="/propuestas/{{ item.propuesta_id }}">{{ item.numero_propuesta or ('Propuesta #' ~ item.propuesta_id) }}</a>
+                                {% else %}
+                                <span class="muted">Sin propuesta</span>
+                                {% endif %}
+                            </td>
+                            <td class="number-cell">{{ format_money(item.total_facturado) }} €</td>
+                            <td class="number-cell">{{ format_money(item.total_cobrado) }} €</td>
+                            <td class="number-cell">{{ format_money(item.pendiente) }} €</td>
+                            <td><span class="status-pill {{ item.estado }}">{{ item.estado_label }}</span></td>
+                            <td>
+                                <div class="row-actions">
+                                    {% if item.expediente_id %}
+                                    <a class="boton secundario" href="/detalle-expediente/{{ item.expediente_id }}">Expediente</a>
+                                    {% endif %}
+                                    {% if item.propuesta_id %}
+                                    <a class="boton secundario" href="/propuestas/{{ item.propuesta_id }}">Propuesta</a>
+                                    {% endif %}
+                                    {% if factura %}
+                                    <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}">Factura</a>
+                                        {% if factura.estado in ['emitida', 'cobrada'] %}
+                                        <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}/imprimir?modo=cliente">PDF cliente</a>
+                                        <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}/imprimir?modo=interno">PDF interno</a>
+                                        {% if item.pendiente_cobro > 0 %}
+                                        <a class="boton" href="/facturacion/facturas/{{ factura.id }}">Registrar cobro</a>
+                                        {% endif %}
+                                        {% endif %}
+                                    {% elif item.propuesta_id %}
+                                    <a class="boton" href="/facturacion/facturas/nueva?propuesta_id={{ item.propuesta_id }}">Crear factura</a>
+                                    {% elif item.expediente_id %}
+                                    <a class="boton" href="/facturacion/facturas/nueva?expediente_id={{ item.expediente_id }}">Crear factura</a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="empty">No hay registros para el filtro seleccionado.</p>
+            {% endif %}
+        </section>
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

@@ -194,6 +194,26 @@
             {% endif %}
         </div>
 
+        {% if timeline_economico %}
+        <div class="card">
+            <h2>Timeline económico</h2>
+            {% for evento in timeline_economico %}
+            <div class="inner-card">
+                <p>
+                    <strong>{{ evento.fecha or 'Pendiente' }}</strong>
+                    · {{ evento.tipo }}
+                    · {{ format_money(evento.importe) }} €
+                </p>
+                {% if evento.url %}
+                <p><a href="{{ evento.url }}">{{ evento.descripcion }}</a></p>
+                {% else %}
+                <p>{{ evento.descripcion }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if not print_mode %}
         <div class="card">
             <h2>Servicios rápidos</h2>

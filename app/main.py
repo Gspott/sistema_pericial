@@ -60,6 +60,7 @@ from app.routers import propuestas as propuestas_router
 from app.services.catastro import consultar_catastro_por_referencia
 from app.services.clima import geocodificar, obtener_climatologia
 from app.services.direccion import autocompletar_direccion, sugerir_direcciones
+from app.services.economia import construir_timeline_economico_expediente
 from app.services.informe import (
     build_informe_context,
     generar_informe,
@@ -10815,6 +10816,11 @@ def detalle_expediente(request: Request, expediente_id: int):
     revision_informe = preparar_pendientes_revision_expediente(cur, expediente_id)
     presupuesto_reparacion = preparar_presupuesto_reparacion_expediente(cur, expediente_id)
     actuaciones_reparacion = preparar_actuaciones_reparacion_expediente(cur, expediente_id)
+    timeline_economico = construir_timeline_economico_expediente(
+        cur,
+        expediente_id,
+        current_user["id"],
+    )
 
     for visita in visitas:
         visita_data = dict(visita)
@@ -11161,6 +11167,7 @@ def detalle_expediente(request: Request, expediente_id: int):
             "visitas": visitas_data,
             "resumen_tipo": resumen_tipo,
             "revision_informe": revision_informe,
+            "timeline_economico": timeline_economico,
             "tiene_presupuesto_reparacion": (
                 presupuesto_reparacion["tiene_costes"]
                 or actuaciones_reparacion["total_pem"] > 0

@@ -361,6 +361,31 @@
             </div>
         </section>
 
+        {% if timeline_economico %}
+        <section class="form-section" data-collapsible data-collapse-id="timeline_economico">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Timeline económico</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                {% for evento in timeline_economico %}
+                <div class="inner-card">
+                    <p>
+                        <strong>{{ evento.fecha or 'Pendiente' }}</strong>
+                        · {{ evento.tipo }}
+                        · {{ "%.2f"|format(evento.importe or 0) }} €
+                    </p>
+                    {% if evento.url %}
+                    <p><a href="{{ evento.url }}">{{ evento.descripcion }}</a></p>
+                    {% else %}
+                    <p>{{ evento.descripcion }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
         {% if error %}
         <p class="error">{{ error }}</p>
         {% endif %}

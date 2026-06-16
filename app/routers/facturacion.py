@@ -4,6 +4,7 @@ from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app.database import get_connection
+from app.services.economia import construir_workbench_economico
 from app.services.verifactu import preparar_registro_verifactu
 
 router = APIRouter()
@@ -512,6 +513,29 @@ def index_facturacion(request: Request):
         request,
         "facturacion/index.html",
         {"resumen": resumen, "format_money": format_money},
+    )
+
+
+@router.get("/facturacion/workbench", response_class=HTMLResponse)
+def workbench_economico(
+    request: Request,
+    filtro: str = Query("todos", max_length=30),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        workbench = construir_workbench_economico(cur, current_user["id"], filtro)
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "facturacion/workbench.html",
+        {
+            "workbench": workbench,
+            "format_money": format_money,
+        },
     )
 
 
