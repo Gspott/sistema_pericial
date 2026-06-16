@@ -1904,7 +1904,7 @@ def test_pdf_v2_footer_no_muestra_total_paginas(isolated_import):
         1,
     )[0]
 
-    assert "Informe Pericial · Expediente" in bloque_v2
+    assert "Arquitecto Técnico · Expediente" in bloque_v2
     assert "totalPages" not in bloque_v2
     assert "Página <span class='pageNumber'></span>" not in bloque_v2
 
@@ -2606,6 +2606,10 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     html = capturado["html"]
 
     assert "13. Conclusiones" in html
+    assert "Dictamen técnico pericial" in html
+    assert "Informe Pericial<br>de Daños Constructivos" in html
+    assert "Arquitecto Técnico" in html
+    assert "toc-row is-annex" in html
     assert "Sistema Pericial" not in html
     assert "Diagnóstico del informe" not in html
     assert "Control determinista de completitud. No se imprime en el PDF." not in html

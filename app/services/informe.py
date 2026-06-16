@@ -5788,7 +5788,12 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
 
     template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
     numero_expediente = str((contexto.get("expediente") or {}).get("numero_expediente") or "").strip()
-    pie_expediente = f"Informe Pericial · Expediente {numero_expediente}" if numero_expediente else "Informe Pericial"
+    tecnico = str(contexto.get("tecnico") or "").strip() or "Carlos Blanco"
+    pie_expediente = (
+        f"{tecnico} · Arquitecto Técnico · Expediente {numero_expediente}"
+        if numero_expediente
+        else f"{tecnico} · Arquitecto Técnico"
+    )
 
     def renderizar_html(contexto_pdf: dict) -> str:
         return template.render(
@@ -5903,13 +5908,13 @@ def extraer_paginas_indice_informe_v2(pdf_bytes: bytes, indice: list[dict]) -> d
             pagina_inicio_busqueda = 1
         elif item.get("grupo") == "anexos":
             pagina_inicio_busqueda = max(
-                4,
+                3,
                 (ultima_pagina_anexo + 1)
                 if ultima_pagina_anexo is not None
                 else (paginas.get("conclusiones", 3) + 1),
             )
         else:
-            pagina_inicio_busqueda = 4
+            pagina_inicio_busqueda = 3
         for indice_pagina, texto_pagina in enumerate(textos_paginas, start=1):
             if indice_pagina < pagina_inicio_busqueda:
                 continue

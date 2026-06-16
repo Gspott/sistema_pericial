@@ -8349,7 +8349,7 @@ def normalizar_busqueda_pdf_v2(texto: str) -> str:
     return "".join(c for c in texto if not unicodedata.combining(c))
 
 
-def encontrar_pagina_pdf_v2(reader, patrones: list[str]) -> int | None:
+def encontrar_pagina_pdf_v2(reader, patrones: list[str], inicio: int = 0) -> int | None:
     patrones_normalizados = [
         normalizar_busqueda_pdf_v2(patron)
         for patron in patrones
@@ -8358,6 +8358,8 @@ def encontrar_pagina_pdf_v2(reader, patrones: list[str]) -> int | None:
     if not patrones_normalizados:
         return None
     for indice_pagina, pagina in enumerate(reader.pages):
+        if indice_pagina < inicio:
+            continue
         try:
             texto_pagina = normalizar_busqueda_pdf_v2(pagina.extract_text() or "")
         except Exception:
@@ -8514,6 +8516,7 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
     pagina_anexo_b = encontrar_pagina_pdf_v2(
         informe_reader,
         ["ANEXO B", "REPORTAJE FOTOGRÁFICO"],
+        inicio=3,
     )
     pagina_fallback_anexo_a = (
         max(0, pagina_anexo_b - 1)

@@ -14,6 +14,8 @@
             --muted: #6b7280;
             --line: #d8dee6;
             --soft: #f8fafc;
+            --paper: #fbfcfd;
+            --accent: #46515f;
         }
 
         body {
@@ -26,58 +28,106 @@
             box-sizing: border-box;
             margin: 0 auto 24px;
             min-height: 297mm;
-            padding: 20mm;
+            padding: 18mm 20mm 19mm;
             width: 210mm;
         }
 
         .cover {
-            align-items: center;
             border-bottom: 2px solid var(--ink);
+            border-top: 6px solid var(--ink);
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 12mm;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
             min-height: 238mm;
-            justify-content: center;
+            padding: 16mm 0 12mm;
             page-break-after: always;
-            text-align: center;
         }
 
         .cover h1 {
-            font-size: 30px;
+            color: var(--ink);
+            font-size: 34px;
+            letter-spacing: 0;
+            line-height: 1.12;
             margin: 0;
+            text-align: center;
             text-transform: uppercase;
         }
 
         .cover .subtitle {
             color: #4b5563;
-            font-size: 16px;
-            margin: 0;
+            font-size: 14px;
+            line-height: 1.45;
+            margin: 8mm auto 0;
+            max-width: 138mm;
+            text-align: center;
+        }
+
+        .cover-kicker {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0;
+            margin: 0 0 7mm;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .cover-divider {
+            border: 0;
+            border-top: 1px solid var(--ink);
+            margin: 13mm 0 11mm;
+        }
+
+        .cover-main {
+            align-self: center;
+        }
+
+        .cover-footnote {
+            border-top: 1px solid var(--ink);
+            color: var(--muted);
+            display: flex;
+            font-size: 11px;
+            justify-content: space-between;
+            padding-top: 5mm;
+            text-transform: uppercase;
         }
 
         .cover-meta {
-            border: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+            border-top: 1px solid var(--line);
             display: grid;
-            grid-template-columns: 42mm 1fr;
-            max-width: 150mm;
+            grid-template-columns: 38mm 1fr;
+            margin: 0 auto;
+            max-width: 142mm;
             text-align: left;
             width: 100%;
         }
 
         .cover-meta div {
             border-bottom: 1px solid #e5e9ef;
-            padding: 7px 9px;
+            padding: 8px 9px;
         }
 
         .cover-meta div:nth-child(odd) {
-            background: var(--soft);
+            background: #fff;
             color: var(--muted);
+            font-size: 11px;
             font-weight: 700;
+            letter-spacing: 0;
+            text-transform: uppercase;
+        }
+
+        .cover-meta div:nth-child(even) {
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.35;
         }
 
         .toc {
-            min-height: 238mm;
+            min-height: 232mm;
             page-break-after: always;
+            padding-top: 6mm;
         }
 
         h2 {
@@ -86,7 +136,7 @@
             break-inside: avoid;
             color: #2f3a45;
             font-size: 16px;
-            margin: 24px 0 12px;
+            margin: 20px 0 10px;
             page-break-after: avoid;
             page-break-inside: avoid;
             padding-bottom: 6px;
@@ -104,16 +154,17 @@
         }
 
         .toc-list {
-            margin-top: 18px;
+            margin-top: 20px;
         }
 
         .toc-group-title {
-            border-bottom: 1px solid var(--ink);
-            color: var(--ink);
+            border-bottom: 1px solid #9aa4b2;
+            color: #303b46;
             font-size: 11px;
             font-weight: 700;
-            margin: 18px 0 6px;
-            padding-bottom: 5px;
+            letter-spacing: 0;
+            margin: 21px 0 8px;
+            padding-bottom: 6px;
             text-transform: uppercase;
         }
 
@@ -121,19 +172,26 @@
             align-items: baseline;
             display: flex;
             gap: 8px;
-            padding: 6px 0;
+            padding: 5px 0;
         }
 
         .toc-number {
             color: var(--muted);
             font-size: 12px;
             font-weight: 700;
-            min-width: 26px;
+            min-width: 74px;
             text-align: right;
         }
 
         .toc-title {
+            color: #26313d;
             flex: 0 1 auto;
+        }
+
+        .toc-row.is-annex .toc-number,
+        .toc-row.is-annex .toc-title {
+            color: #3f4a56;
+            font-weight: 700;
         }
 
         .toc-leader {
@@ -151,10 +209,14 @@
 
         .chapter {
             break-inside: auto;
+            margin-top: 4mm;
             page-break-inside: auto;
         }
 
         .chapter-content {
+            color: #26313d;
+            font-size: 13px;
+            line-height: 1.58;
             white-space: pre-line;
         }
 
@@ -492,6 +554,14 @@
     {% macro unidad_pdf(unidad) -%}
     {{- (unidad or "")|replace("m2", "m²")|replace("M2", "m²") -}}
     {%- endmacro %}
+    {% macro fecha_corta(valor) -%}
+    {%- set texto = valor or "" -%}
+    {%- if texto|length >= 10 and texto[4] == "-" and texto[7] == "-" -%}
+    {{- texto[8:10] ~ "/" ~ texto[5:7] ~ "/" ~ texto[0:4] -}}
+    {%- else -%}
+    {{- texto or "-" -}}
+    {%- endif -%}
+    {%- endmacro %}
     {% macro separador_anexo(letra, titulo) -%}
     <section class="annex-cover">
         <div>
@@ -503,17 +573,32 @@
 
     <main class="document">
         <section class="cover">
-            <div>
-                <h1>Informe Pericial de Daños Constructivos</h1>
-                <p class="subtitle">{{ expediente.tipo_trabajo_label or expediente.tipo_informe }}</p>
+            <div class="cover-heading">
+                <p class="cover-kicker">Dictamen técnico pericial</p>
+                <h1>Informe Pericial<br>de Daños Constructivos</h1>
+                <p class="subtitle">
+                    {% if expediente.descripcion_dano %}
+                    {{ expediente.descripcion_dano }}
+                    {% else %}
+                    {{ expediente.tipo_trabajo_label or expediente.tipo_informe }}
+                    {% endif %}
+                </p>
             </div>
-            <div class="cover-meta">
-                <div>Expediente</div><div>{{ expediente.numero_expediente }}</div>
-                <div>Dirección</div><div>{{ expediente.direccion or "-" }}</div>
-                <div>Cliente</div><div>{{ expediente.cliente or "-" }}</div>
-                <div>Técnico</div><div>{{ tecnico or "-" }}</div>
-                <div>Fecha de visita</div><div>{{ fecha_visita or "-" }}</div>
-                <div>Fecha de emisión</div><div>{{ fecha_emision }}</div>
+            <div class="cover-main">
+                <hr class="cover-divider">
+                <div class="cover-meta">
+                    <div>Expediente</div><div>{{ expediente.numero_expediente }}</div>
+                    <div>Inmueble</div><div>{{ expediente.direccion or "-" }}{% if expediente.ciudad or expediente.provincia %}<br>{{ expediente.ciudad or "" }}{% if expediente.ciudad and expediente.provincia %} ({{ expediente.provincia }}){% elif expediente.provincia %}{{ expediente.provincia }}{% endif %}{% endif %}</div>
+                    <div>Propiedad</div><div>{{ expediente.cliente or "-" }}</div>
+                    <div>Perito</div><div>{{ tecnico or "Carlos Blanco" }}<br>Arquitecto Técnico</div>
+                    <div>Fecha de visita</div><div>{{ fecha_corta(fecha_visita) }}</div>
+                    <div>Fecha de emisión</div><div>{{ fecha_emision }}</div>
+                </div>
+                <hr class="cover-divider">
+            </div>
+            <div class="cover-footnote">
+                <span>Informe pericial</span>
+                <span>Arquitecto Técnico</span>
             </div>
         </section>
 
@@ -525,8 +610,8 @@
                 {% if item.grupo == "anexos" and loop.previtem is defined and loop.previtem.grupo != "anexos" %}
                 <div class="toc-group-title">Anexos</div>
                 {% endif %}
-                <div class="toc-row">
-                    <span class="toc-number">{{ item.numero }}</span>
+                <div class="toc-row{% if item.grupo == 'anexos' %} is-annex{% endif %}">
+                    <span class="toc-number">{% if item.grupo == "anexos" %}Anexo {{ item.numero }}.{% else %}{{ item.numero }}.{% endif %}</span>
                     <span class="toc-title">{{ item.titulo }}</span>
                     <span class="toc-leader"></span>
                     <span class="toc-page">{{ (indice_paginas or {}).get(item.clave, "") }}</span>
