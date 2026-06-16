@@ -100,6 +100,80 @@ def normalizar_filtro_workbench_economico(filtro: str | None) -> str:
     return filtro_limpio if filtro_limpio in ESTADOS_WORKBENCH_ECONOMICO else "todos"
 
 
+def obtener_resumen_facturacion_propuesta(cur, propuesta_id: int, owner_user_id: int) -> dict:
+    propuesta = cur.execute(
+        """
+        SELECT id, numero_propuesta, total_propuesta, total
+        FROM propuestas
+        WHERE id = ? AND owner_user_id = ?
+        """,
+        (propuesta_id, owner_user_id),
+    ).fetchone()
+    if not propuesta:
+        return {
+            "total_propuesta": 0.0,
+            "total_facturado": 0.0,
+            "total_cobrado": 0.0,
+            "pendiente_facturar": 0.0,
+            "pendiente_cobro": 0.0,
+            "borradores": [],
+            "facturas_fiscales": [],
+        }
+
+    total_propuesta = _to_float(propuesta["total_propuesta"]) or _to_float(propuesta["total"])
+    facturas = cur.execute(
+        """
+        SELECT f.id, f.numero_factura, f.fecha, f.fecha_emision, f.estado,
+               f.tipo_factura, f.total,
+               COALESCE(SUM(CASE WHEN f.estado IN ('emitida', 'cobrada') THEN c.importe ELSE 0 END), 0) AS total_cobrado
+        FROM facturas_emitidas f
+        LEFT JOIN cobros c ON c.factura_id = f.id AND c.owner_user_id = f.owner_user_id
+        WHERE f.propuesta_id = ?
+          AND f.owner_user_id = ?
+        GROUP BY f.id
+        ORDER BY f.id DESC
+        """,
+        (propuesta_id, owner_user_id),
+    ).fetchall()
+
+    borradores = []
+    facturas_fiscales = []
+    total_facturado = 0.0
+    total_cobrado = 0.0
+    for factura in facturas:
+        estado = _limpiar_texto(factura["estado"])
+        data = {
+            "id": factura["id"],
+            "numero_factura": factura["numero_factura"],
+            "fecha": factura["fecha"],
+            "fecha_emision": factura["fecha_emision"],
+            "estado": estado,
+            "tipo_factura": factura["tipo_factura"],
+            "total": _to_float(factura["total"]),
+            "total_cobrado": _to_float(factura["total_cobrado"]),
+        }
+        if estado == "borrador":
+            borradores.append(data)
+            continue
+        if estado not in {"emitida", "cobrada"}:
+            continue
+        facturas_fiscales.append(data)
+        total_facturado += data["total"]
+        total_cobrado += data["total_cobrado"]
+
+    pendiente_facturar = max(total_propuesta - total_facturado, 0)
+    pendiente_cobro = max(total_facturado - total_cobrado, 0)
+    return {
+        "total_propuesta": total_propuesta,
+        "total_facturado": total_facturado,
+        "total_cobrado": total_cobrado,
+        "pendiente_facturar": pendiente_facturar,
+        "pendiente_cobro": pendiente_cobro,
+        "borradores": borradores,
+        "facturas_fiscales": facturas_fiscales,
+    }
+
+
 def _crear_item_base(row, key: str) -> dict:
     total_presupuestado = _to_float(row["total_propuesta"]) or _to_float(row["total"])
     return {

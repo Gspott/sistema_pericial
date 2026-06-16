@@ -151,6 +151,9 @@
             </div>
 
             {% if not print_mode %}
+                <div class="actions">
+                    <a class="boton" href="/propuestas/{{ propuesta.id }}/crear-factura-asistente">Crear factura con asistente</a>
+                </div>
                 {% if facturas_vinculadas_resumen.borradores %}
                     {% for factura in facturas_vinculadas %}
                         {% if factura.estado == 'borrador' %}
@@ -160,13 +163,13 @@
                         {% endif %}
                     {% endfor %}
                 {% elif facturas_vinculadas_resumen.emitidas_cobradas %}
-                <p class="subtitle">En esta fase no se crean nuevas facturas si ya existe facturación emitida o cobrada vinculada.</p>
+                <p class="subtitle">Usa el asistente si necesitas crear una factura parcial o final pendiente.</p>
                 {% else %}
                     {% if not propuesta.cliente_id %}
                     <p class="subtitle">La propuesta no tiene cliente vinculado. Se creará un borrador, pero no podrá emitirse hasta completar el cliente.</p>
                     {% endif %}
                     <form method="post" action="/propuestas/{{ propuesta.id }}/crear-factura">
-                        <button class="boton" type="submit">Crear factura desde propuesta</button>
+                        <button class="boton secundario" type="submit">Crear factura total sin asistente</button>
                     </form>
                 {% endif %}
             {% endif %}

@@ -36,7 +36,8 @@
                     <p><strong>Fecha:</strong> {{ factura.fecha }}</p>
                     {% set factura_estado_clase = 'estado-' ~ factura.estado if factura.estado in ['borrador', 'emitida', 'cobrada', 'anulada'] else 'estado-pendiente' %}
                     <p><strong>Estado:</strong> <span class="estado-badge {{ factura_estado_clase }}">{{ factura.estado }}</span></p>
-                    <p><strong>Tipo:</strong> {{ 'Rectificativa' if factura.tipo_factura == 'rectificativa' else 'Ordinaria' }}</p>
+                    {% set tipo_factura_labels = {'rectificativa': 'Rectificativa', 'anticipo': 'Anticipo', 'final': 'Final', 'ordinaria': 'Ordinaria'} %}
+                    <p><strong>Tipo:</strong> {{ tipo_factura_labels.get(factura.tipo_factura, 'Ordinaria') }}</p>
                     <p><strong>Cliente:</strong> {{ nombre_cliente(factura) }}</p>
                     <p><strong>Total:</strong> {{ format_money(factura.total) }} €</p>
                 </div>

@@ -13,7 +13,8 @@
             <h1>{{ factura.numero_factura or 'Borrador sin número' }}</h1>
             {% set factura_estado_clase = 'estado-' ~ factura.estado if factura.estado in ['borrador', 'emitida', 'cobrada', 'anulada'] else 'estado-pendiente' %}
             <p class="subtitle">Estado: <span class="estado-badge {{ factura_estado_clase }}">{{ factura.estado }}</span></p>
-            <p><strong>Tipo:</strong> {{ 'Rectificativa' if factura.tipo_factura == 'rectificativa' else 'Ordinaria' }}</p>
+            {% set tipo_factura_labels = {'rectificativa': 'Rectificativa', 'anticipo': 'Anticipo', 'final': 'Final', 'ordinaria': 'Ordinaria'} %}
+            <p><strong>Tipo:</strong> {{ tipo_factura_labels.get(factura.tipo_factura, 'Ordinaria') }}</p>
             {% if factura.estado == 'anulada' %}<p class="error">Factura anulada internamente.</p>{% endif %}
             {% if factura.estado != 'borrador' %}<p class="error">Factura emitida: bloqueada para edición fiscal.</p>{% endif %}
             {% if not configuracion_fiscal_completa %}

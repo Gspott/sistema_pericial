@@ -442,6 +442,10 @@
                     <p class="conditions-text">{{ factura.concepto_general or 'Servicios profesionales' }}</p>
                     {% if factura.tipo_factura == 'rectificativa' %}
                     <p class="small-note">Factura rectificativa{% if factura.motivo_rectificacion %}: {{ factura.motivo_rectificacion }}{% endif %}</p>
+                    {% elif factura.tipo_factura == 'anticipo' %}
+                    <p class="small-note">Factura de anticipo.</p>
+                    {% elif factura.tipo_factura == 'final' %}
+                    <p class="small-note">Factura final por importe pendiente.</p>
                     {% endif %}
                 </div>
                 <div>

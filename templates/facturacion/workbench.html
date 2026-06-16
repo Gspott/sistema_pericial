@@ -348,7 +348,7 @@
                                         {% endif %}
                                         {% endif %}
                                     {% elif item.propuesta_id %}
-                                    <a class="boton" href="/facturacion/facturas/nueva?propuesta_id={{ item.propuesta_id }}">Crear factura</a>
+                                    <a class="boton" href="/propuestas/{{ item.propuesta_id }}/crear-factura-asistente">Crear factura</a>
                                     {% elif item.expediente_id %}
                                     <a class="boton" href="/facturacion/facturas/nueva?expediente_id={{ item.expediente_id }}">Crear factura</a>
                                     {% endif %}

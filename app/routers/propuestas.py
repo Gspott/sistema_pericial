@@ -29,7 +29,10 @@ from app.routers.facturacion import (
     recalcular_totales_factura,
     registrar_evento_factura,
 )
-from app.services.economia import construir_timeline_economico_propuesta
+from app.services.economia import (
+    construir_timeline_economico_propuesta,
+    obtener_resumen_facturacion_propuesta,
+)
 from app.services.propuestas_catalogo import (
     SERVICIOS_CATALOGO,
     SERVICIOS_CATALOGO_OPCIONES,
@@ -576,6 +579,159 @@ def crear_linea_factura_desde_datos(
     )
 
 
+FACTURA_ASISTENTE_MODOS = ("total", "anticipo_porcentaje", "importe_libre", "final_pendiente")
+
+
+def normalizar_modo_factura_asistente(valor: str | None) -> str:
+    modo = limpiar_texto(valor)
+    return modo if modo in FACTURA_ASISTENTE_MODOS else "total"
+
+
+def obtener_lineas_base_factura_asistente(cur, propuesta) -> list[dict]:
+    lineas_propuesta = obtener_lineas_propuesta(cur, propuesta["id"])
+    if lineas_propuesta:
+        return [
+            {
+                "concepto": linea["concepto"],
+                "descripcion": descripcion_factura_desde_propuesta(linea),
+                "cantidad": float(linea["cantidad"] or 0),
+                "precio_unitario": float(linea["precio_unitario"] or 0),
+                "iva_porcentaje": float(linea["iva_porcentaje"] or 0),
+                "orden": int(linea["orden"] or indice),
+            }
+            for indice, linea in enumerate(lineas_propuesta, start=1)
+        ]
+    return [
+        {
+            "concepto": limpiar_texto(propuesta["tipo_trabajo"]) or "Honorarios profesionales",
+            "descripcion": limpiar_texto(propuesta["alcance"])[:500],
+            "cantidad": 1.0,
+            "precio_unitario": float(propuesta["base_imponible"] or 0),
+            "iva_porcentaje": float(propuesta["iva_porcentaje"] or 0),
+            "orden": 1,
+        }
+    ]
+
+
+def resolver_factor_factura_asistente(
+    modo: str,
+    porcentaje: str | None,
+    importe: str | None,
+    resumen: dict,
+) -> tuple[float, float, str]:
+    total_propuesta = float(resumen["total_propuesta"] or 0)
+    pendiente_facturar = float(resumen["pendiente_facturar"] or 0)
+    if total_propuesta <= 0:
+        return 0.0, 0.0, "La propuesta no tiene importe positivo."
+
+    if modo == "anticipo_porcentaje":
+        porcentaje_valor = parse_float(porcentaje, 50)
+        if porcentaje_valor <= 0:
+            return 0.0, 0.0, "El porcentaje debe ser mayor que cero."
+        importe_objetivo = total_propuesta * porcentaje_valor / 100
+    elif modo == "importe_libre":
+        importe_objetivo = parse_float(importe, 0)
+        if importe_objetivo <= 0:
+            return 0.0, 0.0, "El importe libre debe ser mayor que cero."
+    elif modo == "final_pendiente":
+        importe_objetivo = pendiente_facturar
+        if importe_objetivo <= 0:
+            return 0.0, 0.0, "No queda importe pendiente de facturar."
+    else:
+        importe_objetivo = total_propuesta
+
+    importe_objetivo = redondear_importe(importe_objetivo)
+    factor = importe_objetivo / total_propuesta if total_propuesta else 0.0
+    return factor, importe_objetivo, ""
+
+
+def construir_preview_factura_asistente(
+    lineas_base: list[dict],
+    factor: float,
+    irpf_porcentaje: float,
+) -> dict:
+    lineas_preview = []
+    base_imponible = 0.0
+    iva = 0.0
+    irpf = 0.0
+    total = 0.0
+    for indice, linea in enumerate(lineas_base, start=1):
+        precio_unitario = redondear_importe(float(linea["precio_unitario"] or 0) * factor)
+        subtotal, iva_importe, irpf_importe, total_linea = calcular_linea_factura(
+            float(linea["cantidad"] or 0),
+            precio_unitario,
+            float(linea["iva_porcentaje"] or 0),
+            irpf_porcentaje,
+        )
+        subtotal = redondear_importe(subtotal)
+        iva_importe = redondear_importe(iva_importe)
+        irpf_importe = redondear_importe(irpf_importe)
+        total_linea = redondear_importe(total_linea)
+        lineas_preview.append(
+            {
+                "concepto": linea["concepto"],
+                "descripcion": linea["descripcion"],
+                "cantidad": float(linea["cantidad"] or 0),
+                "precio_unitario": precio_unitario,
+                "iva_porcentaje": float(linea["iva_porcentaje"] or 0),
+                "irpf_porcentaje": irpf_porcentaje,
+                "subtotal": subtotal,
+                "iva_importe": iva_importe,
+                "irpf_importe": irpf_importe,
+                "total": total_linea,
+                "orden": int(linea.get("orden") or indice),
+            }
+        )
+        base_imponible = redondear_importe(base_imponible + subtotal)
+        iva = redondear_importe(iva + iva_importe)
+        irpf = redondear_importe(irpf + irpf_importe)
+        total = redondear_importe(total + total_linea)
+    return {
+        "lineas": lineas_preview,
+        "base_imponible": base_imponible,
+        "iva": iva,
+        "irpf": irpf,
+        "total": total,
+    }
+
+
+def etiqueta_modo_factura_asistente(modo: str) -> str:
+    return {
+        "total": "Factura total",
+        "anticipo_porcentaje": "Factura de anticipo",
+        "importe_libre": "Factura por importe libre",
+        "final_pendiente": "Factura final pendiente",
+    }.get(modo, "Factura")
+
+
+def render_factura_asistente(
+    request: Request,
+    propuesta,
+    resumen: dict,
+    preview: dict,
+    modo: str,
+    porcentaje: str,
+    importe: str,
+    error: str = "",
+    aviso: str = "",
+):
+    return render_template(
+        request,
+        "propuestas/crear_factura_asistente.html",
+        {
+            "propuesta": propuesta,
+            "resumen": resumen,
+            "preview": preview,
+            "modo": modo,
+            "porcentaje": porcentaje,
+            "importe": importe,
+            "error": error,
+            "aviso": aviso,
+            "format_money": format_money,
+        },
+    )
+
+
 def get_owned_linea_propuesta(cur, propuesta_id: int, linea_id: int, owner_user_id: int):
     return cur.execute(
         """
@@ -1010,6 +1166,216 @@ def imprimir_propuesta(request: Request, propuesta_id: int):
             "email_disponible": bool(obtener_email_propuesta(propuesta)),
         },
     )
+
+
+@router.get("/propuestas/{propuesta_id}/crear-factura-asistente", response_class=HTMLResponse)
+def crear_factura_asistente(
+    request: Request,
+    propuesta_id: int,
+    modo: str = Query("total", max_length=30),
+    porcentaje: str = Query("50", max_length=20),
+    importe: str = Query("", max_length=30),
+):
+    current_user = get_current_user(request)
+    modo_limpio = normalizar_modo_factura_asistente(modo)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        cliente = get_owned_cliente(cur, propuesta["cliente_id"], current_user["id"]) if propuesta["cliente_id"] else None
+        config = obtener_configuracion_fiscal(cur, current_user["id"])
+        irpf_sugerido = calcular_irpf_factura(cliente, config)
+        resumen = obtener_resumen_facturacion_propuesta(
+            cur,
+            propuesta_id,
+            current_user["id"],
+        )
+        lineas_base = obtener_lineas_base_factura_asistente(cur, propuesta)
+        factor, importe_objetivo, error_factor = resolver_factor_factura_asistente(
+            modo_limpio,
+            porcentaje,
+            importe,
+            resumen,
+        )
+        preview = construir_preview_factura_asistente(lineas_base, factor, irpf_sugerido)
+        preview["importe_objetivo"] = importe_objetivo
+        aviso = ""
+        if resumen["borradores"]:
+            aviso = "Ya existe un borrador vinculado a esta propuesta. Revísalo antes de crear otro."
+        elif importe_objetivo > resumen["pendiente_facturar"] + 0.01:
+            aviso = "El borrador previsto supera el pendiente de facturar de la propuesta."
+    finally:
+        conn.close()
+
+    return render_factura_asistente(
+        request,
+        propuesta,
+        resumen,
+        preview,
+        modo_limpio,
+        porcentaje,
+        importe,
+        error_factor,
+        aviso,
+    )
+
+
+@router.post("/propuestas/{propuesta_id}/crear-factura-asistente")
+def guardar_factura_asistente(
+    request: Request,
+    propuesta_id: int,
+    modo: str = Form("total"),
+    porcentaje: str = Form("50"),
+    importe: str = Form(""),
+):
+    current_user = get_current_user(request)
+    modo_limpio = normalizar_modo_factura_asistente(modo)
+    conn = get_connection()
+    cur = conn.cursor()
+    factura_id = None
+    try:
+        propuesta = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        cliente = get_owned_cliente(cur, propuesta["cliente_id"], current_user["id"]) if propuesta["cliente_id"] else None
+        config = obtener_configuracion_fiscal(cur, current_user["id"])
+        config_form = configuracion_fiscal_para_formulario(config)
+        irpf_sugerido = calcular_irpf_factura(cliente, config)
+        resumen = obtener_resumen_facturacion_propuesta(
+            cur,
+            propuesta_id,
+            current_user["id"],
+        )
+        lineas_base = obtener_lineas_base_factura_asistente(cur, propuesta)
+        factor, importe_objetivo, error_factor = resolver_factor_factura_asistente(
+            modo_limpio,
+            porcentaje,
+            importe,
+            resumen,
+        )
+        preview = construir_preview_factura_asistente(lineas_base, factor, irpf_sugerido)
+        preview["importe_objetivo"] = importe_objetivo
+        if error_factor:
+            return render_factura_asistente(
+                request,
+                propuesta,
+                resumen,
+                preview,
+                modo_limpio,
+                porcentaje,
+                importe,
+                error_factor,
+            )
+        if resumen["borradores"]:
+            return render_factura_asistente(
+                request,
+                propuesta,
+                resumen,
+                preview,
+                modo_limpio,
+                porcentaje,
+                importe,
+                "Ya existe un borrador vinculado a esta propuesta. Abre el borrador existente antes de crear otro.",
+            )
+        if importe_objetivo > resumen["pendiente_facturar"] + 0.01:
+            return render_factura_asistente(
+                request,
+                propuesta,
+                resumen,
+                preview,
+                modo_limpio,
+                porcentaje,
+                importe,
+                "El importe seleccionado supera el pendiente de facturar de la propuesta.",
+            )
+        if not preview["lineas"] or preview["total"] <= 0:
+            return render_factura_asistente(
+                request,
+                propuesta,
+                resumen,
+                preview,
+                modo_limpio,
+                porcentaje,
+                importe,
+                "No se puede crear un borrador sin líneas ni importe positivo.",
+            )
+
+        concepto_general = (
+            f"{etiqueta_modo_factura_asistente(modo_limpio)} · "
+            f"{limpiar_texto(propuesta['numero_propuesta'])}"
+        )
+        tipo_factura = "ordinaria"
+        if modo_limpio == "anticipo_porcentaje":
+            tipo_factura = "anticipo"
+        elif modo_limpio == "final_pendiente":
+            tipo_factura = "final"
+
+        cur.execute(
+            """
+            INSERT INTO facturas_emitidas (
+                serie, fecha, estado, cliente_id, propuesta_id, expediente_id,
+                concepto_general, irpf_porcentaje_defecto, notas, tipo_factura,
+                owner_user_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                config_form["serie_factura"] or "F",
+                str(date.today()),
+                "borrador",
+                propuesta["cliente_id"],
+                propuesta_id,
+                propuesta["expediente_id"],
+                concepto_general,
+                irpf_sugerido,
+                "Borrador creado desde asistente de facturación. Revisar antes de emitir.",
+                tipo_factura,
+                current_user["id"],
+            ),
+        )
+        factura_id = cur.lastrowid
+        registrar_evento_factura(
+            cur,
+            factura_id,
+            current_user["id"],
+            "creada_desde_asistente_propuesta",
+            f"{etiqueta_modo_factura_asistente(modo_limpio)} creada en borrador desde propuesta {propuesta['numero_propuesta']}.",
+        )
+        if not propuesta["cliente_id"]:
+            registrar_evento_factura(
+                cur,
+                factura_id,
+                current_user["id"],
+                "aviso",
+                "La propuesta no tiene cliente vinculado; completa el cliente antes de emitir.",
+            )
+
+        for indice, linea in enumerate(preview["lineas"], start=1):
+            crear_linea_factura_desde_datos(
+                cur,
+                factura_id,
+                linea["concepto"],
+                linea["descripcion"],
+                linea["cantidad"],
+                linea["precio_unitario"],
+                linea["iva_porcentaje"],
+                linea["irpf_porcentaje"],
+                int(linea["orden"] or indice),
+            )
+        recalcular_totales_factura(cur, factura_id)
+        conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return RedirectResponse(url=f"/facturacion/facturas/{factura_id}", status_code=303)
 
 
 @router.post("/propuestas/{propuesta_id}/crear-factura")

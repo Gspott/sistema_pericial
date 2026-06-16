@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Asistente de factura · {{ propuesta.numero_propuesta }}</title>
+    <style>
+        .invoice-assistant {
+            color: #172033;
+            margin: 0 auto;
+            max-width: none;
+            width: min(100%, calc(100vw - 28px));
+        }
+
+        .assistant-hero,
+        .assistant-section,
+        .metric-tile {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+        }
+
+        .assistant-hero {
+            background: #f8fafc;
+            display: grid;
+            gap: 14px;
+            grid-template-columns: minmax(0, 1.3fr) minmax(360px, 0.9fr);
+            margin-bottom: 12px;
+            padding: 14px;
+        }
+
+        .assistant-kicker {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
+            margin: 0 0 6px;
+            text-transform: uppercase;
+        }
+
+        .assistant-title {
+            font-size: clamp(1.45rem, 2.2vw, 2.1rem);
+            line-height: 1.08;
+            margin: 0 0 8px;
+        }
+
+        .assistant-subtitle,
+        .section-note {
+            color: #64748b;
+            margin: 4px 0 0;
+        }
+
+        .assistant-metrics {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .metric-tile {
+            padding: 9px 10px;
+        }
+
+        .metric-label {
+            color: #64748b;
+            display: block;
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            color: #0f172a;
+            display: block;
+            font-size: 1.05rem;
+            font-variant-numeric: tabular-nums;
+            font-weight: 800;
+        }
+
+        .assistant-layout {
+            align-items: start;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.6fr);
+        }
+
+        .assistant-section {
+            padding: 12px;
+        }
+
+        .assistant-section + .assistant-section {
+            margin-top: 12px;
+        }
+
+        .assistant-section h2 {
+            font-size: 1.05rem;
+            margin: 0 0 10px;
+        }
+
+        .mode-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .mode-option {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            display: grid;
+            gap: 3px;
+            padding: 8px;
+        }
+
+        .mode-option strong {
+            color: #0f172a;
+        }
+
+        .preview-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .preview-table {
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            min-width: 840px;
+            width: 100%;
+        }
+
+        .preview-table th,
+        .preview-table td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 7px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .preview-table th {
+            color: #475569;
+            font-size: 0.73rem;
+            text-transform: uppercase;
+        }
+
+        .number-cell {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .summary-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-top: 10px;
+        }
+
+        .summary-grid div {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        @media (max-width: 980px) {
+            .assistant-hero,
+            .assistant-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .invoice-assistant,
+            .assistant-hero,
+            .assistant-section {
+                width: 100%;
+            }
+
+            .assistant-metrics,
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page invoice-assistant">
+        <section class="assistant-hero">
+            <div>
+                <p class="assistant-kicker">Asistente de facturación</p>
+                <h1 class="assistant-title">{{ propuesta.numero_propuesta }}</h1>
+                <p class="assistant-subtitle">Crea un borrador revisable desde la propuesta. La factura no se emite, no recibe número fiscal y no genera hash hasta que la emitas manualmente.</p>
+                <div class="actions">
+                    <a class="boton secundario" href="/propuestas/{{ propuesta.id }}">Volver a propuesta</a>
+                    <a class="boton secundario" href="/facturacion/workbench">Workbench económico</a>
+                </div>
+            </div>
+            <div class="assistant-metrics">
+                <div class="metric-tile">
+                    <span class="metric-label">Total propuesta</span>
+                    <span class="metric-value">{{ format_money(resumen.total_propuesta) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Ya facturado</span>
+                    <span class="metric-value">{{ format_money(resumen.total_facturado) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Ya cobrado</span>
+                    <span class="metric-value">{{ format_money(resumen.total_cobrado) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Pendiente de facturar</span>
+                    <span class="metric-value">{{ format_money(resumen.pendiente_facturar) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Pendiente de cobro</span>
+                    <span class="metric-value">{{ format_money(resumen.pendiente_cobro) }} €</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-label">Borradores vinculados</span>
+                    <span class="metric-value">{{ resumen.borradores | length }}</span>
+                </div>
+            </div>
+        </section>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if aviso %}
+        <p class="error">{{ aviso }}</p>
+        {% endif %}
+
+        {% if resumen.borradores %}
+        <section class="assistant-section">
+            <h2>Borrador existente</h2>
+            {% for factura in resumen.borradores %}
+            <p><a href="/facturacion/facturas/{{ factura.id }}">{{ factura.numero_factura or ('Borrador #' ~ factura.id) }}</a> · {{ factura.fecha }} · {{ format_money(factura.total) }} €</p>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <div class="assistant-layout">
+            <section class="assistant-section">
+                <h2>Tipo de borrador</h2>
+                <form method="get" action="/propuestas/{{ propuesta.id }}/crear-factura-asistente">
+                    <div class="mode-grid">
+                        <label class="mode-option">
+                            <span><input type="radio" name="modo" value="total" {% if modo == 'total' %}checked{% endif %}> <strong>Factura total</strong></span>
+                            <span class="section-note">Importa toda la propuesta si no hay importes ya facturados.</span>
+                        </label>
+                        <label class="mode-option">
+                            <span><input type="radio" name="modo" value="anticipo_porcentaje" {% if modo == 'anticipo_porcentaje' %}checked{% endif %}> <strong>Anticipo %</strong></span>
+                            <span class="section-note">Genera líneas proporcionales según porcentaje.</span>
+                        </label>
+                        <label class="mode-option">
+                            <span><input type="radio" name="modo" value="importe_libre" {% if modo == 'importe_libre' %}checked{% endif %}> <strong>Importe libre</strong></span>
+                            <span class="section-note">Calcula líneas proporcionales al importe indicado.</span>
+                        </label>
+                        <label class="mode-option">
+                            <span><input type="radio" name="modo" value="final_pendiente" {% if modo == 'final_pendiente' %}checked{% endif %}> <strong>Factura final pendiente</strong></span>
+                            <span class="section-note">Usa el pendiente de facturar excluyendo anuladas y borradores.</span>
+                        </label>
+                    </div>
+
+                    <label for="porcentaje">Porcentaje de anticipo</label>
+                    <input id="porcentaje" name="porcentaje" type="number" step="0.01" min="0" value="{{ porcentaje }}">
+
+                    <label for="importe">Importe libre total</label>
+                    <input id="importe" name="importe" type="number" step="0.01" min="0" value="{{ importe }}">
+
+                    <button class="boton secundario" type="submit">Actualizar vista previa</button>
+                </form>
+            </section>
+
+            <section class="assistant-section">
+                <h2>Vista previa de líneas</h2>
+                {% if preview.lineas %}
+                <div class="preview-table-wrap">
+                    <table class="preview-table">
+                        <thead>
+                            <tr>
+                                <th>Concepto</th>
+                                <th class="number-cell">Cantidad</th>
+                                <th class="number-cell">Precio</th>
+                                <th class="number-cell">Base</th>
+                                <th class="number-cell">IVA</th>
+                                <th class="number-cell">IRPF</th>
+                                <th class="number-cell">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for linea in preview.lineas %}
+                            <tr>
+                                <td><strong>{{ linea.concepto }}</strong>{% if linea.descripcion %}<br>{{ linea.descripcion }}{% endif %}</td>
+                                <td class="number-cell">{{ format_money(linea.cantidad) }}</td>
+                                <td class="number-cell">{{ format_money(linea.precio_unitario) }} €</td>
+                                <td class="number-cell">{{ format_money(linea.subtotal) }} €</td>
+                                <td class="number-cell">{{ format_money(linea.iva_importe) }} €</td>
+                                <td class="number-cell">{{ format_money(linea.irpf_importe) }} €</td>
+                                <td class="number-cell">{{ format_money(linea.total) }} €</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="summary-grid">
+                    <div><span class="metric-label">Base imponible</span><strong>{{ format_money(preview.base_imponible) }} €</strong></div>
+                    <div><span class="metric-label">IVA</span><strong>{{ format_money(preview.iva) }} €</strong></div>
+                    <div><span class="metric-label">IRPF</span><strong>{{ format_money(preview.irpf) }} €</strong></div>
+                    <div><span class="metric-label">Total borrador</span><strong>{{ format_money(preview.total) }} €</strong></div>
+                </div>
+
+                <form method="post" action="/propuestas/{{ propuesta.id }}/crear-factura-asistente">
+                    <input type="hidden" name="modo" value="{{ modo }}">
+                    <input type="hidden" name="porcentaje" value="{{ porcentaje }}">
+                    <input type="hidden" name="importe" value="{{ importe }}">
+                    <button class="boton" type="submit">Crear borrador</button>
+                </form>
+                {% else %}
+                <p class="empty">No hay líneas previstas para crear el borrador.</p>
+                {% endif %}
+            </section>
+        </div>
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

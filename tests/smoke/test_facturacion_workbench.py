@@ -217,7 +217,7 @@ def test_workbench_economico_renderiza_estados_y_acciones(isolated_import):
     assert "Cobro parcial" in response.text
     assert "Cobrada" in response.text
     assert "Vencida" in response.text
-    assert "/facturacion/facturas/nueva?propuesta_id=" in response.text
+    assert "/crear-factura-asistente" in response.text
     assert "PDF cliente" in response.text
     assert "PDF interno" in response.text
     assert "Registrar cobro" in response.text
