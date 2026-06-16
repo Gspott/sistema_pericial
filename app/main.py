@@ -85,6 +85,15 @@ UPLOAD_PATH = Path(UPLOAD_DIR)
 DOCUMENTOS_EXPEDIENTE_UPLOAD_DIR = UPLOAD_PATH / "expediente_documentos"
 DB_FILE = Path(DB_PATH)
 TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES = "informe_v2_anexo_f_mediciones"
+INFORME_V2_TITULO_PORTADA_DEFAULT = (
+    "DAÑOS POR ENTRADA DE AGUA DE LLUVIA Y\n"
+    "AFECCIONES CONSTRUCTIVAS DERIVADAS"
+)
+INFORME_V2_SUBTITULO_PORTADA_DEFAULT = (
+    "Análisis técnico de los daños observados, su distribución en el inmueble "
+    "y valoración económica de las actuaciones de reparación necesarias."
+)
+INFORME_V2_CAMPOS_METADATOS = {"titulo_portada", "subtitulo_portada"}
 
 ensure_directories()
 init_db()
@@ -6731,6 +6740,75 @@ def obtener_versiones_informe_v2(cur, expediente_id: int) -> dict[str, list[dict
     return versiones
 
 
+def resolver_metadatos_portada_informe_v2(metadatos: dict | None = None) -> dict:
+    metadatos = metadatos or {}
+    titulo = limpiar_texto(metadatos.get("titulo_portada"))
+    subtitulo = limpiar_texto(metadatos.get("subtitulo_portada"))
+    return {
+        "titulo_portada": titulo,
+        "subtitulo_portada": subtitulo,
+        "titulo_portada_pdf": titulo or INFORME_V2_TITULO_PORTADA_DEFAULT,
+        "subtitulo_portada_pdf": subtitulo or INFORME_V2_SUBTITULO_PORTADA_DEFAULT,
+        "updated_at": limpiar_texto(metadatos.get("updated_at")),
+    }
+
+
+def obtener_metadatos_informe_v2(cur, expediente_id: int) -> dict:
+    fila = cur.execute(
+        """
+        SELECT titulo_portada, subtitulo_portada, updated_at
+        FROM informe_v2_metadatos
+        WHERE expediente_id = ?
+        """,
+        (expediente_id,),
+    ).fetchone()
+    return resolver_metadatos_portada_informe_v2(dict(fila) if fila else {})
+
+
+def guardar_metadatos_informe_v2(
+    cur,
+    expediente_id: int,
+    titulo_portada: str | None,
+    subtitulo_portada: str | None,
+) -> dict:
+    titulo = limpiar_texto(titulo_portada)
+    subtitulo = limpiar_texto(subtitulo_portada)
+    cur.execute(
+        """
+        INSERT INTO informe_v2_metadatos (
+            expediente_id, titulo_portada, subtitulo_portada, updated_at
+        )
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(expediente_id) DO UPDATE SET
+            titulo_portada = excluded.titulo_portada,
+            subtitulo_portada = excluded.subtitulo_portada,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (expediente_id, titulo, subtitulo),
+    )
+    return obtener_metadatos_informe_v2(cur, expediente_id)
+
+
+def guardar_campo_metadatos_informe_v2(
+    cur,
+    expediente_id: int,
+    campo: str,
+    valor: str | None,
+) -> dict:
+    actuales = obtener_metadatos_informe_v2(cur, expediente_id)
+    datos = {
+        "titulo_portada": actuales["titulo_portada"],
+        "subtitulo_portada": actuales["subtitulo_portada"],
+    }
+    datos[campo] = limpiar_texto(valor)
+    return guardar_metadatos_informe_v2(
+        cur,
+        expediente_id,
+        datos["titulo_portada"],
+        datos["subtitulo_portada"],
+    )
+
+
 def resolver_capitulo_guardado_editor_v2(
     guardados: dict[str, dict], clave: str
 ) -> tuple[dict | None, str]:
@@ -7266,6 +7344,7 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
     )
     iniciales = generar_contenido_inicial_editor_v2(workbench)
     guardados = obtener_capitulos_guardados_informe_v2(cur, expediente["id"])
+    metadatos = obtener_metadatos_informe_v2(cur, expediente["id"])
     versiones = obtener_versiones_informe_v2(cur, expediente["id"])
     capitulos = []
 
@@ -7367,9 +7446,21 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         "pdf_mediciones_anexo_f": pdf_mediciones_anexo_f,
         "diagnostico_informe": diagnostico_informe,
         "estados_revision": estados_revision,
+        "metadatos": metadatos,
         "capitulos": capitulos,
         "capitulos_guardados": len(guardados),
     }
+
+
+def guardar_presentacion_informe_v2(cur, expediente_id: int, form_data) -> dict:
+    if "titulo_portada" not in form_data and "subtitulo_portada" not in form_data:
+        return obtener_metadatos_informe_v2(cur, expediente_id)
+    return guardar_metadatos_informe_v2(
+        cur,
+        expediente_id,
+        form_data.get("titulo_portada"),
+        form_data.get("subtitulo_portada"),
+    )
 
 
 def guardar_capitulos_informe_v2(cur, expediente_id: int, form_data):
@@ -8204,6 +8295,7 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
     expediente_dict = dict(expediente)
     expediente_id = expediente_dict["id"]
     guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
+    metadatos = obtener_metadatos_informe_v2(cur, expediente_id)
     capitulos = []
 
     for definicion in INFORME_V2_CAPITULOS:
@@ -8312,6 +8404,7 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
         "indice": indice,
         "anexos": anexos,
         "pdf_mediciones_anexo_f": pdf_mediciones_anexo_f,
+        "informe": metadatos,
         "desplazamiento_paginas_anexo_a": desplazamiento_paginas_anexo_a,
         "capitulos_guardados": len(guardados),
         "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
@@ -11411,6 +11504,7 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "pdf_mediciones_anexo_f": editor["pdf_mediciones_anexo_f"],
             "diagnostico_informe": editor["diagnostico_informe"],
             "estados_revision": editor["estados_revision"],
+            "metadatos": editor["metadatos"],
             "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
             "metricas": editor["metricas"],
             "limitaciones_candidatas": editor["limitaciones_candidatas"],
@@ -11454,6 +11548,7 @@ async def guardar_informe_v2_editor(request: Request, expediente_id: int):
                 ),
                 status_code=303,
             )
+        guardar_presentacion_informe_v2(cur, expediente_id, form_data)
         guardar_capitulos_informe_v2(cur, expediente_id, form_data)
         conn.commit()
     finally:
@@ -11473,7 +11568,7 @@ async def autosave_informe_v2(request: Request, expediente_id: int):
     valor = limpiar_texto(form_data.get("valor"))
     updated_at_cliente = limpiar_texto(form_data.get("updated_at"))
 
-    if campo not in INFORME_V2_CAPITULOS_POR_CLAVE:
+    if campo not in INFORME_V2_CAPITULOS_POR_CLAVE and campo not in INFORME_V2_CAMPOS_METADATOS:
         return JSONResponse(
             {"ok": False, "error": "Campo no permitido para el informe."},
             status_code=400,
@@ -11491,6 +11586,23 @@ async def autosave_informe_v2(request: Request, expediente_id: int):
                     "error": "El autosalvado del informe solo aplica a expedientes de patologías.",
                 },
                 status_code=400,
+            )
+
+        if campo in INFORME_V2_CAMPOS_METADATOS:
+            metadatos = guardar_campo_metadatos_informe_v2(
+                cur,
+                expediente_id,
+                campo,
+                valor,
+            )
+            conn.commit()
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "campo": campo,
+                    "updated_at": metadatos["updated_at"],
+                    "tipo": "metadatos",
+                }
             )
 
         fila_actual = cur.execute(
@@ -11699,6 +11811,7 @@ def descargar_respaldo_informe_v2(request: Request, expediente_id: int):
                 detail="El respaldo del informe solo aplica a expedientes de patologías.",
             )
         guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
+        metadatos = obtener_metadatos_informe_v2(cur, expediente_id)
     finally:
         conn.close()
 
@@ -11725,6 +11838,11 @@ def descargar_respaldo_informe_v2(request: Request, expediente_id: int):
             "tipo_informe": limpiar_texto(expediente["tipo_informe"]),
         },
         "fecha_exportacion": datetime.now().isoformat(timespec="seconds"),
+        "metadatos": {
+            "titulo_portada": metadatos["titulo_portada"],
+            "subtitulo_portada": metadatos["subtitulo_portada"],
+            "updated_at": metadatos["updated_at"],
+        },
         "capitulos": capitulos,
     }
     numero = limpiar_nombre_archivo(expediente["numero_expediente"] or str(expediente_id))

@@ -51,6 +51,7 @@
             margin: 0;
             text-align: center;
             text-transform: uppercase;
+            white-space: pre-line;
         }
 
         .cover .subtitle {
@@ -80,16 +81,6 @@
 
         .cover-main {
             align-self: center;
-        }
-
-        .cover-footnote {
-            border-top: 1px solid var(--ink);
-            color: var(--muted);
-            display: flex;
-            font-size: 11px;
-            justify-content: space-between;
-            padding-top: 5mm;
-            text-transform: uppercase;
         }
 
         .cover-meta {
@@ -575,14 +566,8 @@
         <section class="cover">
             <div class="cover-heading">
                 <p class="cover-kicker">Dictamen técnico pericial</p>
-                <h1>Informe Pericial<br>de Daños Constructivos</h1>
-                <p class="subtitle">
-                    {% if expediente.descripcion_dano %}
-                    {{ expediente.descripcion_dano }}
-                    {% else %}
-                    {{ expediente.tipo_trabajo_label or expediente.tipo_informe }}
-                    {% endif %}
-                </p>
+                <h1>{{ informe.titulo_portada_pdf }}</h1>
+                <p class="subtitle">{{ informe.subtitulo_portada_pdf }}</p>
             </div>
             <div class="cover-main">
                 <hr class="cover-divider">
@@ -595,10 +580,6 @@
                     <div>Fecha de emisión</div><div>{{ fecha_emision }}</div>
                 </div>
                 <hr class="cover-divider">
-            </div>
-            <div class="cover-footnote">
-                <span>Informe pericial</span>
-                <span>Arquitecto Técnico</span>
             </div>
         </section>
 

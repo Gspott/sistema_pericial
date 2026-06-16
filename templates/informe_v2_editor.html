@@ -239,6 +239,58 @@
             width: 100%;
         }
 
+        .presentation-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 0.6fr);
+        }
+
+        .presentation-field {
+            display: grid;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .presentation-field label {
+            font-weight: 800;
+        }
+
+        .presentation-field textarea {
+            min-height: 74px;
+        }
+
+        .presentation-preview {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .presentation-preview-kicker {
+            color: #64748b;
+            font-size: 0.72rem;
+            font-weight: 900;
+            margin: 0 0 10px;
+            text-transform: uppercase;
+        }
+
+        .presentation-preview-title {
+            color: #0f172a;
+            font-size: 1.05rem;
+            font-weight: 900;
+            line-height: 1.15;
+            margin: 0 0 10px;
+            text-transform: uppercase;
+            white-space: pre-line;
+        }
+
+        .presentation-preview-subtitle {
+            color: #475569;
+            font-size: 0.88rem;
+            line-height: 1.45;
+            margin: 0;
+        }
+
         .save-bar {
             align-items: center;
             background: #f8fafc;
@@ -753,7 +805,7 @@
             <p class="editor-kicker">Informe pericial · Editor de informe</p>
             <h1 class="editor-title">{{ expediente.numero_expediente }} · {{ expediente.direccion or "Sin dirección" }}</h1>
             <p class="editor-note">{{ expediente.cliente }} · {{ expediente.tipo_trabajo_label or expediente.tipo_informe }}</p>
-            <p class="editor-note">La estructura del informe es fija; edita únicamente el contenido técnico. Esta pantalla no modifica el PDF actual.</p>
+            <p class="editor-note">La estructura del informe es fija; edita el contenido técnico y la presentación visible de la portada.</p>
             {% if mensaje %}<p class="evidence-item">{{ mensaje }}</p>{% endif %}
             {% if error %}<p class="evidence-item">{{ error }}</p>{% endif %}
             <div class="actions">
@@ -789,6 +841,40 @@
                         </span>
                         <button class="boton primario" type="submit">Guardar datos</button>
                     </div>
+
+                    <section class="chapter-editor" id="presentacion-informe">
+                        <div class="chapter-head">
+                            <div>
+                                <h2>Presentación del informe</h2>
+                                <p class="chapter-meta">Configura el texto visible de la portada. No modifica capítulos técnicos, anexos ni valoración.</p>
+                            </div>
+                            <div class="actions">
+                                <span class="chapter-save-status ready" data-chapter-status="titulo_portada">Listo</span>
+                                <span class="chapter-save-status ready" data-chapter-status="subtitulo_portada">Listo</span>
+                            </div>
+                        </div>
+                        <div class="presentation-grid">
+                            <div>
+                                <input type="hidden" name="updated_at_titulo_portada" value="{{ metadatos.updated_at }}" data-autosave-updated-at="titulo_portada">
+                                <input type="hidden" name="updated_at_subtitulo_portada" value="{{ metadatos.updated_at }}" data-autosave-updated-at="subtitulo_portada">
+                                <label class="presentation-field">
+                                    <span>Título principal de portada</span>
+                                    <span class="editor-note">Título que aparece en la portada del informe.</span>
+                                    <textarea class="chapter-textarea" rows="2" name="titulo_portada" data-autosave-campo="titulo_portada" data-autosave-titulo="título de portada">{{ metadatos.titulo_portada or metadatos.titulo_portada_pdf }}</textarea>
+                                </label>
+                                <label class="presentation-field">
+                                    <span>Subtítulo de portada</span>
+                                    <span class="editor-note">Texto descriptivo opcional bajo el título principal.</span>
+                                    <textarea class="chapter-textarea" rows="3" name="subtitulo_portada" data-autosave-campo="subtitulo_portada" data-autosave-titulo="subtítulo de portada">{{ metadatos.subtitulo_portada or metadatos.subtitulo_portada_pdf }}</textarea>
+                                </label>
+                            </div>
+                            <aside class="presentation-preview" aria-label="Vista previa de portada">
+                                <p class="presentation-preview-kicker">DICTAMEN TÉCNICO PERICIAL</p>
+                                <p class="presentation-preview-title">{{ metadatos.titulo_portada or metadatos.titulo_portada_pdf }}</p>
+                                <p class="presentation-preview-subtitle">{{ metadatos.subtitulo_portada or metadatos.subtitulo_portada_pdf }}</p>
+                            </aside>
+                        </div>
+                    </section>
 
                     {% for capitulo in capitulos %}
                     <section class="chapter-editor" id="capitulo-{{ capitulo.clave }}">

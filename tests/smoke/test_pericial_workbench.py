@@ -494,6 +494,13 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
 
     assert response.status_code == 200
     assert "Informe pericial" in response.text
+    assert "Presentación del informe" in response.text
+    assert "Título principal de portada" in response.text
+    assert "Subtítulo de portada" in response.text
+    assert "Título que aparece en la portada del informe." in response.text
+    assert "DICTAMEN TÉCNICO PERICIAL" in response.text
+    assert "DAÑOS POR ENTRADA DE AGUA DE LLUVIA Y" in response.text
+    assert "Análisis técnico de los daños observados" in response.text
     assert "Resumen ejecutivo" in response.text
     assert "contenido_resumen_ejecutivo" in response.text
     assert response.text.count('data-chapter-help-toggle="') == len(
@@ -573,6 +580,33 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "El expediente EXP-PER-WB-1 documenta Daños por agua" in response.text
     assert "Precargado desde pericial-wb-2" in response.text
 
+    autosave_presentacion = client.post(
+        f"/informes-v2/{expediente_id}/autosave",
+        data={
+            "campo": "titulo_portada",
+            "valor": "Título autosalvado de portada",
+            "updated_at": "",
+        },
+    )
+    assert autosave_presentacion.status_code == 200
+    assert autosave_presentacion.json()["tipo"] == "metadatos"
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        metadatos_autosave = cur.execute(
+            """
+            SELECT titulo_portada, updated_at
+            FROM informe_v2_metadatos
+            WHERE expediente_id = ?
+            """,
+            (expediente_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert metadatos_autosave["titulo_portada"] == "Título autosalvado de portada"
+    assert metadatos_autosave["updated_at"]
+
     form_data = {
         f"contenido_{capitulo['clave']}": f"Contenido manual {capitulo['clave']}"
         for capitulo in main_module.INFORME_V2_CAPITULOS
@@ -580,6 +614,8 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     form_data["contenido_resumen_ejecutivo"] = "Resumen manual definitivo"
     form_data["contenido_anexo_e_partida_4"] = "Anexo E manual definitivo"
     form_data["contenido_anexo_f_mediciones"] = "Anexo F manual definitivo"
+    form_data["titulo_portada"] = "Título personalizado de portada"
+    form_data["subtitulo_portada"] = "Subtítulo personalizado de portada"
     post_response = client.post(
         f"/expedientes/{expediente_id}/informe-v2-editor",
         data=form_data,
@@ -600,6 +636,14 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
             """,
             (expediente_id,),
         ).fetchall()
+        metadatos = cur.execute(
+            """
+            SELECT titulo_portada, subtitulo_portada, updated_at
+            FROM informe_v2_metadatos
+            WHERE expediente_id = ?
+            """,
+            (expediente_id,),
+        ).fetchone()
     finally:
         conn.close()
 
@@ -614,10 +658,15 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     anexo_f = {fila["clave"]: fila for fila in filas}["anexo_f_mediciones"]
     assert anexo_f["contenido"] == "Anexo F manual definitivo"
     assert anexo_f["editado_manual"] == 1
+    assert metadatos["titulo_portada"] == "Título personalizado de portada"
+    assert metadatos["subtitulo_portada"] == "Subtítulo personalizado de portada"
+    assert metadatos["updated_at"]
 
     response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
 
     assert response.status_code == 200
+    assert "Título personalizado de portada" in response.text
+    assert "Subtítulo personalizado de portada" in response.text
     assert "Resumen manual definitivo" in response.text
     assert "Anexo E manual definitivo" in response.text
     assert "Anexo F manual definitivo" in response.text
@@ -1705,6 +1754,8 @@ def test_informe_v2_exporta_respaldo_json(isolated_import):
     data = response.json()
     assert data["expediente"]["id"] == expediente_id
     assert data["fecha_exportacion"]
+    assert data["metadatos"]["titulo_portada"] == ""
+    assert data["metadatos"]["subtitulo_portada"] == ""
     por_clave = {capitulo["clave"]: capitulo for capitulo in data["capitulos"]}
     assert por_clave["resumen_ejecutivo"]["contenido"] == "Contenido para respaldo"
 
@@ -1739,6 +1790,19 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
                 "pericial-editor-1",
             ),
         )
+        cur.execute(
+            """
+            INSERT INTO informe_v2_metadatos (
+                expediente_id, titulo_portada, subtitulo_portada, updated_at
+            )
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "Título PDF personalizado",
+                "Subtítulo PDF personalizado",
+            ),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -1747,6 +1811,8 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
 
     def fake_pdf_bytes(request, contexto):
         capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
         return b"%PDF-1.4\n%PDF test\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
@@ -1767,6 +1833,11 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
     assert "Informe-EXP-PER-WB-1.pdf" in pdf_response.headers["content-disposition"]
 
     contexto = capturado["contexto"]
+    html = capturado["html"]
+    assert "Título PDF personalizado" in html
+    assert "Subtítulo PDF personalizado" in html
+    assert "Sistema Pericial" not in html
+    assert "Informe V2" not in html
     resumen = [
         capitulo
         for capitulo in contexto["capitulos"]
@@ -1774,6 +1845,10 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
     ][0]
     assert resumen["contenido"] == "Resumen redactado por el técnico"
     assert contexto["capitulos_guardados"] == 1
+    assert contexto["informe"]["titulo_portada"] == "Título PDF personalizado"
+    assert contexto["informe"]["subtitulo_portada"] == "Subtítulo PDF personalizado"
+    assert contexto["informe"]["titulo_portada_pdf"] == "Título PDF personalizado"
+    assert contexto["informe"]["subtitulo_portada_pdf"] == "Subtítulo PDF personalizado"
     assert contexto["indice"][0]["titulo"] == "Portada"
     assert contexto["indice"][-1]["titulo"] == "Justificación de mediciones"
     assert contexto["conclusiones"]["titulo"] == "Conclusiones"
@@ -1826,6 +1901,10 @@ def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
     assert contexto["anexos"]["justificacion_mediciones"]["contenido_pdf"].startswith("F.1 Criterios de medición")
     assert contexto["anexos"]["justificacion_mediciones"]["guardado"] is False
     assert contexto["pdf_mediciones_anexo_f"] is None
+    assert contexto["informe"]["titulo_portada"] == ""
+    assert contexto["informe"]["subtitulo_portada"] == ""
+    assert contexto["informe"]["titulo_portada_pdf"].startswith("DAÑOS POR ENTRADA DE AGUA DE LLUVIA")
+    assert contexto["informe"]["subtitulo_portada_pdf"].startswith("Análisis técnico de los daños observados")
 
 
 def test_pdf_v2_anexa_pdf_mediciones_tras_anexo_f(
@@ -2607,7 +2686,9 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
 
     assert "13. Conclusiones" in html
     assert "Dictamen técnico pericial" in html
-    assert "Informe Pericial<br>de Daños Constructivos" in html
+    assert "DAÑOS POR ENTRADA DE AGUA DE LLUVIA" in html
+    assert "Análisis técnico de los daños observados" in html
+    assert "INFORME PERICIAL</span>" not in html
     assert "Arquitecto Técnico" in html
     assert "toc-row is-annex" in html
     assert "Sistema Pericial" not in html

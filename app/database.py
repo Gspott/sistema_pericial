@@ -493,6 +493,28 @@ def asegurar_tabla_informe_v2_capitulo_versiones(cur):
     )
 
 
+def asegurar_tabla_informe_v2_metadatos(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS informe_v2_metadatos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL UNIQUE,
+            titulo_portada TEXT,
+            subtitulo_portada TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_informe_v2_metadatos_expediente
+        ON informe_v2_metadatos (expediente_id)
+        """
+    )
+
+
 def asegurar_tabla_expediente_documentos(cur):
     cur.execute(
         """
@@ -1940,6 +1962,7 @@ def init_db():
     asegurar_tablas_actuaciones_reparacion(cur)
     asegurar_tabla_informe_v2_capitulos(cur)
     asegurar_tabla_informe_v2_capitulo_versiones(cur)
+    asegurar_tabla_informe_v2_metadatos(cur)
     asegurar_tabla_expediente_documentos(cur)
 
     cur.execute(
