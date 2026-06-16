@@ -2,89 +2,594 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <link rel="stylesheet" href="/static/mobile.css?v=10">
-    <title>Imprimir factura {{ factura.numero_factura or factura.id }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Factura {{ factura.numero_factura or factura.id }}</title>
+    <style>
+        :root {
+            color: #1f2933;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        body {
+            margin: 0;
+            background: #eef1f4;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            padding: 18px;
+        }
+
+        .button {
+            border: 1px solid #1f2933;
+            border-radius: 4px;
+            background: #1f2933;
+            color: #fff;
+            cursor: pointer;
+            font: inherit;
+            padding: 9px 14px;
+            text-decoration: none;
+        }
+
+        .button.secondary {
+            background: #fff;
+            color: #1f2933;
+        }
+
+        .document {
+            box-sizing: border-box;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto 24px;
+            padding: 22mm;
+            background: #fff;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+        }
+
+        .header {
+            border-bottom: 2px solid #1f2933;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 22px;
+            letter-spacing: 0;
+        }
+
+        h2 {
+            color: #2f3a45;
+            font-size: 13px;
+            margin: 0 0 8px;
+            text-transform: uppercase;
+        }
+
+        h3 {
+            color: #374151;
+            font-size: 13px;
+            margin: 0 0 5px;
+        }
+
+        p {
+            margin: 5px 0;
+        }
+
+        .section {
+            break-inside: avoid;
+            line-height: 1.45;
+            page-break-inside: avoid;
+        }
+
+        .doc-card {
+            border: 1px solid #d8dee6;
+            margin: 10px 0;
+            padding: 11px 12px;
+        }
+
+        .doc-card.soft {
+            background: #fbfcfd;
+        }
+
+        .doc-card.highlight {
+            border-color: #b8c1cc;
+            background: #f7f9fb;
+        }
+
+        .doc-card h2 {
+            border-bottom: 1px solid #e5e9ef;
+            padding-bottom: 5px;
+        }
+
+        .document-note {
+            background: #f6f8fa;
+            border-left: 3px solid #1f2933;
+            color: #374151;
+            margin: 14px 0 0;
+            padding: 9px 12px;
+        }
+
+        .issuer {
+            color: #1f2937;
+            font-size: 13px;
+            margin-bottom: 22px;
+            margin-top: 10px;
+        }
+
+        .issuer-row,
+        .row {
+            display: flex;
+            gap: 24px;
+            justify-content: space-between;
+            line-height: 1.45;
+        }
+
+        .col {
+            flex: 1;
+        }
+
+        .col.right {
+            text-align: right;
+        }
+
+        .label {
+            color: #6b7280;
+            font-size: 11px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+
+        .value {
+            color: #111827;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            border: 1px solid #d8dee6;
+            border-radius: 3px;
+            color: #374151;
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            text-transform: uppercase;
+        }
+
+        .summary-card {
+            align-items: end;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr auto;
+        }
+
+        .summary-total {
+            color: #111827;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.1;
+            text-align: right;
+        }
+
+        .summary-meta {
+            color: #4b5563;
+            font-size: 12px;
+            margin-top: 4px;
+            text-align: right;
+        }
+
+        .fees-table {
+            border-collapse: collapse;
+            margin: 8px 0 12px;
+            width: 100%;
+        }
+
+        .fees-table th,
+        .fees-table td {
+            border: 1px solid #d8dee6;
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .fees-table th {
+            background: #f3f6f8;
+            color: #374151;
+            font-size: 11px;
+        }
+
+        .fees-table .number,
+        .amount-row strong {
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .service-description {
+            color: #374151;
+            display: block;
+            font-size: 12px;
+            line-height: 1.35;
+            margin-top: 3px;
+        }
+
+        .amounts {
+            border: 1px solid #d8dee6;
+            margin-top: 8px;
+        }
+
+        .amount-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            padding: 9px 12px;
+        }
+
+        .amount-row + .amount-row {
+            border-top: 1px solid #e5e9ef;
+        }
+
+        .amount-row.total-row {
+            background: #f3f6f8;
+            font-weight: 700;
+        }
+
+        .amount-row.pending-row {
+            background: #fff7ed;
+            border-top-color: #fed7aa;
+            color: #7c2d12;
+            font-weight: 700;
+        }
+
+        .total {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .payment-status {
+            border-left: 3px solid #1f2933;
+            background: #f7f9fb;
+            margin-top: 9px;
+            padding: 8px 11px;
+        }
+
+        .payment-status.pending {
+            background: #fff7ed;
+            border-left-color: #c2410c;
+            color: #7c2d12;
+        }
+
+        .conditions-text,
+        .pre-line {
+            white-space: pre-line;
+        }
+
+        .conditions-text {
+            font-size: 12px;
+            line-height: 1.45;
+            margin: 0 0 8px;
+        }
+
+        .small-note {
+            color: #4b5563;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
+        @page {
+            size: A4;
+            margin: 16mm;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .document {
+                box-shadow: none;
+                margin: 0;
+                min-height: auto;
+                padding: 0;
+                width: auto;
+            }
+        }
+
+        @media screen and (max-width: 760px) {
+            .toolbar {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .document {
+                margin: 0;
+                min-height: auto;
+                padding: 18px;
+                width: auto;
+            }
+
+            .row,
+            .issuer-row {
+                display: block;
+            }
+
+            .col.right {
+                margin-top: 8px;
+                text-align: left;
+            }
+
+            .summary-card {
+                display: block;
+            }
+
+            .summary-total,
+            .summary-meta {
+                margin-top: 8px;
+                text-align: left;
+            }
+
+            .fees-table {
+                font-size: 12px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="page">
-        <div class="card">
-            <h1>Factura {{ factura.numero_factura or 'Borrador' }}</h1>
-            <p><strong>Fecha:</strong> {{ factura.fecha }}</p>
-            <p><strong>Estado:</strong> {{ factura.estado }}</p>
-            <div class="actions">
-                <button class="boton" type="button" onclick="window.print()">Guardar PDF</button>
-                <a class="boton secundario" href="/facturacion/facturas/{{ factura.id }}">Volver</a>
+    {% set lineas = lineas | default([]) %}
+    {% set cobros = cobros | default([]) %}
+    {% set total_cobrado = total_cobrado | default(0) %}
+    {% set pendiente_pago = (factura.total or 0) - (total_cobrado or 0) %}
+    {% if pendiente_pago < 0.01 and pendiente_pago > -0.01 %}
+        {% set pendiente_pago = 0 %}
+    {% endif %}
+    {% set tiene_pagos = cobros | length > 0 %}
+    {% set tiene_pendiente = pendiente_pago > 0 %}
+    {% macro es_numero(valor, mostrar_decimales=true) -%}
+        {%- set bruto = format_money(valor) -%}
+        {%- set signo = '-' if bruto.startswith('-') else '' -%}
+        {%- set limpio = bruto[1:] if signo else bruto -%}
+        {%- set partes = limpio.split('.') -%}
+        {%- set entero = partes[0] -%}
+        {%- set decimal = partes[1] if partes | length > 1 else '00' -%}
+        {%- set largo = entero | length -%}
+        {%- if largo > 6 -%}
+            {%- set entero_es = entero[:-6] ~ '.' ~ entero[-6:-3] ~ '.' ~ entero[-3:] -%}
+        {%- elif largo > 3 -%}
+            {%- set entero_es = entero[:-3] ~ '.' ~ entero[-3:] -%}
+        {%- else -%}
+            {%- set entero_es = entero -%}
+        {%- endif -%}
+        {%- if mostrar_decimales or decimal != '00' -%}
+            {{- signo ~ entero_es ~ ',' ~ decimal -}}
+        {%- else -%}
+            {{- signo ~ entero_es -}}
+        {%- endif -%}
+    {%- endmacro %}
+    {% macro dinero(valor) -%}{{ es_numero(valor, true) }} €{%- endmacro %}
+    {% macro porcentaje(valor) -%}{{ es_numero(valor, false) }} %{%- endmacro %}
+    {% macro cantidad(valor) -%}{{ es_numero(valor, false) }}{%- endmacro %}
+
+    <div class="toolbar no-print">
+        <button class="button" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+        <a class="button secondary" href="/facturacion/facturas/{{ factura.id }}">Volver a factura</a>
+    </div>
+
+    <main class="document">
+        <header class="header">
+            <h1>FACTURA</h1>
+            <div class="issuer">
+                <div class="issuer-row">
+                    <span><strong>{{ config.nombre_fiscal or 'Carlos Blanco' }}</strong></span>
+                    <span>{{ config.nif_cif or 'NIF sin indicar' }}</span>
+                </div>
+                <div class="issuer-row">
+                    <span>{{ config.direccion or 'Dirección fiscal sin indicar' }}</span>
+                    <span>{{ config.codigo_postal or '' }} {{ config.ciudad or '' }}{% if config.provincia %}, {{ config.provincia }}{% endif %}</span>
+                </div>
+                <div class="issuer-row">
+                    <span>{{ config.email or 'Email sin indicar' }}</span>
+                    <span>{{ config.telefono or 'Teléfono sin indicar' }}</span>
+                </div>
             </div>
-        </div>
+            <div class="row">
+                <div class="col">
+                    <div class="label">Número de factura</div>
+                    <div class="value">{{ factura.numero_factura or 'Borrador sin número' }}</div>
+                </div>
+                <div class="col">
+                    <div class="label">Fecha</div>
+                    <div class="value">{{ factura.fecha or '-' }}</div>
+                </div>
+                <div class="col right">
+                    <div class="label">Estado</div>
+                    <div class="value"><span class="status-badge">{{ factura.estado or '-' }}</span></div>
+                </div>
+            </div>
+            <p class="document-note">Documento de factura por servicios profesionales. Los importes se muestran en euros e incluyen los impuestos y retenciones indicados.</p>
+        </header>
 
-        <div class="card">
-            <h2>Emisor</h2>
-            <p><strong>Nombre fiscal:</strong> {{ config.nombre_fiscal or 'Sin indicar' }}</p>
-            <p><strong>NIF / CIF:</strong> {{ config.nif_cif or 'Sin indicar' }}</p>
-            <p><strong>Dirección:</strong> {{ config.direccion or 'Sin indicar' }}</p>
-            <p><strong>Código postal:</strong> {{ config.codigo_postal or 'Sin indicar' }}</p>
-            <p><strong>Ciudad:</strong> {{ config.ciudad or 'Sin indicar' }}</p>
-            <p><strong>Provincia:</strong> {{ config.provincia or 'Sin indicar' }}</p>
-            <p><strong>Email:</strong> {{ config.email or 'Sin indicar' }}</p>
-            <p><strong>Teléfono:</strong> {{ config.telefono or 'Sin indicar' }}</p>
-        </div>
+        <section class="section doc-card highlight">
+            <div class="summary-card">
+                <div>
+                    <h2>Resumen de factura</h2>
+                    <p class="conditions-text">{{ factura.concepto_general or 'Servicios profesionales' }}</p>
+                    {% if factura.tipo_factura == 'rectificativa' %}
+                    <p class="small-note">Factura rectificativa{% if factura.motivo_rectificacion %}: {{ factura.motivo_rectificacion }}{% endif %}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="summary-total">{{ dinero(factura.total) }}</div>
+                    <div class="summary-meta">Base {{ dinero(factura.base_imponible) }} · IVA {{ dinero(factura.iva) }}{% if factura.irpf and factura.irpf > 0 %} · IRPF {{ dinero(factura.irpf) }}{% endif %}</div>
+                </div>
+            </div>
+        </section>
 
-        <div class="card">
-            <h2>Cliente</h2>
-            <p><strong>Cliente:</strong> {{ nombre_cliente(factura) }}</p>
-            <p><strong>NIF / CIF:</strong> {{ factura.cliente_nif_cif or 'Sin indicar' }}</p>
-            <p><strong>Dirección:</strong> {{ factura.cliente_direccion or 'Sin indicar' }}</p>
-            <p><strong>Email:</strong> {{ factura.cliente_email or 'Sin indicar' }}</p>
-        </div>
+        <section class="section">
+            <h2>Datos del cliente</h2>
+            <div class="row">
+                <div class="col">
+                    <div class="label">Cliente</div>
+                    <div class="value">{{ nombre_cliente(factura) }}</div>
+                </div>
+                <div class="col right">
+                    <div class="label">NIF / CIF</div>
+                    <div class="value">{{ factura.cliente_nif_cif or 'Sin indicar' }}</div>
+                </div>
+            </div>
+            <p><span class="label">Dirección</span><br>{{ factura.cliente_direccion or 'Sin indicar' }}{% if factura.cliente_codigo_postal or factura.cliente_ciudad or factura.cliente_provincia %}<br>{{ factura.cliente_codigo_postal or '' }} {{ factura.cliente_ciudad or '' }}{% if factura.cliente_provincia %}, {{ factura.cliente_provincia }}{% endif %}{% endif %}</p>
+            <p><span class="label">Email</span><br>{{ factura.cliente_email or 'Sin indicar' }}</p>
+        </section>
 
-        <div class="card">
-            <h2>Conceptos</h2>
+        <section class="section doc-card soft">
+            <h2>Referencias del encargo</h2>
+            <div class="row">
+                <div class="col">
+                    <div class="label">Propuesta</div>
+                    <div class="value">{{ factura.numero_propuesta or '-' }}</div>
+                </div>
+                <div class="col right">
+                    <div class="label">Expediente</div>
+                    <div class="value">{{ factura.numero_expediente or '-' }}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section doc-card highlight">
+            <h2>Conceptos facturados</h2>
             {% if lineas %}
-            <table>
+            <table class="fees-table">
                 <thead>
                     <tr>
                         <th>Concepto</th>
-                        <th>Base</th>
-                        <th>IVA</th>
-                        {% if factura.irpf and factura.irpf > 0 %}<th>Retención IRPF</th>{% endif %}
-                        <th>Total</th>
+                        <th class="number">Cantidad</th>
+                        <th class="number">Precio</th>
+                        <th class="number">Base</th>
+                        <th class="number">IVA</th>
+                        {% if factura.irpf and factura.irpf > 0 %}<th class="number">IRPF</th>{% endif %}
+                        <th class="number">Total</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for linea in lineas %}
                     <tr>
-                        <td><strong>{{ linea.concepto }}</strong>{% if linea.descripcion %}<br>{{ linea.descripcion }}{% endif %}</td>
-                        <td>{{ format_money(linea.subtotal) }} €</td>
-                        <td>{{ format_money(linea.iva_importe) }} €</td>
-                        {% if factura.irpf and factura.irpf > 0 %}<td>{{ format_money(linea.irpf_importe) }} €</td>{% endif %}
-                        <td>{{ format_money(linea.total) }} €</td>
+                        <td>
+                            <strong>{{ linea.concepto }}</strong>
+                            {% if linea.descripcion %}<span class="service-description pre-line">{{ linea.descripcion }}</span>{% endif %}
+                        </td>
+                        <td class="number">{{ cantidad(linea.cantidad) }}</td>
+                        <td class="number">{{ dinero(linea.precio_unitario) }}</td>
+                        <td class="number">{{ dinero(linea.subtotal) }}</td>
+                        <td class="number">{{ dinero(linea.iva_importe) }}<br><span class="small-note">{{ porcentaje(linea.iva_porcentaje) }}</span></td>
+                        {% if factura.irpf and factura.irpf > 0 %}<td class="number">{{ dinero(linea.irpf_importe) }}<br><span class="small-note">{{ porcentaje(linea.irpf_porcentaje) }}</span></td>{% endif %}
+                        <td class="number">{{ dinero(linea.total) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            {% else %}
+            <p class="conditions-text">Esta factura no tiene líneas detalladas.</p>
             {% endif %}
-            <div class="inner-card">
-                <p><strong>Base imponible:</strong> {{ format_money(factura.base_imponible) }} €</p>
-                <p><strong>IVA:</strong> {{ format_money(factura.iva) }} €</p>
-                {% if factura.irpf and factura.irpf > 0 %}<p><strong>Retención IRPF:</strong> {{ format_money(factura.irpf) }} €</p>{% endif %}
-                <p><strong>Total:</strong> {{ format_money(factura.total) }} €</p>
-                <p><strong>Cobrado:</strong> {{ format_money(total_cobrado) }} €</p>
+            <div class="amounts">
+                <div class="amount-row">
+                    <span>Base imponible</span>
+                    <strong>{{ dinero(factura.base_imponible) }}</strong>
+                </div>
+                <div class="amount-row">
+                    <span>IVA repercutido</span>
+                    <strong>{{ dinero(factura.iva) }}</strong>
+                </div>
+                {% if factura.irpf and factura.irpf > 0 %}
+                <div class="amount-row">
+                    <span>Retención IRPF</span>
+                    <strong>-{{ dinero(factura.irpf) }}</strong>
+                </div>
+                {% endif %}
+                <div class="amount-row total-row">
+                    <span>Total factura</span>
+                    <strong class="total">{{ dinero(factura.total) }}</strong>
+                </div>
             </div>
-        </div>
+        </section>
+
+        <section class="section doc-card {% if tiene_pendiente %}highlight{% else %}soft{% endif %}">
+            <h2>Resumen de pagos</h2>
+            <div class="amounts">
+                <div class="amount-row">
+                    <span>Total factura</span>
+                    <strong>{{ dinero(factura.total) }}</strong>
+                </div>
+                <div class="amount-row">
+                    <span>Pagos recibidos</span>
+                    <strong>{{ dinero(total_cobrado) }}</strong>
+                </div>
+                <div class="amount-row {% if tiene_pendiente %}pending-row{% else %}total-row{% endif %}">
+                    <span>{% if tiene_pendiente %}Pendiente de pago{% else %}Pendiente de pago{% endif %}</span>
+                    <strong>{{ dinero(pendiente_pago) }}</strong>
+                </div>
+            </div>
+            {% if tiene_pendiente %}
+            <div class="payment-status pending">
+                <strong>Pendiente de pago: {{ dinero(pendiente_pago) }}</strong>
+            </div>
+            {% else %}
+            <div class="payment-status">
+                <strong>Factura sin importe pendiente.</strong>
+            </div>
+            {% endif %}
+
+            {% if tiene_pagos %}
+            <table class="fees-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th class="number">Importe</th>
+                        <th>Método</th>
+                        <th>Nota</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cobro in cobros %}
+                    <tr>
+                        <td>{{ cobro.fecha }}</td>
+                        <td class="number">{{ dinero(cobro.importe) }}</td>
+                        <td>{{ cobro.metodo or '-' }}</td>
+                        <td>{{ cobro.notas or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="small-note">No constan pagos registrados en esta factura.</p>
+            {% endif %}
+        </section>
+
+        {% if factura.notas %}
+        <section class="section doc-card soft">
+            <h2>Observaciones</h2>
+            <p class="conditions-text">{{ factura.notas }}</p>
+        </section>
+        {% endif %}
 
         {% if factura.hash_factura %}
-        <div class="card">
+        <section class="section doc-card soft">
             <h2>Datos técnicos de facturación</h2>
-            <p><strong>Hash factura:</strong> {{ factura.hash_factura[:16] }}...</p>
+            <p><span class="label">Hash factura</span><br>{{ factura.hash_factura[:16] }}...</p>
             {% if factura.hash_anterior %}
-            <p><strong>Hash anterior:</strong> {{ factura.hash_anterior[:16] }}...</p>
+            <p><span class="label">Hash anterior</span><br>{{ factura.hash_anterior[:16] }}...</p>
             {% endif %}
-            <p><strong>Estado VeriFactu interno:</strong> {{ factura.verifactu_estado or 'generado' }}</p>
-            <p><strong>QR interno:</strong> <small>{{ factura.qr_payload or '' }}</small></p>
-            <p class="helper-text">Registro técnico interno preparado para futura compatibilidad VeriFactu. No enviado a AEAT.</p>
-        </div>
+            <p><span class="label">Estado VeriFactu interno</span><br>{{ factura.verifactu_estado or 'generado' }}</p>
+            {% if factura.qr_payload %}<p class="small-note">{{ factura.qr_payload }}</p>{% endif %}
+            <p class="small-note">Registro técnico interno preparado para futura compatibilidad VeriFactu. No enviado a AEAT.</p>
+        </section>
         {% endif %}
-    </div>
+    </main>
 </body>
 </html>

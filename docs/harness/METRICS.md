@@ -33,9 +33,9 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 
 | Metrica | Valor |
 |---|---|
-| Smoke tests | 154 |
+| Smoke tests | 156 |
 | Planes activos | 1 |
-| Planes completados | 88 |
+| Planes completados | 89 |
 | Failures documentados | 5 |
 | Patterns reutilizables | 10 |
 | Task Packs | 10 |
