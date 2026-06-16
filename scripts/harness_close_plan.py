@@ -11,6 +11,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.harness_plan_guard import validate_plan_for_close
+
 ACTIVE_DIR = ROOT / "docs" / "harness" / "PLANS" / "active"
 COMPLETED_DIR = ROOT / "docs" / "harness" / "PLANS" / "completed"
 CURRENT_PLAN_PATH = ROOT / "docs" / "harness" / "STATE" / "current_plan.txt"
@@ -52,6 +57,12 @@ def main() -> int:
         return 1
     if destination.exists():
         print(f"[FAIL] Ya existe en completed: {destination.relative_to(ROOT)}", file=sys.stderr)
+        return 1
+
+    quality_errors = validate_plan_for_close(source)
+    if quality_errors:
+        for error in quality_errors:
+            print(f"[FAIL] {error}", file=sys.stderr)
         return 1
 
     if not args.no_status_line:

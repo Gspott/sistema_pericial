@@ -7,8 +7,13 @@ import re
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.harness_plan_guard import audit_completed_plan_quality
+
+
 CANONICAL_ROL = "rol_final = registro.rol_patologia_observado or registro.rol_patologia_biblioteca"
 OBSOLETE_SW_VERSION = "/sw.js?v=" + "4"
 ALLOWED_STATES = {
@@ -409,6 +414,13 @@ def check_active_plan_drift(warnings: list[str]) -> None:
             )
 
 
+def check_completed_plan_quality(errors: list[str], warnings: list[str]) -> None:
+    completed_dir = ROOT / "docs" / "harness" / "PLANS" / "completed"
+    plan_errors, plan_warnings = audit_completed_plan_quality(completed_dir)
+    errors.extend(plan_errors)
+    warnings.extend(plan_warnings)
+
+
 def check_adr_readme(errors: list[str]) -> None:
     adr_dir = ROOT / "docs" / "adr"
     readme = adr_dir / "README.md"
@@ -462,6 +474,7 @@ def main() -> int:
     check_pwa_version_drift(warnings)
     check_monolith_size(warnings)
     check_active_plan_drift(warnings)
+    check_completed_plan_quality(errors, warnings)
 
     print("Auditoria documental")
     print(f"- Markdown revisados: {len(files)}")
