@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Agenda de emails programados</title>
+    <style>
+        body {
+            background: #eef1f5;
+        }
+
+        .crm-agenda {
+            max-width: none;
+            width: min(1760px, calc(100vw - 32px));
+        }
+
+        .agenda-topbar,
+        .agenda-zone {
+            border: 1px solid #d3d9e2;
+            background: #fff;
+            border-radius: 8px;
+        }
+
+        .agenda-topbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+
+        .agenda-topbar h1 {
+            margin: 0;
+            font-size: 1.22rem;
+        }
+
+        .agenda-topbar p {
+            margin: 3px 0 0;
+            color: #536273;
+            font-size: .82rem;
+        }
+
+        .agenda-grid {
+            display: grid;
+            grid-template-columns: minmax(680px, 1fr) 460px;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .agenda-zone {
+            padding: 12px;
+            min-width: 0;
+        }
+
+        .agenda-panel {
+            position: sticky;
+            top: 10px;
+            max-height: calc(100vh - 22px);
+            overflow: auto;
+        }
+
+        .agenda-alert {
+            border-radius: 8px;
+            padding: 9px 12px;
+            margin: 0 0 10px;
+        }
+
+        .agenda-alert-ok {
+            background: #e8f6ee;
+            border: 1px solid #b8dfc8;
+        }
+
+        .agenda-alert-error {
+            background: #fff1f1;
+            border: 1px solid #f0b9b9;
+        }
+
+        .agenda-table-wrap {
+            overflow: auto;
+            border: 1px solid #d9dee7;
+            border-radius: 8px;
+            background: #fff;
+            max-height: calc(100vh - 150px);
+        }
+
+        .agenda-table {
+            width: 100%;
+            min-width: 920px;
+            border-collapse: collapse;
+            font-size: .82rem;
+        }
+
+        .agenda-table th,
+        .agenda-table td {
+            border-bottom: 1px solid #e6eaf0;
+            padding: 7px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .agenda-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f0f4f8;
+            color: #27374c;
+            font-size: .7rem;
+            text-transform: uppercase;
+        }
+
+        .agenda-table tr.is-selected td {
+            background: #eef6ff;
+        }
+
+        .agenda-muted {
+            color: #637083;
+            font-size: .76rem;
+        }
+
+        .agenda-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: #eef3f8;
+            color: #26384f;
+            font-size: .73rem;
+            white-space: nowrap;
+        }
+
+        .agenda-badge-warning {
+            background: #fff5d8;
+            color: #684b00;
+        }
+
+        .agenda-badge-programmed {
+            background: #ece8ff;
+            color: #3b2a75;
+        }
+
+        .agenda-actions,
+        .agenda-actions-stack {
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .agenda-actions .boton,
+        .agenda-actions button {
+            min-height: 28px;
+            padding: 5px 8px;
+            font-size: .75rem;
+        }
+
+        .agenda-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+            padding: 9px;
+            border: 1px solid #e1e6ee;
+            border-radius: 7px;
+            background: #f8fafc;
+            margin-bottom: 10px;
+            font-size: .8rem;
+        }
+
+        .agenda-summary .full {
+            grid-column: 1 / -1;
+        }
+
+        .agenda-form {
+            display: grid;
+            gap: 8px;
+        }
+
+        .agenda-form label {
+            margin-bottom: 3px;
+            font-size: .75rem;
+            color: #465568;
+        }
+
+        .agenda-form input,
+        .agenda-form textarea {
+            min-height: 34px;
+            font-size: .86rem;
+        }
+
+        .agenda-form textarea {
+            min-height: 300px;
+            resize: vertical;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: .82rem;
+            line-height: 1.38;
+        }
+
+        .agenda-divider {
+            height: 1px;
+            background: #e3e8ef;
+            margin: 12px -12px;
+        }
+
+        .agenda-history {
+            display: grid;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .agenda-history-row {
+            border-top: 1px solid #e5eaf1;
+            padding-top: 6px;
+            font-size: .78rem;
+        }
+
+        .agenda-empty-panel {
+            min-height: 240px;
+            display: grid;
+            place-items: center;
+            border: 1px dashed #cbd4df;
+            border-radius: 8px;
+            color: #637083;
+            text-align: center;
+            padding: 18px;
+        }
+
+        @media (max-width: 1120px) {
+            .agenda-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .agenda-panel {
+                position: static;
+                max-height: none;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .crm-agenda {
+                width: auto;
+            }
+
+            .agenda-topbar {
+                display: grid;
+            }
+
+            .agenda-summary {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page crm-agenda">
+        {% if mensaje %}
+        <div class="agenda-alert agenda-alert-ok">{{ mensaje }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="agenda-alert agenda-alert-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="agenda-topbar">
+            <div>
+                <h1>Agenda de emails programados</h1>
+                <p>Bandeja manual para revisar, confirmar, reprogramar o cancelar envíos preparados.</p>
+            </div>
+            <div class="agenda-actions">
+                <a class="boton secundario" href="/crm/prospeccion">Volver al Workbench</a>
+                <a class="boton secundario" href="/emails">Emails enviados</a>
+            </div>
+        </div>
+
+        <div class="agenda-grid">
+            <main class="agenda-zone">
+                <div class="agenda-table-wrap">
+                    <table class="agenda-table">
+                        <thead>
+                            <tr>
+                                <th>Programado</th>
+                                <th>Destinatario</th>
+                                <th>Lead</th>
+                                <th>Plantilla / tipo</th>
+                                <th>Asunto</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if programados %}
+                            {% for email in programados %}
+                            <tr class="{% if selected_email and selected_email.id == email.id %}is-selected{% endif %}">
+                                <td>{{ email.fecha_programada or '-' }}</td>
+                                <td>
+                                    {% if email.destinatario %}
+                                    <a href="mailto:{{ email.destinatario }}">{{ email.destinatario }}</a>
+                                    {% else %}
+                                    <span class="agenda-badge agenda-badge-warning">Sin destinatario</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if email.lead_nombre %}
+                                    <strong>{{ email.lead_nombre }}</strong>
+                                    {% else %}
+                                    <span class="agenda-badge agenda-badge-warning">Sin lead</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ email.plantilla_nombre or email.tipo }}
+                                    <div class="agenda-muted">{{ email.tipo }}</div>
+                                </td>
+                                <td>{{ email.asunto }}</td>
+                                <td><span class="agenda-badge agenda-badge-programmed">{{ email.estado }}</span></td>
+                                <td>
+                                    <div class="agenda-actions">
+                                        <a class="boton" href="/crm/prospeccion/agenda?email_id={{ email.id }}">Revisar</a>
+                                        {% if email.lead_id %}
+                                        <a class="boton secundario" href="/crm/prospeccion?lead_id={{ email.lead_id }}">Lead</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td colspan="7"><p class="empty">No hay emails programados pendientes.</p></td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+
+            <aside class="agenda-zone agenda-panel">
+                <h2>Revisión</h2>
+                {% if selected_email %}
+                <div class="agenda-summary">
+                    <div class="full">
+                        <strong>{{ selected_email.asunto }}</strong>
+                        <div class="agenda-muted">{{ selected_email.plantilla_nombre or selected_email.tipo }}</div>
+                    </div>
+                    <div><span class="agenda-muted">Programado</span><br>{{ selected_email.fecha_programada or '-' }}</div>
+                    <div><span class="agenda-muted">Estado</span><br>{{ selected_email.estado }}</div>
+                    <div><span class="agenda-muted">Destinatario</span><br>{{ selected_email.destinatario or '-' }}</div>
+                    <div><span class="agenda-muted">Lead</span><br>{{ selected_email.lead_nombre or '-' }}</div>
+                    <div><span class="agenda-muted">Teléfono</span><br>{{ selected_email.lead_telefono or '-' }}</div>
+                    <div><span class="agenda-muted">Estado lead</span><br>{{ selected_email.lead_estado or '-' }}</div>
+                </div>
+
+                {% if not selected_email.tiene_destinatario %}
+                <div class="agenda-alert agenda-alert-error">Este email programado no tiene destinatario. No se puede confirmar.</div>
+                {% endif %}
+                {% if not selected_email.tiene_lead %}
+                <div class="agenda-alert agenda-alert-error">No hay lead asociado. Se puede revisar el registro, pero no se aplicarán tareas comerciales.</div>
+                {% endif %}
+
+                <form class="agenda-form" method="post" action="/crm/prospeccion/agenda/{{ selected_email.id }}/confirmar">
+                    <div>
+                        <label for="agenda-asunto">Asunto final</label>
+                        <input id="agenda-asunto" name="asunto" type="text" value="{{ selected_email.asunto }}">
+                    </div>
+                    <div>
+                        <label for="agenda-cuerpo">Cuerpo final editable</label>
+                        <textarea id="agenda-cuerpo" name="cuerpo">{{ selected_email.cuerpo }}</textarea>
+                    </div>
+                    <button class="boton" type="submit" {% if not selected_email.tiene_destinatario %}disabled{% endif %}>Confirmar envío</button>
+                    <div>
+                        <label for="agenda-fecha">Nueva fecha/hora</label>
+                        <input id="agenda-fecha" name="fecha_programada" type="datetime-local" value="{{ selected_email.fecha_programada }}">
+                    </div>
+                    <div class="agenda-actions-stack">
+                        <button class="boton secundario" type="submit" formaction="/crm/prospeccion/agenda/{{ selected_email.id }}/reprogramar">Reprogramar</button>
+                        <button class="boton secundario" type="submit" formaction="/crm/prospeccion/agenda/{{ selected_email.id }}/cancelar">Cancelar</button>
+                        {% if selected_email.lead_id %}
+                        <a class="boton secundario" href="/crm/prospeccion?lead_id={{ selected_email.lead_id }}">Volver al lead</a>
+                        {% endif %}
+                    </div>
+                </form>
+
+                <div class="agenda-divider"></div>
+
+                <h3>Historial breve</h3>
+                <div class="agenda-history">
+                    {% if historial and historial.emails %}
+                    {% for email_log in historial.emails %}
+                    <div class="agenda-history-row">
+                        <strong>{{ email_log.estado }}</strong> · {{ email_log.tipo }}<br>
+                        <span class="agenda-muted">{{ email_log.fecha_envio }} · {{ email_log.asunto }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% if historial and historial.contactos %}
+                    {% for contacto in historial.contactos %}
+                    <div class="agenda-history-row">
+                        <strong>{{ contacto.tipo }}</strong> · {{ contacto.resultado or '-' }}<br>
+                        <span class="agenda-muted">{{ contacto.fecha }} · {{ contacto.resumen or '-' }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% if historial and historial.tareas %}
+                    {% for tarea in historial.tareas %}
+                    <div class="agenda-history-row">
+                        <strong>{{ tarea.estado }}</strong> · {{ tarea.titulo }}<br>
+                        <span class="agenda-muted">{{ tarea.fecha_programada or 'Sin fecha' }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="agenda-empty-panel">Selecciona un email programado para revisar el texto final y confirmar el envío manualmente.</div>
+                {% endif %}
+            </aside>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

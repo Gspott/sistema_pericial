@@ -7,6 +7,7 @@
     </div>
     <a class="drawer-link {% if path.startswith('/dashboard') or path == '/' %}active{% endif %}" href="/dashboard">Dashboard</a>
     <a class="drawer-link {% if path.startswith('/leads') %}active{% endif %}" href="/leads">Leads</a>
+    <a class="drawer-link {% if path.startswith('/crm/prospeccion') %}active{% endif %}" href="/crm/prospeccion">Prospección CRM</a>
     <a class="drawer-link {% if path.startswith('/propuestas') %}active{% endif %}" href="/propuestas">Propuestas</a>
     <a class="drawer-link {% if path == '/emails' %}active{% endif %}" href="/emails">Emails enviados</a>
     <a class="drawer-link {% if path.startswith('/emails/nuevo') %}active{% endif %}" href="/emails/nuevo">Email corporativo</a>

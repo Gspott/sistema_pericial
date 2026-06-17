@@ -2,9 +2,10 @@ from html import escape
 
 
 CORPORATE_NAME = "Carlos Blanco"
-CORPORATE_ROLE = "Arquitecto Técnico"
+CORPORATE_ROLE = "Arquitecto Técnico · Perito Judicial"
 CORPORATE_EMAIL = "contacto@carlosblancoperito.es"
 CORPORATE_PHONE = "623 829 228"
+CORPORATE_WEB = "www.carlosblancoperito.es"
 CORPORATE_WHATSAPP_URL = "https://wa.me/34623829228"
 
 COLOR_PRIMARY = "#10233f"
@@ -31,17 +32,7 @@ def construir_email_texto(
     if cierre:
         partes.append(cierre.strip())
 
-    partes.append(
-        "\n".join(
-            [
-                "Un saludo,",
-                CORPORATE_NAME,
-                CORPORATE_ROLE,
-                f"{CORPORATE_PHONE} · WhatsApp: {CORPORATE_WHATSAPP_URL}",
-                CORPORATE_EMAIL,
-            ]
-        )
-    )
+    partes.append(construir_firma_texto())
 
     if footer_text:
         partes.append(footer_text.strip())
@@ -77,8 +68,35 @@ def construir_firma_html() -> str:
           <span style="font-weight:700;">{CORPORATE_NAME}</span><br>
           <span>{CORPORATE_ROLE}</span><br>
           <span>{CORPORATE_PHONE} · <a href="{CORPORATE_WHATSAPP_URL}" style="color:{COLOR_PRIMARY};text-decoration:underline;">WhatsApp</a></span><br>
-          <span>{CORPORATE_EMAIL}</span>
+          <span>{CORPORATE_EMAIL}</span><br>
+          <span>{CORPORATE_WEB}</span>
         </div>"""
+
+
+def construir_firma_texto() -> str:
+    return "\n".join(
+        [
+            CORPORATE_NAME,
+            CORPORATE_ROLE,
+            f"{CORPORATE_PHONE} · WhatsApp: {CORPORATE_WHATSAPP_URL}",
+            CORPORATE_EMAIL,
+            CORPORATE_WEB,
+        ]
+    )
+
+
+def contexto_identidad_email(from_name: str | None = None, from_email: str | None = None) -> dict:
+    nombre = (from_name or "").strip() or CORPORATE_NAME
+    email = (from_email or "").strip() or CORPORATE_EMAIL
+    return {
+        "nombre": nombre,
+        "cargo": CORPORATE_ROLE,
+        "email": email,
+        "telefono": CORPORATE_PHONE,
+        "web": CORPORATE_WEB,
+        "whatsapp_url": CORPORATE_WHATSAPP_URL,
+        "firma_texto": construir_firma_texto(),
+    }
 
 
 def construir_footer_html(footer_text: str | None = None, footer_note: str | None = None) -> str:

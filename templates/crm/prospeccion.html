@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Prospección CRM</title>
+    <style>
+        body {
+            background: #eef1f5;
+        }
+
+        .crm-workbench {
+            max-width: none;
+            width: min(1920px, calc(100vw - 32px));
+            padding-bottom: 18px;
+        }
+
+        .crm-topbar {
+            display: grid;
+            grid-template-columns: minmax(280px, 1fr) minmax(760px, 3fr);
+            gap: 10px;
+            align-items: stretch;
+            margin-bottom: 10px;
+        }
+
+        .crm-title,
+        .crm-metrics,
+        .crm-zone {
+            border: 1px solid #d3d9e2;
+            background: #fff;
+            border-radius: 8px;
+        }
+
+        .crm-title {
+            padding: 12px 14px;
+        }
+
+        .crm-title h1 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+
+        .crm-title .subtitle {
+            margin: 3px 0 0;
+            font-size: .82rem;
+        }
+
+        .crm-metrics {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(96px, 1fr));
+            gap: 0;
+            overflow: hidden;
+        }
+
+        .crm-metric {
+            padding: 9px 10px;
+            border-right: 1px solid #e3e8ef;
+        }
+
+        .crm-metric:last-child {
+            border-right: 0;
+        }
+
+        .crm-metric strong {
+            display: block;
+            font-size: 1.22rem;
+            line-height: 1.05;
+        }
+
+        .crm-metric span {
+            color: #536273;
+            font-size: .75rem;
+        }
+
+        .crm-alert {
+            border-radius: 8px;
+            padding: 9px 12px;
+            margin: 0 0 10px;
+        }
+
+        .crm-alert-ok {
+            background: #e8f6ee;
+            border: 1px solid #b8dfc8;
+        }
+
+        .crm-alert-error {
+            background: #fff1f1;
+            border: 1px solid #f0b9b9;
+        }
+
+        .crm-desktop-grid {
+            display: grid;
+            grid-template-columns: 300px minmax(620px, 1fr) 430px;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .crm-zone {
+            padding: 12px;
+            min-width: 0;
+        }
+
+        .crm-zone h2,
+        .crm-panel-title {
+            margin: 0 0 9px;
+            font-size: .94rem;
+            line-height: 1.2;
+        }
+
+        .crm-quick-form,
+        .crm-filter-form,
+        .crm-send-form,
+        .crm-program-form {
+            display: grid;
+            gap: 8px;
+        }
+
+        .crm-field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .crm-zone label {
+            margin-bottom: 3px;
+            font-size: .75rem;
+            color: #465568;
+        }
+
+        .crm-zone input,
+        .crm-zone select,
+        .crm-zone textarea {
+            min-height: 34px;
+            font-size: .86rem;
+        }
+
+        .crm-zone textarea {
+            resize: vertical;
+        }
+
+        .crm-quick-form textarea {
+            min-height: 62px;
+        }
+
+        .crm-divider {
+            height: 1px;
+            background: #e3e8ef;
+            margin: 12px -12px;
+        }
+
+        .crm-quick-links {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+
+        .crm-quick-links .boton {
+            justify-content: flex-start;
+            min-height: 32px;
+            padding: 7px 9px;
+            font-size: .82rem;
+        }
+
+        .crm-priority-list {
+            display: grid;
+            gap: 6px;
+            margin: 0;
+        }
+
+        .crm-priority-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 7px 8px;
+            border: 1px solid #e1e6ee;
+            border-radius: 6px;
+            background: #f8fafc;
+            font-size: .8rem;
+        }
+
+        .crm-priority-item strong {
+            color: #172234;
+        }
+
+        .crm-table-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .crm-table-wrap {
+            overflow: auto;
+            border: 1px solid #d9dee7;
+            border-radius: 8px;
+            background: #fff;
+            max-height: calc(100vh - 178px);
+        }
+
+        .crm-table {
+            width: 100%;
+            min-width: 980px;
+            border-collapse: collapse;
+            font-size: .82rem;
+        }
+
+        .crm-table th,
+        .crm-table td {
+            border-bottom: 1px solid #e6eaf0;
+            padding: 7px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .crm-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f0f4f8;
+            color: #27374c;
+            font-size: .7rem;
+            text-transform: uppercase;
+        }
+
+        .crm-table tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .crm-table tr.is-selected td {
+            background: #eef6ff;
+        }
+
+        .crm-table tr.is-selected td:first-child {
+            border-left: 4px solid #2563eb;
+        }
+
+        .crm-lead-name {
+            font-weight: 700;
+            color: #152236;
+        }
+
+        .crm-lead-selector {
+            color: #152236;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .crm-lead-selector:hover,
+        .crm-lead-selector:focus {
+            color: #0f4aa8;
+            text-decoration: underline;
+        }
+
+        .crm-row-indicator {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            margin-right: 5px;
+            border-radius: 999px;
+            background: transparent;
+            vertical-align: middle;
+        }
+
+        .is-selected .crm-row-indicator {
+            background: #2563eb;
+        }
+
+        .crm-muted {
+            color: #637083;
+            font-size: .76rem;
+        }
+
+        .crm-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: #eef3f8;
+            color: #26384f;
+            font-size: .73rem;
+            white-space: nowrap;
+        }
+
+        .crm-badge-warning {
+            background: #fff5d8;
+            color: #684b00;
+        }
+
+        .crm-badge-ok {
+            background: #e8f6ee;
+            color: #195b35;
+        }
+
+        .crm-badge-programmed {
+            background: #ece8ff;
+            color: #3b2a75;
+        }
+
+        .crm-inline-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .crm-inline-actions .boton,
+        .crm-inline-actions button {
+            min-height: 28px;
+            padding: 5px 7px;
+            font-size: .74rem;
+        }
+
+        .crm-panel {
+            position: sticky;
+            top: 10px;
+            max-height: calc(100vh - 22px);
+            overflow: auto;
+        }
+
+        .crm-selected-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+            padding: 9px;
+            border: 1px solid #e1e6ee;
+            border-radius: 7px;
+            background: #f8fafc;
+            margin-bottom: 10px;
+            font-size: .8rem;
+        }
+
+        .crm-selected-summary .full {
+            grid-column: 1 / -1;
+        }
+
+        .crm-template-switch {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .crm-send-form textarea {
+            min-height: 260px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: .82rem;
+            line-height: 1.38;
+        }
+
+        .crm-actions-stack {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+        }
+
+        .crm-actions-stack .wide {
+            grid-column: 1 / -1;
+        }
+
+        .crm-history {
+            display: grid;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .crm-history-row {
+            border-top: 1px solid #e5eaf1;
+            padding-top: 6px;
+            font-size: .78rem;
+        }
+
+        .crm-inline-form {
+            margin: 0;
+        }
+
+        .crm-empty-panel {
+            min-height: 220px;
+            display: grid;
+            place-items: center;
+            color: #637083;
+            text-align: center;
+            border: 1px dashed #cbd4df;
+            border-radius: 8px;
+            padding: 18px;
+        }
+
+        .crm-preview-actions {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 7px;
+            align-items: center;
+        }
+
+        .crm-reviewed-indicator {
+            color: #195b35;
+            font-size: .78rem;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .crm-email-preview-modal {
+            width: min(90vw, 1240px);
+            height: min(88vh, 920px);
+            border: 0;
+            border-radius: 10px;
+            padding: 0;
+            background: #f4f6f8;
+            box-shadow: 0 24px 80px rgba(15, 23, 42, .34);
+        }
+
+        .crm-email-preview-modal::backdrop {
+            background: rgba(17, 24, 39, .58);
+        }
+
+        .crm-preview-shell {
+            height: 100%;
+            display: grid;
+            grid-template-rows: auto auto 1fr auto;
+            min-height: 0;
+        }
+
+        .crm-preview-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: start;
+            padding: 14px 16px;
+            border-bottom: 1px solid #d9dee7;
+            background: #fff;
+        }
+
+        .crm-preview-header h2 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .crm-preview-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #d9dee7;
+            background: #fff;
+        }
+
+        .crm-preview-tab {
+            border: 1px solid #cbd4df;
+            border-radius: 6px;
+            background: #fff;
+            color: #27374c;
+            min-height: 32px;
+            padding: 6px 10px;
+            font-size: .8rem;
+        }
+
+        .crm-preview-tab.is-active {
+            background: #172234;
+            color: #fff;
+            border-color: #172234;
+        }
+
+        .crm-preview-stage {
+            min-height: 0;
+            overflow: auto;
+            padding: 18px;
+        }
+
+        .crm-preview-pane {
+            display: none;
+        }
+
+        .crm-preview-pane.is-active {
+            display: block;
+        }
+
+        .crm-mail-client {
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #d7dde6;
+            box-shadow: 0 10px 34px rgba(15, 23, 42, .12);
+            color: #202124;
+        }
+
+        .crm-mail-client-desktop {
+            width: min(100%, 880px);
+            border-radius: 8px;
+        }
+
+        .crm-mail-client-mobile {
+            width: 390px;
+            max-width: 100%;
+            border-radius: 18px;
+            max-height: calc(88vh - 180px);
+            overflow: auto;
+        }
+
+        .crm-mail-topline {
+            padding: 14px 18px 10px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .crm-mail-subject {
+            margin: 0 0 12px;
+            font-size: 1.24rem;
+            font-weight: 500;
+            color: #202124;
+        }
+
+        .crm-mail-meta {
+            display: grid;
+            grid-template-columns: 64px 1fr;
+            gap: 4px 10px;
+            color: #5f6368;
+            font-size: .82rem;
+        }
+
+        .crm-mail-meta strong {
+            color: #202124;
+            font-weight: 600;
+        }
+
+        .crm-mail-body {
+            padding: 18px;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: .96rem;
+            line-height: 1.55;
+            white-space: pre-wrap;
+        }
+
+        .crm-mail-signature {
+            margin-top: 18px;
+            padding-top: 12px;
+            border-top: 1px solid #eceff3;
+            color: #3c4043;
+            white-space: pre-line;
+        }
+
+        .crm-mail-attachments {
+            padding: 0 18px 18px;
+            color: #5f6368;
+            font-size: .84rem;
+        }
+
+        .crm-mail-client-mobile .crm-mail-topline {
+            padding: 12px 14px 9px;
+        }
+
+        .crm-mail-client-mobile .crm-mail-subject {
+            font-size: 1.02rem;
+        }
+
+        .crm-mail-client-mobile .crm-mail-meta {
+            grid-template-columns: 48px 1fr;
+            font-size: .76rem;
+        }
+
+        .crm-mail-client-mobile .crm-mail-body {
+            padding: 14px;
+            font-size: .88rem;
+            line-height: 1.48;
+        }
+
+        .crm-preview-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 12px 16px;
+            border-top: 1px solid #d9dee7;
+            background: #fff;
+        }
+
+        @media (max-width: 1180px) {
+            .crm-topbar,
+            .crm-desktop-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .crm-panel {
+                position: static;
+                max-height: none;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .crm-workbench {
+                width: auto;
+            }
+
+            .crm-metrics {
+                grid-template-columns: repeat(2, minmax(110px, 1fr));
+            }
+
+            .crm-field-row,
+            .crm-template-switch,
+            .crm-actions-stack,
+            .crm-preview-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page crm-workbench">
+        {% if mensaje %}
+        <div class="crm-alert crm-alert-ok">{{ mensaje }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="crm-alert crm-alert-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="crm-topbar">
+            <div class="crm-title">
+                <h1>Prospección CRM</h1>
+                <p class="subtitle">Workbench desktop para preparar, revisar y enviar emails comerciales.</p>
+            </div>
+            <div class="crm-metrics" aria-label="Métricas rápidas de prospección">
+                <div class="crm-metric"><strong>{{ metricas.total }}</strong><span>Leads totales</span></div>
+                <div class="crm-metric"><strong>{{ metricas.administradores }}</strong><span>Administradores</span></div>
+                <div class="crm-metric"><strong>{{ metricas.sin_accion }}</strong><span>Sin acción</span></div>
+                <div class="crm-metric"><strong>{{ metricas.presentacion_enviada }}</strong><span>Presentación enviada</span></div>
+                <div class="crm-metric"><strong>{{ metricas.seguimientos }}</strong><span>Seguimientos pendientes</span></div>
+                <div class="crm-metric"><strong>{{ metricas.propuestas_enviadas }}</strong><span>Propuestas enviadas</span></div>
+            </div>
+        </div>
+
+        <div class="crm-desktop-grid">
+            <aside class="crm-zone">
+                <h2>Alta rápida</h2>
+                <form id="crm-quick-lead-form" class="crm-quick-form" method="post" action="/crm/prospeccion/leads/rapido">
+                    <div>
+                        <label for="quick-nombre">Empresa / nombre</label>
+                        <input id="quick-nombre" name="nombre" type="text" autocomplete="organization" autofocus>
+                    </div>
+                    <div>
+                        <label for="quick-contacto">Persona contacto</label>
+                        <input id="quick-contacto" name="persona_contacto" type="text" autocomplete="name">
+                    </div>
+                    <div class="crm-field-row">
+                        <div>
+                            <label for="quick-tipo">Tipo</label>
+                            <select id="quick-tipo" name="tipo_profesion">
+                                {% for valor, label in tipos_lead %}
+                                <option value="{{ valor }}" {% if valor == 'administrador_fincas' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="quick-localidad">Localidad</label>
+                            <input id="quick-localidad" name="localidad" type="text">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="quick-email">Email</label>
+                        <input id="quick-email" name="email" type="email" autocomplete="email">
+                    </div>
+                    <div class="crm-field-row">
+                        <div>
+                            <label for="quick-telefono">Teléfono</label>
+                            <input id="quick-telefono" name="telefono" type="tel" autocomplete="tel">
+                        </div>
+                        <div>
+                            <label for="quick-fuente">Fuente</label>
+                            <input id="quick-fuente" name="fuente" type="text" value="captacion manual">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="quick-notas">Notas</label>
+                        <textarea id="quick-notas" name="notas"></textarea>
+                    </div>
+                    <button class="boton" type="submit">Guardar lead</button>
+                </form>
+
+                <div class="crm-divider"></div>
+
+                <h2>Filtros</h2>
+                <form class="crm-filter-form" method="get" action="/crm/prospeccion">
+                    <input type="hidden" name="lead_id" value="{{ lead_id }}">
+                    <div>
+                        <label for="tipo">Tipo / profesión</label>
+                        <select id="tipo" name="tipo">
+                            <option value="">Todos</option>
+                            {% for valor, label in tipos_lead %}
+                            <option value="{{ valor }}" {% if filtros.tipo == valor %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="crm-field-row">
+                        <div>
+                            <label for="estado">Estado</label>
+                            <select id="estado" name="estado">
+                                <option value="">Todos</option>
+                                {% for estado in estados_lead %}
+                                <option value="{{ estado }}" {% if filtros.estado == estado %}selected{% endif %}>{{ estado.replace('_', ' ') }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="email">Email</label>
+                            <select id="email" name="email">
+                                <option value="">Todos</option>
+                                <option value="con_email" {% if filtros.email == 'con_email' %}selected{% endif %}>Con email</option>
+                                <option value="sin_email" {% if filtros.email == 'sin_email' %}selected{% endif %}>Sin email</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="crm-field-row">
+                        <div>
+                            <label for="localidad">Localidad</label>
+                            <input id="localidad" name="localidad" type="search" value="{{ filtros.localidad }}">
+                        </div>
+                        <div>
+                            <label for="fuente">Fuente</label>
+                            <input id="fuente" name="fuente" type="search" value="{{ filtros.fuente }}">
+                        </div>
+                    </div>
+                    <label><input type="checkbox" name="sin_accion" value="1" {% if filtros.sin_accion %}checked{% endif %}> Sin acción comercial</label>
+                    <label><input type="checkbox" name="seguimiento" value="1" {% if filtros.seguimiento %}checked{% endif %}> Seguimiento pendiente</label>
+                    <div class="crm-actions-stack">
+                        <button class="boton" type="submit">Filtrar</button>
+                        <a class="boton secundario" href="/crm/prospeccion">Limpiar</a>
+                    </div>
+                </form>
+
+                <div class="crm-divider"></div>
+
+                <h2>Vistas rápidas</h2>
+                <div class="crm-quick-links">
+                    <a class="boton secundario" href="/crm/prospeccion?tipo=administrador_fincas&sin_accion=1&email=con_email">Administradores sin acción</a>
+                    <a class="boton secundario" href="/crm/prospeccion?seguimiento=1">Pendientes de seguimiento</a>
+                    <a class="boton secundario" href="/crm/prospeccion?email=sin_email">Sin email</a>
+                    <a class="boton secundario" href="/crm/prospeccion/agenda">Agenda programados</a>
+                    <a class="boton secundario" href="/emails">Emails enviados</a>
+                </div>
+
+                <div class="crm-divider"></div>
+
+                <h2>Acciones prioritarias</h2>
+                <div class="crm-priority-list">
+                    <div class="crm-priority-item"><span>Administradores de fincas sin acción comercial</span><strong>{{ acciones_prioritarias.admins_sin_accion }}</strong></div>
+                    <div class="crm-priority-item"><span>Leads con seguimiento vencido</span><strong>{{ acciones_prioritarias.seguimiento_vencido }}</strong></div>
+                    <div class="crm-priority-item"><span>Presentación enviada sin respuesta</span><strong>{{ acciones_prioritarias.presentacion_sin_respuesta }}</strong></div>
+                    <div class="crm-priority-item"><span>Leads sin email</span><strong>{{ acciones_prioritarias.sin_email }}</strong></div>
+                    <div class="crm-priority-item"><span>Leads pendientes de revisar</span><strong>{{ acciones_prioritarias.pendientes_revisar }}</strong></div>
+                </div>
+            </aside>
+
+            <main class="crm-zone">
+                <div class="crm-table-actions">
+                    <h2>Leads</h2>
+                    <div class="crm-inline-actions">
+                        <a class="boton secundario" href="/crm/prospeccion?tipo=administrador_fincas&sin_accion=1&email=con_email">5 emails esta semana</a>
+                        <a class="boton secundario" href="/crm/prospeccion/agenda">Agenda</a>
+                        <a class="boton secundario" href="/leads">Listado clásico</a>
+                    </div>
+                </div>
+                <div class="crm-table-wrap">
+                    <table class="crm-table">
+                        <thead>
+                            <tr>
+                                <th>Prio</th>
+                                <th>Nombre / empresa</th>
+                                <th>Contacto</th>
+                                <th>Tipo</th>
+                                <th>Email</th>
+                                <th>Teléfono</th>
+                                <th>Estado</th>
+                                <th>Acción</th>
+                                <th>Tarea</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if leads %}
+                            {% for lead in leads %}
+                            <tr class="{% if selected_lead and selected_lead.id == lead.id %}is-selected{% endif %}">
+                                <td>{{ lead.prioridad or '-' }}</td>
+                                <td>
+                                    <div class="crm-lead-name">
+                                        <span class="crm-row-indicator" aria-hidden="true"></span>
+                                        <a class="crm-lead-selector" href="/crm/prospeccion?{{ query_string(filtros, lead_id=lead.id) }}" data-preserve-workbench-scroll>{{ lead.nombre }}</a>
+                                    </div>
+                                    <div class="crm-muted">{{ lead.localidad or lead.fuente or '-' }}</div>
+                                </td>
+                                <td>{{ lead.persona_contacto or '-' }}</td>
+                                <td>{{ lead.tipo_label }}</td>
+                                <td>
+                                    {% if lead.email %}
+                                    <a href="mailto:{{ lead.email }}">{{ lead.email }}</a>
+                                    {% else %}
+                                    <span class="crm-badge crm-badge-warning">Sin email</span>
+                                    {% endif %}
+                                    {% if lead.emails_programados %}
+                                    <div><span class="crm-badge crm-badge-programmed">Programado</span></div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ lead.telefono or '-' }}</td>
+                                <td><span class="crm-badge">{{ lead.estado.replace('_', ' ') }}</span></td>
+                                <td>
+                                    {% if lead.sin_accion %}
+                                    <span class="crm-badge crm-badge-warning">Sin acción</span>
+                                    {% else %}
+                                    {{ lead.ultima_accion or '-' }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if lead.proxima_tarea %}
+                                    <span class="crm-badge {% if lead.seguimiento_vencido %}crm-badge-warning{% else %}crm-badge-ok{% endif %}">{{ lead.proxima_tarea_fecha or 'Pendiente' }}</span>
+                                    <div class="crm-muted">{{ lead.proxima_tarea }}</div>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="crm-inline-actions">
+                                        {% if lead.puede_enviar_seguimiento %}
+                                        <form class="crm-inline-form" method="post" action="/crm/prospeccion/leads/{{ lead.id }}/enviar-seguimiento">
+                                            <button class="boton secundario" type="submit">Enviar seguimiento</button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td colspan="10"><p class="empty">No hay leads que encajen con los filtros actuales.</p></td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+
+            <aside class="crm-zone crm-panel">
+                <h2>Panel de trabajo</h2>
+                {% if selected_lead %}
+                <div class="crm-selected-summary">
+                    <div class="full">
+                        <strong>{{ selected_lead.nombre }}</strong>
+                        <div class="crm-muted">{{ selected_lead.tipo_label }} · {{ selected_lead.estado.replace('_', ' ') }}</div>
+                    </div>
+                    <div><span class="crm-muted">Contacto</span><br>{{ selected_lead.persona_contacto or '-' }}</div>
+                    <div><span class="crm-muted">Localidad</span><br>{{ selected_lead.localidad or '-' }}</div>
+                    <div><span class="crm-muted">Email</span><br>{% if selected_lead.email %}{{ selected_lead.email }}{% else %}<span class="crm-badge crm-badge-warning">Sin email</span>{% endif %}</div>
+                    <div><span class="crm-muted">Teléfono</span><br>{{ selected_lead.telefono or '-' }}</div>
+                    <div class="full"><span class="crm-muted">Plantilla prevista</span><br>{{ preview_email.plantilla.nombre }}</div>
+                </div>
+
+                <form id="crm-template-switch-form" class="crm-template-switch" method="get" action="/crm/prospeccion">
+                    <input type="hidden" name="lead_id" value="{{ selected_lead.id }}">
+                    <input type="hidden" name="tipo" value="{{ filtros.tipo }}">
+                    <input type="hidden" name="estado" value="{{ filtros.estado }}">
+                    <input type="hidden" name="email" value="{{ filtros.email }}">
+                    <input type="hidden" name="sin_accion" value="{{ filtros.sin_accion }}">
+                    <input type="hidden" name="seguimiento" value="{{ filtros.seguimiento }}">
+                    <input type="hidden" name="localidad" value="{{ filtros.localidad }}">
+                    <input type="hidden" name="fuente" value="{{ filtros.fuente }}">
+                    <div>
+                        <label for="plantilla">Plantilla</label>
+                        <select id="plantilla" name="plantilla" data-current-template="{{ plantilla_actual }}">
+                            {% for plantilla in plantillas_panel %}
+                            <option value="{{ plantilla.slug }}" {% if plantilla_actual == plantilla.slug %}selected{% endif %}>{{ plantilla.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+
+                {% if not selected_lead.email %}
+                <div class="crm-alert crm-alert-error">Este lead no tiene email. El envío y la programación quedan bloqueados.</div>
+                {% endif %}
+
+                <form id="crm-email-send-form" class="crm-send-form" method="post" action="/crm/prospeccion/leads/{{ selected_lead.id }}/enviar-editado">
+                    <input type="hidden" name="plantilla_slug" value="{{ plantilla_actual }}">
+                    <div>
+                        <label for="asunto">Asunto renderizado</label>
+                        <input id="asunto" name="asunto" type="text" value="{{ preview_email.asunto }}">
+                    </div>
+                    <div>
+                        <label for="cuerpo">Cuerpo renderizado y editable</label>
+                        <textarea id="cuerpo" name="cuerpo">{{ preview_email.cuerpo }}</textarea>
+                    </div>
+                    <div class="crm-preview-actions">
+                        <button id="crm-open-email-preview" class="boton secundario" type="button">Previsualizar</button>
+                        <span id="crm-reviewed-indicator" class="crm-reviewed-indicator" hidden>✓ Revisado antes de enviar</span>
+                    </div>
+                    <div class="crm-actions-stack">
+                        <button class="boton" type="submit" {% if not selected_lead.email %}disabled{% endif %}>Enviar ahora</button>
+                        <a class="boton secundario" href="/leads/{{ selected_lead.id }}">Abrir lead</a>
+                    </div>
+                    <div>
+                        <label for="fecha-programada">Programar envío</label>
+                        <input id="fecha-programada" name="fecha_programada" type="datetime-local">
+                    </div>
+                    <button class="boton secundario" type="submit" formaction="/crm/prospeccion/leads/{{ selected_lead.id }}/programar-email" {% if not selected_lead.email %}disabled{% endif %}>Programar envío</button>
+                </form>
+
+                <dialog
+                    id="crm-email-preview-modal"
+                    class="crm-email-preview-modal"
+                    aria-labelledby="crm-email-preview-title"
+                    data-recipient-email="{{ selected_lead.email or '' }}"
+                    data-recipient-name="{{ selected_lead.persona_contacto or selected_lead.nombre }}"
+                    data-from-name="{{ email_identidad.nombre }}"
+                    data-from-email="{{ email_identidad.email }}"
+                    data-signature="{{ email_identidad.firma_texto }}"
+                    data-attachment-name="">
+                    <div class="crm-preview-shell">
+                        <div class="crm-preview-header">
+                            <div>
+                                <h2 id="crm-email-preview-title">Previsualización de email</h2>
+                                <p class="crm-muted">Vista simulada del mensaje final.</p>
+                            </div>
+                            <button class="boton secundario" type="button" data-close-email-preview>Cerrar</button>
+                        </div>
+                        <div class="crm-preview-tabs" role="tablist" aria-label="Vistas de email">
+                            <button id="preview-tab-desktop" class="crm-preview-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="preview-pane-desktop" data-preview-tab="desktop">Gmail escritorio</button>
+                            <button id="preview-tab-mobile" class="crm-preview-tab" type="button" role="tab" aria-selected="false" aria-controls="preview-pane-mobile" data-preview-tab="mobile">Gmail móvil</button>
+                        </div>
+                        <div class="crm-preview-stage">
+                            <section id="preview-pane-desktop" class="crm-preview-pane is-active" role="tabpanel" aria-labelledby="preview-tab-desktop" data-preview-pane="desktop">
+                                <article class="crm-mail-client crm-mail-client-desktop">
+                                    <div class="crm-mail-topline">
+                                        <h3 class="crm-mail-subject" data-preview-subject>{{ preview_email.asunto }}</h3>
+                                        <div class="crm-mail-meta">
+                                            <span>De:</span><strong data-preview-from>{{ email_identidad.nombre }} &lt;{{ email_identidad.email }}&gt;</strong>
+                                            <span>Para:</span><strong data-preview-to>{{ selected_lead.email or '-' }}</strong>
+                                            <span>Asunto:</span><strong data-preview-subject-inline>{{ preview_email.asunto }}</strong>
+                                            <span>Fecha:</span><strong data-preview-date>Vista simulada</strong>
+                                        </div>
+                                    </div>
+                                    <div class="crm-mail-body">
+                                        <div data-preview-body>{{ preview_email.cuerpo }}</div>
+                                        <div class="crm-mail-signature" data-preview-signature>{{ email_identidad.firma_texto }}</div>
+                                    </div>
+                                    <div class="crm-mail-attachments" data-preview-attachments>Adjuntos: Sin adjuntos previstos</div>
+                                </article>
+                            </section>
+                            <section id="preview-pane-mobile" class="crm-preview-pane" role="tabpanel" aria-labelledby="preview-tab-mobile" data-preview-pane="mobile">
+                                <article class="crm-mail-client crm-mail-client-mobile">
+                                    <div class="crm-mail-topline">
+                                        <h3 class="crm-mail-subject" data-preview-subject>{{ preview_email.asunto }}</h3>
+                                        <div class="crm-mail-meta">
+                                            <span>De:</span><strong data-preview-from>{{ email_identidad.nombre }} &lt;{{ email_identidad.email }}&gt;</strong>
+                                            <span>Para:</span><strong data-preview-to>{{ selected_lead.email or '-' }}</strong>
+                                            <span>Asunto:</span><strong data-preview-subject-inline>{{ preview_email.asunto }}</strong>
+                                            <span>Fecha:</span><strong data-preview-date>Vista simulada</strong>
+                                        </div>
+                                    </div>
+                                    <div class="crm-mail-body">
+                                        <div data-preview-body>{{ preview_email.cuerpo }}</div>
+                                        <div class="crm-mail-signature" data-preview-signature>{{ email_identidad.firma_texto }}</div>
+                                    </div>
+                                    <div class="crm-mail-attachments" data-preview-attachments>Adjuntos: Sin adjuntos previstos</div>
+                                </article>
+                            </section>
+                        </div>
+                        <div class="crm-preview-footer">
+                            <button class="boton secundario" type="button" data-close-email-preview>Volver a editar</button>
+                            <button class="boton secundario" type="submit" form="crm-email-send-form" formaction="/crm/prospeccion/leads/{{ selected_lead.id }}/programar-email" {% if not selected_lead.email %}disabled{% endif %}>Programar envío</button>
+                            <button class="boton" type="submit" form="crm-email-send-form" {% if not selected_lead.email %}disabled{% endif %}>Enviar ahora</button>
+                        </div>
+                    </div>
+                </dialog>
+
+                <div class="crm-divider"></div>
+
+                <h3 class="crm-panel-title">Acciones recomendadas</h3>
+                <div class="crm-actions-stack">
+                    {% if selected_lead.tiene_presentacion_enviada or selected_lead.tiene_seguimiento_pendiente %}
+                    <form class="crm-inline-form" method="post" action="/crm/prospeccion/leads/{{ selected_lead.id }}/enviar-seguimiento">
+                        <button class="boton secundario" type="submit" {% if not selected_lead.email %}disabled{% endif %}>Enviar seguimiento</button>
+                    </form>
+                    {% endif %}
+                    <form class="crm-inline-form" method="post" action="/crm/prospeccion/leads/{{ selected_lead.id }}/registrar-llamada">
+                        <button class="boton secundario" type="submit">Registrar llamada</button>
+                    </form>
+                    <form class="crm-inline-form" method="post" action="/crm/prospeccion/leads/{{ selected_lead.id }}/crear-tarea">
+                        <button class="boton secundario" type="submit">Crear tarea</button>
+                    </form>
+                    <form class="crm-inline-form" method="post" action="/crm/prospeccion/leads/{{ selected_lead.id }}/estado">
+                        <input type="hidden" name="estado" value="contactado">
+                        <button class="boton secundario" type="submit">Marcar contactado</button>
+                    </form>
+                    <form class="crm-inline-form" method="post" action="/crm/prospeccion/leads/{{ selected_lead.id }}/estado">
+                        <input type="hidden" name="estado" value="rechazado">
+                        <button class="boton secundario" type="submit">No interesado</button>
+                    </form>
+                    <a class="boton secundario" href="/propuestas/nueva?lead_id={{ selected_lead.id }}">Crear propuesta</a>
+                </div>
+
+                <div class="crm-divider"></div>
+
+                <h3 class="crm-panel-title">Historial breve</h3>
+                <div class="crm-history">
+                    {% if historial.emails %}
+                    {% for email_log in historial.emails %}
+                    <div class="crm-history-row">
+                        <strong>{{ email_log.estado }}</strong> · {{ email_log.tipo }}<br>
+                        <span class="crm-muted">{{ email_log.fecha_envio }} · {{ email_log.asunto }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% if historial.contactos %}
+                    {% for contacto in historial.contactos %}
+                    <div class="crm-history-row">
+                        <strong>{{ contacto.tipo }}</strong> · {{ contacto.resultado or '-' }}<br>
+                        <span class="crm-muted">{{ contacto.fecha }} · {{ contacto.resumen or '-' }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% if historial.tareas %}
+                    {% for tarea in historial.tareas %}
+                    <div class="crm-history-row">
+                        <strong>{{ tarea.estado }}</strong> · {{ tarea.titulo }}<br>
+                        <span class="crm-muted">{{ tarea.fecha_programada or 'Sin fecha' }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="crm-empty-panel">Selecciona un lead para revisar plantilla, editar el texto y enviar sin salir del Workbench.</div>
+                {% endif %}
+            </aside>
+        </div>
+    </div>
+    <script>
+        (() => {
+            const modal = document.getElementById("crm-email-preview-modal");
+            const openButton = document.getElementById("crm-open-email-preview");
+            const subjectInput = document.getElementById("asunto");
+            const bodyInput = document.getElementById("cuerpo");
+            const templateForm = document.getElementById("crm-template-switch-form");
+            const templateSelect = document.getElementById("plantilla");
+            const reviewedIndicator = document.getElementById("crm-reviewed-indicator");
+            if (!modal || !openButton || !subjectInput || !bodyInput) {
+                return;
+            }
+
+            const scrollKey = "crm.prospeccion.scroll";
+            const tableWrap = document.querySelector(".crm-table-wrap");
+            const saveWorkbenchScroll = () => {
+                sessionStorage.setItem(
+                    scrollKey,
+                    JSON.stringify({
+                        windowY: window.scrollY,
+                        tableY: tableWrap ? tableWrap.scrollTop : 0,
+                    }),
+                );
+            };
+            const restoreWorkbenchScroll = () => {
+                const raw = sessionStorage.getItem(scrollKey);
+                if (!raw) {
+                    return;
+                }
+                sessionStorage.removeItem(scrollKey);
+                try {
+                    const data = JSON.parse(raw);
+                    window.scrollTo(0, Number(data.windowY) || 0);
+                    if (tableWrap) {
+                        tableWrap.scrollTop = Number(data.tableY) || 0;
+                    }
+                } catch (_error) {
+                    sessionStorage.removeItem(scrollKey);
+                }
+            };
+
+            restoreWorkbenchScroll();
+
+            document.querySelectorAll("[data-preserve-workbench-scroll]").forEach((link) => {
+                link.addEventListener("click", saveWorkbenchScroll);
+            });
+
+            const initialSubject = subjectInput.value;
+            const initialBody = bodyInput.value;
+            if (templateForm && templateSelect) {
+                let currentTemplate = templateSelect.dataset.currentTemplate || templateSelect.value;
+                templateSelect.addEventListener("change", () => {
+                    const hasManualChanges = subjectInput.value !== initialSubject || bodyInput.value !== initialBody;
+                    if (
+                        hasManualChanges
+                        && !window.confirm("Cambiar de plantilla sustituirá el asunto y cuerpo actuales.\n¿Deseas continuar?")
+                    ) {
+                        templateSelect.value = currentTemplate;
+                        return;
+                    }
+                    currentTemplate = templateSelect.value;
+                    saveWorkbenchScroll();
+                    templateForm.submit();
+                });
+            }
+
+            const setText = (selector, value) => {
+                modal.querySelectorAll(selector).forEach((node) => {
+                    node.textContent = value;
+                });
+            };
+
+            const renderPreview = () => {
+                const subject = subjectInput.value.trim() || "(Sin asunto)";
+                const body = bodyInput.value.trim() || "(Sin cuerpo)";
+                const fromName = modal.dataset.fromName || "Carlos Blanco";
+                const fromEmail = modal.dataset.fromEmail || "contacto@carlosblancoperito.es";
+                const recipientEmail = modal.dataset.recipientEmail || "-";
+                const recipientName = modal.dataset.recipientName || "";
+                const attachmentName = modal.dataset.attachmentName || "";
+                const simulatedDate = new Intl.DateTimeFormat("es-ES", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                }).format(new Date());
+
+                setText("[data-preview-subject]", subject);
+                setText("[data-preview-subject-inline]", subject);
+                setText("[data-preview-body]", body);
+                setText("[data-preview-from]", `${fromName} <${fromEmail}>`);
+                setText("[data-preview-to]", recipientName ? `${recipientName} <${recipientEmail}>` : recipientEmail);
+                setText("[data-preview-date]", simulatedDate);
+                setText("[data-preview-signature]", modal.dataset.signature || "");
+                setText(
+                    "[data-preview-attachments]",
+                    attachmentName ? `Adjuntos: 📎 ${attachmentName}` : "Adjuntos: Sin adjuntos previstos",
+                );
+            };
+
+            const closeModal = () => {
+                modal.close();
+                openButton.focus();
+            };
+
+            openButton.addEventListener("click", () => {
+                renderPreview();
+                modal.showModal();
+                if (reviewedIndicator) {
+                    reviewedIndicator.hidden = false;
+                }
+            });
+
+            modal.querySelectorAll("[data-close-email-preview]").forEach((button) => {
+                button.addEventListener("click", closeModal);
+            });
+
+            modal.addEventListener("click", (event) => {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
+
+            modal.querySelectorAll("[data-preview-tab]").forEach((tab) => {
+                tab.addEventListener("click", () => {
+                    const target = tab.dataset.previewTab;
+                    modal.querySelectorAll("[data-preview-tab]").forEach((item) => {
+                        const isActive = item.dataset.previewTab === target;
+                        item.classList.toggle("is-active", isActive);
+                        item.setAttribute("aria-selected", isActive ? "true" : "false");
+                    });
+                    modal.querySelectorAll("[data-preview-pane]").forEach((pane) => {
+                        pane.classList.toggle("is-active", pane.dataset.previewPane === target);
+                    });
+                });
+            });
+        })();
+    </script>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>
