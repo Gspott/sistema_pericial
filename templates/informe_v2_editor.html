@@ -993,6 +993,59 @@
                         <li class="evidence-item">Recomendaciones candidatas: <strong>{{ recomendaciones_candidatas | length }}</strong></li>
                     </ul>
 
+                    <section class="diagnostic-summary" aria-label="Revisión de coherencia">
+                        <h3>Revisión de coherencia</h3>
+                        <p class="editor-note">Motor V1 informativo. No bloquea guardado ni exportación.</p>
+                        <div class="diagnostic-state {% if revision_coherencia.errores %}error{% elif revision_coherencia.advertencias %}warning{% else %}ok{% endif %}">
+                            {{ revision_coherencia.errores | length }} errores · {{ revision_coherencia.advertencias | length }} advertencias · {{ revision_coherencia.informacion | length }} info
+                            {% if revision_coherencia.score is not none %}
+                            <p class="chapter-meta">Score orientativo: <strong>{{ revision_coherencia.score }}</strong>/100</p>
+                            {% endif %}
+                        </div>
+                        <details class="context-block" open>
+                            <summary>Errores ({{ revision_coherencia.errores | length }})</summary>
+                            {% if revision_coherencia.errores %}
+                            <ul class="diagnostic-items">
+                                {% for item in revision_coherencia.errores %}
+                                <li class="diagnostic-item">
+                                    <strong>{{ item.codigo }}:</strong> {{ item.mensaje }}
+                                    {% if item.url %}<br><a class="select-link" href="{{ item.url }}">Revisar</a>{% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="context-empty">Sin errores de coherencia detectados.</p>
+                            {% endif %}
+                        </details>
+                        <details class="context-block">
+                            <summary>Advertencias ({{ revision_coherencia.advertencias | length }})</summary>
+                            {% if revision_coherencia.advertencias %}
+                            <ul class="diagnostic-items">
+                                {% for item in revision_coherencia.advertencias %}
+                                <li class="diagnostic-item">
+                                    <strong>{{ item.codigo }}:</strong> {{ item.mensaje }}
+                                    {% if item.url %}<br><a class="select-link" href="{{ item.url }}">Revisar</a>{% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="context-empty">Sin advertencias de coherencia detectadas.</p>
+                            {% endif %}
+                        </details>
+                        <details class="context-block">
+                            <summary>Información ({{ revision_coherencia.informacion | length }})</summary>
+                            {% if revision_coherencia.informacion %}
+                            <ul class="diagnostic-items">
+                                {% for item in revision_coherencia.informacion %}
+                                <li class="diagnostic-item"><strong>{{ item.codigo }}:</strong> {{ item.mensaje }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="context-empty">Sin información adicional.</p>
+                            {% endif %}
+                        </details>
+                    </section>
+
                     <section class="diagnostic-summary" aria-label="Diagnóstico del informe">
                         <h3>Diagnóstico del informe</h3>
                         <p class="editor-note">Control determinista de completitud. No se imprime en el PDF.</p>

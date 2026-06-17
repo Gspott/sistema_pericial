@@ -51,6 +51,7 @@ from app.database import init_db
 from app.routers import backups as backups_router
 from app.routers import clientes as clientes_router
 from app.routers import costes as costes_router
+from app.routers import crm as crm_router
 from app.routers import dashboard as dashboard_router
 from app.routers import emails as emails_router
 from app.routers import facturacion as facturacion_router
@@ -71,6 +72,7 @@ from app.services.informe import (
     nombre_archivo_pdf_informe,
     limpiar_nombre_archivo,
 )
+from app.services.pericial_consistency import analizar_consistencia_expediente
 from app.services.valoracion_comparacion import (
     preparar_resumen_comparacion,
     preparar_matriz_homogeneizacion,
@@ -7439,6 +7441,7 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
     ]
     diagnostico_informe["advertencias_editoriales"] = advertencias_editoriales
     estados_revision = resumir_estados_revision_informe_v2(capitulos)
+    revision_coherencia = analizar_consistencia_expediente(expediente["id"])
 
     return {
         **workbench,
@@ -7446,6 +7449,7 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         "anexos_derivados": anexos_derivados,
         "pdf_mediciones_anexo_f": pdf_mediciones_anexo_f,
         "diagnostico_informe": diagnostico_informe,
+        "revision_coherencia": revision_coherencia,
         "estados_revision": estados_revision,
         "metadatos": metadatos,
         "capitulos": capitulos,
@@ -9516,6 +9520,7 @@ async def auth_middleware(request: Request, call_next):
 app.include_router(backups_router.router)
 app.include_router(clientes_router.router)
 app.include_router(costes_router.router)
+app.include_router(crm_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(emails_router.router)
 app.include_router(facturacion_router.router)
@@ -11510,6 +11515,7 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "anexos_derivados": editor["anexos_derivados"],
             "pdf_mediciones_anexo_f": editor["pdf_mediciones_anexo_f"],
             "diagnostico_informe": editor["diagnostico_informe"],
+            "revision_coherencia": editor["revision_coherencia"],
             "estados_revision": editor["estados_revision"],
             "metadatos": editor["metadatos"],
             "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
@@ -11522,6 +11528,21 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "error": limpiar_texto(request.query_params.get("error")),
         },
     )
+
+
+@app.get("/expedientes/{expediente_id}/revision-coherencia")
+def revision_coherencia_expediente(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+    finally:
+        conn.close()
+
+    return JSONResponse(content=analizar_consistencia_expediente(expediente_id))
 
 
 @app.post("/expedientes/{expediente_id}/informe-v2-editor")
