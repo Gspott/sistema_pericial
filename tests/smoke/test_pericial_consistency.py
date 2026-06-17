@@ -79,6 +79,8 @@ def test_consistency_service_returns_stable_structure(isolated_import):
         "expediente_id",
         "errores",
         "advertencias",
+        "advertencias_coherencia",
+        "riesgos_periciales",
         "informacion",
         "score",
         "resumen",
@@ -86,6 +88,8 @@ def test_consistency_service_returns_stable_structure(isolated_import):
     assert resultado["expediente_id"] == expediente_id
     assert isinstance(resultado["errores"], list)
     assert isinstance(resultado["advertencias"], list)
+    assert isinstance(resultado["advertencias_coherencia"], list)
+    assert isinstance(resultado["riesgos_periciales"], list)
     assert isinstance(resultado["informacion"], list)
     assert {"codigo", "severidad", "categoria", "mensaje", "entidad", "entidad_id"} <= set(
         resultado["informacion"][0]
@@ -197,6 +201,93 @@ def test_consistency_detects_annex_not_referenced_and_broken_reference(isolated_
     assert any(item["codigo"] == "ANNEX_REFERENCE_BROKEN" for item in resultado["errores"])
 
 
+def test_consistency_detects_structural_collapse_risk_statement(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "conclusiones_periciales",
+            "Conclusiones",
+            "Se aprecia riesgo de colapso en la zona afectada.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+
+    riesgos = resultado["riesgos_periciales"]
+    assert any(item["codigo"] == "RISK_STRUCTURAL_COLLAPSE" for item in riesgos)
+    assert any(item["categoria"] == "riesgo_pericial" for item in riesgos)
+    assert any("riesgo de colapso" in item.get("fragmento", "") for item in riesgos)
+
+
+def test_consistency_detects_mechanical_properties_risk_statement(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "analisis_causal",
+            "Análisis causal",
+            "La exposición continuada produce pérdida de propiedades mecánicas.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+
+    assert any(
+        item["codigo"] == "RISK_MECHANICAL_PROPERTIES"
+        for item in resultado["riesgos_periciales"]
+    )
+
+
+def test_consistency_detects_categorical_causation_risk_statement(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "analisis_causal",
+            "Análisis causal",
+            "Queda demostrado que la humedad procede de la cubierta.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+
+    assert any(
+        item["codigo"] == "RISK_CAUSATION_CERTAINTY"
+        for item in resultado["riesgos_periciales"]
+    )
+
+
 def test_consistency_block_is_rendered_in_informe_v2_editor(isolated_import):
     main_module = isolated_import("app.main")
 
@@ -222,4 +313,5 @@ def test_consistency_block_is_rendered_in_informe_v2_editor(isolated_import):
 
     assert response.status_code == 200
     assert "Revisión de coherencia" in response.text
+    assert "Afirmaciones a revisar" in response.text
     assert "Motor V1 informativo" in response.text

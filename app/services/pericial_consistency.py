@@ -61,6 +61,96 @@ CONCLUSION_SOPORTE_KEYWORDS = (
     "grieta",
 )
 
+RISKY_STATEMENT_RULES = (
+    {
+        "codigo": "RISK_STRUCTURAL_COLLAPSE",
+        "patrones": (
+            "riesgo de colapso",
+            "colapso estructural",
+            "ruina inminente",
+            "riesgo estructural grave",
+        ),
+        "mensaje": (
+            "El texto contiene una afirmación de riesgo estructural grave. "
+            "Conviene revisar que exista soporte técnico suficiente, como inspección específica, "
+            "catas, ensayos, cálculo o documentación justificativa."
+        ),
+    },
+    {
+        "codigo": "RISK_MECHANICAL_PROPERTIES",
+        "patrones": (
+            "pérdida de propiedades mecánicas",
+            "merma de capacidad resistente",
+            "pérdida de resistencia",
+            "agotamiento estructural",
+        ),
+        "mensaje": (
+            "El texto menciona pérdida o merma de capacidad resistente. "
+            "Revise si la afirmación está apoyada en ensayos, cálculo estructural, catas "
+            "o documentación técnica suficiente."
+        ),
+    },
+    {
+        "codigo": "RISK_CAUSATION_CERTAINTY",
+        "patrones": (
+            "la causa es",
+            "se determina como causa",
+            "queda demostrado que",
+            "origen demostrado",
+            "causa directa",
+        ),
+        "mensaje": (
+            "El texto formula causalidad en términos categóricos. "
+            "Revise si procede matizar la certeza o reforzarla con indicios, ensayos, "
+            "documentación y razonamiento técnico explícito."
+        ),
+    },
+    {
+        "codigo": "RISK_LEGAL_RESPONSIBILITY",
+        "patrones": (
+            "responsabilidad de",
+            "negligencia",
+            "mala praxis",
+            "incumplimiento imputable",
+            "culpable",
+        ),
+        "mensaje": (
+            "El texto usa términos próximos a atribución jurídica de responsabilidad. "
+            "Revise si el informe debe limitarse al soporte técnico y separar hechos, "
+            "causalidad y valoración jurídica."
+        ),
+    },
+    {
+        "codigo": "RISK_CODE_COMPLIANCE",
+        "patrones": (
+            "incumple normativa",
+            "incumple el CTE",
+            "no cumple normativa",
+            "infracción urbanística",
+        ),
+        "mensaje": (
+            "El texto afirma posible incumplimiento normativo. "
+            "Revise que se cite la norma aplicable, su versión, el precepto concreto "
+            "y la comprobación técnica realizada."
+        ),
+    },
+    {
+        "codigo": "RISK_URGENT_DANGER",
+        "patrones": (
+            "peligro inminente",
+            "riesgo inmediato",
+            "actuación urgente imprescindible",
+            "desalojo inmediato",
+        ),
+        "mensaje": (
+            "El texto contiene una afirmación de peligro o actuación inmediata. "
+            "Revise si existe soporte técnico suficiente y si procede documentar medidas "
+            "preventivas, comunicación o comprobaciones adicionales."
+        ),
+    },
+)
+MAX_RISKY_STATEMENTS_PER_CODE = 5
+
 CONTENIDO_PLACEHOLDER_RE = re.compile(
     r"^\s*(?:"
     r"|pendiente(?:s)?(?:\s+de\s+redacci[oó]n)?\.?"
@@ -103,6 +193,7 @@ def incidencia(
     entidad: str,
     entidad_id=None,
     url: str | None = None,
+    fragmento: str | None = None,
 ) -> dict:
     item = {
         "codigo": codigo,
@@ -114,6 +205,8 @@ def incidencia(
     }
     if url:
         item["url"] = url
+    if fragmento:
+        item["fragmento"] = fragmento
     return item
 
 
@@ -311,6 +404,80 @@ def extraer_referencias_anexos(texto: str) -> set[str]:
     return {match.group(1).upper() for match in REFERENCIA_ANEXO_RE.finditer(texto or "")}
 
 
+def dividir_fragmentos_texto(texto: str) -> list[str]:
+    texto = limpiar_texto(texto)
+    if not texto:
+        return []
+    fragmentos = re.split(r"[\n\r]+|(?<=[.!?])\s+", texto)
+    return [limpiar_texto(fragmento) for fragmento in fragmentos if limpiar_texto(fragmento)]
+
+
+def recortar_fragmento(texto: str, limite: int = 220) -> str:
+    texto = limpiar_texto(texto)
+    if len(texto) <= limite:
+        return texto
+    return texto[: limite - 1].rstrip() + "…"
+
+
+def detectar_afirmaciones_riesgo(capitulos: dict[str, dict], expediente_id: int) -> list[dict]:
+    riesgos: list[dict] = []
+    conteo_por_codigo: dict[str, int] = {}
+    vistos: set[tuple[str, str, str]] = set()
+
+    reglas_normalizadas = [
+        {
+            **regla,
+            "patrones_norm": tuple(normalizar_texto(patron) for patron in regla["patrones"]),
+        }
+        for regla in RISKY_STATEMENT_RULES
+    ]
+
+    for clave, capitulo in capitulos.items():
+        contenido = limpiar_texto(capitulo.get("contenido"))
+        if not contenido:
+            continue
+        titulo = limpiar_texto(capitulo.get("titulo")) or clave
+        entidad_id = capitulo.get("id") or clave
+        url = f"/expedientes/{expediente_id}/informe-v2-editor#capitulo-{clave}"
+        for fragmento in dividir_fragmentos_texto(contenido):
+            fragmento_norm = normalizar_texto(fragmento)
+            if not fragmento_norm:
+                continue
+            for regla in reglas_normalizadas:
+                codigo = regla["codigo"]
+                if conteo_por_codigo.get(codigo, 0) >= MAX_RISKY_STATEMENTS_PER_CODE:
+                    continue
+                patron_detectado = next(
+                    (
+                        patron
+                        for patron in regla["patrones_norm"]
+                        if patron and patron in fragmento_norm
+                    ),
+                    "",
+                )
+                if not patron_detectado:
+                    continue
+                clave_visto = (codigo, str(entidad_id), fragmento_norm[:180])
+                if clave_visto in vistos:
+                    continue
+                vistos.add(clave_visto)
+                conteo_por_codigo[codigo] = conteo_por_codigo.get(codigo, 0) + 1
+                riesgos.append(
+                    incidencia(
+                        codigo,
+                        "advertencia",
+                        "riesgo_pericial",
+                        f"{regla['mensaje']} Capítulo: {titulo}.",
+                        "capitulo",
+                        entidad_id,
+                        url,
+                        recortar_fragmento(fragmento),
+                    )
+                )
+
+    return riesgos
+
+
 def parse_fecha(valor: str) -> date | None:
     texto = limpiar_texto(valor)
     if not texto:
@@ -336,6 +503,8 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
     errores: list[dict] = []
     advertencias: list[dict] = []
     informacion: list[dict] = []
+    riesgos_periciales = detectar_afirmaciones_riesgo(capitulos, expediente_id)
+    advertencias.extend(riesgos_periciales)
 
     for clave, titulo in CAPITULOS_PRINCIPALES:
         capitulo = capitulos.get(clave)
@@ -491,15 +660,22 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
     )
 
     score = max(0, 100 - len(errores) * 20 - len(advertencias) * 8 - len(informacion) * 2)
+    advertencias_coherencia = [
+        item for item in advertencias if item.get("categoria") != "riesgo_pericial"
+    ]
     return {
         "expediente_id": expediente_id,
         "errores": errores,
         "advertencias": advertencias,
+        "advertencias_coherencia": advertencias_coherencia,
+        "riesgos_periciales": riesgos_periciales,
         "informacion": informacion,
         "score": score,
         "resumen": {
             "errores": len(errores),
             "advertencias": len(advertencias),
+            "advertencias_coherencia": len(advertencias_coherencia),
+            "riesgos_periciales": len(riesgos_periciales),
             "informacion": len(informacion),
             "fotografias": len(fotos),
             "documentos": len(documentos),
