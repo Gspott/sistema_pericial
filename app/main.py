@@ -82,6 +82,7 @@ from app.services.pdf_image_optimizer import (
     crear_sesion_optimizacion_pdf,
     optimizar_contexto_imagenes_pdf,
 )
+from app.services.pdf_pagination import paginar_pdf_final_bytes
 from app.services.valoracion_comparacion import (
     preparar_resumen_comparacion,
     preparar_matriz_homogeneizacion,
@@ -17833,6 +17834,7 @@ def generar_informe_v2_pdf_endpoint(
                 sesion_optimizacion_anexos=sesion_optimizacion_anexos,
                 diagnostico_anexos_pdf=contexto.get("diagnostico_anexos_pdf"),
             )
+        pdf_bytes = paginar_pdf_final_bytes(pdf_bytes, perfil=perfil_pdf)
     finally:
         sesion_optimizacion.cleanup()
         sesion_optimizacion_anexos.cleanup()

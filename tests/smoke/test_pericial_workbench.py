@@ -2019,6 +2019,71 @@ def test_pdf_annex_optimizer_master_no_optimiza(tmp_path):
     assert resultado["metodo"] == "none"
 
 
+def test_pdf_pagination_servicio_numera_pdf_una_pagina(tmp_path):
+    from pypdf import PdfReader, PdfWriter
+
+    from app.services.pdf_pagination import paginar_pdf_final
+
+    ruta_original = tmp_path / "una-pagina.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    with ruta_original.open("wb") as buffer:
+        writer.write(buffer)
+    bytes_originales = ruta_original.read_bytes()
+
+    ruta_paginada = paginar_pdf_final(ruta_original, carpeta_temporal=tmp_path / "pag")
+
+    assert ruta_original.read_bytes() == bytes_originales
+    assert ruta_paginada != ruta_original
+    reader = PdfReader(str(ruta_paginada))
+    assert len(reader.pages) == 1
+    assert "Página 1 de 1" in (reader.pages[0].extract_text() or "")
+    assert ruta_paginada.stat().st_size > ruta_original.stat().st_size
+
+
+def test_pdf_pagination_servicio_numera_multipagina_y_ultima(tmp_path):
+    from pypdf import PdfReader, PdfWriter
+
+    from app.services.pdf_pagination import paginar_pdf_final_bytes
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    writer.add_blank_page(width=595, height=842)
+    writer.add_blank_page(width=595, height=842)
+    buffer = BytesIO()
+    writer.write(buffer)
+
+    paginado = paginar_pdf_final_bytes(buffer.getvalue())
+    reader = PdfReader(BytesIO(paginado))
+
+    assert len(reader.pages) == 3
+    assert "Página 1 de 3" in (reader.pages[0].extract_text() or "")
+    assert "Página 3 de 3" in (reader.pages[2].extract_text() or "")
+
+
+def test_pdf_pagination_servicio_funciona_horizontal_y_tamanos_distintos():
+    from pypdf import PdfReader, PdfWriter
+
+    from app.services.pdf_pagination import paginar_pdf_final_bytes
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=842, height=595)
+    writer.add_blank_page(width=612, height=1008)
+    buffer = BytesIO()
+    writer.write(buffer)
+
+    paginado = paginar_pdf_final_bytes(buffer.getvalue())
+    reader = PdfReader(BytesIO(paginado))
+
+    assert len(reader.pages) == 2
+    assert int(float(reader.pages[0].mediabox.width)) == 842
+    assert int(float(reader.pages[0].mediabox.height)) == 595
+    assert int(float(reader.pages[1].mediabox.width)) == 612
+    assert int(float(reader.pages[1].mediabox.height)) == 1008
+    assert "Página 1 de 2" in (reader.pages[0].extract_text() or "")
+    assert "Página 2 de 2" in (reader.pages[1].extract_text() or "")
+
+
 def test_pdf_v2_rechaza_perfil_exportacion_desconocido(
     isolated_import,
 ):
@@ -2081,6 +2146,49 @@ def test_pdf_v2_perfil_solo_informe_no_fusiona_anexos(
     assert response.status_code == 200
     assert response.content == b"%PDF-1.4\n%PDF solo informe\n"
     assert "Informe-EXP-PER-WB-1-solo-informe.pdf" in response.headers["content-disposition"]
+
+
+def test_pdf_v2_endpoint_solo_informe_devuelve_pdf_paginado(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from pypdf import PdfReader, PdfWriter
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_paginated_solo")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    def pdf_con_paginas(total):
+        writer = PdfWriter()
+        for _ in range(total):
+            writer.add_blank_page(width=595, height=842)
+        buffer = BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: pdf_con_paginas(2),
+    )
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(
+        f"/generar-informe-v2-pdf/{expediente_id}?perfil=solo_informe"
+    )
+
+    assert response.status_code == 200
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 2
+    assert "Página 1 de 2" in (reader.pages[0].extract_text() or "")
+    assert "Página 2 de 2" in (reader.pages[1].extract_text() or "")
 
 
 def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
@@ -2752,6 +2860,52 @@ def test_pdf_v2_endpoint_integra_anexo_a_y_mediciones_en_merge_unico(
     assert response.status_code == 200
     assert response.content.endswith(b"ANEXOS_INTEGRADOS\n")
     assert [llamada[0] for llamada in llamadas] == ["integrado"]
+
+
+def test_pdf_v2_endpoint_numera_pdf_final_con_anexos_fusionados(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from pypdf import PdfReader, PdfWriter
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_paginated_annex")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    def pdf_con_paginas(total):
+        writer = PdfWriter()
+        for _ in range(total):
+            writer.add_blank_page(width=595, height=842)
+        buffer = BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: pdf_con_paginas(1),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "fusionar_pdf_informe_v2_con_anexos_integrados",
+        lambda pdf_informe, documentos, pdf_mediciones, **kwargs: pdf_con_paginas(3),
+    )
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=master")
+
+    assert response.status_code == 200
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 3
+    assert "Página 1 de 3" in (reader.pages[0].extract_text() or "")
+    assert "Página 3 de 3" in (reader.pages[2].extract_text() or "")
 
 
 def test_informe_v2_fusion_pdf_mediciones_agrega_paginas(isolated_import):
