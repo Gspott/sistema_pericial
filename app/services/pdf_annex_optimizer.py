@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -152,8 +153,10 @@ def optimizar_pdf_externo(
         ("pypdf", _optimizar_con_pypdf),
     ):
         ruta_destino = carpeta / f"{ruta_origen.stem}-{codigo}-{metodo}.pdf"
+        inicio = time.perf_counter()
         if not optimizador(ruta_origen, ruta_destino):
             continue
+        duracion = round(time.perf_counter() - inicio, 3)
         tamano_final = ruta_destino.stat().st_size
         reduccion = 0
         if tamano_original:
@@ -166,6 +169,7 @@ def optimizar_pdf_externo(
                 "tamano_original": tamano_original,
                 "tamano_final": tamano_final,
                 "reduccion_porcentaje": reduccion,
+                "duracion_s": duracion,
                 "mensaje": f"PDF externo optimizado con {metodo}.",
             }
         ruta_destino.unlink(missing_ok=True)
@@ -177,6 +181,7 @@ def optimizar_pdf_externo(
         "tamano_original": tamano_original,
         "tamano_final": tamano_original,
         "reduccion_porcentaje": 0,
+        "duracion_s": 0,
         "mensaje": "No se obtuvo una versión más ligera; se conserva el PDF original.",
     }
 

@@ -9,6 +9,8 @@ import re
 import secrets
 import shutil
 import sqlite3
+import tempfile
+import time
 import unicodedata
 from urllib.parse import parse_qs, quote_plus, urlparse
 from datetime import datetime
@@ -20,6 +22,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.background import BackgroundTask
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 except ImportError:  # pragma: no cover - fallback defensivo si falta Pillow
@@ -74,9 +77,11 @@ from app.services.informe import (
 )
 from app.services.pericial_consistency import analizar_consistencia_expediente
 from app.services.pdf_annex_optimizer import (
+    GHOSTSCRIPT_PROFILES,
     analizar_peso_pdf,
     bytes_a_mb,
     crear_sesion_optimizacion_anexos_pdf,
+    detectar_ghostscript,
 )
 from app.services.pdf_image_optimizer import (
     crear_sesion_optimizacion_pdf,
@@ -8540,6 +8545,78 @@ def nombre_archivo_pdf_informe_v2(
     if perfil_pdf and incluir_perfil:
         return f"Informe-{numero}-{slug_perfil_exportacion_pdf_v2(perfil_pdf['codigo'])}.pdf"
     return f"Informe-{numero}.pdf"
+
+
+PDF_V2_FILE_RESPONSE_THRESHOLD_BYTES = 25 * 1024 * 1024
+
+
+def registrar_paso_pdf_v2(debug_activo: bool, expediente_id: int, paso: str, **datos) -> None:
+    if debug_activo:
+        logger.info("PDF V2 expediente=%s paso=%s datos=%s", expediente_id, paso, datos)
+
+
+def responder_pdf_v2(pdf_bytes: bytes, nombre_archivo: str):
+    headers = {"Content-Disposition": f'attachment; filename="{nombre_archivo}"'}
+    if len(pdf_bytes) < PDF_V2_FILE_RESPONSE_THRESHOLD_BYTES:
+        return StreamingResponse(
+            BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers=headers,
+        )
+
+    temporal = tempfile.NamedTemporaryFile(
+        prefix="pericial_pdf_v2_",
+        suffix=".pdf",
+        delete=False,
+    )
+    try:
+        with temporal:
+            temporal.write(pdf_bytes)
+        return FileResponse(
+            path=temporal.name,
+            media_type="application/pdf",
+            filename=nombre_archivo,
+            background=BackgroundTask(lambda ruta: Path(ruta).unlink(missing_ok=True), temporal.name),
+        )
+    except Exception:
+        Path(temporal.name).unlink(missing_ok=True)
+        raise
+
+
+def diagnostico_pipeline_pdf_v2(perfil_pdf: dict, contexto: dict) -> dict:
+    diagnostico = diagnosticar_peso_anexos_pdf_v2(
+        contexto.get("anexos", {}).get("documentacion"),
+        contexto.get("pdf_mediciones_anexo_f"),
+    )
+    anexos = diagnostico.get("anexos") or []
+    return {
+        "perfil": perfil_pdf.get("codigo"),
+        "informe_principal_mb": None,
+        "anexos_detectados": len(anexos),
+        "anexo_a_mb": diagnostico.get("anexo_a_mb"),
+        "anexo_f_mb": diagnostico.get("anexo_f_mb"),
+        "otros_anexos_mb": diagnostico.get("otros_anexos_mb"),
+        "total_estimado_mb": diagnostico.get("total_estimado_mb"),
+        "paginas_estimadas": sum(int(anexo.get("paginas") or 0) for anexo in anexos),
+        "ghostscript_disponible": bool(detectar_ghostscript()),
+        "ghostscript_perfiles": GHOSTSCRIPT_PROFILES,
+        "pasos_previstos": [
+            "render_informe_principal",
+            "diagnostico_anexos",
+            "fusion_anexos" if perfil_pdf.get("incluye_anexos") else "sin_fusion_anexos",
+            "paginacion_final",
+            "respuesta",
+        ],
+        "anexos": [
+            {
+                "categoria": anexo.get("categoria"),
+                "nombre": anexo.get("nombre"),
+                "tamano_mb": anexo.get("tamano_mb"),
+                "paginas": anexo.get("paginas"),
+            }
+            for anexo in anexos
+        ],
+    }
 
 
 def contar_paginas_pdf_upload_v2(ruta_relativa: str | None) -> int:
@@ -17779,10 +17856,16 @@ def generar_informe_v2_pdf_endpoint(
     request: Request,
     expediente_id: int,
     perfil: str = Query(""),
+    debug_pdf_pipeline: str = Query(""),
+    debug_sin_paginacion: str = Query(""),
 ):
     current_user = get_current_user(request)
     perfil_explicitado = bool(limpiar_texto(perfil))
     perfil_pdf = resolver_perfil_exportacion_pdf_v2(perfil)
+    debug_pipeline_valor = limpiar_texto(debug_pdf_pipeline).lower()
+    debug_diagnostico_json = debug_pipeline_valor == "1"
+    debug_pipeline_activo = debug_pipeline_valor in {"1", "log", "logs", "trace"}
+    sin_paginacion = limpiar_texto(debug_sin_paginacion) == "1"
 
     conn = get_connection()
     cur = conn.cursor()
@@ -17810,22 +17893,59 @@ def generar_informe_v2_pdf_endpoint(
     finally:
         conn.close()
 
+    if debug_diagnostico_json:
+        return JSONResponse(content=diagnostico_pipeline_pdf_v2(perfil_pdf, contexto))
+
     sesion_optimizacion = crear_sesion_optimizacion_pdf(perfil_pdf)
     sesion_optimizacion_anexos = crear_sesion_optimizacion_anexos_pdf(perfil_pdf)
     try:
         contexto["perfil_exportacion_pdf"] = perfil_pdf
+        registrar_paso_pdf_v2(
+            debug_pipeline_activo,
+            expediente_id,
+            "inicio_render_informe_principal",
+            perfil=perfil_pdf.get("codigo"),
+        )
+        inicio_paso = time.perf_counter()
         contexto["optimizacion_imagenes_pdf"] = optimizar_contexto_imagenes_pdf(
             contexto,
             sesion_optimizacion,
             UPLOAD_PATH,
         )
         pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
+        registrar_paso_pdf_v2(
+            debug_pipeline_activo,
+            expediente_id,
+            "fin_render_informe_principal",
+            tamano_mb=bytes_a_mb(len(pdf_bytes)),
+            duracion_s=round(time.perf_counter() - inicio_paso, 3),
+        )
         contexto["diagnostico_anexos_pdf"] = diagnosticar_peso_anexos_pdf_v2(
             contexto.get("anexos", {}).get("documentacion"),
             contexto.get("pdf_mediciones_anexo_f"),
             pdf_bytes,
         )
         if perfil_pdf.get("incluye_anexos"):
+            registrar_paso_pdf_v2(
+                debug_pipeline_activo,
+                expediente_id,
+                "inicio_fusion_anexos",
+                anexos_detectados=len(contexto["diagnostico_anexos_pdf"].get("anexos") or []),
+                anexo_a_mb=contexto["diagnostico_anexos_pdf"].get("anexo_a_mb"),
+                anexo_f_mb=contexto["diagnostico_anexos_pdf"].get("anexo_f_mb"),
+            )
+            for anexo_detectado in contexto["diagnostico_anexos_pdf"].get("anexos") or []:
+                registrar_paso_pdf_v2(
+                    debug_pipeline_activo,
+                    expediente_id,
+                    "pdf_externo_detectado",
+                    categoria=anexo_detectado.get("categoria"),
+                    nombre=anexo_detectado.get("nombre"),
+                    ruta=str(anexo_detectado.get("ruta") or ""),
+                    tamano_mb=anexo_detectado.get("tamano_mb"),
+                    paginas=anexo_detectado.get("paginas"),
+                )
+            inicio_paso = time.perf_counter()
             pdf_bytes = fusionar_pdf_informe_v2_con_anexos_integrados(
                 pdf_bytes,
                 contexto.get("anexos", {}).get("documentacion"),
@@ -17834,7 +17954,40 @@ def generar_informe_v2_pdf_endpoint(
                 sesion_optimizacion_anexos=sesion_optimizacion_anexos,
                 diagnostico_anexos_pdf=contexto.get("diagnostico_anexos_pdf"),
             )
-        pdf_bytes = paginar_pdf_final_bytes(pdf_bytes, perfil=perfil_pdf)
+            registrar_paso_pdf_v2(
+                debug_pipeline_activo,
+                expediente_id,
+                "fin_fusion_anexos",
+                tamano_mb=bytes_a_mb(len(pdf_bytes)),
+                duracion_s=round(time.perf_counter() - inicio_paso, 3),
+                optimizaciones=sesion_optimizacion_anexos.resultados,
+            )
+        if sin_paginacion:
+            registrar_paso_pdf_v2(
+                debug_pipeline_activo,
+                expediente_id,
+                "paginacion_final_omitida_por_debug",
+            )
+        else:
+            registrar_paso_pdf_v2(
+                debug_pipeline_activo,
+                expediente_id,
+                "inicio_paginacion_final",
+                tamano_mb=bytes_a_mb(len(pdf_bytes)),
+            )
+            inicio_paso = time.perf_counter()
+            pdf_bytes = paginar_pdf_final_bytes(
+                pdf_bytes,
+                perfil=perfil_pdf,
+                debug=debug_pipeline_activo,
+            )
+            registrar_paso_pdf_v2(
+                debug_pipeline_activo,
+                expediente_id,
+                "fin_paginacion_final",
+                tamano_mb=bytes_a_mb(len(pdf_bytes)),
+                duracion_s=round(time.perf_counter() - inicio_paso, 3),
+            )
     finally:
         sesion_optimizacion.cleanup()
         sesion_optimizacion_anexos.cleanup()
@@ -17844,13 +17997,14 @@ def generar_informe_v2_pdf_endpoint(
         incluir_perfil=perfil_explicitado,
     )
 
-    return StreamingResponse(
-        BytesIO(pdf_bytes),
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{nombre_archivo}"',
-        },
+    registrar_paso_pdf_v2(
+        debug_pipeline_activo,
+        expediente_id,
+        "inicio_respuesta_cliente",
+        tamano_mb=bytes_a_mb(len(pdf_bytes)),
+        file_response=len(pdf_bytes) >= PDF_V2_FILE_RESPONSE_THRESHOLD_BYTES,
     )
+    return responder_pdf_v2(pdf_bytes, nombre_archivo)
 
 
 @app.get("/generar-informe-docx-editable/{expediente_id}")

@@ -26,6 +26,49 @@ def _autenticar_cliente(main_module, user_id: int):
     return client
 
 
+def _pdf_simple_bytes(total_paginas: int = 1, width: int = 595, height: int = 842) -> bytes:
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for _ in range(total_paginas):
+        writer.add_blank_page(width=width, height=height)
+    buffer = BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
+
+
+def _crear_documento_pdf_expediente(
+    main_module,
+    cur,
+    expediente_id: int,
+    nombre_archivo: str = "anexo-smoke.pdf",
+    total_paginas: int = 1,
+):
+    ruta_relativa = f"expediente_documentos/{expediente_id}/{nombre_archivo}"
+    ruta_pdf = main_module.UPLOAD_PATH / ruta_relativa
+    ruta_pdf.parent.mkdir(parents=True, exist_ok=True)
+    ruta_pdf.write_bytes(_pdf_simple_bytes(total_paginas))
+    cur.execute(
+        """
+        INSERT INTO expediente_documentos (
+            expediente_id, nombre_visible, descripcion, tipo_documento,
+            archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            expediente_id,
+            "Anexo documental smoke",
+            "PDF externo aportado para smoke test.",
+            "Documentación aportada",
+            ruta_relativa,
+            nombre_archivo,
+            10,
+        ),
+    )
+    return ruta_pdf
+
+
 def _crear_expediente_patologias(cur, user_id: int) -> int:
     cur.execute(
         """
@@ -2185,6 +2228,285 @@ def test_pdf_v2_endpoint_email_funciona_sin_ghostscript(
     assert "Página 1 de 1" in (reader.pages[0].extract_text() or "")
 
 
+def test_pdf_v2_paginacion_se_llama_en_todos_los_perfiles(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pdf_pagination import paginar_pdf_final_bytes as paginar_real
+    from pypdf import PdfReader
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_pagination_profiles")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    perfiles = ["master", "email", "judicial", "informe_anexos", "solo_informe"]
+    llamadas = []
+
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: _pdf_simple_bytes(1),
+    )
+
+    def registrar_paginacion(pdf_bytes, perfil="master", config=None, debug=False):
+        codigo = perfil.get("codigo") if isinstance(perfil, dict) else perfil
+        llamadas.append(codigo)
+        return paginar_real(pdf_bytes, perfil=perfil, config=config, debug=debug)
+
+    monkeypatch.setattr(main_module, "paginar_pdf_final_bytes", registrar_paginacion)
+
+    client = _autenticar_cliente(main_module, user_id)
+    for perfil in perfiles:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil={perfil}")
+        assert response.status_code == 200
+        reader = PdfReader(BytesIO(response.content))
+        assert "Página 1 de 1" in (reader.pages[0].extract_text() or "")
+
+    assert llamadas == perfiles
+
+
+def test_pdf_v2_file_response_conserva_pdf_paginado(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from pypdf import PdfReader
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_file_response_paginated")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(main_module, "PDF_V2_FILE_RESPONSE_THRESHOLD_BYTES", 1)
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: _pdf_simple_bytes(2),
+    )
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=solo_informe")
+
+    assert response.status_code == 200
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 2
+    assert "Página 1 de 2" in (reader.pages[0].extract_text() or "")
+    assert "Página 2 de 2" in (reader.pages[1].extract_text() or "")
+
+
+def test_pdf_v2_debug_pipeline_devuelve_json_y_no_pdf(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    ruta_anexo = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_debug_pipeline")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        ruta_anexo = _crear_documento_pdf_expediente(
+            main_module,
+            cur,
+            expediente_id,
+            "anexo-debug.pdf",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(
+            f"/generar-informe-v2-pdf/{expediente_id}?perfil=master&debug_pdf_pipeline=1"
+        )
+    finally:
+        if ruta_anexo:
+            ruta_anexo.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert not response.content.startswith(b"%PDF")
+    payload = response.json()
+    assert payload["perfil"] == "master"
+    assert payload["anexos_detectados"] >= 1
+    assert payload["anexo_a_mb"] >= 0
+    assert payload["paginas_estimadas"] >= 1
+    assert "fusion_anexos" in payload["pasos_previstos"]
+    assert "ghostscript_disponible" in payload
+
+
+def test_pdf_v2_debug_sin_paginacion_omite_segunda_pasada(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from pypdf import PdfReader
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_skip_pagination")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: _pdf_simple_bytes(1),
+    )
+
+    def fail_pagination(pdf_bytes, perfil=None):
+        raise AssertionError("debug_sin_paginacion debe omitir la paginación final")
+
+    monkeypatch.setattr(main_module, "paginar_pdf_final_bytes", fail_pagination)
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(
+        f"/generar-informe-v2-pdf/{expediente_id}?perfil=solo_informe&debug_sin_paginacion=1"
+    )
+
+    assert response.status_code == 200
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 1
+    assert "Página 1 de 1" not in (reader.pages[0].extract_text() or "")
+
+
+def test_pdf_v2_master_con_anexo_pequeno_responde(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from pypdf import PdfReader
+
+    conn = get_connection()
+    ruta_anexo = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_master_anexo_smoke")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        ruta_anexo = _crear_documento_pdf_expediente(
+            main_module,
+            cur,
+            expediente_id,
+            "anexo-master-smoke.pdf",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    pdf_original = _pdf_simple_bytes(1)
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: pdf_original,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "generar_paginas_portadilla_anexo_a_v2",
+        lambda documento, pdf_integrado: [],
+    )
+
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=master")
+    finally:
+        if ruta_anexo:
+            ruta_anexo.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert response.content != pdf_original
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 2
+    assert "Página 1 de 2" in (reader.pages[0].extract_text() or "")
+    assert "Página 2 de 2" in (reader.pages[1].extract_text() or "")
+
+
+def test_pdf_v2_email_ghostscript_lento_hace_timeout_y_fallback(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services import pdf_annex_optimizer
+    from pypdf import PdfReader
+
+    conn = get_connection()
+    ruta_anexo = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_email_gs_timeout")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        ruta_anexo = _crear_documento_pdf_expediente(
+            main_module,
+            cur,
+            expediente_id,
+            "anexo-email-timeout.pdf",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    comandos = []
+
+    def fake_run(comando, check, timeout):
+        comandos.append((comando, timeout))
+        raise pdf_annex_optimizer.subprocess.TimeoutExpired(comando, timeout)
+
+    monkeypatch.setattr(pdf_annex_optimizer.shutil, "which", lambda nombre: "/usr/local/bin/gs")
+    monkeypatch.setattr(pdf_annex_optimizer.subprocess, "run", fake_run)
+    monkeypatch.setattr(pdf_annex_optimizer, "_optimizar_con_pypdf", lambda origen, destino: False)
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: _pdf_simple_bytes(1),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "generar_paginas_portadilla_anexo_a_v2",
+        lambda documento, pdf_integrado: [],
+    )
+
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(
+            f"/generar-informe-v2-pdf/{expediente_id}?perfil=email&debug_sin_paginacion=1"
+        )
+    finally:
+        if ruta_anexo:
+            ruta_anexo.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 2
+    assert comandos
+    assert "-dPDFSETTINGS=/ebook" in comandos[0][0]
+    assert comandos[0][1] == pdf_annex_optimizer.GHOSTSCRIPT_PROFILES["email"]["timeout"]
+
+
 def test_pdf_pagination_servicio_numera_pdf_una_pagina(tmp_path):
     from pypdf import PdfReader, PdfWriter
 
@@ -2248,6 +2570,49 @@ def test_pdf_pagination_servicio_funciona_horizontal_y_tamanos_distintos():
     assert int(float(reader.pages[1].mediabox.height)) == 1008
     assert "Página 1 de 2" in (reader.pages[0].extract_text() or "")
     assert "Página 2 de 2" in (reader.pages[1].extract_text() or "")
+
+
+def test_pdf_pagination_servicio_funciona_con_pagina_rotada():
+    from pypdf import PdfReader, PdfWriter
+
+    from app.services.pdf_pagination import paginar_pdf_final_bytes
+
+    writer = PdfWriter()
+    pagina = writer.add_blank_page(width=842, height=595)
+    pagina.rotate(90)
+    buffer = BytesIO()
+    writer.write(buffer)
+
+    paginado = paginar_pdf_final_bytes(buffer.getvalue())
+    reader = PdfReader(BytesIO(paginado))
+
+    assert len(reader.pages) == 1
+    assert int(reader.pages[0].get("/Rotate", 0) or 0) == 0
+    assert int(float(reader.pages[0].mediabox.width)) == 595
+    assert int(float(reader.pages[0].mediabox.height)) == 842
+    assert "Página 1 de 1" in (reader.pages[0].extract_text() or "")
+
+
+def test_pdf_pagination_si_falla_devuelve_original_y_registra_warning(
+    monkeypatch,
+    caplog,
+):
+    import logging
+
+    from app.services import pdf_pagination
+
+    pdf_original = _pdf_simple_bytes(1)
+
+    def fail_page(pagina, texto, writer=None):
+        raise RuntimeError("fallo pagination smoke")
+
+    monkeypatch.setattr(pdf_pagination, "_anadir_paginacion_a_pagina", fail_page)
+
+    with caplog.at_level(logging.WARNING):
+        resultado = pdf_pagination.paginar_pdf_final_bytes(pdf_original)
+
+    assert resultado == pdf_original
+    assert "No se pudo paginar el PDF final" in caplog.text
 
 
 def test_pdf_v2_rechaza_perfil_exportacion_desconocido(
