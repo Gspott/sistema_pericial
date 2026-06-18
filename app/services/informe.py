@@ -5790,21 +5790,13 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
     template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
     numero_expediente = str((contexto.get("expediente") or {}).get("numero_expediente") or "").strip()
     tecnico = str(contexto.get("tecnico") or "").strip() or "Carlos Blanco"
-    tipo_informe = str((contexto.get("expediente") or {}).get("tipo_trabajo_label") or "").strip()
-    cabecera_informe = tipo_informe or "Dictamen técnico pericial"
     pie_expediente = (
         f"{tecnico} · Arquitecto Técnico · Expediente {numero_expediente}"
         if numero_expediente
         else f"{tecnico} · Arquitecto Técnico"
     )
     pie_derecha = f"Expediente {numero_expediente}" if numero_expediente else "Informe pericial"
-    header_template = (
-        "<div style='width:100%;padding:0 16mm;font-family:Aptos,Segoe UI,Arial,Helvetica,sans-serif;"
-        "font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:0;"
-        "box-sizing:border-box;'>"
-        f"{html.escape(cabecera_informe)}"
-        "</div>"
-    )
+    header_template = "<span></span>"
     footer_template = (
         "<div style='width:100%;padding:0 16mm;font-family:Aptos,Segoe UI,Arial,Helvetica,sans-serif;"
         "font-size:8px;color:#6b7280;display:flex;justify-content:space-between;gap:12px;"

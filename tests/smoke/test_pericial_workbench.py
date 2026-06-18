@@ -3357,9 +3357,11 @@ def test_pdf_v2_footer_no_muestra_total_paginas(isolated_import):
     )[0]
 
     assert "Arquitecto Técnico · Expediente" in bloque_v2
+    assert 'header_template = "<span></span>"' in bloque_v2
     assert "header_template=header_template" in bloque_v2
     assert "footer_template=footer_template" in bloque_v2
-    assert "Dictamen técnico pericial" in bloque_v2
+    assert "tipo_trabajo_label" not in bloque_v2
+    assert "cabecera_informe" not in bloque_v2
     assert "totalPages" not in bloque_v2
     assert "Página <span class='pageNumber'></span>" not in bloque_v2
 

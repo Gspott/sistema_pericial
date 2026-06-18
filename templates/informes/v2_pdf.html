@@ -248,28 +248,35 @@
 
         .annex-cover {
             align-items: center;
+            border-bottom: 1px solid var(--line);
+            border-top: 4px solid var(--ink);
             break-inside: avoid;
+            box-sizing: border-box;
             display: flex;
             min-height: 230mm;
             justify-content: center;
             page-break-before: always;
             page-break-after: always;
             page-break-inside: avoid;
+            padding: 18mm 12mm;
             text-align: center;
         }
 
         .annex-cover h2 {
             border: 0;
-            font-size: 24px;
+            color: var(--heading);
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 25px;
+            line-height: 1.2;
             margin: 0;
         }
 
         .annex-letter {
             color: var(--muted);
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 700;
             letter-spacing: 0;
-            margin: 0 0 8px;
+            margin: 0 0 10px;
             text-transform: uppercase;
         }
 
@@ -278,12 +285,15 @@
         }
 
         .annex-section > h2 {
-            border-bottom: 2px solid var(--ink);
+            border-bottom: 1px solid var(--line);
             break-after: avoid;
             break-inside: avoid;
+            color: var(--heading);
+            font-family: Georgia, "Times New Roman", serif;
             font-size: 17px;
             letter-spacing: 0;
-            margin-bottom: 16px;
+            line-height: 1.25;
+            margin: 0 0 16px;
             page-break-after: avoid;
             page-break-inside: avoid;
             padding-bottom: 7px;
@@ -296,18 +306,19 @@
 
         .doc-card-grid {
             display: grid;
-            gap: 10px;
-            margin-top: 12px;
+            gap: 9px;
+            margin-top: 14px;
         }
 
         .doc-card {
-            border: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+            border-top: 1px solid var(--line-soft);
             break-inside: avoid;
             display: grid;
-            gap: 10px;
+            gap: 11px;
             grid-template-columns: 24mm 1fr;
             page-break-inside: avoid;
-            padding: 10px 12px;
+            padding: 9px 0 10px;
         }
 
         .doc-card-order {
@@ -317,6 +328,7 @@
         }
 
         .doc-card h3 {
+            color: var(--heading);
             margin: 0 0 8px;
         }
 
@@ -343,6 +355,8 @@
         .doc-table,
         .valuation-table {
             border-collapse: collapse;
+            font-size: 12.5px;
+            line-height: 1.42;
             margin-top: 12px;
             width: 100%;
         }
@@ -352,15 +366,16 @@
         .valuation-table th,
         .valuation-table td {
             border: 1px solid var(--line);
-            padding: 6px 7px;
+            padding: 7px 8px;
             text-align: left;
             vertical-align: top;
         }
 
         .doc-table th,
         .valuation-table th {
-            background: var(--soft);
-            color: #374151;
+            background: #fff;
+            border-bottom: 1px solid var(--ink);
+            color: var(--heading);
             font-size: 11px;
             text-transform: uppercase;
         }
@@ -375,13 +390,15 @@
 
         .photo-group {
             break-inside: auto;
-            margin: 16px 0 22px;
+            margin: 18px 0 24px;
             page-break-inside: auto;
         }
 
         .photo-group h3 {
-            border-bottom: 1px solid #e5e9ef;
-            padding-bottom: 4px;
+            border-bottom: 1px solid var(--line);
+            color: var(--heading);
+            margin-bottom: 8px;
+            padding-bottom: 5px;
             text-transform: uppercase;
         }
 
@@ -401,15 +418,17 @@
         }
 
         .photo-board {
-            border: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+            border-top: 1px solid var(--line);
             break-inside: avoid;
             margin: 0 0 18px;
             page-break-inside: avoid;
-            padding: 12px;
+            padding: 12px 0;
         }
 
         .photo-board h3 {
-            border-bottom: 1px solid #e5e9ef;
+            border-bottom: 1px solid var(--line);
+            color: var(--heading);
             margin: 0 0 6px;
             padding-bottom: 5px;
             text-transform: uppercase;
@@ -433,7 +452,7 @@
 
         .photo-board-grid figure {
             background: #fff;
-            border: 1px solid #edf0f4;
+            border-top: 1px solid var(--line-soft);
             padding: 7px;
         }
 
@@ -465,7 +484,7 @@
         }
 
         .photo-board-observation {
-            border-left: 2px solid #cbd5e1;
+            border-left: 2px solid var(--line);
             color: #374151;
             display: block;
             font-size: 10.5px;
@@ -512,7 +531,10 @@
 
         .damage-sheet h3 {
             border-bottom: 1px solid var(--line);
-            font-size: 22px;
+            color: var(--heading);
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 20px;
+            line-height: 1.24;
             margin: 0 0 8px;
             padding-bottom: 6px;
             text-transform: uppercase;
@@ -525,7 +547,8 @@
         }
 
         .annex-list {
-            margin: 4px 0 10px 18px;
+            line-height: 1.52;
+            margin: 5px 0 12px 18px;
             padding: 0;
         }
 
@@ -535,13 +558,13 @@
         }
 
         .valuation-total {
-            border-top: 2px solid var(--ink);
+            border-top: 1px solid var(--ink);
             font-weight: 700;
         }
 
         .economic-summary {
-            border-bottom: 2px solid var(--ink);
-            border-top: 2px solid var(--ink);
+            border-bottom: 1px solid var(--ink);
+            border-top: 1px solid var(--ink);
             margin: 6px 0 18px;
             padding: 12px 0;
         }
@@ -556,7 +579,8 @@
 
         .economic-summary-value {
             color: var(--ink);
-            font-size: 28px;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 26px;
             font-weight: 700;
             line-height: 1.15;
             margin-top: 3px;
@@ -579,11 +603,12 @@
 
         .analysis-block {
             break-inside: avoid;
+            line-height: 1.68;
             page-break-inside: avoid;
         }
 
         .analysis-block p {
-            margin: 6px 0 10px;
+            margin: 0 0 10px;
         }
 
         .analysis-block ul {
