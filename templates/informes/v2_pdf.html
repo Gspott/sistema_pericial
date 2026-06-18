@@ -369,6 +369,83 @@
             margin-top: 8px;
         }
 
+        .photo-board-section {
+            page-break-before: always;
+        }
+
+        .photo-board {
+            border: 1px solid var(--line);
+            break-inside: avoid;
+            margin: 0 0 18px;
+            page-break-inside: avoid;
+            padding: 12px;
+        }
+
+        .photo-board h3 {
+            border-bottom: 1px solid #e5e9ef;
+            margin: 0 0 6px;
+            padding-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .photo-board-subtitle {
+            color: var(--muted);
+            margin: 0 0 10px;
+        }
+
+        .photo-board-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .photo-board-grid.layout-antes_despues,
+        .photo-board-grid.layout-comparativa_2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .photo-board-grid figure {
+            background: #fff;
+            border: 1px solid #edf0f4;
+            padding: 7px;
+        }
+
+        .photo-board-grid img {
+            height: 82mm;
+            object-fit: contain;
+            width: 100%;
+        }
+
+        .photo-board-grid.layout-comparativa_4 img,
+        .photo-board-grid.layout-cronologica img {
+            height: 58mm;
+        }
+
+        .photo-board-label {
+            color: var(--ink);
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+
+        .photo-board-caption-title {
+            color: var(--ink);
+            display: block;
+            font-weight: 700;
+            margin-top: 5px;
+        }
+
+        .photo-board-observation {
+            border-left: 2px solid #cbd5e1;
+            color: #374151;
+            display: block;
+            font-size: 10.5px;
+            margin-top: 4px;
+            padding-left: 6px;
+        }
+
         .photo-figure-id {
             color: var(--ink);
             display: block;
@@ -688,6 +765,39 @@
             <p class="empty-note">No constan fotografías asociadas al expediente.</p>
             {% endif %}
         </section>
+
+        {% if anexos.laminas_fotograficas %}
+        <section class="annex-section photo-board-section">
+            <h2>ANEXO B. LÁMINAS COMPARATIVAS</h2>
+            {% for lamina in anexos.laminas_fotograficas %}
+            <article class="photo-board">
+                <h3>LÁMINA COMPARATIVA Nº {{ lamina.numero }} · {{ lamina.titulo }}</h3>
+                {% if lamina.subtitulo %}
+                <p class="photo-board-subtitle">{{ lamina.subtitulo }}</p>
+                {% endif %}
+                <div class="photo-board-grid layout-{{ lamina.layout }}">
+                    {% for foto in lamina.fotos %}
+                    <figure>
+                        {% if foto.etiqueta %}
+                        <figcaption class="photo-board-label">{{ foto.etiqueta }}</figcaption>
+                        {% endif %}
+                        <img src="{{ foto.url }}" alt="Fotografía de lámina comparativa">
+                        <figcaption>
+                            <span class="photo-board-caption-title">Figura {{ foto.numero }}.</span>
+                            {{ foto.pie or "Fotografía de lámina comparativa" }}
+                            {% if foto.observacion %}
+                            <span class="photo-board-observation">
+                                <strong>Observación:</strong> {{ foto.observacion }}
+                            </span>
+                            {% endif %}
+                        </figcaption>
+                    </figure>
+                    {% endfor %}
+                </div>
+            </article>
+            {% endfor %}
+        </section>
+        {% endif %}
 
         {{ separador_anexo("C", "FICHAS DE DAÑOS POR ESTANCIA") }}
         <section class="annex-section">

@@ -43,11 +43,15 @@ def _crear_documento_pdf_expediente(
     expediente_id: int,
     nombre_archivo: str = "anexo-smoke.pdf",
     total_paginas: int = 1,
+    padding_bytes: int = 0,
 ):
     ruta_relativa = f"expediente_documentos/{expediente_id}/{nombre_archivo}"
     ruta_pdf = main_module.UPLOAD_PATH / ruta_relativa
     ruta_pdf.parent.mkdir(parents=True, exist_ok=True)
     ruta_pdf.write_bytes(_pdf_simple_bytes(total_paginas))
+    if padding_bytes:
+        with ruta_pdf.open("ab") as buffer:
+            buffer.write(b"0" * padding_bytes)
     cur.execute(
         """
         INSERT INTO expediente_documentos (
@@ -67,6 +71,25 @@ def _crear_documento_pdf_expediente(
         ),
     )
     return ruta_pdf
+
+
+def _crear_foto_visita_para_lamina(main_module, cur, expediente_id: int, nombre: str, descripcion: str):
+    from PIL import Image
+
+    visita_id = cur.execute(
+        "SELECT id FROM visitas WHERE expediente_id=? LIMIT 1",
+        (expediente_id,),
+    ).fetchone()["id"]
+    ruta_foto = main_module.UPLOAD_PATH / nombre
+    Image.new("RGB", (800, 520), (90, 120, 150)).save(ruta_foto, quality=90)
+    cur.execute(
+        """
+        INSERT INTO visita_fotos (visita_id, categoria, ruta, descripcion)
+        VALUES (?, 'exterior', ?, ?)
+        """,
+        (visita_id, nombre, descripcion),
+    )
+    return cur.lastrowid, ruta_foto
 
 
 def _crear_expediente_patologias(cur, user_id: int) -> int:
@@ -2445,9 +2468,10 @@ def test_pdf_v2_master_con_anexo_pequeno_responde(
     assert response.status_code == 200
     assert response.content != pdf_original
     reader = PdfReader(BytesIO(response.content))
-    assert len(reader.pages) == 2
-    assert "Página 1 de 2" in (reader.pages[0].extract_text() or "")
-    assert "Página 2 de 2" in (reader.pages[1].extract_text() or "")
+    assert len(reader.pages) == 3
+    assert "Página 1 de 3" in (reader.pages[0].extract_text() or "")
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in (reader.pages[1].extract_text() or "")
+    assert "Página 3 de 3" in (reader.pages[2].extract_text() or "")
 
 
 def test_pdf_v2_email_ghostscript_lento_hace_timeout_y_fallback(
@@ -2507,7 +2531,8 @@ def test_pdf_v2_email_ghostscript_lento_hace_timeout_y_fallback(
 
     assert response.status_code == 200
     reader = PdfReader(BytesIO(response.content))
-    assert len(reader.pages) == 2
+    assert len(reader.pages) == 3
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in (reader.pages[1].extract_text() or "")
     assert comandos
     assert "-dPDFSETTINGS=/ebook" in comandos[0][0]
     assert comandos[0][1] == pdf_annex_optimizer.GHOSTSCRIPT_PROFILES["email"]["timeout"]
@@ -3077,9 +3102,138 @@ def test_informe_v2_editor_muestra_aviso_anexos_pdf_externos(
             ruta_anexo.unlink(missing_ok=True)
 
     assert response.status_code == 200
+    assert "Peso estimado del PDF" in response.text
     assert "El PDF final puede ser pesado porque contiene anexos externos" in response.text
     assert "Anexo A" in response.text
     assert "Anexo F" in response.text
+
+
+def test_pdf_v2_diagnostico_anexos_devuelve_desglose_estable(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    ruta_anexo = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_annex_diag_helper")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        ruta_anexo = _crear_documento_pdf_expediente(
+            main_module,
+            cur,
+            expediente_id,
+            "anexo-helper.pdf",
+            total_paginas=2,
+        )
+        conn.commit()
+        documentos = [
+            {
+                "nombre": "Anexo helper",
+                "archivo_ruta": f"expediente_documentos/{expediente_id}/anexo-helper.pdf",
+                "mime_type": "application/pdf",
+            }
+        ]
+        diagnostico = main_module.diagnosticar_peso_anexos_pdf_v2(
+            documentos,
+            None,
+            b"12345",
+        )
+    finally:
+        conn.close()
+        if ruta_anexo:
+            ruta_anexo.unlink(missing_ok=True)
+
+    assert set(
+        [
+            "informe_principal_mb",
+            "anexo_a_mb",
+            "anexo_f_mb",
+            "otros_anexos_mb",
+            "total_estimado_mb",
+            "anexos",
+            "anexos_pesados",
+            "avisos",
+            "nivel",
+        ]
+    ).issubset(diagnostico)
+    assert diagnostico["informe_principal_mb"] == 0.0
+    assert diagnostico["anexo_a_mb"] >= 0
+    assert diagnostico["anexo_f_mb"] == 0.0
+    assert diagnostico["otros_anexos_mb"] == 0.0
+    assert diagnostico["total_estimado_mb"] >= diagnostico["anexo_a_mb"]
+    assert diagnostico["anexos"][0]["nombre"] == "Anexo helper"
+    assert diagnostico["anexos"][0]["categoria"] == "anexo_a"
+    assert diagnostico["anexos"][0]["paginas"] == 2
+
+
+def test_informe_v2_editor_muestra_diagnostico_anexos_pesados(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    ruta_anexo = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_annex_diag_heavy")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        ruta_anexo = _crear_documento_pdf_expediente(
+            main_module,
+            cur,
+            expediente_id,
+            "anexo-a-22mb.pdf",
+            total_paginas=3,
+            padding_bytes=22 * 1024 * 1024,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+    finally:
+        if ruta_anexo:
+            ruta_anexo.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert "Peso estimado del PDF" in response.text
+    assert "Total estimado" in response.text
+    assert "Anexo documental smoke" in response.text
+    assert "Hay anexos individuales de más de 10 MB" in response.text
+    assert "El PDF final estimado supera 20 MB" in response.text
+    assert "El Anexo A representa más del 70 %" in response.text
+    assert "El perfil Email/Judicial puede intentar comprimir anexos externos" in response.text
+
+
+def test_informe_v2_editor_sin_anexos_muestra_panel_sin_romper(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_annex_diag_empty")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+
+    assert response.status_code == 200
+    assert "Peso estimado del PDF" in response.text
+    assert "No constan anexos PDF externos incorporables al informe final." in response.text
+    assert "Exportar PDF" in response.text
 
 
 def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
@@ -3339,6 +3493,7 @@ def test_pdf_v2_integra_anexo_a_como_portadilla_mas_documento(
     ruta_anexo = main_module.UPLOAD_PATH / ruta_relativa
     ruta_anexo.parent.mkdir(parents=True, exist_ok=True)
     ruta_anexo.write_bytes(pdf_con_paginas([520, 530]))
+    bytes_anexo_original = ruta_anexo.read_bytes()
 
     corrupto_relativo = "expediente_documentos/1/anexo-a-corrupto.pdf"
     ruta_corrupta = main_module.UPLOAD_PATH / corrupto_relativo
@@ -3389,7 +3544,64 @@ def test_pdf_v2_integra_anexo_a_como_portadilla_mas_documento(
         int(float(pagina.mediabox.width))
         for pagina in PdfReader(BytesIO(fusionado)).pages
     ]
-    assert anchos == [500, 510, 520, 530, 515, 515]
+    assert anchos == [500, 595, 510, 520, 530, 515, 515]
+    textos = [
+        pagina.extract_text() or ""
+        for pagina in PdfReader(BytesIO(fusionado)).pages
+    ]
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in textos[1]
+    assert "A.1" in textos[1]
+    assert "A.2" in textos[1]
+    assert "Documento integrado" in textos[1]
+    assert "Documento corrupto" in textos[1]
+    assert ruta_anexo.read_bytes() == bytes_anexo_original
+
+
+def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader
+
+    documento_1 = {
+        "numero_anexo": "A.1",
+        "nombre": "Proyecto Reforma Cubierta",
+        "tipo": "Proyecto",
+        "fecha": "2026-06-18",
+        "descripcion": "Proyecto aportado por la propiedad.",
+        "paginas": 102,
+        "paginas_label": "102 págs.",
+        "tamano_mb": 27.41,
+        "tamano_label": "27.41 MB",
+        "categoria": "Proyecto",
+    }
+    documento_2 = {
+        "numero_anexo": "A.2",
+        "nombre": "Ficha catastral",
+        "tipo": "Ficha",
+        "paginas": 1,
+        "paginas_label": "1 pág.",
+        "tamano_mb": 0.64,
+        "tamano_label": "0.64 MB",
+        "categoria": "Catastro",
+    }
+
+    indice = main_module.generar_paginas_indice_anexo_a_v2([documento_1, documento_2])
+    ficha = main_module.generar_paginas_portadilla_anexo_a_v2(documento_1, True)
+
+    assert len(indice) >= 1
+    assert len(ficha) == 1
+    texto_indice = indice[0].extract_text() or ""
+    texto_ficha = ficha[0].extract_text() or ""
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in texto_indice
+    assert "A.1" in texto_indice
+    assert "A.2" in texto_indice
+    assert "Proyecto Reforma Cubierta" in texto_indice
+    assert "102 págs." in texto_indice
+    assert "27.41 MB" in texto_indice
+    assert "ANEXO A.1" in texto_ficha
+    assert "Proyecto Reforma Cubierta" in texto_ficha
+    assert "Páginas:" in texto_ficha
+    assert "Tamaño:" in texto_ficha
 
 
 def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
@@ -3449,7 +3661,7 @@ def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
         int(float(pagina.mediabox.width))
         for pagina in PdfReader(BytesIO(fusionado)).pages
     ]
-    assert anchos == [500, 530]
+    assert anchos == [500, 595, 530]
 
 
 def test_pdf_v2_endpoint_integra_anexo_a_y_mediciones_en_merge_unico(
@@ -4126,3 +4338,626 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert contexto["anexos"]["analisis_partida_4"]["total_partidas_estructuradas"] == 2
     assert contexto["anexos"]["justificacion_mediciones"]["guardado"] is True
     assert contexto["anexos"]["justificacion_mediciones"]["editado_manual"] is True
+
+
+def test_informe_v2_laminas_fotograficas_crea_2_y_4_fotos(isolated_import):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_crear")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(4):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_crear_{expediente_id}_{indice}.jpg",
+                f"Foto lámina {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response_2 = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas",
+        data={
+            "titulo": "Antes y después de reparación",
+            "subtitulo": "Comparativa visual",
+            "layout": "antes_despues",
+            "foto_ids": [str(fotos[0]), str(fotos[1])],
+        },
+        follow_redirects=False,
+    )
+    response_4 = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas",
+        data={
+            "titulo": "Evolución cronológica",
+            "layout": "cronologica",
+            "foto_ids": [str(fotos[0]), str(fotos[1]), str(fotos[2]), str(fotos[3])],
+        },
+        follow_redirects=False,
+    )
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        laminas = cur.execute(
+            """
+            SELECT id, titulo, layout
+            FROM informe_v2_laminas_fotograficas
+            WHERE expediente_id = ?
+            ORDER BY orden ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+        totales = [
+            cur.execute(
+                "SELECT COUNT(*) AS total FROM informe_v2_lamina_fotos WHERE lamina_id = ?",
+                (lamina["id"],),
+            ).fetchone()["total"]
+            for lamina in laminas
+        ]
+    finally:
+        conn.close()
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response_2.status_code == 303
+    assert response_4.status_code == 303
+    assert [lamina["layout"] for lamina in laminas] == ["antes_despues", "cronologica"]
+    assert totales == [2, 4]
+
+
+def test_informe_v2_laminas_fotograficas_reordena_y_elimina(isolated_import):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_orden")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(2):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_orden_{expediente_id}_{indice}.jpg",
+                f"Foto orden {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        ok_1, _ = main_module.crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            "Primera lámina",
+            "",
+            "dos_fotos",
+            fotos,
+        )
+        ok_2, _ = main_module.crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            "Segunda lámina",
+            "",
+            "dos_fotos",
+            fotos,
+        )
+        assert ok_1 and ok_2
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        segunda_id = cur.execute(
+            """
+            SELECT id FROM informe_v2_laminas_fotograficas
+            WHERE expediente_id = ? AND titulo = 'Segunda lámina'
+            """,
+            (expediente_id,),
+        ).fetchone()["id"]
+    finally:
+        conn.close()
+
+    response_mover = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas/{segunda_id}/mover",
+        data={"direccion": "arriba"},
+        follow_redirects=False,
+    )
+    response_eliminar = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas/{segunda_id}/eliminar",
+        follow_redirects=False,
+    )
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        titulos = [
+            fila["titulo"]
+            for fila in cur.execute(
+                """
+                SELECT titulo FROM informe_v2_laminas_fotograficas
+                WHERE expediente_id = ?
+                ORDER BY orden ASC, id ASC
+                """,
+                (expediente_id,),
+            ).fetchall()
+        ]
+        relaciones_huerfanas = cur.execute(
+            "SELECT COUNT(*) AS total FROM informe_v2_lamina_fotos WHERE lamina_id = ?",
+            (segunda_id,),
+        ).fetchone()["total"]
+    finally:
+        conn.close()
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response_mover.status_code == 303
+    assert response_eliminar.status_code == 303
+    assert titulos == ["Primera lámina"]
+    assert relaciones_huerfanas == 0
+
+
+def test_informe_v2_editor_muestra_bloque_laminas_fotograficas(isolated_import):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_editor")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        for indice in range(2):
+            _, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_editor_{expediente_id}_{indice}.jpg",
+                f"Foto editor {indice + 1}",
+            )
+            rutas.append(ruta)
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+    finally:
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert "Láminas comparativas" in response.text
+    assert "Crear lámina" in response.text
+    assert "Antes / Después" in response.text
+    assert "Foto editor 1" in response.text
+
+
+def test_pdf_v2_renderiza_laminas_sin_romper_anexos_b_c_ni_originales(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_pdf")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(4):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_pdf_{expediente_id}_{indice}.jpg",
+                f"Foto PDF {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        original_bytes = rutas[0].read_bytes()
+        ok_1, _ = main_module.crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            "Comparativa de daños y reparación",
+            "Secuencia fotográfica del expediente",
+            "cuatro_fotos",
+            fotos,
+        )
+        ok_2, _ = main_module.crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            "Antes y después",
+            "",
+            "antes_despues",
+            fotos[:2],
+        )
+        assert ok_1 and ok_2
+        conn.commit()
+    finally:
+        conn.close()
+
+    capturado = {}
+
+    def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
+        return _pdf_simple_bytes(2)
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=solo_informe")
+        html = capturado["html"]
+        contexto = capturado["contexto"]
+        original_actual = rutas[0].read_bytes()
+    finally:
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert "ANEXO B. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS" in html
+    assert "ANEXO B. LÁMINAS COMPARATIVAS" in html
+    assert "Comparativa de daños y reparación" in html
+    assert "Antes" in html
+    assert "Después" in html
+    assert "ANEXO C. FICHAS DE DAÑOS POR ESTANCIA" in html
+    assert len(contexto["anexos"]["laminas_fotograficas"]) == 2
+    assert original_actual == original_bytes
+    from pypdf import PdfReader
+
+    texto_primera = PdfReader(BytesIO(response.content)).pages[0].extract_text()
+    assert "Página 1 de" in texto_primera
+
+
+def test_informe_v2_laminas_edita_pie_y_observacion(isolated_import):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_edita_pie")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(2):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_edita_pie_{expediente_id}_{indice}.jpg",
+                f"Foto editable {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        ok, _ = main_module.crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            "Lámina con pies editables",
+            "",
+            "comparativa_2",
+            fotos,
+        )
+        assert ok
+        relacion_id = cur.execute(
+            "SELECT id FROM informe_v2_lamina_fotos ORDER BY id ASC LIMIT 1",
+        ).fetchone()["id"]
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas/fotos/{relacion_id}/actualizar",
+        data={
+            "pie_foto": "Desprendimiento de piezas cerámicas en fachada.",
+            "observacion": "Existía riesgo de caída sobre la vía pública.",
+        },
+        follow_redirects=False,
+    )
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        fila = cur.execute(
+            "SELECT pie_foto, observacion FROM informe_v2_lamina_fotos WHERE id = ?",
+            (relacion_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response.status_code == 303
+    assert fila["pie_foto"] == "Desprendimiento de piezas cerámicas en fachada."
+    assert fila["observacion"] == "Existía riesgo de caída sobre la vía pública."
+
+
+def test_informe_v2_laminas_crea_layouts_v2_antes_despues_y_cronologica(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_layouts_v2")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(4):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_layout_v2_{expediente_id}_{indice}.jpg",
+                f"Foto layout V2 {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response_antes = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas",
+        data={
+            "titulo": "Antes después V2",
+            "layout": "antes_despues",
+            "foto_ids": [str(fotos[0]), str(fotos[1])],
+        },
+        follow_redirects=False,
+    )
+    response_crono = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas",
+        data={
+            "titulo": "Cronológica V2",
+            "layout": "cronologica",
+            "foto_ids": [str(fotos[0]), str(fotos[1]), str(fotos[2]), str(fotos[3])],
+        },
+        follow_redirects=False,
+    )
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        layouts = [
+            fila["layout"]
+            for fila in cur.execute(
+                """
+                SELECT layout FROM informe_v2_laminas_fotograficas
+                WHERE expediente_id = ?
+                ORDER BY orden ASC
+                """,
+                (expediente_id,),
+            ).fetchall()
+        ]
+    finally:
+        conn.close()
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response_antes.status_code == 303
+    assert response_crono.status_code == 303
+    assert layouts == ["antes_despues", "cronologica"]
+
+
+def test_informe_v2_laminas_ordena_fotografias(isolated_import):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_ordena_fotos")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(3):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_ordena_foto_{expediente_id}_{indice}.jpg",
+                f"Foto ordenable {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        ok, _ = main_module.crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            "Secuencia ordenable",
+            "",
+            "cronologica",
+            fotos,
+        )
+        assert ok
+        tercera_relacion = cur.execute(
+            """
+            SELECT id FROM informe_v2_lamina_fotos
+            WHERE foto_id = ?
+            """,
+            (fotos[2],),
+        ).fetchone()["id"]
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.post(
+        f"/expedientes/{expediente_id}/informe-v2-laminas/fotos/{tercera_relacion}/mover",
+        data={"direccion": "arriba"},
+        follow_redirects=False,
+    )
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        orden_fotos = [
+            fila["foto_id"]
+            for fila in cur.execute(
+                """
+                SELECT foto_id FROM informe_v2_lamina_fotos
+                ORDER BY orden ASC, id ASC
+                """
+            ).fetchall()
+        ]
+    finally:
+        conn.close()
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response.status_code == 303
+    assert orden_fotos[:3] == [fotos[0], fotos[2], fotos[1]]
+
+
+def test_informe_v2_laminas_compatibilidad_layouts_v1(isolated_import):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_compat_v1")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(2):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_compat_v1_{expediente_id}_{indice}.jpg",
+                f"Foto compat V1 {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        cur.execute(
+            """
+            INSERT INTO informe_v2_laminas_fotograficas
+                (expediente_id, titulo, subtitulo, tipo, layout, orden)
+            VALUES (?, 'Lámina V1', '', 'comparativa', 'dos_fotos', 10)
+            """,
+            (expediente_id,),
+        )
+        lamina_id = cur.lastrowid
+        for orden, foto_id in enumerate(fotos, start=1):
+            cur.execute(
+                """
+                INSERT INTO informe_v2_lamina_fotos (lamina_id, foto_id, orden, pie_foto)
+                VALUES (?, ?, ?, ?)
+                """,
+                (lamina_id, foto_id, orden, f"Pie V1 {orden}"),
+            )
+        conn.commit()
+        laminas = main_module.obtener_laminas_fotograficas_informe_v2(
+            cur,
+            expediente_id,
+        )
+    finally:
+        conn.close()
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert laminas[0]["layout"] == "comparativa_2"
+    assert laminas[0]["layout_nombre"] == "Comparativa 2"
+    assert len(laminas[0]["fotos"]) == 2
+
+
+def test_pdf_v2_laminas_renderiza_subtitulo_observacion_y_paginacion(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+    from app.database import get_connection
+    from pypdf import PdfReader
+
+    conn = get_connection()
+    rutas = []
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_laminas_pdf_v2")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        fotos = []
+        for indice in range(2):
+            foto_id, ruta = _crear_foto_visita_para_lamina(
+                main_module,
+                cur,
+                expediente_id,
+                f"lamina_pdf_v2_{expediente_id}_{indice}.jpg",
+                f"Foto PDF V2 {indice + 1}",
+            )
+            fotos.append(foto_id)
+            rutas.append(ruta)
+        original_bytes = rutas[0].read_bytes()
+        ok, _ = main_module.crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            "Evolución del desprendimiento",
+            "Dormitorio 3. Secuencia de daños",
+            "antes_despues",
+            fotos,
+        )
+        assert ok
+        relacion_id = cur.execute(
+            "SELECT id FROM informe_v2_lamina_fotos ORDER BY id ASC LIMIT 1",
+        ).fetchone()["id"]
+        main_module.actualizar_foto_lamina_informe_v2(
+            cur,
+            expediente_id,
+            relacion_id,
+            "Desprendimiento de piezas cerámicas en fachada.",
+            "Existía riesgo de caída sobre la vía pública.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    capturado = {}
+
+    def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
+        return _pdf_simple_bytes(2)
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=solo_informe")
+        html = capturado["html"]
+        texto_primera = PdfReader(BytesIO(response.content)).pages[0].extract_text()
+        original_actual = rutas[0].read_bytes()
+    finally:
+        for ruta in rutas:
+            ruta.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert "LÁMINA COMPARATIVA Nº 1" in html
+    assert "Dormitorio 3. Secuencia de daños" in html
+    assert "Desprendimiento de piezas cerámicas en fachada." in html
+    assert "Existía riesgo de caída sobre la vía pública." in html
+    assert "Figura 1." in html
+    assert "Página 1 de" in texto_primera
+    assert original_actual == original_bytes

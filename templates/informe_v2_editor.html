@@ -259,6 +259,111 @@
             min-height: 74px;
         }
 
+        .photo-board-panel {
+            background: #ffffff;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            margin: 12px 0;
+            padding: 12px;
+        }
+
+        .photo-board-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+        }
+
+        .photo-board-form {
+            display: grid;
+            gap: 8px;
+        }
+
+        .photo-board-form input,
+        .photo-board-form select,
+        .photo-board-form textarea,
+        .photo-board-item input,
+        .photo-board-item select,
+        .photo-board-item textarea {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font: inherit;
+            padding: 8px;
+            width: 100%;
+        }
+
+        .photo-board-item textarea {
+            min-height: 66px;
+            resize: vertical;
+        }
+
+        .photo-board-options {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            display: grid;
+            gap: 5px;
+            max-height: 230px;
+            overflow: auto;
+            padding: 8px;
+        }
+
+        .photo-board-option {
+            align-items: start;
+            display: grid;
+            gap: 8px;
+            grid-template-columns: auto 1fr;
+        }
+
+        .photo-board-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .photo-board-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 9px;
+        }
+
+        .photo-board-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .photo-board-meta {
+            color: #64748b;
+            font-size: 0.78rem;
+            margin: 5px 0 0;
+        }
+
+        .photo-board-edit-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+            margin-top: 8px;
+        }
+
+        .photo-board-photo-edit {
+            border-top: 1px solid #e2e8f0;
+            display: grid;
+            gap: 8px;
+            grid-template-columns: minmax(90px, 0.22fr) minmax(0, 1fr);
+            margin-top: 8px;
+            padding-top: 8px;
+        }
+
+        .photo-board-photo-edit img {
+            aspect-ratio: 4 / 3;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            object-fit: contain;
+            width: 100%;
+        }
+
         .presentation-preview {
             background: #f8fafc;
             border: 1px solid #dbe3ee;
@@ -577,6 +682,63 @@
             padding-top: 0;
         }
 
+        .pdf-weight-panel {
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            margin-top: 10px;
+            padding: 10px;
+        }
+
+        .pdf-weight-panel.verde {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+
+        .pdf-weight-panel.amarillo {
+            background: #fffbeb;
+            border-color: #fde68a;
+        }
+
+        .pdf-weight-panel.rojo {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .pdf-weight-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            margin: 8px 0;
+        }
+
+        .pdf-weight-metric {
+            background: rgba(255, 255, 255, 0.76);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .pdf-weight-metric span {
+            color: #64748b;
+            display: block;
+            font-size: 0.74rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .pdf-weight-metric strong {
+            color: #0f172a;
+            display: block;
+            font-size: 1rem;
+            margin-top: 3px;
+        }
+
+        .pdf-weight-alert {
+            color: #7f1d1d;
+            font-size: 0.82rem;
+            margin: 6px 0 0;
+        }
+
         .context-label {
             color: #64748b;
             font-size: 0.72rem;
@@ -825,13 +987,214 @@
                     {% endfor %}
                 </div>
                 {% if diagnostico_anexos_pdf and diagnostico_anexos_pdf.hay_anexos_pdf %}
-                <p class="editor-note">
-                    El PDF final puede ser pesado porque contiene anexos externos:
-                    Anexo A {{ diagnostico_anexos_pdf.anexo_a_mb }} MB ·
-                    Anexo F {{ diagnostico_anexos_pdf.anexo_f_mb }} MB.
-                </p>
+                <div class="pdf-weight-panel {{ diagnostico_anexos_pdf.nivel }}">
+                    <h3>Peso estimado del PDF</h3>
+                    <div class="pdf-weight-grid">
+                        <div class="pdf-weight-metric">
+                            <span>Informe principal</span>
+                            <strong>{{ diagnostico_anexos_pdf.informe_principal_mb }} MB</strong>
+                        </div>
+                        <div class="pdf-weight-metric">
+                            <span>Anexo A</span>
+                            <strong>{{ diagnostico_anexos_pdf.anexo_a_mb }} MB</strong>
+                        </div>
+                        <div class="pdf-weight-metric">
+                            <span>Anexo F</span>
+                            <strong>{{ diagnostico_anexos_pdf.anexo_f_mb }} MB</strong>
+                        </div>
+                        <div class="pdf-weight-metric">
+                            <span>Otros anexos</span>
+                            <strong>{{ diagnostico_anexos_pdf.otros_anexos_mb }} MB</strong>
+                        </div>
+                        <div class="pdf-weight-metric">
+                            <span>Total estimado</span>
+                            <strong>{{ diagnostico_anexos_pdf.total_estimado_mb }} MB</strong>
+                        </div>
+                    </div>
+                    {% if diagnostico_anexos_pdf.anexo_a_documentos %}
+                    <p class="editor-note">
+                        Anexo A documental:
+                        {{ diagnostico_anexos_pdf.anexo_a_documentos }} documentos ·
+                        {{ diagnostico_anexos_pdf.anexo_a_paginas }} páginas ·
+                        {{ diagnostico_anexos_pdf.anexo_a_mb }} MB
+                    </p>
+                    {% endif %}
+                    <p class="editor-note">
+                        El PDF final puede ser pesado porque contiene anexos externos.
+                        El perfil Email/Judicial puede intentar comprimir anexos externos si Ghostscript está disponible,
+                        pero los escaneos pesados pueden seguir ocupando mucho.
+                    </p>
+                    {% for aviso_pdf in diagnostico_anexos_pdf.avisos %}
+                    <p class="pdf-weight-alert">{{ aviso_pdf }}</p>
+                    {% endfor %}
+                    {% if diagnostico_anexos_pdf.anexos_pesados %}
+                    <ul class="context-list">
+                        {% for anexo_pdf in diagnostico_anexos_pdf.anexos_pesados %}
+                        <li class="context-line">
+                            <strong>{{ anexo_pdf.nombre }}</strong> ·
+                            {{ anexo_pdf.tamano_mb }} MB ·
+                            {{ anexo_pdf.paginas }} pág. ·
+                            {{ "Anexo A" if anexo_pdf.categoria == "anexo_a" else "Anexo F" if anexo_pdf.categoria == "anexo_f" else anexo_pdf.categoria }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="pdf-weight-panel verde">
+                    <h3>Peso estimado del PDF</h3>
+                    <div class="pdf-weight-grid">
+                        <div class="pdf-weight-metric">
+                            <span>Informe principal</span>
+                            <strong>{{ diagnostico_anexos_pdf.informe_principal_mb if diagnostico_anexos_pdf else 0 }} MB</strong>
+                        </div>
+                        <div class="pdf-weight-metric">
+                            <span>Total estimado</span>
+                            <strong>{{ diagnostico_anexos_pdf.total_estimado_mb if diagnostico_anexos_pdf else 0 }} MB</strong>
+                        </div>
+                    </div>
+                    <p class="editor-note">No constan anexos PDF externos incorporables al informe final.</p>
+                </div>
                 {% endif %}
             </details>
+        </section>
+
+        <section class="photo-board-panel" aria-labelledby="photo-board-title">
+            <div class="chapter-head">
+                <div>
+                    <h2 id="photo-board-title">Láminas comparativas</h2>
+                    <p class="chapter-meta">
+                        Composiciones fotográficas del Informe V2. Usan copias renderizadas en PDF y no modifican las fotografías originales.
+                    </p>
+                </div>
+                <span class="status-pill generado">{{ laminas_fotograficas|length }} lámina{% if laminas_fotograficas|length != 1 %}s{% endif %}</span>
+            </div>
+
+            <div class="photo-board-grid">
+                <form class="photo-board-form" method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas">
+                    <label>
+                        <span>Título</span>
+                        <input type="text" name="titulo" placeholder="Ej. Evolución de humedad en dormitorio" required>
+                    </label>
+                    <label>
+                        <span>Subtítulo opcional</span>
+                        <input type="text" name="subtitulo" placeholder="Ej. Antes y después de la reparación">
+                    </label>
+                    <label>
+                        <span>Diseño</span>
+                        <select name="layout">
+                            {% for layout in laminas_layouts %}
+                            <option value="{{ layout.codigo }}">{{ layout.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <div>
+                        <strong>Fotografías</strong>
+                        {% if fotos_laminas_disponibles %}
+                        <div class="photo-board-options">
+                            {% for foto in fotos_laminas_disponibles %}
+                            <label class="photo-board-option">
+                                <input type="checkbox" name="foto_ids" value="{{ foto.id }}">
+                                <span>
+                                    {{ foto.pie }}
+                                    <small class="editor-note"> · {{ foto.categoria }} · ID {{ foto.id }}</small>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <p class="editor-note">Selecciona entre 2 y 4 fotografías. Si eliges más de las que admite el diseño, se usarán las primeras.</p>
+                        {% else %}
+                        <p class="editor-note">No hay fotografías de visita disponibles para crear láminas.</p>
+                        {% endif %}
+                    </div>
+                    <button class="boton primario" type="submit" {% if not fotos_laminas_disponibles %}disabled{% endif %}>Crear lámina</button>
+                </form>
+
+                <div class="photo-board-list" aria-label="Biblioteca de láminas">
+                    {% if laminas_fotograficas %}
+                    {% for lamina in laminas_fotograficas %}
+                    <article class="photo-board-item">
+                        <strong>Lámina {{ lamina.numero }} · {{ lamina.titulo }}</strong>
+                        <p class="photo-board-meta">
+                            {{ lamina.total_fotos }} fotografía{% if lamina.total_fotos != 1 %}s{% endif %} · {{ lamina.layout_nombre }}
+                            · creada {{ lamina.created_at or "-" }}
+                            {% if lamina.subtitulo %}<br>{{ lamina.subtitulo }}{% endif %}
+                        </p>
+                        <details>
+                            <summary>Editar lámina</summary>
+                            <form class="photo-board-form" method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas/{{ lamina.id }}/actualizar">
+                                <div class="photo-board-edit-grid">
+                                    <label>
+                                        <span>Título</span>
+                                        <input type="text" name="titulo" value="{{ lamina.titulo }}" required>
+                                    </label>
+                                    <label>
+                                        <span>Diseño</span>
+                                        <select name="layout">
+                                            {% for layout in laminas_layouts %}
+                                            <option value="{{ layout.codigo }}" {% if layout.codigo == lamina.layout %}selected{% endif %}>{{ layout.nombre }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </label>
+                                </div>
+                                <label>
+                                    <span>Subtítulo</span>
+                                    <input type="text" name="subtitulo" value="{{ lamina.subtitulo or '' }}">
+                                </label>
+                                <button class="boton secundario" type="submit">Guardar lámina</button>
+                            </form>
+
+                            {% for foto in lamina.fotos %}
+                            <div class="photo-board-photo-edit">
+                                <img src="{{ foto.url }}" alt="Fotografía de lámina {{ loop.index }}">
+                                <div>
+                                    <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas/fotos/{{ foto.relacion_id }}/actualizar">
+                                        <label>
+                                            <span>Pie de foto {{ loop.index }}</span>
+                                            <textarea name="pie_foto">{{ foto.pie }}</textarea>
+                                        </label>
+                                        <label>
+                                            <span>Observación</span>
+                                            <textarea name="observacion">{{ foto.observacion }}</textarea>
+                                        </label>
+                                        <div class="photo-board-actions">
+                                            <button class="boton secundario" type="submit">Guardar foto</button>
+                                        </div>
+                                    </form>
+                                    <div class="photo-board-actions">
+                                        <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas/fotos/{{ foto.relacion_id }}/mover">
+                                            <input type="hidden" name="direccion" value="arriba">
+                                            <button class="boton secundario" type="submit" title="Subir fotografía">▲</button>
+                                        </form>
+                                        <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas/fotos/{{ foto.relacion_id }}/mover">
+                                            <input type="hidden" name="direccion" value="abajo">
+                                            <button class="boton secundario" type="submit" title="Bajar fotografía">▼</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </details>
+                        <div class="photo-board-actions">
+                            <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas/{{ lamina.id }}/mover">
+                                <input type="hidden" name="direccion" value="arriba">
+                                <button class="boton secundario" type="submit">Subir</button>
+                            </form>
+                            <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas/{{ lamina.id }}/mover">
+                                <input type="hidden" name="direccion" value="abajo">
+                                <button class="boton secundario" type="submit">Bajar</button>
+                            </form>
+                            <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-laminas/{{ lamina.id }}/eliminar">
+                                <button class="boton secundario" type="submit">Eliminar</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                    {% else %}
+                    <p class="editor-note">Todavía no hay láminas comparativas creadas.</p>
+                    {% endif %}
+                </div>
+            </div>
         </section>
 
         <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-editor">

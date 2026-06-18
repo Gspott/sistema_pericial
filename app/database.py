@@ -1190,6 +1190,52 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS informe_v2_laminas_fotograficas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            subtitulo TEXT,
+            tipo TEXT,
+            layout TEXT NOT NULL DEFAULT 'dos_fotos',
+            orden INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (expediente_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS informe_v2_lamina_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lamina_id INTEGER NOT NULL,
+            foto_id INTEGER NOT NULL,
+            orden INTEGER NOT NULL DEFAULT 0,
+            pie_foto TEXT,
+            FOREIGN KEY (lamina_id) REFERENCES informe_v2_laminas_fotograficas (id),
+            FOREIGN KEY (foto_id) REFERENCES visita_fotos (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "informe_v2_laminas_fotograficas", "subtitulo", "TEXT")
+    asegurar_columna(cur, "informe_v2_laminas_fotograficas", "layout", "TEXT")
+    asegurar_columna(cur, "informe_v2_lamina_fotos", "pie_foto", "TEXT")
+    asegurar_columna(cur, "informe_v2_lamina_fotos", "observacion", "TEXT")
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_informe_v2_laminas_expediente_orden
+        ON informe_v2_laminas_fotograficas (expediente_id, orden, id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_informe_v2_lamina_fotos_lamina_orden
+        ON informe_v2_lamina_fotos (lamina_id, orden, id)
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS registros_patologias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             visita_id INTEGER NOT NULL,

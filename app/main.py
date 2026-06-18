@@ -10,6 +10,7 @@ import secrets
 import shutil
 import sqlite3
 import tempfile
+import textwrap
 import time
 import unicodedata
 from urllib.parse import parse_qs, quote_plus, urlparse
@@ -7447,6 +7448,14 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         documentos_anexo_a,
         pdf_mediciones_anexo_f,
     )
+    laminas_fotograficas = obtener_laminas_fotograficas_informe_v2(
+        cur,
+        expediente["id"],
+    )
+    fotos_laminas_disponibles = obtener_fotos_disponibles_laminas_v2(
+        cur,
+        expediente["id"],
+    )
     capitulos = []
 
     for definicion in INFORME_V2_CAPITULOS:
@@ -7550,6 +7559,9 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         "revision_coherencia": revision_coherencia,
         "pdf_export_profiles": listar_perfiles_exportacion_pdf_v2(),
         "diagnostico_anexos_pdf": diagnostico_anexos_pdf,
+        "laminas_fotograficas": laminas_fotograficas,
+        "fotos_laminas_disponibles": fotos_laminas_disponibles,
+        "laminas_layouts": opciones_layout_lamina_fotografica(),
         "estados_revision": estados_revision,
         "metadatos": metadatos,
         "capitulos": capitulos,
@@ -7733,6 +7745,444 @@ def imagen_url_pdf_v2(nombre_archivo: str | None, base_url: str = "") -> str:
         return ""
     prefijo = base_url.rstrip("/")
     return f"{prefijo}/uploads/{nombre}" if prefijo else f"/uploads/{nombre}"
+
+
+LAMINA_FOTOGRAFICA_LAYOUTS = {
+    "comparativa_2": {
+        "nombre": "Comparativa 2",
+        "tipo": "comparativa",
+        "min_fotos": 2,
+        "max_fotos": 2,
+    },
+    "comparativa_4": {
+        "nombre": "Comparativa 4",
+        "tipo": "comparativa",
+        "min_fotos": 2,
+        "max_fotos": 4,
+    },
+    "antes_despues": {
+        "nombre": "Antes / Después",
+        "tipo": "antes_despues",
+        "min_fotos": 2,
+        "max_fotos": 2,
+    },
+    "cronologica": {
+        "nombre": "Cronológica",
+        "tipo": "cronologica",
+        "min_fotos": 2,
+        "max_fotos": 4,
+    },
+}
+
+
+LAMINA_FOTOGRAFICA_LAYOUT_ALIASES = {
+    "dos_fotos": "comparativa_2",
+    "cuatro_fotos": "comparativa_4",
+}
+
+
+def normalizar_layout_lamina_fotografica(layout: str | None) -> str:
+    layout_limpio = limpiar_texto(layout)
+    layout_limpio = LAMINA_FOTOGRAFICA_LAYOUT_ALIASES.get(layout_limpio, layout_limpio)
+    return layout_limpio if layout_limpio in LAMINA_FOTOGRAFICA_LAYOUTS else "comparativa_2"
+
+
+def opciones_layout_lamina_fotografica() -> list[dict]:
+    return [
+        {"codigo": codigo, **config}
+        for codigo, config in LAMINA_FOTOGRAFICA_LAYOUTS.items()
+    ]
+
+
+def obtener_fotos_disponibles_laminas_v2(
+    cur,
+    expediente_id: int,
+    base_url: str = "",
+) -> list[dict]:
+    fotos = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT vf.id, vf.visita_id, vf.categoria, vf.ruta, vf.descripcion, vf.created_at
+            FROM visita_fotos vf
+            JOIN visitas v ON v.id = vf.visita_id
+            WHERE v.expediente_id = ?
+            ORDER BY v.fecha ASC, vf.id ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+    ]
+    for foto in fotos:
+        foto["archivo"] = foto.get("ruta")
+        foto["url"] = imagen_url_pdf_v2(foto.get("ruta"), base_url)
+        foto["pie"] = limpiar_texto(foto.get("descripcion")) or "Fotografía del expediente"
+        ruta_foto = resolver_ruta_upload_relativa_segura(foto.get("ruta"))
+        foto["existe_archivo"] = bool(ruta_foto and ruta_foto.exists())
+    return fotos
+
+
+def obtener_laminas_fotograficas_informe_v2(
+    cur,
+    expediente_id: int,
+    base_url: str = "",
+) -> list[dict]:
+    laminas = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT id, expediente_id, titulo, subtitulo, tipo, layout, orden, created_at, updated_at
+            FROM informe_v2_laminas_fotograficas
+            WHERE expediente_id = ?
+            ORDER BY orden ASC, id ASC
+            """,
+            (expediente_id,),
+        ).fetchall()
+    ]
+    for indice, lamina in enumerate(laminas, start=1):
+        layout = normalizar_layout_lamina_fotografica(lamina.get("layout"))
+        config = LAMINA_FOTOGRAFICA_LAYOUTS[layout]
+        fotos = [
+            dict(row)
+            for row in cur.execute(
+                """
+                SELECT ilf.id AS relacion_id,
+                       ilf.foto_id,
+                       ilf.orden,
+                       ilf.pie_foto,
+                       ilf.observacion,
+                       vf.visita_id,
+                       vf.categoria,
+                       vf.ruta,
+                       vf.descripcion,
+                       vf.created_at
+                FROM informe_v2_lamina_fotos ilf
+                JOIN visita_fotos vf ON vf.id = ilf.foto_id
+                WHERE ilf.lamina_id = ?
+                ORDER BY ilf.orden ASC, ilf.id ASC
+                """,
+                (lamina["id"],),
+            ).fetchall()
+        ]
+        for foto_indice, foto in enumerate(fotos, start=1):
+            pie = limpiar_texto(foto.get("pie_foto")) or limpiar_texto(foto.get("descripcion"))
+            foto["archivo"] = foto.get("ruta")
+            foto["url"] = imagen_url_pdf_v2(foto.get("ruta"), base_url)
+            foto["pie"] = pie or f"Fotografía {foto_indice}"
+            foto["observacion"] = limpiar_texto(foto.get("observacion"))
+            foto["numero"] = foto_indice
+            foto["codigo_figura_preparado"] = f"D.{indice}.{foto_indice}"
+            foto["etiqueta"] = ""
+            if layout == "antes_despues":
+                foto["etiqueta"] = "Antes" if foto_indice == 1 else "Después"
+            elif layout == "cronologica":
+                fecha = limpiar_texto(foto.get("created_at"))[:10]
+                foto["etiqueta"] = f"{foto_indice}. {fecha}" if fecha else f"{foto_indice}"
+        lamina["numero"] = indice
+        lamina["codigo"] = f"L.{indice}"
+        lamina["layout"] = layout
+        lamina["layout_nombre"] = config["nombre"]
+        lamina["tipo"] = limpiar_texto(lamina.get("tipo")) or config["tipo"]
+        lamina["fotos"] = fotos
+        lamina["total_fotos"] = len(fotos)
+    return laminas
+
+
+def ids_fotos_validas_para_lamina_v2(cur, expediente_id: int, foto_ids: list[int]) -> list[int]:
+    ids_normalizados = []
+    for foto_id in foto_ids:
+        try:
+            foto_id_int = int(foto_id)
+        except (TypeError, ValueError):
+            continue
+        if foto_id_int > 0 and foto_id_int not in ids_normalizados:
+            ids_normalizados.append(foto_id_int)
+    if not ids_normalizados:
+        return []
+    placeholders = ",".join("?" for _ in ids_normalizados)
+    filas = cur.execute(
+        f"""
+        SELECT vf.id
+        FROM visita_fotos vf
+        JOIN visitas v ON v.id = vf.visita_id
+        WHERE v.expediente_id = ?
+          AND vf.id IN ({placeholders})
+        ORDER BY vf.id ASC
+        """,
+        (expediente_id, *ids_normalizados),
+    ).fetchall()
+    permitidos = {fila["id"] for fila in filas}
+    return [foto_id for foto_id in ids_normalizados if foto_id in permitidos]
+
+
+def crear_lamina_fotografica_informe_v2(
+    cur,
+    expediente_id: int,
+    titulo: str,
+    subtitulo: str,
+    layout: str,
+    foto_ids: list[int],
+) -> tuple[bool, str]:
+    titulo_limpio = limpiar_texto(titulo)
+    if not titulo_limpio:
+        return False, "Indica un título para la lámina."
+    layout_limpio = normalizar_layout_lamina_fotografica(layout)
+    config = LAMINA_FOTOGRAFICA_LAYOUTS[layout_limpio]
+    fotos_validas = ids_fotos_validas_para_lamina_v2(cur, expediente_id, foto_ids)
+    fotos_validas = fotos_validas[: config["max_fotos"]]
+    if len(fotos_validas) < config["min_fotos"]:
+        return False, "Selecciona al menos dos fotografías para crear la lámina."
+    fila_orden = cur.execute(
+        """
+        SELECT COALESCE(MAX(orden), 0) AS max_orden
+        FROM informe_v2_laminas_fotograficas
+        WHERE expediente_id = ?
+        """,
+        (expediente_id,),
+    ).fetchone()
+    orden = int(fila_orden["max_orden"] or 0) + 10
+    cur.execute(
+        """
+        INSERT INTO informe_v2_laminas_fotograficas
+            (expediente_id, titulo, subtitulo, tipo, layout, orden, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            expediente_id,
+            titulo_limpio,
+            limpiar_texto(subtitulo),
+            config["tipo"],
+            layout_limpio,
+            orden,
+        ),
+    )
+    lamina_id = cur.lastrowid
+    for indice, foto_id in enumerate(fotos_validas, start=1):
+        descripcion = cur.execute(
+            "SELECT descripcion FROM visita_fotos WHERE id = ?",
+            (foto_id,),
+        ).fetchone()
+        cur.execute(
+            """
+            INSERT INTO informe_v2_lamina_fotos (lamina_id, foto_id, orden, pie_foto)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                lamina_id,
+                foto_id,
+                indice,
+                limpiar_texto(descripcion["descripcion"]) if descripcion else "",
+            ),
+        )
+    return True, "Lámina fotográfica creada."
+
+
+def eliminar_lamina_fotografica_informe_v2(cur, expediente_id: int, lamina_id: int) -> bool:
+    fila = cur.execute(
+        """
+        SELECT id FROM informe_v2_laminas_fotograficas
+        WHERE id = ? AND expediente_id = ?
+        """,
+        (lamina_id, expediente_id),
+    ).fetchone()
+    if not fila:
+        return False
+    cur.execute("DELETE FROM informe_v2_lamina_fotos WHERE lamina_id = ?", (lamina_id,))
+    cur.execute(
+        "DELETE FROM informe_v2_laminas_fotograficas WHERE id = ? AND expediente_id = ?",
+        (lamina_id, expediente_id),
+    )
+    return True
+
+
+def actualizar_lamina_fotografica_informe_v2(
+    cur,
+    expediente_id: int,
+    lamina_id: int,
+    titulo: str,
+    subtitulo: str,
+    layout: str,
+) -> tuple[bool, str]:
+    titulo_limpio = limpiar_texto(titulo)
+    if not titulo_limpio:
+        return False, "Indica un título para la lámina."
+    layout_limpio = normalizar_layout_lamina_fotografica(layout)
+    config = LAMINA_FOTOGRAFICA_LAYOUTS[layout_limpio]
+    fila = cur.execute(
+        """
+        SELECT id FROM informe_v2_laminas_fotograficas
+        WHERE id = ? AND expediente_id = ?
+        """,
+        (lamina_id, expediente_id),
+    ).fetchone()
+    if not fila:
+        return False, "No se encontró la lámina."
+    cur.execute(
+        """
+        UPDATE informe_v2_laminas_fotograficas
+        SET titulo = ?,
+            subtitulo = ?,
+            tipo = ?,
+            layout = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND expediente_id = ?
+        """,
+        (
+            titulo_limpio,
+            limpiar_texto(subtitulo),
+            config["tipo"],
+            layout_limpio,
+            lamina_id,
+            expediente_id,
+        ),
+    )
+    return True, "Lámina actualizada."
+
+
+def mover_lamina_fotografica_informe_v2(
+    cur,
+    expediente_id: int,
+    lamina_id: int,
+    direccion: str,
+) -> bool:
+    actual = cur.execute(
+        """
+        SELECT id, orden
+        FROM informe_v2_laminas_fotograficas
+        WHERE id = ? AND expediente_id = ?
+        """,
+        (lamina_id, expediente_id),
+    ).fetchone()
+    if not actual:
+        return False
+    if limpiar_texto(direccion) == "arriba":
+        vecino = cur.execute(
+            """
+            SELECT id, orden
+            FROM informe_v2_laminas_fotograficas
+            WHERE expediente_id = ? AND (orden < ? OR (orden = ? AND id < ?))
+            ORDER BY orden DESC, id DESC
+            LIMIT 1
+            """,
+            (expediente_id, actual["orden"], actual["orden"], lamina_id),
+        ).fetchone()
+    else:
+        vecino = cur.execute(
+            """
+            SELECT id, orden
+            FROM informe_v2_laminas_fotograficas
+            WHERE expediente_id = ? AND (orden > ? OR (orden = ? AND id > ?))
+            ORDER BY orden ASC, id ASC
+            LIMIT 1
+            """,
+            (expediente_id, actual["orden"], actual["orden"], lamina_id),
+        ).fetchone()
+    if not vecino:
+        return False
+    cur.execute(
+        "UPDATE informe_v2_laminas_fotograficas SET orden = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (vecino["orden"], actual["id"]),
+    )
+    cur.execute(
+        "UPDATE informe_v2_laminas_fotograficas SET orden = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (actual["orden"], vecino["id"]),
+    )
+    return True
+
+
+def actualizar_foto_lamina_informe_v2(
+    cur,
+    expediente_id: int,
+    relacion_id: int,
+    pie_foto: str,
+    observacion: str,
+) -> bool:
+    fila = cur.execute(
+        """
+        SELECT ilf.id
+        FROM informe_v2_lamina_fotos ilf
+        JOIN informe_v2_laminas_fotograficas lf ON lf.id = ilf.lamina_id
+        WHERE ilf.id = ? AND lf.expediente_id = ?
+        """,
+        (relacion_id, expediente_id),
+    ).fetchone()
+    if not fila:
+        return False
+    cur.execute(
+        """
+        UPDATE informe_v2_lamina_fotos
+        SET pie_foto = ?,
+            observacion = ?
+        WHERE id = ?
+        """,
+        (limpiar_texto(pie_foto), limpiar_texto(observacion), relacion_id),
+    )
+    cur.execute(
+        """
+        UPDATE informe_v2_laminas_fotograficas
+        SET updated_at = CURRENT_TIMESTAMP
+        WHERE id = (
+            SELECT lamina_id FROM informe_v2_lamina_fotos WHERE id = ?
+        )
+        """,
+        (relacion_id,),
+    )
+    return True
+
+
+def mover_foto_lamina_informe_v2(
+    cur,
+    expediente_id: int,
+    relacion_id: int,
+    direccion: str,
+) -> bool:
+    actual = cur.execute(
+        """
+        SELECT ilf.id, ilf.lamina_id, ilf.orden
+        FROM informe_v2_lamina_fotos ilf
+        JOIN informe_v2_laminas_fotograficas lf ON lf.id = ilf.lamina_id
+        WHERE ilf.id = ? AND lf.expediente_id = ?
+        """,
+        (relacion_id, expediente_id),
+    ).fetchone()
+    if not actual:
+        return False
+    if limpiar_texto(direccion) == "arriba":
+        vecino = cur.execute(
+            """
+            SELECT id, orden
+            FROM informe_v2_lamina_fotos
+            WHERE lamina_id = ? AND (orden < ? OR (orden = ? AND id < ?))
+            ORDER BY orden DESC, id DESC
+            LIMIT 1
+            """,
+            (actual["lamina_id"], actual["orden"], actual["orden"], relacion_id),
+        ).fetchone()
+    else:
+        vecino = cur.execute(
+            """
+            SELECT id, orden
+            FROM informe_v2_lamina_fotos
+            WHERE lamina_id = ? AND (orden > ? OR (orden = ? AND id > ?))
+            ORDER BY orden ASC, id ASC
+            LIMIT 1
+            """,
+            (actual["lamina_id"], actual["orden"], actual["orden"], relacion_id),
+        ).fetchone()
+    if not vecino:
+        return False
+    cur.execute(
+        "UPDATE informe_v2_lamina_fotos SET orden = ? WHERE id = ?",
+        (vecino["orden"], actual["id"]),
+    )
+    cur.execute(
+        "UPDATE informe_v2_lamina_fotos SET orden = ? WHERE id = ?",
+        (actual["orden"], vecino["id"]),
+    )
+    cur.execute(
+        "UPDATE informe_v2_laminas_fotograficas SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (actual["lamina_id"],),
+    )
+    return True
 
 
 def valor_campo_informe_v2(campos: list[dict], etiqueta: str) -> str:
@@ -8460,6 +8910,11 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
         documentos_aportados,
         pdf_mediciones_anexo_f,
     )
+    anexos["laminas_fotograficas"] = obtener_laminas_fotograficas_informe_v2(
+        cur,
+        expediente_id,
+        base_url,
+    )
     desplazamiento_paginas_anexo_a = 0
     for documento in anexos.get("documentacion") or []:
         if documento_anexo_a_pdf_v2(documento):
@@ -8646,6 +9101,7 @@ def diagnosticar_peso_anexos_pdf_v2(
 ) -> dict:
     informe_bytes = len(pdf_informe or b"")
     anexo_a_bytes = 0
+    anexo_a_paginas = 0
     otros_anexos_bytes = 0
     anexos = []
 
@@ -8657,6 +9113,7 @@ def diagnosticar_peso_anexos_pdf_v2(
             continue
         peso = analizar_peso_pdf(ruta_pdf)
         anexo_a_bytes += int(peso["tamano_bytes"] or 0)
+        anexo_a_paginas += int(peso.get("paginas") or 0)
         anexos.append(
             {
                 "categoria": "anexo_a",
@@ -8680,18 +9137,48 @@ def diagnosticar_peso_anexos_pdf_v2(
             )
 
     total = informe_bytes + anexo_a_bytes + anexo_f_bytes + otros_anexos_bytes
+    total_mb = bytes_a_mb(total)
+    anexo_a_mb = bytes_a_mb(anexo_a_bytes)
+    anexo_f_mb = bytes_a_mb(anexo_f_bytes)
+    otros_anexos_mb = bytes_a_mb(otros_anexos_bytes)
+    anexos_pesados = [
+        item
+        for item in anexos
+        if (item.get("tamano_bytes") or 0) >= 5 * 1024 * 1024
+    ]
+    avisos = []
+    if total_mb > 20:
+        avisos.append(
+            "El PDF final estimado supera 20 MB; revise si el canal de envío admite ese tamaño."
+        )
+    if any((item.get("tamano_bytes") or 0) > 10 * 1024 * 1024 for item in anexos):
+        avisos.append(
+            "Hay anexos individuales de más de 10 MB que pueden dominar el peso final."
+        )
+    if total and anexo_a_bytes / total > 0.7:
+        avisos.append(
+            "El Anexo A representa más del 70 % del peso estimado del PDF."
+        )
+    if total_mb < 10:
+        nivel = "verde"
+    elif total_mb <= 25:
+        nivel = "amarillo"
+    else:
+        nivel = "rojo"
     return {
         "informe_principal_mb": bytes_a_mb(informe_bytes),
-        "anexo_a_mb": bytes_a_mb(anexo_a_bytes),
-        "anexo_f_mb": bytes_a_mb(anexo_f_bytes),
-        "otros_anexos_mb": bytes_a_mb(otros_anexos_bytes),
-        "total_estimado_mb": bytes_a_mb(total),
+        "anexo_a_mb": anexo_a_mb,
+        "anexo_a_documentos": len([item for item in anexos if item.get("categoria") == "anexo_a"]),
+        "anexo_a_paginas": anexo_a_paginas,
+        "anexo_f_mb": anexo_f_mb,
+        "otros_anexos_mb": otros_anexos_mb,
+        "total_estimado_mb": total_mb,
         "anexos": anexos,
+        "anexos_pesados": anexos_pesados,
+        "avisos": avisos,
+        "nivel": nivel,
         "hay_anexos_pdf": bool(anexo_a_bytes or anexo_f_bytes or otros_anexos_bytes),
-        "hay_anexos_pdf_pesados": any(
-            (item.get("tamano_bytes") or 0) >= 5 * 1024 * 1024
-            for item in anexos
-        ),
+        "hay_anexos_pdf_pesados": bool(anexos_pesados),
     }
 
 
@@ -8739,7 +9226,212 @@ def leer_paginas_pdf_path_v2(ruta_pdf: Path | None, etiqueta: str) -> list:
         return []
 
 
+def _texto_pdf_anexo(valor) -> str:
+    return limpiar_texto(valor) or "-"
+
+
+def _formatear_paginas_anexo_a(paginas: int | None) -> str:
+    if paginas is None or int(paginas or 0) <= 0:
+        return "No disponible"
+    return f"{int(paginas)} pág." if int(paginas) == 1 else f"{int(paginas)} págs."
+
+
+def dividir_texto_pdf_v2(texto: str, ancho: int) -> list[str]:
+    return textwrap.wrap(limpiar_texto(texto), width=ancho) or [""]
+
+
+def _metadata_documento_anexo_a_v2(documento: dict, ruta_documento: Path | None = None) -> dict:
+    peso = analizar_peso_pdf(ruta_documento) if ruta_documento else {}
+    paginas = int(peso.get("paginas") or documento.get("paginas_pdf") or 0)
+    tamano_mb = peso.get("tamano_mb")
+    if tamano_mb is None:
+        tamano_mb = bytes_a_mb(peso.get("tamano_bytes") or 0)
+    return {
+        "numero": limpiar_texto(documento.get("numero_anexo")),
+        "nombre": limpiar_texto(documento.get("nombre")) or "Documento aportado",
+        "tipo": limpiar_texto(documento.get("tipo")) or limpiar_texto(documento.get("tipo_documento")) or "Documento aportado",
+        "fecha": limpiar_texto(documento.get("fecha") or documento.get("created_at"))[:10],
+        "descripcion": limpiar_texto(documento.get("descripcion")),
+        "observaciones": limpiar_texto(documento.get("observaciones")),
+        "paginas": paginas,
+        "paginas_label": _formatear_paginas_anexo_a(paginas),
+        "tamano_mb": tamano_mb,
+        "tamano_label": f"{tamano_mb} MB" if tamano_mb is not None else "No disponible",
+        "categoria": limpiar_texto(documento.get("tipo")) or limpiar_texto(documento.get("tipo_documento")),
+        "pagina_inicio_final": None,
+        "pagina_fin_final": None,
+    }
+
+
+def _pdf_bytes_indice_anexo_a_v2(documentos: list[dict]) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+    )
+    title_style = ParagraphStyle(
+        "AnexoATitle",
+        fontName="Helvetica-Bold",
+        fontSize=16,
+        leading=20,
+        textColor=colors.HexColor("#1f2933"),
+        spaceAfter=8,
+    )
+    body_style = ParagraphStyle(
+        "AnexoABody",
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor("#374151"),
+    )
+    story = [
+        Paragraph("ANEXO A. DOCUMENTACIÓN APORTADA", title_style),
+        Paragraph(
+            "Índice documental de los archivos incorporados físicamente al anexo.",
+            body_style,
+        ),
+        Spacer(1, 8),
+    ]
+    data = [[
+        Paragraph("Ref.", body_style),
+        Paragraph("Documento", body_style),
+        Paragraph("Categoría", body_style),
+        Paragraph("Páginas", body_style),
+        Paragraph("Tamaño", body_style),
+    ]]
+    for item in documentos:
+        data.append(
+            [
+                Paragraph(_texto_pdf_anexo(item.get("numero") or item.get("numero_anexo")), body_style),
+                Paragraph(_texto_pdf_anexo(item.get("nombre")), body_style),
+                Paragraph(_texto_pdf_anexo(item.get("categoria") or item.get("tipo")), body_style),
+                Paragraph(_texto_pdf_anexo(item.get("paginas_label")), body_style),
+                Paragraph(_texto_pdf_anexo(item.get("tamano_label")), body_style),
+            ]
+        )
+    table = Table(data, colWidths=[18 * mm, 80 * mm, 36 * mm, 24 * mm, 24 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#cbd5e1")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    story.append(table)
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def _pdf_bytes_ficha_anexo_a_v2(documento: dict, pdf_integrado: bool) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    margen = 22 * mm
+    y = height - 34 * mm
+
+    c.setStrokeColor(colors.HexColor("#1f2933"))
+    c.setLineWidth(1.4)
+    c.line(margen, height - 22 * mm, width - margen, height - 22 * mm)
+    c.line(margen, 22 * mm, width - margen, 22 * mm)
+    c.setFillColor(colors.HexColor("#6b7280"))
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(
+        margen,
+        y,
+        f"ANEXO {_texto_pdf_anexo(documento.get('numero') or documento.get('numero_anexo'))}",
+    )
+    y -= 20
+    c.setFillColor(colors.HexColor("#1f2933"))
+    c.setFont("Helvetica-Bold", 20)
+    for linea in dividir_texto_pdf_v2(_texto_pdf_anexo(documento.get("nombre")), 58)[:4]:
+        c.drawString(margen, y, linea)
+        y -= 22
+    y -= 8
+    c.setStrokeColor(colors.HexColor("#d8dee6"))
+    c.line(margen, y, width - margen, y)
+    y -= 18
+    campos = [
+        ("Tipo", documento.get("tipo")),
+        ("Páginas", documento.get("paginas_label")),
+        ("Tamaño", documento.get("tamano_label")),
+        ("Fecha de incorporación", documento.get("fecha")),
+        ("Categoría", documento.get("categoria")),
+        ("Descripción", documento.get("descripcion")),
+        ("Observaciones", documento.get("observaciones")),
+    ]
+    c.setFont("Helvetica", 10)
+    for etiqueta, valor in campos:
+        valor_limpio = limpiar_texto(valor)
+        if not valor_limpio or valor_limpio == "-":
+            continue
+        c.setFillColor(colors.HexColor("#111827"))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(margen, y, f"{etiqueta}:")
+        c.setFont("Helvetica", 10)
+        for indice, linea in enumerate(dividir_texto_pdf_v2(valor_limpio, 84)[:4]):
+            c.drawString(margen + 42 * mm, y if indice == 0 else y - (indice * 13), linea)
+        y -= 16 + (max(0, len(dividir_texto_pdf_v2(valor_limpio, 84)[:4]) - 1) * 13)
+    y -= 8
+    estado = (
+        "Documento incorporado a continuación."
+        if pdf_integrado
+        else "El documento queda referenciado, pero el PDF aportado no se pudo incorporar físicamente."
+    )
+    c.setFillColor(colors.HexColor("#374151"))
+    c.setFont("Helvetica", 10)
+    c.drawString(margen, y, estado)
+    c.save()
+    return buffer.getvalue()
+
+
+def generar_paginas_indice_anexo_a_v2(documentos: list[dict]) -> list:
+    if not documentos:
+        return []
+    try:
+        from pypdf import PdfReader
+
+        return [pagina for pagina in PdfReader(BytesIO(_pdf_bytes_indice_anexo_a_v2(documentos))).pages]
+    except Exception as exc:
+        logger.warning("No se pudo generar índice documental Anexo A: %s", exc)
+        return []
+
+
 def generar_paginas_portadilla_anexo_a_v2(documento: dict, pdf_integrado: bool) -> list:
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        logger.warning("No se pudo generar portadilla Anexo A: %s", exc)
+        return []
+
+    try:
+        return [pagina for pagina in PdfReader(BytesIO(_pdf_bytes_ficha_anexo_a_v2(documento, pdf_integrado))).pages]
+    except Exception as exc:
+        logger.warning("No se pudo generar portadilla Anexo A %s: %s", documento.get("nombre"), exc)
+        return []
+
+
+def generar_paginas_portadilla_anexo_a_v2_legacy(documento: dict, pdf_integrado: bool) -> list:
     try:
         from playwright.sync_api import sync_playwright
         from pypdf import PdfReader
@@ -8882,9 +9574,15 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
         else max(0, len(informe_reader.pages) - 1)
     )
 
-    for indice_documento, documento in enumerate(documentos_pdf, start=2):
+    unidades_anexo_a = []
+    for indice_documento, documento in enumerate(documentos_pdf, start=1):
+        numero_anexo = f"A.{indice_documento}"
+        documento["numero_anexo"] = numero_anexo
         etiqueta = documento.get("nombre") or documento.get("archivo") or "documento Anexo A"
-        ruta_documento = resolver_ruta_upload_relativa_segura(documento.get("archivo_ruta"))
+        ruta_original_documento = resolver_ruta_upload_relativa_segura(documento.get("archivo_ruta"))
+        metadata_documento = _metadata_documento_anexo_a_v2(documento, ruta_original_documento)
+        documento.update(metadata_documento)
+        ruta_documento = ruta_original_documento
         if sesion_optimizacion_anexos and ruta_documento:
             resultado_optimizacion = sesion_optimizacion_anexos.optimizar(
                 ruta_documento,
@@ -8892,6 +9590,9 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
             )
             ruta_documento = Path(resultado_optimizacion.get("ruta") or ruta_documento)
         paginas_documento = leer_paginas_pdf_path_v2(ruta_documento, f"Anexo A {etiqueta}")
+        if paginas_documento and not int(documento.get("paginas") or 0):
+            documento["paginas"] = len(paginas_documento)
+            documento["paginas_label"] = _formatear_paginas_anexo_a(len(paginas_documento))
         paginas_portadilla = generar_paginas_portadilla_anexo_a_v2(
             documento,
             bool(paginas_documento),
@@ -8899,9 +9600,20 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
         paginas_unidad_documental = [*paginas_portadilla, *paginas_documento]
         if not paginas_unidad_documental:
             continue
-        numero_anexo = limpiar_texto(documento.get("numero_anexo")) or f"A.{indice_documento}"
-        documento["numero_anexo"] = numero_anexo
-        inserciones.setdefault(pagina_fallback_anexo_a, []).extend(paginas_unidad_documental)
+        unidades_anexo_a.append(
+            {
+                "metadata": dict(documento),
+                "paginas": paginas_unidad_documental,
+            }
+        )
+
+    if unidades_anexo_a:
+        paginas_anexo_a = generar_paginas_indice_anexo_a_v2(
+            [unidad["metadata"] for unidad in unidades_anexo_a]
+        )
+        for unidad in unidades_anexo_a:
+            paginas_anexo_a.extend(unidad["paginas"])
+        inserciones.setdefault(pagina_fallback_anexo_a, []).extend(paginas_anexo_a)
 
     if pdf_mediciones:
         ruta_mediciones = resolver_ruta_upload_relativa_segura(pdf_mediciones.get("archivo_ruta"))
@@ -11813,6 +12525,9 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "revision_coherencia": editor["revision_coherencia"],
             "pdf_export_profiles": editor["pdf_export_profiles"],
             "diagnostico_anexos_pdf": editor["diagnostico_anexos_pdf"],
+            "laminas_fotograficas": editor["laminas_fotograficas"],
+            "fotos_laminas_disponibles": editor["fotos_laminas_disponibles"],
+            "laminas_layouts": editor["laminas_layouts"],
             "estados_revision": editor["estados_revision"],
             "metadatos": editor["metadatos"],
             "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
@@ -11840,6 +12555,188 @@ def revision_coherencia_expediente(request: Request, expediente_id: int):
         conn.close()
 
     return JSONResponse(content=analizar_consistencia_expediente(expediente_id))
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2-laminas")
+async def crear_lamina_fotografica_informe_v2_endpoint(
+    request: Request,
+    expediente_id: int,
+):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+    foto_ids = form_data.getlist("foto_ids")
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return redirect_detalle_expediente(
+                expediente_id,
+                error="El editor de informe solo aplica a expedientes de patologías.",
+            )
+        ok, mensaje = crear_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            form_data.get("titulo"),
+            form_data.get("subtitulo"),
+            form_data.get("layout"),
+            foto_ids,
+        )
+        if ok:
+            conn.commit()
+            return redirect_informe_v2_editor(expediente_id, mensaje=mensaje)
+        conn.rollback()
+        return redirect_informe_v2_editor(expediente_id, error=mensaje)
+    finally:
+        conn.close()
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2-laminas/{lamina_id}/mover")
+async def mover_lamina_fotografica_informe_v2_endpoint(
+    request: Request,
+    expediente_id: int,
+    lamina_id: int,
+):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        movida = mover_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            lamina_id,
+            form_data.get("direccion"),
+        )
+        if movida:
+            conn.commit()
+            return redirect_informe_v2_editor(expediente_id, mensaje="Orden de láminas actualizado.")
+        conn.rollback()
+        return redirect_informe_v2_editor(expediente_id, error="No se pudo reordenar la lámina.")
+    finally:
+        conn.close()
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2-laminas/{lamina_id}/actualizar")
+async def actualizar_lamina_fotografica_informe_v2_endpoint(
+    request: Request,
+    expediente_id: int,
+    lamina_id: int,
+):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        ok, mensaje = actualizar_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            lamina_id,
+            form_data.get("titulo"),
+            form_data.get("subtitulo"),
+            form_data.get("layout"),
+        )
+        if ok:
+            conn.commit()
+            return redirect_informe_v2_editor(expediente_id, mensaje=mensaje)
+        conn.rollback()
+        return redirect_informe_v2_editor(expediente_id, error=mensaje)
+    finally:
+        conn.close()
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2-laminas/{lamina_id}/eliminar")
+def eliminar_lamina_fotografica_informe_v2_endpoint(
+    request: Request,
+    expediente_id: int,
+    lamina_id: int,
+):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        eliminada = eliminar_lamina_fotografica_informe_v2(
+            cur,
+            expediente_id,
+            lamina_id,
+        )
+        if eliminada:
+            conn.commit()
+            return redirect_informe_v2_editor(expediente_id, mensaje="Lámina eliminada.")
+        conn.rollback()
+        return redirect_informe_v2_editor(expediente_id, error="No se encontró la lámina.")
+    finally:
+        conn.close()
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2-laminas/fotos/{relacion_id}/actualizar")
+async def actualizar_foto_lamina_informe_v2_endpoint(
+    request: Request,
+    expediente_id: int,
+    relacion_id: int,
+):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        actualizada = actualizar_foto_lamina_informe_v2(
+            cur,
+            expediente_id,
+            relacion_id,
+            form_data.get("pie_foto"),
+            form_data.get("observacion"),
+        )
+        if actualizada:
+            conn.commit()
+            return redirect_informe_v2_editor(expediente_id, mensaje="Fotografía de lámina actualizada.")
+        conn.rollback()
+        return redirect_informe_v2_editor(expediente_id, error="No se encontró la fotografía de lámina.")
+    finally:
+        conn.close()
+
+
+@app.post("/expedientes/{expediente_id}/informe-v2-laminas/fotos/{relacion_id}/mover")
+async def mover_foto_lamina_informe_v2_endpoint(
+    request: Request,
+    expediente_id: int,
+    relacion_id: int,
+):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        movida = mover_foto_lamina_informe_v2(
+            cur,
+            expediente_id,
+            relacion_id,
+            form_data.get("direccion"),
+        )
+        if movida:
+            conn.commit()
+            return redirect_informe_v2_editor(expediente_id, mensaje="Orden de fotografías actualizado.")
+        conn.rollback()
+        return redirect_informe_v2_editor(expediente_id, error="No se pudo reordenar la fotografía.")
+    finally:
+        conn.close()
 
 
 @app.post("/expedientes/{expediente_id}/informe-v2-editor")
