@@ -73,6 +73,11 @@ from app.services.informe import (
     limpiar_nombre_archivo,
 )
 from app.services.pericial_consistency import analizar_consistencia_expediente
+from app.services.pdf_annex_optimizer import (
+    analizar_peso_pdf,
+    bytes_a_mb,
+    crear_sesion_optimizacion_anexos_pdf,
+)
 from app.services.pdf_image_optimizer import (
     crear_sesion_optimizacion_pdf,
     optimizar_contexto_imagenes_pdf,
@@ -6352,7 +6357,7 @@ PDF_EXPORT_PROFILES = {
         "objetivo_mb": 20,
         "optimizar_imagenes": True,
         "jpeg_quality": 75,
-        "max_dimension": 1600,
+        "max_dimension": 1400,
         "remove_exif": True,
     },
     "judicial": {
@@ -7425,6 +7430,16 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
     guardados = obtener_capitulos_guardados_informe_v2(cur, expediente["id"])
     metadatos = obtener_metadatos_informe_v2(cur, expediente["id"])
     versiones = obtener_versiones_informe_v2(cur, expediente["id"])
+    documentos_aportados = obtener_documentos_aportados_expediente(cur, expediente["id"])
+    documentos_anexo_a = recopilar_documentacion_anexo_v2(
+        dict(expediente),
+        {},
+        documentos_aportados,
+    )
+    diagnostico_anexos_pdf = diagnosticar_peso_anexos_pdf_v2(
+        documentos_anexo_a,
+        pdf_mediciones_anexo_f,
+    )
     capitulos = []
 
     for definicion in INFORME_V2_CAPITULOS:
@@ -7527,6 +7542,7 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         "diagnostico_informe": diagnostico_informe,
         "revision_coherencia": revision_coherencia,
         "pdf_export_profiles": listar_perfiles_exportacion_pdf_v2(),
+        "diagnostico_anexos_pdf": diagnostico_anexos_pdf,
         "estados_revision": estados_revision,
         "metadatos": metadatos,
         "capitulos": capitulos,
@@ -8544,6 +8560,62 @@ def documento_anexo_a_pdf_v2(documento: dict) -> bool:
     return mime in ("application/pdf", "application/x-pdf") or archivo.endswith(".pdf")
 
 
+def diagnosticar_peso_anexos_pdf_v2(
+    documentos_anexo_a: list[dict] | None = None,
+    pdf_mediciones: dict | None = None,
+    pdf_informe: bytes | None = None,
+) -> dict:
+    informe_bytes = len(pdf_informe or b"")
+    anexo_a_bytes = 0
+    otros_anexos_bytes = 0
+    anexos = []
+
+    for documento in documentos_anexo_a or []:
+        if not documento_anexo_a_pdf_v2(documento):
+            continue
+        ruta_pdf = resolver_ruta_upload_relativa_segura(documento.get("archivo_ruta"))
+        if not ruta_pdf:
+            continue
+        peso = analizar_peso_pdf(ruta_pdf)
+        anexo_a_bytes += int(peso["tamano_bytes"] or 0)
+        anexos.append(
+            {
+                "categoria": "anexo_a",
+                "nombre": limpiar_texto(documento.get("nombre")) or "Anexo A",
+                **peso,
+            }
+        )
+
+    anexo_f_bytes = 0
+    if pdf_mediciones:
+        ruta_pdf = resolver_ruta_upload_relativa_segura(pdf_mediciones.get("archivo_ruta"))
+        if ruta_pdf:
+            peso = analizar_peso_pdf(ruta_pdf)
+            anexo_f_bytes += int(peso["tamano_bytes"] or 0)
+            anexos.append(
+                {
+                    "categoria": "anexo_f",
+                    "nombre": limpiar_texto(pdf_mediciones.get("archivo_nombre_original")) or "Anexo F",
+                    **peso,
+                }
+            )
+
+    total = informe_bytes + anexo_a_bytes + anexo_f_bytes + otros_anexos_bytes
+    return {
+        "informe_principal_mb": bytes_a_mb(informe_bytes),
+        "anexo_a_mb": bytes_a_mb(anexo_a_bytes),
+        "anexo_f_mb": bytes_a_mb(anexo_f_bytes),
+        "otros_anexos_mb": bytes_a_mb(otros_anexos_bytes),
+        "total_estimado_mb": bytes_a_mb(total),
+        "anexos": anexos,
+        "hay_anexos_pdf": bool(anexo_a_bytes or anexo_f_bytes or otros_anexos_bytes),
+        "hay_anexos_pdf_pesados": any(
+            (item.get("tamano_bytes") or 0) >= 5 * 1024 * 1024
+            for item in anexos
+        ),
+    }
+
+
 def normalizar_busqueda_pdf_v2(texto: str) -> str:
     texto = unicodedata.normalize("NFKD", limpiar_texto(texto).lower())
     return "".join(c for c in texto if not unicodedata.combining(c))
@@ -8571,6 +8643,10 @@ def encontrar_pagina_pdf_v2(reader, patrones: list[str], inicio: int = 0) -> int
 
 def leer_paginas_pdf_upload_v2(ruta_relativa: str | None, etiqueta: str) -> list:
     ruta_pdf = resolver_ruta_upload_relativa_segura(ruta_relativa)
+    return leer_paginas_pdf_path_v2(ruta_pdf, etiqueta)
+
+
+def leer_paginas_pdf_path_v2(ruta_pdf: Path | None, etiqueta: str) -> list:
     if not ruta_pdf or not ruta_pdf.exists():
         logger.warning("No se pudo integrar %s: archivo no encontrado.", etiqueta)
         return []
@@ -8692,6 +8768,9 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
     pdf_informe: bytes,
     documentos_anexo_a: list[dict] | None,
     pdf_mediciones: dict | None,
+    perfil_pdf: dict | None = None,
+    sesion_optimizacion_anexos=None,
+    diagnostico_anexos_pdf: dict | None = None,
 ) -> bytes:
     documentos_pdf = [
         documento
@@ -8726,7 +8805,14 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
 
     for indice_documento, documento in enumerate(documentos_pdf, start=2):
         etiqueta = documento.get("nombre") or documento.get("archivo") or "documento Anexo A"
-        paginas_documento = leer_paginas_pdf_upload_v2(documento.get("archivo_ruta"), f"Anexo A {etiqueta}")
+        ruta_documento = resolver_ruta_upload_relativa_segura(documento.get("archivo_ruta"))
+        if sesion_optimizacion_anexos and ruta_documento:
+            resultado_optimizacion = sesion_optimizacion_anexos.optimizar(
+                ruta_documento,
+                categoria="anexo_a",
+            )
+            ruta_documento = Path(resultado_optimizacion.get("ruta") or ruta_documento)
+        paginas_documento = leer_paginas_pdf_path_v2(ruta_documento, f"Anexo A {etiqueta}")
         paginas_portadilla = generar_paginas_portadilla_anexo_a_v2(
             documento,
             bool(paginas_documento),
@@ -8739,8 +8825,15 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
         inserciones.setdefault(pagina_fallback_anexo_a, []).extend(paginas_unidad_documental)
 
     if pdf_mediciones:
-        paginas_mediciones = leer_paginas_pdf_upload_v2(
-            pdf_mediciones.get("archivo_ruta"),
+        ruta_mediciones = resolver_ruta_upload_relativa_segura(pdf_mediciones.get("archivo_ruta"))
+        if sesion_optimizacion_anexos and ruta_mediciones:
+            resultado_optimizacion = sesion_optimizacion_anexos.optimizar(
+                ruta_mediciones,
+                categoria="anexo_f",
+            )
+            ruta_mediciones = Path(resultado_optimizacion.get("ruta") or ruta_mediciones)
+        paginas_mediciones = leer_paginas_pdf_path_v2(
+            ruta_mediciones,
             "Anexo F.4 Desarrollo completo de mediciones",
         )
         if paginas_mediciones:
@@ -11619,6 +11712,7 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "diagnostico_informe": editor["diagnostico_informe"],
             "revision_coherencia": editor["revision_coherencia"],
             "pdf_export_profiles": editor["pdf_export_profiles"],
+            "diagnostico_anexos_pdf": editor["diagnostico_anexos_pdf"],
             "estados_revision": editor["estados_revision"],
             "metadatos": editor["metadatos"],
             "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
@@ -17716,6 +17810,7 @@ def generar_informe_v2_pdf_endpoint(
         conn.close()
 
     sesion_optimizacion = crear_sesion_optimizacion_pdf(perfil_pdf)
+    sesion_optimizacion_anexos = crear_sesion_optimizacion_anexos_pdf(perfil_pdf)
     try:
         contexto["perfil_exportacion_pdf"] = perfil_pdf
         contexto["optimizacion_imagenes_pdf"] = optimizar_contexto_imagenes_pdf(
@@ -17724,14 +17819,23 @@ def generar_informe_v2_pdf_endpoint(
             UPLOAD_PATH,
         )
         pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
+        contexto["diagnostico_anexos_pdf"] = diagnosticar_peso_anexos_pdf_v2(
+            contexto.get("anexos", {}).get("documentacion"),
+            contexto.get("pdf_mediciones_anexo_f"),
+            pdf_bytes,
+        )
         if perfil_pdf.get("incluye_anexos"):
             pdf_bytes = fusionar_pdf_informe_v2_con_anexos_integrados(
                 pdf_bytes,
                 contexto.get("anexos", {}).get("documentacion"),
                 contexto.get("pdf_mediciones_anexo_f"),
+                perfil_pdf=perfil_pdf,
+                sesion_optimizacion_anexos=sesion_optimizacion_anexos,
+                diagnostico_anexos_pdf=contexto.get("diagnostico_anexos_pdf"),
             )
     finally:
         sesion_optimizacion.cleanup()
+        sesion_optimizacion_anexos.cleanup()
     nombre_archivo = nombre_archivo_pdf_informe_v2(
         expediente,
         perfil_pdf=perfil_pdf,

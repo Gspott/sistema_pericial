@@ -824,6 +824,13 @@
                     </a>
                     {% endfor %}
                 </div>
+                {% if diagnostico_anexos_pdf and diagnostico_anexos_pdf.hay_anexos_pdf %}
+                <p class="editor-note">
+                    El PDF final puede ser pesado porque contiene anexos externos:
+                    Anexo A {{ diagnostico_anexos_pdf.anexo_a_mb }} MB ·
+                    Anexo F {{ diagnostico_anexos_pdf.anexo_f_mb }} MB.
+                </p>
+                {% endif %}
             </details>
         </section>
 

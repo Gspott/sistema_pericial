@@ -1887,7 +1887,7 @@ def test_pdf_v2_export_profiles_configurados(isolated_import):
     assert perfiles["email"]["objetivo_mb"] == 20
     assert perfiles["email"]["optimizar_imagenes"] is True
     assert perfiles["email"]["jpeg_quality"] == 75
-    assert perfiles["email"]["max_dimension"] == 1600
+    assert perfiles["email"]["max_dimension"] == 1400
     assert perfiles["email"]["remove_exif"] is True
     assert perfiles["judicial"]["objetivo_mb"] == 10
     assert perfiles["judicial"]["optimizar_imagenes"] is True
@@ -1958,6 +1958,65 @@ def test_pdf_image_optimizer_conserva_orientacion_visual(tmp_path):
     with Image.open(resultado["ruta"]) as optimizada:
         assert optimizada.size == (160, 80)
         assert not dict(optimizada.getexif())
+
+
+def test_pdf_annex_optimizer_calcula_tamano_y_no_modifica_original(tmp_path, monkeypatch):
+    from pypdf import PdfWriter
+
+    from app.services import pdf_annex_optimizer
+
+    ruta_original = tmp_path / "anexo.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    with ruta_original.open("wb") as buffer:
+        writer.write(buffer)
+    bytes_originales = ruta_original.read_bytes()
+
+    peso = pdf_annex_optimizer.analizar_peso_pdf(ruta_original)
+    assert peso["tamano_bytes"] == len(bytes_originales)
+    assert peso["tamano_mb"] >= 0
+    assert peso["paginas"] == 1
+
+    monkeypatch.setattr(pdf_annex_optimizer.shutil, "which", lambda nombre: None)
+
+    def fake_pypdf(origen, destino):
+        destino.write_bytes(b"%PDF-1.4\n% optimizado\n%%EOF\n")
+        return True
+
+    monkeypatch.setattr(pdf_annex_optimizer, "_optimizar_con_pypdf", fake_pypdf)
+    resultado = pdf_annex_optimizer.optimizar_pdf_externo(
+        ruta_original,
+        "email",
+        carpeta_temporal=tmp_path / "tmp",
+    )
+
+    assert ruta_original.read_bytes() == bytes_originales
+    assert resultado["ruta"] != ruta_original
+    assert resultado["optimizado"] is True
+    assert resultado["metodo"] == "pypdf"
+    assert resultado["tamano_final"] < resultado["tamano_original"]
+
+
+def test_pdf_annex_optimizer_master_no_optimiza(tmp_path):
+    from pypdf import PdfWriter
+
+    from app.services.pdf_annex_optimizer import optimizar_pdf_externo
+
+    ruta_original = tmp_path / "anexo-master.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    with ruta_original.open("wb") as buffer:
+        writer.write(buffer)
+
+    resultado = optimizar_pdf_externo(
+        ruta_original,
+        "master",
+        carpeta_temporal=tmp_path / "tmp",
+    )
+
+    assert resultado["ruta"] == ruta_original
+    assert resultado["optimizado"] is False
+    assert resultado["metodo"] == "none"
 
 
 def test_pdf_v2_rechaza_perfil_exportacion_desconocido(
@@ -2061,6 +2120,8 @@ def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
 
     def fake_pdf_bytes(request, contexto):
         capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
         return b"%PDF-1.4\n%PDF email\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
@@ -2076,6 +2137,176 @@ def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
     assert capturado["contexto"]["perfil_exportacion_pdf"]["codigo"] == "email"
     assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] >= 1
     assert capturado["contexto"]["optimizacion_imagenes_pdf"]["tamano_optimizado"] > 0
+    assert "file://" in capturado["html"]
+    assert f"/uploads/{nombre_foto}" not in capturado["html"]
+
+
+def test_pdf_v2_perfil_judicial_renderiza_ruta_optimizada(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+    from PIL import Image
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    ruta_foto = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_judicial")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        visita_id = cur.execute(
+            "SELECT id FROM visitas WHERE expediente_id=? LIMIT 1",
+            (expediente_id,),
+        ).fetchone()["id"]
+        nombre_foto = f"smoke_pdf_opt_judicial_{expediente_id}.jpg"
+        ruta_foto = main_module.UPLOAD_PATH / nombre_foto
+        Image.new("RGB", (2200, 1200), (120, 80, 60)).save(ruta_foto, quality=95)
+        cur.execute(
+            """
+            INSERT INTO visita_fotos (visita_id, categoria, ruta, descripcion)
+            VALUES (?, 'exterior', ?, ?)
+            """,
+            (visita_id, nombre_foto, "Foto grande para optimización judicial"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    capturado = {}
+
+    def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
+        return b"%PDF-1.4\n%PDF judicial\n"
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=judicial")
+    finally:
+        if ruta_foto:
+            ruta_foto.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert capturado["contexto"]["perfil_exportacion_pdf"]["codigo"] == "judicial"
+    assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] >= 1
+    assert "file://" in capturado["html"]
+    assert f"/uploads/{nombre_foto}" not in capturado["html"]
+
+
+def test_pdf_v2_perfil_master_renderiza_ruta_original(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+    from PIL import Image
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    ruta_foto = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_master")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        visita_id = cur.execute(
+            "SELECT id FROM visitas WHERE expediente_id=? LIMIT 1",
+            (expediente_id,),
+        ).fetchone()["id"]
+        nombre_foto = f"smoke_pdf_master_{expediente_id}.jpg"
+        ruta_foto = main_module.UPLOAD_PATH / nombre_foto
+        Image.new("RGB", (1600, 900), (120, 80, 60)).save(ruta_foto, quality=90)
+        cur.execute(
+            """
+            INSERT INTO visita_fotos (visita_id, categoria, ruta, descripcion)
+            VALUES (?, 'exterior', ?, ?)
+            """,
+            (visita_id, nombre_foto, "Foto para perfil master"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    capturado = {}
+
+    def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
+        return b"%PDF-1.4\n%PDF master\n"
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=master")
+    finally:
+        if ruta_foto:
+            ruta_foto.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert capturado["contexto"]["perfil_exportacion_pdf"]["codigo"] == "master"
+    assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] == 0
+    assert f"/uploads/{nombre_foto}" in capturado["html"]
+    assert "file://" not in capturado["html"]
+
+
+def test_informe_v2_editor_muestra_aviso_anexos_pdf_externos(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from pypdf import PdfWriter
+
+    conn = get_connection()
+    ruta_anexo = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_annex_weight_ui")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        ruta_relativa = f"expediente_documentos/{expediente_id}/anexo-pesado.pdf"
+        ruta_anexo = main_module.UPLOAD_PATH / ruta_relativa
+        ruta_anexo.parent.mkdir(parents=True, exist_ok=True)
+        writer = PdfWriter()
+        writer.add_blank_page(width=595, height=842)
+        with ruta_anexo.open("wb") as buffer:
+            writer.write(buffer)
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "Anexo documental externo",
+                "PDF externo aportado para anexo A.",
+                "Documentación aportada",
+                ruta_relativa,
+                "anexo-pesado.pdf",
+                10,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+    finally:
+        if ruta_anexo:
+            ruta_anexo.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert "El PDF final puede ser pesado porque contiene anexos externos" in response.text
+    assert "Anexo A" in response.text
+    assert "Anexo F" in response.text
 
 
 def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
@@ -2165,7 +2396,7 @@ def test_pdf_v2_anexa_pdf_mediciones_tras_anexo_f(
         capturado["html"] = template.render({"request": request, **contexto})
         return b"%PDF-1.4\n%PDF con separador F4\n"
 
-    def fake_fusion(pdf_informe, documentos_anexo_a, pdf_mediciones):
+    def fake_fusion(pdf_informe, documentos_anexo_a, pdf_mediciones, **kwargs):
         capturado["fusion_pdf_informe"] = pdf_informe
         capturado["fusion_documentos_anexo_a"] = documentos_anexo_a
         capturado["fusion_pdf_mediciones"] = pdf_mediciones
@@ -2388,6 +2619,66 @@ def test_pdf_v2_integra_anexo_a_como_portadilla_mas_documento(
     assert anchos == [500, 510, 520, 530, 515, 515]
 
 
+def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader, PdfWriter
+
+    def pdf_con_paginas(anchos):
+        writer = PdfWriter()
+        for ancho in anchos:
+            writer.add_blank_page(width=ancho, height=842)
+        buffer = BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
+    informe = pdf_con_paginas([500])
+    ruta_relativa = "expediente_documentos/1/anexo-original.pdf"
+    ruta_original = main_module.UPLOAD_PATH / ruta_relativa
+    ruta_original.parent.mkdir(parents=True, exist_ok=True)
+    ruta_original.write_bytes(pdf_con_paginas([520]))
+
+    ruta_optimizada = main_module.UPLOAD_PATH / "expediente_documentos/1/anexo-optimizado.pdf"
+    ruta_optimizada.write_bytes(pdf_con_paginas([530]))
+
+    class FakeSession:
+        def optimizar(self, path, categoria=""):
+            assert path == ruta_original
+            assert categoria == "anexo_a"
+            return {"ruta": ruta_optimizada, "optimizado": True, "metodo": "test"}
+
+    monkeypatch.setattr(
+        main_module,
+        "generar_paginas_portadilla_anexo_a_v2",
+        lambda documento, pdf_integrado: [],
+    )
+
+    fusionado = main_module.fusionar_pdf_informe_v2_con_anexos_integrados(
+        informe,
+        [
+            {
+                "nombre": "Documento integrado",
+                "numero_anexo": "A.2",
+                "archivo": "anexo-original.pdf",
+                "archivo_ruta": ruta_relativa,
+                "mime_type": "application/pdf",
+            },
+        ],
+        None,
+        perfil_pdf={"codigo": "email"},
+        sesion_optimizacion_anexos=FakeSession(),
+    )
+
+    anchos = [
+        int(float(pagina.mediabox.width))
+        for pagina in PdfReader(BytesIO(fusionado)).pages
+    ]
+    assert anchos == [500, 530]
+
+
 def test_pdf_v2_endpoint_integra_anexo_a_y_mediciones_en_merge_unico(
     isolated_import,
     monkeypatch,
@@ -2446,7 +2737,7 @@ def test_pdf_v2_endpoint_integra_anexo_a_y_mediciones_en_merge_unico(
     def fake_pdf_bytes(request, contexto):
         return b"%PDF-1.4\n%PDF base\n"
 
-    def fake_merge(pdf_informe, documentos, pdf_mediciones):
+    def fake_merge(pdf_informe, documentos, pdf_mediciones, **kwargs):
         llamadas.append(("integrado", pdf_informe, documentos, pdf_mediciones))
         assert [documento["archivo"] for documento in documentos] == ["anexo-a.pdf"]
         assert pdf_mediciones["archivo_nombre_original"] == "mediciones.pdf"

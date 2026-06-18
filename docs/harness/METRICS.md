@@ -33,12 +33,12 @@ Metricas manuales para observar salud del harness sin introducir automatizacion 
 
 | Metrica | Valor |
 |---|---|
-| Smoke tests | 229 |
+| Smoke tests | 235 |
 | Planes activos | 1 |
-| Planes completados | 117 |
+| Planes completados | 119 |
 | Failures documentados | 5 |
 | Patterns reutilizables | 10 |
 | Task Packs | 10 |
-| Episodios | 75 |
-| Warning monolito | WARNING: app/main.py tiene 17833 lineas |
+| Episodios | 77 |
+| Warning monolito | WARNING: app/main.py tiene 17937 lineas |
 | Warning PWA | OK |
