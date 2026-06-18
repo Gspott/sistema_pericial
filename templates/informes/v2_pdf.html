@@ -7,12 +7,14 @@
     <style>
         :root {
             color: #1f2933;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, Helvetica, sans-serif;
             font-size: 14px;
-            line-height: 1.55;
+            line-height: 1.62;
             --ink: #1f2933;
+            --heading: #17202a;
             --muted: #6b7280;
             --line: #d8dee6;
+            --line-soft: #edf0f4;
             --soft: #f8fafc;
             --paper: #fbfcfd;
             --accent: #46515f;
@@ -28,7 +30,7 @@
             box-sizing: border-box;
             margin: 0 auto 24px;
             min-height: 297mm;
-            padding: 18mm 20mm 19mm;
+            padding: 20mm 21mm 22mm;
             width: 210mm;
         }
 
@@ -125,20 +127,24 @@
             border-bottom: 1px solid var(--line);
             break-after: avoid;
             break-inside: avoid;
-            color: #2f3a45;
-            font-size: 16px;
-            margin: 20px 0 10px;
+            color: var(--heading);
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.24;
+            margin: 0 0 12px;
             page-break-after: avoid;
             page-break-inside: avoid;
-            padding-bottom: 6px;
+            padding-bottom: 7px;
             text-transform: uppercase;
         }
 
         h3 {
             break-after: avoid;
             break-inside: avoid;
-            color: #24313d;
+            color: var(--heading);
             font-size: 14px;
+            line-height: 1.32;
             margin: 16px 0 8px;
             page-break-after: avoid;
             page-break-inside: avoid;
@@ -200,15 +206,36 @@
 
         .chapter {
             break-inside: auto;
-            margin-top: 4mm;
+            margin-top: 0;
             page-break-inside: auto;
+        }
+
+        .report-chapter {
+            break-before: page;
+            page-break-before: always;
+        }
+
+        .report-chapter:first-of-type {
+            break-before: auto;
+            page-break-before: auto;
+        }
+
+        .chapter-heading {
+            break-after: avoid;
+            break-inside: avoid;
+            page-break-after: avoid;
+            page-break-inside: avoid;
         }
 
         .chapter-content {
             color: #26313d;
-            font-size: 13px;
-            line-height: 1.58;
+            font-size: 13.25px;
+            line-height: 1.72;
             white-space: pre-line;
+        }
+
+        .chapter-content p {
+            margin: 0 0 10px;
         }
 
         .conclusion-block,
@@ -301,7 +328,7 @@
 
         .doc-card dt,
         .doc-card dd {
-            border-top: 1px solid #edf0f4;
+            border-top: 1px solid var(--line-soft);
             margin: 0;
             padding: 4px 0;
         }
@@ -609,6 +636,7 @@
                 box-shadow: none;
                 margin: 0;
                 min-height: auto;
+                padding: 18mm 19mm 21mm;
                 width: auto;
             }
         }
@@ -679,16 +707,16 @@
         </section>
 
         {% for capitulo in capitulos %}
-        <section class="chapter">
-            <h2>{{ capitulo.numero_pdf }}. {{ capitulo.titulo }}</h2>
+        <section class="chapter report-chapter chapter-{{ capitulo.clave }}">
+            <h2 class="chapter-heading">{{ capitulo.numero_pdf }}. {{ capitulo.titulo }}</h2>
             {% if capitulo.contenido_pdf %}
             <div class="chapter-content">{{ capitulo.contenido_pdf }}</div>
             {% endif %}
         </section>
         {% endfor %}
 
-        <section class="chapter">
-            <h2>{{ conclusiones.numero }}. {{ conclusiones.titulo }}</h2>
+        <section class="chapter report-chapter chapter-conclusiones">
+            <h2 class="chapter-heading">{{ conclusiones.numero }}. {{ conclusiones.titulo }}</h2>
             {% if conclusiones.bloques %}
             {% for bloque in conclusiones.bloques %}
             <article class="conclusion-block">

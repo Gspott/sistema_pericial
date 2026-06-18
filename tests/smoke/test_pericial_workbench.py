@@ -3357,6 +3357,9 @@ def test_pdf_v2_footer_no_muestra_total_paginas(isolated_import):
     )[0]
 
     assert "Arquitecto Técnico · Expediente" in bloque_v2
+    assert "header_template=header_template" in bloque_v2
+    assert "footer_template=footer_template" in bloque_v2
+    assert "Dictamen técnico pericial" in bloque_v2
     assert "totalPages" not in bloque_v2
     assert "Página <span class='pageNumber'></span>" not in bloque_v2
 
@@ -4225,6 +4228,11 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Dictamen técnico pericial" in html
     assert "DAÑOS POR ENTRADA DE AGUA DE LLUVIA" in html
     assert "Análisis técnico de los daños observados" in html
+    assert 'class="chapter report-chapter chapter-resumen_ejecutivo"' in html
+    assert 'class="chapter report-chapter chapter-limitaciones"' in html
+    assert 'class="chapter report-chapter chapter-conclusiones"' in html
+    assert 'class="conclusion-block"' in html
+    assert "consultation-panel" not in html
     assert "INFORME PERICIAL</span>" not in html
     assert "Arquitecto Técnico" in html
     assert "toc-row is-annex" in html
