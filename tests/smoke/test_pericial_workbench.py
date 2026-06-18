@@ -2019,6 +2019,172 @@ def test_pdf_annex_optimizer_master_no_optimiza(tmp_path):
     assert resultado["metodo"] == "none"
 
 
+def test_pdf_annex_optimizer_ghostscript_email_construye_comando_y_adopta_temporal(
+    tmp_path,
+    monkeypatch,
+):
+    from pypdf import PdfWriter
+
+    from app.services import pdf_annex_optimizer
+
+    ruta_original = tmp_path / "anexo-email.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    with ruta_original.open("wb") as buffer:
+        writer.write(buffer)
+    ruta_original.write_bytes(ruta_original.read_bytes() + b"0" * 2048)
+    comandos = []
+
+    monkeypatch.setattr(pdf_annex_optimizer.shutil, "which", lambda nombre: "/usr/local/bin/gs")
+
+    def fake_run(comando, check, timeout):
+        comandos.append((comando, check, timeout))
+        salida = next(arg for arg in comando if arg.startswith("-sOutputFile=")).split("=", 1)[1]
+        Path(salida).write_bytes(b"%PDF-1.4\n% optimizado\n%%EOF\n")
+
+    monkeypatch.setattr(pdf_annex_optimizer.subprocess, "run", fake_run)
+    resultado = pdf_annex_optimizer.optimizar_pdf_externo(
+        ruta_original,
+        "email",
+        carpeta_temporal=tmp_path / "tmp",
+    )
+
+    comando, check, timeout = comandos[0]
+    assert comando[0] == "/usr/local/bin/gs"
+    assert "-dPDFSETTINGS=/ebook" in comando
+    assert check is True
+    assert timeout == 120
+    assert resultado["optimizado"] is True
+    assert resultado["metodo"] == "ghostscript"
+    assert resultado["ruta"] != ruta_original
+    assert resultado["tamano_final"] < resultado["tamano_original"]
+    assert "ghostscript" in resultado["mensaje"]
+
+
+def test_pdf_annex_optimizer_ghostscript_judicial_usa_screen(
+    tmp_path,
+    monkeypatch,
+):
+    from pypdf import PdfWriter
+
+    from app.services import pdf_annex_optimizer
+
+    ruta_original = tmp_path / "anexo-judicial.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    with ruta_original.open("wb") as buffer:
+        writer.write(buffer)
+    ruta_original.write_bytes(ruta_original.read_bytes() + b"0" * 2048)
+    comandos = []
+
+    monkeypatch.setattr(pdf_annex_optimizer.shutil, "which", lambda nombre: "/opt/homebrew/bin/gs")
+
+    def fake_run(comando, check, timeout):
+        comandos.append(comando)
+        salida = next(arg for arg in comando if arg.startswith("-sOutputFile=")).split("=", 1)[1]
+        Path(salida).write_bytes(b"%PDF-1.4\n% optimizado\n%%EOF\n")
+
+    monkeypatch.setattr(pdf_annex_optimizer.subprocess, "run", fake_run)
+    resultado = pdf_annex_optimizer.optimizar_pdf_externo(
+        ruta_original,
+        {"codigo": "judicial"},
+        carpeta_temporal=tmp_path / "tmp",
+    )
+
+    assert "-dPDFSETTINGS=/screen" in comandos[0]
+    assert resultado["optimizado"] is True
+    assert resultado["metodo"] == "ghostscript"
+
+
+def test_pdf_annex_optimizer_descarta_ghostscript_si_aumenta_o_falla(
+    tmp_path,
+    monkeypatch,
+):
+    from pypdf import PdfWriter
+
+    from app.services import pdf_annex_optimizer
+
+    ruta_original = tmp_path / "anexo-mayor.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    with ruta_original.open("wb") as buffer:
+        writer.write(buffer)
+
+    monkeypatch.setattr(pdf_annex_optimizer.shutil, "which", lambda nombre: "/usr/local/bin/gs")
+
+    def fake_run_mayor(comando, check, timeout):
+        salida = next(arg for arg in comando if arg.startswith("-sOutputFile=")).split("=", 1)[1]
+        Path(salida).write_bytes(ruta_original.read_bytes() + b"0" * 2048)
+
+    monkeypatch.setattr(pdf_annex_optimizer.subprocess, "run", fake_run_mayor)
+    monkeypatch.setattr(pdf_annex_optimizer, "_optimizar_con_pypdf", lambda origen, destino: False)
+    resultado_mayor = pdf_annex_optimizer.optimizar_pdf_externo(
+        ruta_original,
+        "email",
+        carpeta_temporal=tmp_path / "tmp-mayor",
+    )
+
+    assert resultado_mayor["ruta"] == ruta_original
+    assert resultado_mayor["optimizado"] is False
+    assert resultado_mayor["metodo"] == "none"
+
+    def fake_run_timeout(comando, check, timeout):
+        raise pdf_annex_optimizer.subprocess.TimeoutExpired(comando, timeout)
+
+    monkeypatch.setattr(pdf_annex_optimizer.subprocess, "run", fake_run_timeout)
+    resultado_timeout = pdf_annex_optimizer.optimizar_pdf_externo(
+        ruta_original,
+        "judicial",
+        carpeta_temporal=tmp_path / "tmp-timeout",
+    )
+
+    assert resultado_timeout["ruta"] == ruta_original
+    assert resultado_timeout["optimizado"] is False
+    assert resultado_timeout["metodo"] == "none"
+
+
+def test_pdf_v2_endpoint_email_funciona_sin_ghostscript(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services import pdf_annex_optimizer
+    from pypdf import PdfReader, PdfWriter
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_no_gs")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    def pdf_con_paginas(total):
+        writer = PdfWriter()
+        for _ in range(total):
+            writer.add_blank_page(width=595, height=842)
+        buffer = BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
+    monkeypatch.setattr(pdf_annex_optimizer.shutil, "which", lambda nombre: None)
+    monkeypatch.setattr(
+        main_module,
+        "generar_informe_v2_pdf_bytes",
+        lambda request, contexto: pdf_con_paginas(1),
+    )
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=email")
+
+    assert response.status_code == 200
+    reader = PdfReader(BytesIO(response.content))
+    assert len(reader.pages) == 1
+    assert "Página 1 de 1" in (reader.pages[0].extract_text() or "")
+
+
 def test_pdf_pagination_servicio_numera_pdf_una_pagina(tmp_path):
     from pypdf import PdfReader, PdfWriter
 
