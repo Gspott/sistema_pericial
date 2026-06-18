@@ -3356,7 +3356,8 @@ def test_pdf_v2_footer_no_muestra_total_paginas(isolated_import):
         1,
     )[0]
 
-    assert "Arquitecto Técnico · Expediente" in bloque_v2
+    assert "Carlos Blanco | Arquitecto Técnico | Colegiado nº 5866" in bloque_v2
+    assert "Arquitecto Técnico · Expediente" not in bloque_v2
     assert 'header_template = "<span></span>"' in bloque_v2
     assert "header_template=header_template" in bloque_v2
     assert "footer_template=footer_template" in bloque_v2
@@ -3605,8 +3606,12 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
     assert "27.41 MB" in texto_indice
     assert "ANEXO A.1" in texto_ficha
     assert "Proyecto Reforma Cubierta" in texto_ficha
-    assert "Páginas:" in texto_ficha
-    assert "Tamaño:" in texto_ficha
+    assert "Proyecto aportado por la propiedad." in texto_ficha
+    assert "Documento incorporado a continuación." in texto_ficha
+    assert "Páginas:" not in texto_ficha
+    assert "Tamaño:" not in texto_ficha
+    assert "Fecha de incorporación:" not in texto_ficha
+    assert "Categoría:" not in texto_ficha
 
 
 def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
@@ -4230,6 +4235,7 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Dictamen técnico pericial" in html
     assert "DAÑOS POR ENTRADA DE AGUA DE LLUVIA" in html
     assert "Análisis técnico de los daños observados" in html
+    assert "Colegiado nº 5866" in html
     assert 'class="chapter report-chapter chapter-resumen_ejecutivo"' in html
     assert 'class="chapter report-chapter chapter-limitaciones"' in html
     assert 'class="chapter report-chapter chapter-conclusiones"' in html
@@ -4283,10 +4289,19 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Patología de referencia:" not in html
     assert "Se muestran 6 fotografías representativas de 7 clasificadas en este grupo." in html
     assert "ANEXO C. FICHAS DE DAÑOS POR ESTANCIA" in html
+    assert html.index('class="damage-section danos_observados"') < html.index(
+        'class="damage-section observaciones"'
+    )
+    assert html.index('class="damage-section observaciones"') < html.index(
+        'class="damage-section evidencias_fotograficas"'
+    )
+    assert "Daños observados:" in html
+    assert "Observaciones:" in html
+    assert "Evidencias fotográficas:" in html
     assert "ANEXO D. VALORACIÓN ECONÓMICA DETALLADA" in html
     assert "annex-section annex-d-landscape" in html
     assert "@page anexo-d-landscape" in html
-    assert "margin: 15mm 10mm 18mm;" in html
+    assert "margin: 16mm 11mm 19mm;" in html
     assert "PRESUPUESTO DE EJECUCIÓN MATERIAL" in html
     assert "365,70 €" in html
     assert "8.616,00 €" in html

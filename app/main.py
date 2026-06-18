@@ -9348,35 +9348,30 @@ def _pdf_bytes_ficha_anexo_a_v2(documento: dict, pdf_integrado: bool) -> bytes:
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     margen = 22 * mm
-    y = height - 34 * mm
+    y = height - 42 * mm
 
     c.setStrokeColor(colors.HexColor("#1f2933"))
-    c.setLineWidth(1.4)
-    c.line(margen, height - 22 * mm, width - margen, height - 22 * mm)
-    c.line(margen, 22 * mm, width - margen, 22 * mm)
+    c.setLineWidth(1)
+    c.line(margen, height - 24 * mm, width - margen, height - 24 * mm)
+    c.line(margen, 24 * mm, width - margen, 24 * mm)
     c.setFillColor(colors.HexColor("#6b7280"))
-    c.setFont("Helvetica-Bold", 12)
+    c.setFont("Helvetica-Bold", 10)
     c.drawString(
         margen,
         y,
         f"ANEXO {_texto_pdf_anexo(documento.get('numero') or documento.get('numero_anexo'))}",
     )
-    y -= 20
+    y -= 24
     c.setFillColor(colors.HexColor("#1f2933"))
-    c.setFont("Helvetica-Bold", 20)
-    for linea in dividir_texto_pdf_v2(_texto_pdf_anexo(documento.get("nombre")), 58)[:4]:
+    c.setFont("Helvetica-Bold", 22)
+    for linea in dividir_texto_pdf_v2(_texto_pdf_anexo(documento.get("nombre")), 52)[:4]:
         c.drawString(margen, y, linea)
-        y -= 22
-    y -= 8
+        y -= 24
+    y -= 12
     c.setStrokeColor(colors.HexColor("#d8dee6"))
     c.line(margen, y, width - margen, y)
-    y -= 18
+    y -= 24
     campos = [
-        ("Tipo", documento.get("tipo")),
-        ("Páginas", documento.get("paginas_label")),
-        ("Tamaño", documento.get("tamano_label")),
-        ("Fecha de incorporación", documento.get("fecha")),
-        ("Categoría", documento.get("categoria")),
         ("Descripción", documento.get("descripcion")),
         ("Observaciones", documento.get("observaciones")),
     ]
@@ -9392,7 +9387,7 @@ def _pdf_bytes_ficha_anexo_a_v2(documento: dict, pdf_integrado: bool) -> bytes:
         for indice, linea in enumerate(dividir_texto_pdf_v2(valor_limpio, 84)[:4]):
             c.drawString(margen + 42 * mm, y if indice == 0 else y - (indice * 13), linea)
         y -= 16 + (max(0, len(dividir_texto_pdf_v2(valor_limpio, 84)[:4]) - 1) * 13)
-    y -= 8
+    y -= 14
     estado = (
         "Documento incorporado a continuación."
         if pdf_integrado

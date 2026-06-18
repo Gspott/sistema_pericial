@@ -35,21 +35,22 @@
         }
 
         .cover {
-            border-bottom: 2px solid var(--ink);
-            border-top: 6px solid var(--ink);
+            border-bottom: 1px solid var(--ink);
+            border-top: 4px solid var(--ink);
             box-sizing: border-box;
             display: grid;
-            grid-template-rows: auto 1fr auto;
+            grid-template-rows: auto 1fr;
             min-height: 238mm;
-            padding: 16mm 0 12mm;
+            padding: 18mm 0 14mm;
             page-break-after: always;
         }
 
         .cover h1 {
             color: var(--ink);
-            font-size: 34px;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 32px;
             letter-spacing: 0;
-            line-height: 1.12;
+            line-height: 1.16;
             margin: 0;
             text-align: center;
             text-transform: uppercase;
@@ -58,10 +59,10 @@
 
         .cover .subtitle {
             color: #4b5563;
-            font-size: 14px;
-            line-height: 1.45;
-            margin: 8mm auto 0;
-            max-width: 138mm;
+            font-size: 13.5px;
+            line-height: 1.55;
+            margin: 9mm auto 0;
+            max-width: 132mm;
             text-align: center;
         }
 
@@ -70,7 +71,7 @@
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 0;
-            margin: 0 0 7mm;
+            margin: 0 0 9mm;
             text-align: center;
             text-transform: uppercase;
         }
@@ -78,7 +79,7 @@
         .cover-divider {
             border: 0;
             border-top: 1px solid var(--ink);
-            margin: 13mm 0 11mm;
+            margin: 14mm 0 12mm;
         }
 
         .cover-main {
@@ -89,16 +90,16 @@
             border-bottom: 1px solid var(--line);
             border-top: 1px solid var(--line);
             display: grid;
-            grid-template-columns: 38mm 1fr;
+            grid-template-columns: 42mm 1fr;
             margin: 0 auto;
-            max-width: 142mm;
+            max-width: 136mm;
             text-align: left;
             width: 100%;
         }
 
         .cover-meta div {
             border-bottom: 1px solid #e5e9ef;
-            padding: 8px 9px;
+            padding: 9px 0;
         }
 
         .cover-meta div:nth-child(odd) {
@@ -112,9 +113,13 @@
 
         .cover-meta div:nth-child(even) {
             color: var(--ink);
-            font-size: 14px;
-            font-weight: 700;
-            line-height: 1.35;
+            font-size: 13.5px;
+            font-weight: 600;
+            line-height: 1.42;
+        }
+
+        .cover-professional {
+            line-height: 1.5;
         }
 
         .toc {
@@ -137,6 +142,8 @@
             page-break-inside: avoid;
             padding-bottom: 7px;
             text-transform: uppercase;
+            orphans: 3;
+            widows: 3;
         }
 
         h3 {
@@ -148,19 +155,21 @@
             margin: 16px 0 8px;
             page-break-after: avoid;
             page-break-inside: avoid;
+            orphans: 3;
+            widows: 3;
         }
 
         .toc-list {
-            margin-top: 20px;
+            margin-top: 22px;
         }
 
         .toc-group-title {
-            border-bottom: 1px solid #9aa4b2;
-            color: #303b46;
+            border-bottom: 1px solid var(--line);
+            color: var(--heading);
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 0;
-            margin: 21px 0 8px;
+            margin: 22px 0 9px;
             padding-bottom: 6px;
             text-transform: uppercase;
         }
@@ -168,21 +177,24 @@
         .toc-row {
             align-items: baseline;
             display: flex;
-            gap: 8px;
-            padding: 5px 0;
+            gap: 9px;
+            min-height: 18px;
+            padding: 4px 0;
         }
 
         .toc-number {
             color: var(--muted);
             font-size: 12px;
             font-weight: 700;
-            min-width: 74px;
+            min-width: 80px;
             text-align: right;
+            white-space: nowrap;
         }
 
         .toc-title {
             color: #26313d;
             flex: 0 1 auto;
+            line-height: 1.32;
         }
 
         .toc-row.is-annex .toc-number,
@@ -192,16 +204,18 @@
         }
 
         .toc-leader {
-            border-bottom: 1px dotted #9aa4b2;
+            border-bottom: 1px dotted #a8b0bb;
             flex: 1 1 auto;
-            transform: translateY(-3px);
+            min-width: 18mm;
+            transform: translateY(-4px);
         }
 
         .toc-page {
             color: var(--ink);
             font-weight: 700;
-            min-width: 24px;
+            min-width: 28px;
             text-align: right;
+            white-space: nowrap;
         }
 
         .chapter {
@@ -231,7 +245,9 @@
             color: #26313d;
             font-size: 13.25px;
             line-height: 1.72;
+            orphans: 3;
             white-space: pre-line;
+            widows: 3;
         }
 
         .chapter-content p {
@@ -258,7 +274,7 @@
             page-break-before: always;
             page-break-after: always;
             page-break-inside: avoid;
-            padding: 18mm 12mm;
+            padding: 22mm 14mm;
             text-align: center;
         }
 
@@ -266,7 +282,7 @@
             border: 0;
             color: var(--heading);
             font-family: Georgia, "Times New Roman", serif;
-            font-size: 25px;
+            font-size: 26px;
             line-height: 1.2;
             margin: 0;
         }
@@ -297,6 +313,14 @@
             page-break-after: avoid;
             page-break-inside: avoid;
             padding-bottom: 7px;
+        }
+
+        .annex-section > h3,
+        .damage-section-title {
+            break-after: avoid;
+            break-inside: avoid;
+            page-break-after: avoid;
+            page-break-inside: avoid;
         }
 
         .empty-note {
@@ -342,7 +366,7 @@
         .doc-card dd {
             border-top: 1px solid var(--line-soft);
             margin: 0;
-            padding: 4px 0;
+            padding: 5px 0;
         }
 
         .doc-card dt {
@@ -358,7 +382,14 @@
             font-size: 12.5px;
             line-height: 1.42;
             margin-top: 12px;
+            page-break-inside: avoid;
             width: 100%;
+        }
+
+        .doc-table tr,
+        .valuation-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
 
         .doc-table th,
@@ -366,7 +397,7 @@
         .valuation-table th,
         .valuation-table td {
             border: 1px solid var(--line);
-            padding: 7px 8px;
+            padding: 8px 8px;
             text-align: left;
             vertical-align: top;
         }
@@ -385,7 +416,7 @@
             display: grid;
             gap: 14px 12px;
             grid-template-columns: 1fr 1fr;
-            margin-top: 14px;
+            margin-top: 12px;
         }
 
         .photo-group {
@@ -404,7 +435,10 @@
 
         .photo-intro {
             color: #374151;
+            line-height: 1.55;
             margin: 0 0 8px;
+            orphans: 3;
+            widows: 3;
         }
 
         .photo-limit-note {
@@ -517,10 +551,12 @@
             font-size: 11px;
             line-height: 1.35;
             margin-top: 5px;
+            page-break-before: avoid;
         }
 
         .damage-sheet {
             break-inside: avoid;
+            page-break-inside: avoid;
             margin: 0;
             padding: 0;
         }
@@ -540,6 +576,21 @@
             text-transform: uppercase;
         }
 
+        .damage-section {
+            break-inside: avoid;
+            margin: 0 0 12px;
+            page-break-inside: avoid;
+        }
+
+        .damage-section-title {
+            color: var(--heading);
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            margin: 0 0 5px;
+            text-transform: uppercase;
+        }
+
         .damage-meta {
             color: var(--muted);
             font-size: 12px;
@@ -550,6 +601,13 @@
             line-height: 1.52;
             margin: 5px 0 12px 18px;
             padding: 0;
+            orphans: 3;
+            widows: 3;
+        }
+
+        .annex-list li {
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
 
         .money {
@@ -604,7 +662,9 @@
         .analysis-block {
             break-inside: avoid;
             line-height: 1.68;
+            orphans: 3;
             page-break-inside: avoid;
+            widows: 3;
         }
 
         .analysis-block p {
@@ -630,7 +690,7 @@
 
         @page anexo-d-landscape {
             size: A4 landscape;
-            margin: 15mm 10mm 18mm;
+            margin: 16mm 11mm 19mm;
         }
 
         .annex-d-landscape {
@@ -705,7 +765,7 @@
                     <div>Expediente</div><div>{{ expediente.numero_expediente }}</div>
                     <div>Inmueble</div><div>{{ expediente.direccion or "-" }}{% if expediente.ciudad or expediente.provincia %}<br>{{ expediente.ciudad or "" }}{% if expediente.ciudad and expediente.provincia %} ({{ expediente.provincia }}){% elif expediente.provincia %}{{ expediente.provincia }}{% endif %}{% endif %}</div>
                     <div>Propiedad</div><div>{{ expediente.cliente or "-" }}</div>
-                    <div>Perito</div><div>{{ tecnico or "Carlos Blanco" }}<br>Arquitecto Técnico</div>
+                    <div>Perito</div><div class="cover-professional">Carlos Blanco<br>Arquitecto Técnico<br>Colegiado nº 5866</div>
                     <div>Fecha de visita</div><div>{{ fecha_corta(fecha_visita) }}</div>
                     <div>Fecha de emisión</div><div>{{ fecha_emision }}</div>
                 </div>
@@ -768,10 +828,7 @@
                     <div>
                         <h3>{{ documento.nombre }}</h3>
                         <dl>
-                            <dt>Tipo</dt><dd>{{ documento.tipo or "-" }}</dd>
-                            <dt>Fecha</dt><dd>{{ documento.fecha or "-" }}</dd>
                             <dt>Descripción</dt><dd>{{ documento.descripcion or "-" }}</dd>
-                            <dt>Documento</dt><dd>{{ documento.nombre }}</dd>
                         </dl>
                     </div>
                 </article>
@@ -865,7 +922,8 @@
                 </p>
                 {% endif %}
 
-                <strong>Daños observados:</strong>
+                <div class="damage-section danos_observados">
+                <strong class="damage-section-title">Daños observados:</strong>
                 {% if ficha.danos %}
                 <ul class="annex-list">
                     {% for dano in ficha.danos %}
@@ -875,8 +933,23 @@
                 {% else %}
                 <p class="empty-note">No constan daños registrados.</p>
                 {% endif %}
+                </div>
 
-                <strong>Evidencias fotográficas:</strong>
+                <div class="damage-section observaciones">
+                <strong class="damage-section-title">Observaciones:</strong>
+                {% if ficha.observaciones %}
+                <ul class="annex-list">
+                    {% for observacion in ficha.observaciones %}
+                    <li>{{ observacion }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="empty-note">No constan observaciones registradas.</p>
+                {% endif %}
+                </div>
+
+                <div class="damage-section evidencias_fotograficas">
+                <strong class="damage-section-title">Evidencias fotográficas:</strong>
                 {% if ficha.fotos %}
                 <div class="evidence-grid">
                     {% for foto in ficha.fotos %}
@@ -889,17 +962,7 @@
                 {% else %}
                 <p class="empty-note">No constan fotografías asociadas.</p>
                 {% endif %}
-
-                <strong>Observaciones:</strong>
-                {% if ficha.observaciones %}
-                <ul class="annex-list">
-                    {% for observacion in ficha.observaciones %}
-                    <li>{{ observacion }}</li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <p class="empty-note">No constan observaciones registradas.</p>
-                {% endif %}
+                </div>
             </article>
             {% endfor %}
             {% else %}
