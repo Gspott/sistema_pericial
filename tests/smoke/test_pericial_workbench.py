@@ -2728,6 +2728,7 @@ def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
 ):
     main_module = isolated_import("app.main")
     from PIL import Image
+    from urllib.parse import urlparse
 
     from app.database import get_connection
 
@@ -2761,6 +2762,15 @@ def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
         capturado["contexto"] = contexto
         template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
         capturado["html"] = template.render({"request": request, **contexto})
+        diagnostico = contexto["optimizacion_imagenes_pdf"]["diagnostico"][0]
+        capturado["ruta_optimizada_existe_durante_render"] = Path(
+            diagnostico["ruta_optimizada"]
+        ).exists()
+        ruta_temporal = urlparse(diagnostico["url_optimizada"]).path
+        capturado["ruta_temporal_http"] = ruta_temporal
+        asset_response = TestClient(request.app).get(ruta_temporal)
+        capturado["asset_status"] = asset_response.status_code
+        capturado["asset_content_type"] = asset_response.headers.get("content-type", "")
         return b"%PDF-1.4\n%PDF email\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
@@ -2776,8 +2786,15 @@ def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
     assert capturado["contexto"]["perfil_exportacion_pdf"]["codigo"] == "email"
     assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] >= 1
     assert capturado["contexto"]["optimizacion_imagenes_pdf"]["tamano_optimizado"] > 0
-    assert "file://" in capturado["html"]
+    assert "/pdf-temp-images/" in capturado["html"]
+    assert "file://" not in capturado["html"]
     assert f"/uploads/{nombre_foto}" not in capturado["html"]
+    assert capturado["ruta_optimizada_existe_durante_render"] is True
+    assert capturado["asset_status"] == 200
+    assert capturado["asset_content_type"].startswith("image/jpeg")
+    ruta_optimizada = capturado["contexto"]["optimizacion_imagenes_pdf"]["diagnostico"][0]["ruta_optimizada"]
+    assert Path(ruta_optimizada).exists() is False
+    assert TestClient(main_module.app).get(capturado["ruta_temporal_http"]).status_code == 404
 
 
 def test_pdf_v2_perfil_judicial_renderiza_ruta_optimizada(
@@ -2786,6 +2803,7 @@ def test_pdf_v2_perfil_judicial_renderiza_ruta_optimizada(
 ):
     main_module = isolated_import("app.main")
     from PIL import Image
+    from urllib.parse import urlparse
 
     from app.database import get_connection
 
@@ -2819,6 +2837,13 @@ def test_pdf_v2_perfil_judicial_renderiza_ruta_optimizada(
         capturado["contexto"] = contexto
         template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
         capturado["html"] = template.render({"request": request, **contexto})
+        diagnostico = contexto["optimizacion_imagenes_pdf"]["diagnostico"][0]
+        capturado["ruta_optimizada_existe_durante_render"] = Path(
+            diagnostico["ruta_optimizada"]
+        ).exists()
+        ruta_temporal = urlparse(diagnostico["url_optimizada"]).path
+        capturado["ruta_temporal_http"] = ruta_temporal
+        capturado["asset_status"] = TestClient(request.app).get(ruta_temporal).status_code
         return b"%PDF-1.4\n%PDF judicial\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
@@ -2832,8 +2857,14 @@ def test_pdf_v2_perfil_judicial_renderiza_ruta_optimizada(
     assert response.status_code == 200
     assert capturado["contexto"]["perfil_exportacion_pdf"]["codigo"] == "judicial"
     assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] >= 1
-    assert "file://" in capturado["html"]
+    assert "/pdf-temp-images/" in capturado["html"]
+    assert "file://" not in capturado["html"]
     assert f"/uploads/{nombre_foto}" not in capturado["html"]
+    assert capturado["ruta_optimizada_existe_durante_render"] is True
+    assert capturado["asset_status"] == 200
+    ruta_optimizada = capturado["contexto"]["optimizacion_imagenes_pdf"]["diagnostico"][0]["ruta_optimizada"]
+    assert Path(ruta_optimizada).exists() is False
+    assert TestClient(main_module.app).get(capturado["ruta_temporal_http"]).status_code == 404
 
 
 def test_pdf_v2_perfil_master_renderiza_ruta_original(
@@ -2889,6 +2920,75 @@ def test_pdf_v2_perfil_master_renderiza_ruta_original(
     assert capturado["contexto"]["perfil_exportacion_pdf"]["codigo"] == "master"
     assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] == 0
     assert f"/uploads/{nombre_foto}" in capturado["html"]
+    assert "file://" not in capturado["html"]
+
+
+def test_pdf_v2_perfil_email_fallback_original_si_optimizacion_falla(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+    from PIL import Image
+
+    from app.database import get_connection
+    from app.services import pdf_image_optimizer
+
+    conn = get_connection()
+    ruta_foto = None
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_email_img_fallback")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        visita_id = cur.execute(
+            "SELECT id FROM visitas WHERE expediente_id=? LIMIT 1",
+            (expediente_id,),
+        ).fetchone()["id"]
+        nombre_foto = f"smoke_pdf_fallback_{expediente_id}.jpg"
+        ruta_foto = main_module.UPLOAD_PATH / nombre_foto
+        Image.new("RGB", (1200, 800), (40, 90, 130)).save(ruta_foto, quality=90)
+        cur.execute(
+            """
+            INSERT INTO visita_fotos (visita_id, categoria, ruta, descripcion)
+            VALUES (?, 'exterior', ?, ?)
+            """,
+            (visita_id, nombre_foto, "Foto fallback optimización PDF"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    capturado = {}
+
+    def fake_optimizer(ruta_imagen, perfil="master", carpeta_temporal=None):
+        ruta = Path(ruta_imagen)
+        return {
+            "ruta": ruta,
+            "ruta_temporal": False,
+            "tamano_original": ruta.stat().st_size,
+            "tamano_optimizado": ruta.stat().st_size,
+            "reduccion_porcentaje": 0,
+        }
+
+    def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
+        template = request.app.state.templates.env.get_template("informes/v2_pdf.html")
+        capturado["html"] = template.render({"request": request, **contexto})
+        return b"%PDF-1.4\n%PDF fallback image\n"
+
+    monkeypatch.setattr(pdf_image_optimizer, "optimizar_imagen_pdf", fake_optimizer)
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    client = _autenticar_cliente(main_module, user_id)
+    try:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=email")
+    finally:
+        if ruta_foto:
+            ruta_foto.unlink(missing_ok=True)
+
+    assert response.status_code == 200
+    assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] == 0
+    assert capturado["contexto"]["optimizacion_imagenes_pdf"]["diagnostico"][0]["fallback_original"] is True
+    assert f"/uploads/{nombre_foto}" in capturado["html"]
+    assert "/pdf-temp-images/" not in capturado["html"]
     assert "file://" not in capturado["html"]
 
 

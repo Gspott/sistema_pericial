@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from urllib.parse import quote
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 try:  # pragma: no cover - fallback defensivo si falta Pillow
     from PIL import Image, ImageOps, UnidentifiedImageError
@@ -23,7 +25,7 @@ PDF_IMAGE_OPTIMIZATION_DEFAULTS = {
     "email": {
         "optimizar_imagenes": True,
         "jpeg_quality": 75,
-        "max_dimension": 1600,
+        "max_dimension": 1400,
         "remove_exif": True,
     },
     "judicial": {
@@ -110,6 +112,7 @@ def optimizar_imagen_pdf(
                 format="JPEG",
                 quality=int(config.get("jpeg_quality") or 75),
                 optimize=True,
+                progressive=True,
             )
     except (OSError, UnidentifiedImageError, ValueError):
         return {
@@ -137,12 +140,15 @@ class PdfImageOptimizationSession:
     def __init__(self, perfil: str | dict):
         self.perfil = _resolver_config_perfil(perfil)
         self.temp_dir = tempfile.mkdtemp(prefix="pericial_pdf_images_")
+        self.token = uuid4().hex
+        self.public_url_base = ""
         self.cache: dict[str, dict] = {}
         self.metricas = {
             "imagenes": 0,
             "tamano_original": 0,
             "tamano_optimizado": 0,
             "reduccion_porcentaje": 0,
+            "diagnostico": [],
         }
 
     @property
@@ -171,6 +177,11 @@ class PdfImageOptimizationSession:
                     )
         return self.cache[clave]
 
+    def url_publica_temporal(self, ruta_imagen: str | Path) -> str:
+        if not self.public_url_base:
+            return Path(ruta_imagen).resolve().as_uri()
+        return f"{self.public_url_base.rstrip('/')}/{self.token}/{quote(Path(ruta_imagen).name)}"
+
     def cleanup(self) -> None:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
@@ -183,10 +194,12 @@ def optimizar_contexto_imagenes_pdf(
     contexto: Any,
     sesion: PdfImageOptimizationSession,
     upload_dir: str | Path,
+    public_url_base: str = "",
 ) -> dict:
     if not sesion.activa:
         return sesion.metricas
 
+    sesion.public_url_base = public_url_base
     upload_path = Path(upload_dir)
 
     def visitar(nodo):
@@ -198,8 +211,37 @@ def optimizar_contexto_imagenes_pdf(
                 if ruta_origen.exists():
                     resultado = sesion.optimizar(ruta_origen)
                     if resultado.get("ruta_temporal"):
+                        ruta_optimizada = Path(resultado["ruta"]).resolve()
+                        url_optimizada = sesion.url_publica_temporal(ruta_optimizada)
                         nodo["url_original"] = url
-                        nodo["url"] = Path(resultado["ruta"]).resolve().as_uri()
+                        nodo["url"] = url_optimizada
+                        nodo["ruta_optimizada_pdf"] = str(ruta_optimizada)
+                        sesion.metricas["diagnostico"].append(
+                            {
+                                "archivo": str(archivo),
+                                "campo": "url",
+                                "url_original": str(url),
+                                "url_optimizada": url_optimizada,
+                                "ruta_original": str(ruta_origen),
+                                "ruta_optimizada": str(ruta_optimizada),
+                                "existe_original": ruta_origen.exists(),
+                                "existe_optimizada": ruta_optimizada.exists(),
+                            }
+                        )
+                    else:
+                        sesion.metricas["diagnostico"].append(
+                            {
+                                "archivo": str(archivo),
+                                "campo": "url",
+                                "url_original": str(url),
+                                "url_optimizada": str(url),
+                                "ruta_original": str(ruta_origen),
+                                "ruta_optimizada": "",
+                                "existe_original": ruta_origen.exists(),
+                                "existe_optimizada": False,
+                                "fallback_original": True,
+                            }
+                        )
             for valor in nodo.values():
                 visitar(valor)
         elif isinstance(nodo, list):

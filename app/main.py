@@ -115,6 +115,7 @@ INFORME_V2_CAMPOS_METADATOS = {"titulo_portada", "subtitulo_portada"}
 
 ensure_directories()
 init_db()
+app.state.pdf_temp_image_dirs = {}
 
 app.mount("/static", StaticFiles(directory=str(STATIC_PATH)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_PATH)), name="uploads")
@@ -140,7 +141,7 @@ PUBLIC_PATHS = {
     "/favicon.ico",
     "/apple-touch-icon.png",
 }
-PUBLIC_PREFIXES = ("/static/", "/uploads/")
+PUBLIC_PREFIXES = ("/static/", "/uploads/", "/pdf-temp-images/")
 AUTH_PAGES = {"/login", "/crear-usuario"}
 SESSION_COOKIE_NAME = "sistema_pericial_session"
 # SESSION_COOKIE_SECURE = BASE_URL.startswith("https://")
@@ -9843,6 +9844,27 @@ def apple_touch_icon():
     )
 
 
+@app.get("/pdf-temp-images/{token}/{nombre_archivo}")
+def pdf_temp_image(token: str, nombre_archivo: str):
+    if not re.fullmatch(r"[a-f0-9]{32}", limpiar_texto(token)):
+        raise HTTPException(status_code=404, detail="Imagen temporal no encontrada")
+    nombre = Path(limpiar_texto(nombre_archivo)).name
+    if not nombre:
+        raise HTTPException(status_code=404, detail="Imagen temporal no encontrada")
+    carpeta = getattr(app.state, "pdf_temp_image_dirs", {}).get(token)
+    if not carpeta:
+        raise HTTPException(status_code=404, detail="Imagen temporal no encontrada")
+    ruta = (Path(carpeta) / nombre).resolve()
+    carpeta_resuelta = Path(carpeta).resolve()
+    if carpeta_resuelta not in ruta.parents or not ruta.exists():
+        raise HTTPException(status_code=404, detail="Imagen temporal no encontrada")
+    return FileResponse(
+        str(ruta),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 # -------------------------------------------------------
 # AUTENTICACIÓN
 # -------------------------------------------------------
@@ -17898,6 +17920,7 @@ def generar_informe_v2_pdf_endpoint(
 
     sesion_optimizacion = crear_sesion_optimizacion_pdf(perfil_pdf)
     sesion_optimizacion_anexos = crear_sesion_optimizacion_anexos_pdf(perfil_pdf)
+    app.state.pdf_temp_image_dirs[sesion_optimizacion.token] = sesion_optimizacion.temp_dir
     try:
         contexto["perfil_exportacion_pdf"] = perfil_pdf
         registrar_paso_pdf_v2(
@@ -17911,7 +17934,15 @@ def generar_informe_v2_pdf_endpoint(
             contexto,
             sesion_optimizacion,
             UPLOAD_PATH,
+            public_url_base=f"{str(request.base_url).rstrip('/')}/pdf-temp-images",
         )
+        for diagnostico_imagen in contexto["optimizacion_imagenes_pdf"].get("diagnostico") or []:
+            registrar_paso_pdf_v2(
+                debug_pipeline_activo,
+                expediente_id,
+                "imagen_pdf_optimizada",
+                **diagnostico_imagen,
+            )
         pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
         registrar_paso_pdf_v2(
             debug_pipeline_activo,
@@ -17989,6 +18020,7 @@ def generar_informe_v2_pdf_endpoint(
                 duracion_s=round(time.perf_counter() - inicio_paso, 3),
             )
     finally:
+        app.state.pdf_temp_image_dirs.pop(sesion_optimizacion.token, None)
         sesion_optimizacion.cleanup()
         sesion_optimizacion_anexos.cleanup()
     nombre_archivo = nombre_archivo_pdf_informe_v2(
