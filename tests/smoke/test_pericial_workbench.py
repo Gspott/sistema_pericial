@@ -1827,6 +1827,13 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
     assert "Generar PDF" in workbench_response.text
     assert editor_response.status_code == 200
     assert "Generar PDF" in editor_response.text
+    assert "Exportar PDF" in editor_response.text
+    assert "?perfil=master" in editor_response.text
+    assert "?perfil=email" in editor_response.text
+    assert "?perfil=judicial" in editor_response.text
+    assert "?perfil=solo_informe" in editor_response.text
+    assert "?perfil=informe_anexos" in editor_response.text
+    assert "?perfil=anexo_fotografico" in editor_response.text
     assert classic_response.status_code == 200
     assert pdf_response.status_code == 200
     assert pdf_response.headers["content-type"] == "application/pdf"
@@ -1861,6 +1868,117 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
         }
         for capitulo in contexto["capitulos"]
     )
+
+
+def test_pdf_v2_export_profiles_configurados(isolated_import):
+    main_module = isolated_import("app.main")
+
+    perfiles = main_module.PDF_EXPORT_PROFILES
+    assert set(perfiles) == {
+        "master",
+        "email",
+        "judicial",
+        "solo_informe",
+        "informe_anexos",
+        "anexo_fotografico",
+    }
+    assert perfiles["informe_anexos"]["incluye_anexos"] is True
+    assert perfiles["solo_informe"]["incluye_anexos"] is False
+    assert perfiles["email"]["objetivo_mb"] == 20
+    assert perfiles["judicial"]["objetivo_mb"] == 10
+    assert perfiles["anexo_fotografico"]["implementado"] is False
+
+
+def test_pdf_v2_rechaza_perfil_exportacion_desconocido(
+    isolated_import,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_perfil_invalido")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(
+        f"/generar-informe-v2-pdf/{expediente_id}?perfil=desconocido"
+    )
+
+    assert response.status_code == 400
+    assert "Perfil de exportación PDF no válido" in response.text
+
+
+def test_pdf_v2_perfil_solo_informe_no_fusiona_anexos(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_solo_informe")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    def fake_pdf_bytes(request, contexto):
+        return b"%PDF-1.4\n%PDF solo informe\n"
+
+    def fail_fusion(pdf_informe, documentos_anexo_a, pdf_mediciones):
+        raise AssertionError("El perfil solo_informe no debe fusionar anexos")
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    monkeypatch.setattr(
+        main_module,
+        "fusionar_pdf_informe_v2_con_anexos_integrados",
+        fail_fusion,
+    )
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(
+        f"/generar-informe-v2-pdf/{expediente_id}?perfil=solo_informe"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"%PDF-1.4\n%PDF solo informe\n"
+    assert "Informe-EXP-PER-WB-1-solo-informe.pdf" in response.headers["content-disposition"]
+
+
+def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
+    isolated_import,
+    monkeypatch,
+):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_pdf_v2_email")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    def fake_pdf_bytes(request, contexto):
+        return b"%PDF-1.4\n%PDF email\n"
+
+    monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=email")
+
+    assert response.status_code == 200
+    assert "Informe-EXP-PER-WB-1-email.pdf" in response.headers["content-disposition"]
 
 
 def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(

@@ -815,6 +815,14 @@
                 <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe actual</a>
                 <a class="boton secundario" href="/informes-v2/{{ expediente.id }}/respaldo.json">Descargar respaldo</a>
             </div>
+            <details class="context-block">
+                <summary><strong>Exportar PDF</strong></summary>
+                <div class="actions">
+                    {% for perfil in pdf_export_profiles %}
+                    <a class="boton secundario" href="/generar-informe-v2-pdf/{{ expediente.id }}?perfil={{ perfil.codigo }}">{{ perfil.nombre }}</a>
+                    {% endfor %}
+                </div>
+            </details>
         </section>
 
         <form method="post" action="/expedientes/{{ expediente.id }}/informe-v2-editor">

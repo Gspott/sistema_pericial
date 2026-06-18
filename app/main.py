@@ -6326,6 +6326,60 @@ INFORME_V2_CAPITULOS_POR_CLAVE = {
     capitulo["clave"]: capitulo for capitulo in INFORME_V2_CAPITULOS
 }
 
+PDF_EXPORT_PROFILE_DEFAULT = "informe_anexos"
+
+PDF_EXPORT_PROFILES = {
+    "master": {
+        "codigo": "master",
+        "nombre": "Maestro",
+        "descripcion": "PDF completo actual, sin compresión adicional, para archivo maestro.",
+        "incluye_anexos": True,
+        "objetivo_mb": None,
+        "optimizar_imagenes": False,
+    },
+    "email": {
+        "codigo": "email",
+        "nombre": "Email",
+        "descripcion": "Perfil preparado para envío por email; en V1 reutiliza la generación completa.",
+        "incluye_anexos": True,
+        "objetivo_mb": 20,
+        "optimizar_imagenes": False,
+    },
+    "judicial": {
+        "codigo": "judicial",
+        "nombre": "Judicial / LexNET",
+        "descripcion": "Perfil preparado para presentación judicial; en V1 reutiliza la generación completa.",
+        "incluye_anexos": True,
+        "objetivo_mb": 10,
+        "optimizar_imagenes": False,
+    },
+    "solo_informe": {
+        "codigo": "solo_informe",
+        "nombre": "Solo informe",
+        "descripcion": "Genera únicamente el cuerpo principal del informe, sin anexos PDF fusionados.",
+        "incluye_anexos": False,
+        "objetivo_mb": None,
+        "optimizar_imagenes": False,
+    },
+    "informe_anexos": {
+        "codigo": "informe_anexos",
+        "nombre": "Informe + anexos",
+        "descripcion": "Equivalente funcional al comportamiento actual.",
+        "incluye_anexos": True,
+        "objetivo_mb": None,
+        "optimizar_imagenes": False,
+    },
+    "anexo_fotografico": {
+        "codigo": "anexo_fotografico",
+        "nombre": "Anexo fotográfico",
+        "descripcion": "Perfil preparado para generar solo el anexo fotográfico en una fase posterior.",
+        "incluye_anexos": False,
+        "objetivo_mb": None,
+        "optimizar_imagenes": False,
+        "implementado": False,
+    },
+}
+
 
 INFORME_V2_CLAVES_FUERA_CUERPO_PDF = {
     "conclusiones_periciales",
@@ -7450,6 +7504,7 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
         "pdf_mediciones_anexo_f": pdf_mediciones_anexo_f,
         "diagnostico_informe": diagnostico_informe,
         "revision_coherencia": revision_coherencia,
+        "pdf_export_profiles": listar_perfiles_exportacion_pdf_v2(),
         "estados_revision": estados_revision,
         "metadatos": metadatos,
         "capitulos": capitulos,
@@ -8418,8 +8473,33 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
     }
 
 
-def nombre_archivo_pdf_informe_v2(expediente) -> str:
+def listar_perfiles_exportacion_pdf_v2() -> list[dict]:
+    return [dict(perfil) for perfil in PDF_EXPORT_PROFILES.values()]
+
+
+def resolver_perfil_exportacion_pdf_v2(codigo: str | None) -> dict:
+    codigo_limpio = limpiar_texto(codigo) or PDF_EXPORT_PROFILE_DEFAULT
+    perfil = PDF_EXPORT_PROFILES.get(codigo_limpio)
+    if not perfil:
+        raise HTTPException(
+            status_code=400,
+            detail="Perfil de exportación PDF no válido.",
+        )
+    return perfil
+
+
+def slug_perfil_exportacion_pdf_v2(codigo: str) -> str:
+    return limpiar_nombre_archivo(codigo.replace("_", "-")).lower()
+
+
+def nombre_archivo_pdf_informe_v2(
+    expediente,
+    perfil_pdf: dict | None = None,
+    incluir_perfil: bool = False,
+) -> str:
     numero = limpiar_nombre_archivo(expediente["numero_expediente"] or "expediente")
+    if perfil_pdf and incluir_perfil:
+        return f"Informe-{numero}-{slug_perfil_exportacion_pdf_v2(perfil_pdf['codigo'])}.pdf"
     return f"Informe-{numero}.pdf"
 
 
@@ -11516,6 +11596,7 @@ def informe_v2_editor(request: Request, expediente_id: int):
             "pdf_mediciones_anexo_f": editor["pdf_mediciones_anexo_f"],
             "diagnostico_informe": editor["diagnostico_informe"],
             "revision_coherencia": editor["revision_coherencia"],
+            "pdf_export_profiles": editor["pdf_export_profiles"],
             "estados_revision": editor["estados_revision"],
             "metadatos": editor["metadatos"],
             "estados_revision_opciones": INFORME_V2_ESTADOS_REVISION,
@@ -17577,8 +17658,14 @@ def generar_informe_pdf_endpoint(
 
 
 @app.get("/generar-informe-v2-pdf/{expediente_id}")
-def generar_informe_v2_pdf_endpoint(request: Request, expediente_id: int):
+def generar_informe_v2_pdf_endpoint(
+    request: Request,
+    expediente_id: int,
+    perfil: str = Query(""),
+):
     current_user = get_current_user(request)
+    perfil_explicitado = bool(limpiar_texto(perfil))
+    perfil_pdf = resolver_perfil_exportacion_pdf_v2(perfil)
 
     conn = get_connection()
     cur = conn.cursor()
@@ -17590,6 +17677,14 @@ def generar_informe_v2_pdf_endpoint(request: Request, expediente_id: int):
                 expediente_id,
                 error="El PDF del informe solo aplica a expedientes de patologías.",
             )
+        if not perfil_pdf.get("implementado", True):
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    "El perfil de anexo fotográfico queda preparado, "
+                    "pero requiere una generación separada en una fase posterior."
+                ),
+            )
         contexto = preparar_contexto_pdf_informe_v2(
             cur,
             expediente,
@@ -17599,12 +17694,17 @@ def generar_informe_v2_pdf_endpoint(request: Request, expediente_id: int):
         conn.close()
 
     pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
-    pdf_bytes = fusionar_pdf_informe_v2_con_anexos_integrados(
-        pdf_bytes,
-        contexto.get("anexos", {}).get("documentacion"),
-        contexto.get("pdf_mediciones_anexo_f"),
+    if perfil_pdf.get("incluye_anexos"):
+        pdf_bytes = fusionar_pdf_informe_v2_con_anexos_integrados(
+            pdf_bytes,
+            contexto.get("anexos", {}).get("documentacion"),
+            contexto.get("pdf_mediciones_anexo_f"),
+        )
+    nombre_archivo = nombre_archivo_pdf_informe_v2(
+        expediente,
+        perfil_pdf=perfil_pdf,
+        incluir_perfil=perfil_explicitado,
     )
-    nombre_archivo = nombre_archivo_pdf_informe_v2(expediente)
 
     return StreamingResponse(
         BytesIO(pdf_bytes),
