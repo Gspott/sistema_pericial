@@ -997,7 +997,7 @@
                         <h3>Revisión de coherencia</h3>
                         <p class="editor-note">Motor V1 informativo. No bloquea guardado ni exportación.</p>
                         <div class="diagnostic-state {% if revision_coherencia.errores %}error{% elif revision_coherencia.advertencias %}warning{% else %}ok{% endif %}">
-                            {{ revision_coherencia.errores | length }} errores · {{ revision_coherencia.advertencias_coherencia | length }} advertencias · {{ revision_coherencia.riesgos_periciales | length }} afirmaciones a revisar · {{ revision_coherencia.informacion | length }} info
+                            {{ revision_coherencia.errores | length }} errores · {{ revision_coherencia.advertencias_coherencia | length }} advertencias · {{ revision_coherencia.riesgos_periciales | length }} afirmaciones a revisar · {{ revision_coherencia.revision_juridica | length }} revisión jurídica · {{ revision_coherencia.informacion | length }} info
                             {% if revision_coherencia.score is not none %}
                             <p class="chapter-meta">Score orientativo: <strong>{{ revision_coherencia.score }}</strong>/100</p>
                             {% endif %}
@@ -1046,6 +1046,23 @@
                             </ul>
                             {% else %}
                             <p class="context-empty">Sin afirmaciones pericialmente sensibles detectadas.</p>
+                            {% endif %}
+                        </details>
+                        <details class="context-block" open>
+                            <summary>⚖ Redacción potencialmente impugnable ({{ revision_coherencia.revision_juridica | length }})</summary>
+                            {% if revision_coherencia.revision_juridica %}
+                            <ul class="diagnostic-items">
+                                {% for item in revision_coherencia.revision_juridica %}
+                                <li class="diagnostic-item">
+                                    <strong>{{ item.codigo }}:</strong> {{ item.mensaje }}
+                                    {% if item.fragmento %}<br><span class="helper-text">“{{ item.fragmento }}”</span>{% endif %}
+                                    {% if item.sugerencia %}<br><span class="helper-text">Sugerencia: {{ item.sugerencia }}</span>{% endif %}
+                                    {% if item.url %}<br><a class="select-link" href="{{ item.url }}">Revisar</a>{% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="context-empty">Sin formulaciones jurídicas sensibles detectadas.</p>
                             {% endif %}
                         </details>
                         <details class="context-block">

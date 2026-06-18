@@ -81,6 +81,7 @@ def test_consistency_service_returns_stable_structure(isolated_import):
         "advertencias",
         "advertencias_coherencia",
         "riesgos_periciales",
+        "revision_juridica",
         "informacion",
         "score",
         "resumen",
@@ -90,6 +91,7 @@ def test_consistency_service_returns_stable_structure(isolated_import):
     assert isinstance(resultado["advertencias"], list)
     assert isinstance(resultado["advertencias_coherencia"], list)
     assert isinstance(resultado["riesgos_periciales"], list)
+    assert isinstance(resultado["revision_juridica"], list)
     assert isinstance(resultado["informacion"], list)
     assert {"codigo", "severidad", "categoria", "mensaje", "entidad", "entidad_id"} <= set(
         resultado["informacion"][0]
@@ -288,6 +290,122 @@ def test_consistency_detects_categorical_causation_risk_statement(isolated_impor
     )
 
 
+def test_consistency_detects_legal_excessive_certainty(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "conclusiones_periciales",
+            "Conclusiones",
+            "Queda demostrado que los daños proceden de la cubierta.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+    revision = resultado["revision_juridica"]
+
+    assert any(item["codigo"] == "LEGAL_EXCESSIVE_CERTAINTY" for item in revision)
+    assert any(item["categoria"] == "revision_juridica" for item in revision)
+    assert any("sugerencia" in item for item in revision)
+
+
+def test_consistency_detects_legal_absolute_causation(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "analisis_causal",
+            "Análisis causal",
+            "La causa es la falta de mantenimiento de la cubierta.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+
+    assert any(
+        item["codigo"] == "LEGAL_ABSOLUTE_CAUSATION"
+        for item in resultado["revision_juridica"]
+    )
+
+
+def test_consistency_detects_legal_attribution_of_liability(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "conclusiones_periciales",
+            "Conclusiones",
+            "La constructora es responsable de las deficiencias observadas.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+
+    assert any(
+        item["codigo"] == "LEGAL_ATTRIBUTION_OF_LIABILITY"
+        for item in resultado["revision_juridica"]
+    )
+
+
+def test_consistency_detects_legal_overconclusive_language(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "valoracion_economica",
+            "Valoración económica",
+            "Sin lugar a dudas, la reparación debe ejecutarse de forma inmediata.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+
+    assert any(
+        item["codigo"] == "LEGAL_OVERCONCLUSIVE_LANGUAGE"
+        for item in resultado["revision_juridica"]
+    )
+
+
 def test_consistency_block_is_rendered_in_informe_v2_editor(isolated_import):
     main_module = isolated_import("app.main")
 
@@ -314,4 +432,5 @@ def test_consistency_block_is_rendered_in_informe_v2_editor(isolated_import):
     assert response.status_code == 200
     assert "Revisión de coherencia" in response.text
     assert "Afirmaciones a revisar" in response.text
+    assert "Redacción potencialmente impugnable" in response.text
     assert "Motor V1 informativo" in response.text

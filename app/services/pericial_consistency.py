@@ -151,6 +151,103 @@ RISKY_STATEMENT_RULES = (
 )
 MAX_RISKY_STATEMENTS_PER_CODE = 5
 
+LEGAL_REVIEW_RULES = (
+    {
+        "codigo": "LEGAL_EXCESSIVE_CERTAINTY",
+        "patrones": (
+            "queda demostrado",
+            "queda probado",
+            "se acredita plenamente",
+            "sin ninguna duda",
+            "de forma concluyente",
+            "indiscutiblemente probado",
+            "se prueba de manera concluyente",
+        ),
+        "mensaje": (
+            "El texto utiliza una formulación de certeza muy elevada. "
+            "Revise si el soporte probatorio justifica dicha afirmación."
+        ),
+        "sugerencia": (
+            "Valore fórmulas como: 'De los indicios observados se desprende...', "
+            "'Resulta compatible con...' o 'Puede considerarse razonablemente probable...'."
+        ),
+    },
+    {
+        "codigo": "LEGAL_ABSOLUTE_CAUSATION",
+        "patrones": (
+            "la causa es",
+            "la causa directa es",
+            "el origen es",
+            "fue provocado por",
+            "se produjo exclusivamente por",
+            "queda demostrado que la causa es",
+        ),
+        "mensaje": (
+            "Se afirma una relación causal categórica que podría requerir mayor soporte técnico."
+        ),
+        "sugerencia": (
+            "Valore fórmulas como: 'Los daños observados resultan compatibles con...' "
+            "o 'Los indicios permiten considerar probable...'."
+        ),
+    },
+    {
+        "codigo": "LEGAL_ATTRIBUTION_OF_LIABILITY",
+        "patrones": (
+            "es responsable",
+            "resulta responsable",
+            "es culpa de",
+            "la negligencia de",
+            "el promotor es responsable",
+            "la constructora es responsable",
+            "el técnico es responsable",
+        ),
+        "mensaje": (
+            "El informe puede estar entrando en atribuciones de responsabilidad jurídica."
+        ),
+        "sugerencia": (
+            "El presente informe describe hechos y compatibilidades técnicas sin prejuzgar "
+            "eventuales responsabilidades jurídicas."
+        ),
+    },
+    {
+        "codigo": "LEGAL_INTENTIONALITY",
+        "patrones": (
+            "deliberadamente",
+            "intencionadamente",
+            "a sabiendas",
+            "consciente de",
+            "ocultó",
+            "engañó",
+            "actuó voluntariamente",
+        ),
+        "mensaje": (
+            "Se utilizan expresiones que implican valoración sobre la intención o conocimiento "
+            "de terceros."
+        ),
+        "sugerencia": (
+            "Si no existe soporte documental específico, valore describir únicamente hechos "
+            "observados y documentación disponible."
+        ),
+    },
+    {
+        "codigo": "LEGAL_OVERCONCLUSIVE_LANGUAGE",
+        "patrones": (
+            "inequívocamente",
+            "indiscutiblemente",
+            "sin lugar a dudas",
+            "de manera categórica",
+            "absolutamente",
+            "con total certeza",
+        ),
+        "mensaje": "El lenguaje empleado puede resultar excesivamente concluyente.",
+        "sugerencia": (
+            "Valore fórmulas como: 'Resulta compatible con...', "
+            "'Con la información disponible...' o 'Desde un punto de vista técnico...'."
+        ),
+    },
+)
+MAX_LEGAL_REVIEW_PER_CODE = 5
+
 CONTENIDO_PLACEHOLDER_RE = re.compile(
     r"^\s*(?:"
     r"|pendiente(?:s)?(?:\s+de\s+redacci[oó]n)?\.?"
@@ -194,6 +291,7 @@ def incidencia(
     entidad_id=None,
     url: str | None = None,
     fragmento: str | None = None,
+    sugerencia: str | None = None,
 ) -> dict:
     item = {
         "codigo": codigo,
@@ -207,6 +305,8 @@ def incidencia(
         item["url"] = url
     if fragmento:
         item["fragmento"] = fragmento
+    if sugerencia:
+        item["sugerencia"] = sugerencia
     return item
 
 
@@ -478,6 +578,66 @@ def detectar_afirmaciones_riesgo(capitulos: dict[str, dict], expediente_id: int)
     return riesgos
 
 
+def detectar_revision_juridica(capitulos: dict[str, dict], expediente_id: int) -> list[dict]:
+    incidencias: list[dict] = []
+    conteo_por_codigo: dict[str, int] = {}
+    vistos: set[tuple[str, str, str]] = set()
+
+    reglas_normalizadas = [
+        {
+            **regla,
+            "patrones_norm": tuple(normalizar_texto(patron) for patron in regla["patrones"]),
+        }
+        for regla in LEGAL_REVIEW_RULES
+    ]
+
+    for clave, capitulo in capitulos.items():
+        contenido = limpiar_texto(capitulo.get("contenido"))
+        if not contenido:
+            continue
+        titulo = limpiar_texto(capitulo.get("titulo")) or clave
+        entidad_id = capitulo.get("id") or clave
+        url = f"/expedientes/{expediente_id}/informe-v2-editor#capitulo-{clave}"
+        for fragmento in dividir_fragmentos_texto(contenido):
+            fragmento_norm = normalizar_texto(fragmento)
+            if not fragmento_norm:
+                continue
+            for regla in reglas_normalizadas:
+                codigo = regla["codigo"]
+                if conteo_por_codigo.get(codigo, 0) >= MAX_LEGAL_REVIEW_PER_CODE:
+                    continue
+                patron_detectado = next(
+                    (
+                        patron
+                        for patron in regla["patrones_norm"]
+                        if patron and patron in fragmento_norm
+                    ),
+                    "",
+                )
+                if not patron_detectado:
+                    continue
+                clave_visto = (codigo, str(entidad_id), fragmento_norm[:180])
+                if clave_visto in vistos:
+                    continue
+                vistos.add(clave_visto)
+                conteo_por_codigo[codigo] = conteo_por_codigo.get(codigo, 0) + 1
+                incidencias.append(
+                    incidencia(
+                        codigo,
+                        "warning",
+                        "revision_juridica",
+                        f"{regla['mensaje']} Capítulo: {titulo}.",
+                        "capitulo",
+                        entidad_id,
+                        url,
+                        recortar_fragmento(fragmento),
+                        regla.get("sugerencia"),
+                    )
+                )
+
+    return incidencias
+
+
 def parse_fecha(valor: str) -> date | None:
     texto = limpiar_texto(valor)
     if not texto:
@@ -504,7 +664,9 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
     advertencias: list[dict] = []
     informacion: list[dict] = []
     riesgos_periciales = detectar_afirmaciones_riesgo(capitulos, expediente_id)
+    revision_juridica = detectar_revision_juridica(capitulos, expediente_id)
     advertencias.extend(riesgos_periciales)
+    advertencias.extend(revision_juridica)
 
     for clave, titulo in CAPITULOS_PRINCIPALES:
         capitulo = capitulos.get(clave)
@@ -661,7 +823,9 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
 
     score = max(0, 100 - len(errores) * 20 - len(advertencias) * 8 - len(informacion) * 2)
     advertencias_coherencia = [
-        item for item in advertencias if item.get("categoria") != "riesgo_pericial"
+        item
+        for item in advertencias
+        if item.get("categoria") not in {"riesgo_pericial", "revision_juridica"}
     ]
     return {
         "expediente_id": expediente_id,
@@ -669,6 +833,7 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
         "advertencias": advertencias,
         "advertencias_coherencia": advertencias_coherencia,
         "riesgos_periciales": riesgos_periciales,
+        "revision_juridica": revision_juridica,
         "informacion": informacion,
         "score": score,
         "resumen": {
@@ -676,6 +841,7 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
             "advertencias": len(advertencias),
             "advertencias_coherencia": len(advertencias_coherencia),
             "riesgos_periciales": len(riesgos_periciales),
+            "revision_juridica": len(revision_juridica),
             "informacion": len(informacion),
             "fotografias": len(fotos),
             "documentos": len(documentos),
