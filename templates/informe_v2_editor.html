@@ -819,7 +819,9 @@
                 <summary><strong>Exportar PDF</strong></summary>
                 <div class="actions">
                     {% for perfil in pdf_export_profiles %}
-                    <a class="boton secundario" href="/generar-informe-v2-pdf/{{ expediente.id }}?perfil={{ perfil.codigo }}">{{ perfil.nombre }}</a>
+                    <a class="boton secundario" href="/generar-informe-v2-pdf/{{ expediente.id }}?perfil={{ perfil.codigo }}">
+                        {{ perfil.nombre }}{% if perfil.objetivo_mb %} (&lt;{{ perfil.objetivo_mb }} MB aprox.){% endif %}
+                    </a>
                     {% endfor %}
                 </div>
             </details>

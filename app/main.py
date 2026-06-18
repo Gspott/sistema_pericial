@@ -73,6 +73,10 @@ from app.services.informe import (
     limpiar_nombre_archivo,
 )
 from app.services.pericial_consistency import analizar_consistencia_expediente
+from app.services.pdf_image_optimizer import (
+    crear_sesion_optimizacion_pdf,
+    optimizar_contexto_imagenes_pdf,
+)
 from app.services.valoracion_comparacion import (
     preparar_resumen_comparacion,
     preparar_matriz_homogeneizacion,
@@ -6336,6 +6340,9 @@ PDF_EXPORT_PROFILES = {
         "incluye_anexos": True,
         "objetivo_mb": None,
         "optimizar_imagenes": False,
+        "jpeg_quality": 95,
+        "max_dimension": 3000,
+        "remove_exif": False,
     },
     "email": {
         "codigo": "email",
@@ -6343,7 +6350,10 @@ PDF_EXPORT_PROFILES = {
         "descripcion": "Perfil preparado para envío por email; en V1 reutiliza la generación completa.",
         "incluye_anexos": True,
         "objetivo_mb": 20,
-        "optimizar_imagenes": False,
+        "optimizar_imagenes": True,
+        "jpeg_quality": 75,
+        "max_dimension": 1600,
+        "remove_exif": True,
     },
     "judicial": {
         "codigo": "judicial",
@@ -6351,7 +6361,10 @@ PDF_EXPORT_PROFILES = {
         "descripcion": "Perfil preparado para presentación judicial; en V1 reutiliza la generación completa.",
         "incluye_anexos": True,
         "objetivo_mb": 10,
-        "optimizar_imagenes": False,
+        "optimizar_imagenes": True,
+        "jpeg_quality": 60,
+        "max_dimension": 1200,
+        "remove_exif": True,
     },
     "solo_informe": {
         "codigo": "solo_informe",
@@ -6359,7 +6372,10 @@ PDF_EXPORT_PROFILES = {
         "descripcion": "Genera únicamente el cuerpo principal del informe, sin anexos PDF fusionados.",
         "incluye_anexos": False,
         "objetivo_mb": None,
-        "optimizar_imagenes": False,
+        "optimizar_imagenes": True,
+        "jpeg_quality": 80,
+        "max_dimension": 1600,
+        "remove_exif": True,
     },
     "informe_anexos": {
         "codigo": "informe_anexos",
@@ -6368,6 +6384,9 @@ PDF_EXPORT_PROFILES = {
         "incluye_anexos": True,
         "objetivo_mb": None,
         "optimizar_imagenes": False,
+        "jpeg_quality": 95,
+        "max_dimension": 3000,
+        "remove_exif": False,
     },
     "anexo_fotografico": {
         "codigo": "anexo_fotografico",
@@ -6375,7 +6394,10 @@ PDF_EXPORT_PROFILES = {
         "descripcion": "Perfil preparado para generar solo el anexo fotográfico en una fase posterior.",
         "incluye_anexos": False,
         "objetivo_mb": None,
-        "optimizar_imagenes": False,
+        "optimizar_imagenes": True,
+        "jpeg_quality": 75,
+        "max_dimension": 1600,
+        "remove_exif": True,
         "implementado": False,
     },
 }
@@ -17693,13 +17715,23 @@ def generar_informe_v2_pdf_endpoint(
     finally:
         conn.close()
 
-    pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
-    if perfil_pdf.get("incluye_anexos"):
-        pdf_bytes = fusionar_pdf_informe_v2_con_anexos_integrados(
-            pdf_bytes,
-            contexto.get("anexos", {}).get("documentacion"),
-            contexto.get("pdf_mediciones_anexo_f"),
+    sesion_optimizacion = crear_sesion_optimizacion_pdf(perfil_pdf)
+    try:
+        contexto["perfil_exportacion_pdf"] = perfil_pdf
+        contexto["optimizacion_imagenes_pdf"] = optimizar_contexto_imagenes_pdf(
+            contexto,
+            sesion_optimizacion,
+            UPLOAD_PATH,
         )
+        pdf_bytes = generar_informe_v2_pdf_bytes(request, contexto)
+        if perfil_pdf.get("incluye_anexos"):
+            pdf_bytes = fusionar_pdf_informe_v2_con_anexos_integrados(
+                pdf_bytes,
+                contexto.get("anexos", {}).get("documentacion"),
+                contexto.get("pdf_mediciones_anexo_f"),
+            )
+    finally:
+        sesion_optimizacion.cleanup()
     nombre_archivo = nombre_archivo_pdf_informe_v2(
         expediente,
         perfil_pdf=perfil_pdf,

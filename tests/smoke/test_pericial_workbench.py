@@ -1885,8 +1885,79 @@ def test_pdf_v2_export_profiles_configurados(isolated_import):
     assert perfiles["informe_anexos"]["incluye_anexos"] is True
     assert perfiles["solo_informe"]["incluye_anexos"] is False
     assert perfiles["email"]["objetivo_mb"] == 20
+    assert perfiles["email"]["optimizar_imagenes"] is True
+    assert perfiles["email"]["jpeg_quality"] == 75
+    assert perfiles["email"]["max_dimension"] == 1600
+    assert perfiles["email"]["remove_exif"] is True
     assert perfiles["judicial"]["objetivo_mb"] == 10
+    assert perfiles["judicial"]["optimizar_imagenes"] is True
+    assert perfiles["judicial"]["jpeg_quality"] == 60
+    assert perfiles["judicial"]["max_dimension"] == 1200
+    assert perfiles["master"]["optimizar_imagenes"] is False
     assert perfiles["anexo_fotografico"]["implementado"] is False
+
+
+def test_pdf_image_optimizer_no_modifica_original_y_reduce_dimension(tmp_path):
+    from PIL import Image
+
+    from app.services.pdf_image_optimizer import optimizar_imagen_pdf
+
+    ruta_original = tmp_path / "foto-original.jpg"
+    imagen = Image.new("RGB", (2400, 1200), (150, 40, 40))
+    exif = imagen.getexif()
+    exif[305] = "Sistema Pericial Test"
+    imagen.save(ruta_original, quality=95, exif=exif)
+    bytes_originales = ruta_original.read_bytes()
+
+    resultado = optimizar_imagen_pdf(
+        ruta_original,
+        {
+            "codigo": "email",
+            "optimizar_imagenes": True,
+            "jpeg_quality": 70,
+            "max_dimension": 600,
+            "remove_exif": True,
+        },
+        carpeta_temporal=tmp_path / "optimizadas",
+    )
+
+    assert ruta_original.read_bytes() == bytes_originales
+    assert resultado["ruta"] != ruta_original
+    with Image.open(resultado["ruta"]) as optimizada:
+        assert max(optimizada.size) <= 600
+        assert not dict(optimizada.getexif())
+    with Image.open(ruta_original) as original:
+        assert original.size == (2400, 1200)
+        assert dict(original.getexif())
+    assert resultado["tamano_original"] > resultado["tamano_optimizado"]
+
+
+def test_pdf_image_optimizer_conserva_orientacion_visual(tmp_path):
+    from PIL import Image
+
+    from app.services.pdf_image_optimizer import optimizar_imagen_pdf
+
+    ruta_original = tmp_path / "foto-orientada.jpg"
+    imagen = Image.new("RGB", (80, 160), (40, 90, 160))
+    exif = imagen.getexif()
+    exif[274] = 6
+    imagen.save(ruta_original, quality=95, exif=exif)
+
+    resultado = optimizar_imagen_pdf(
+        ruta_original,
+        {
+            "codigo": "judicial",
+            "optimizar_imagenes": True,
+            "jpeg_quality": 65,
+            "max_dimension": 200,
+            "remove_exif": True,
+        },
+        carpeta_temporal=tmp_path / "optimizadas",
+    )
+
+    with Image.open(resultado["ruta"]) as optimizada:
+        assert optimizada.size == (160, 80)
+        assert not dict(optimizada.getexif())
 
 
 def test_pdf_v2_rechaza_perfil_exportacion_desconocido(
@@ -1958,27 +2029,53 @@ def test_pdf_v2_perfil_email_diferencia_nombre_archivo(
     monkeypatch,
 ):
     main_module = isolated_import("app.main")
+    from PIL import Image
 
     from app.database import get_connection
 
     conn = get_connection()
+    ruta_foto = None
     try:
         cur = conn.cursor()
         user_id = _crear_usuario(cur, "pericial_pdf_v2_email")
         expediente_id = _crear_expediente_patologias(cur, user_id)
+        visita_id = cur.execute(
+            "SELECT id FROM visitas WHERE expediente_id=? LIMIT 1",
+            (expediente_id,),
+        ).fetchone()["id"]
+        nombre_foto = f"smoke_pdf_opt_{expediente_id}.jpg"
+        ruta_foto = main_module.UPLOAD_PATH / nombre_foto
+        Image.new("RGB", (2200, 1200), (120, 80, 60)).save(ruta_foto, quality=95)
+        cur.execute(
+            """
+            INSERT INTO visita_fotos (visita_id, categoria, ruta, descripcion)
+            VALUES (?, 'exterior', ?, ?)
+            """,
+            (visita_id, nombre_foto, "Foto grande para optimización PDF"),
+        )
         conn.commit()
     finally:
         conn.close()
 
+    capturado = {}
+
     def fake_pdf_bytes(request, contexto):
+        capturado["contexto"] = contexto
         return b"%PDF-1.4\n%PDF email\n"
 
     monkeypatch.setattr(main_module, "generar_informe_v2_pdf_bytes", fake_pdf_bytes)
     client = _autenticar_cliente(main_module, user_id)
-    response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=email")
+    try:
+        response = client.get(f"/generar-informe-v2-pdf/{expediente_id}?perfil=email")
+    finally:
+        if ruta_foto:
+            ruta_foto.unlink(missing_ok=True)
 
     assert response.status_code == 200
     assert "Informe-EXP-PER-WB-1-email.pdf" in response.headers["content-disposition"]
+    assert capturado["contexto"]["perfil_exportacion_pdf"]["codigo"] == "email"
+    assert capturado["contexto"]["optimizacion_imagenes_pdf"]["imagenes"] >= 1
+    assert capturado["contexto"]["optimizacion_imagenes_pdf"]["tamano_optimizado"] > 0
 
 
 def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
