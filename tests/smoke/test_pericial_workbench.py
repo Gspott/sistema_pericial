@@ -3574,7 +3574,7 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
 
     documento_1 = {
         "numero_anexo": "A.1",
-        "nombre": "Proyecto Reforma Cubierta",
+        "nombre": "Proyecto Reforma Cubierta de Evaristo Pastor Catalán con Memoria Técnica Completa",
         "tipo": "Proyecto",
         "fecha": "2026-06-18",
         "descripcion": "Proyecto aportado por la propiedad.",
@@ -3605,13 +3605,19 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
     assert "ANEXO A. DOCUMENTACIÓN APORTADA" in texto_indice
     assert "A.1" in texto_indice
     assert "A.2" in texto_indice
-    assert "Proyecto Reforma Cubierta" in texto_indice
+    assert "Proyecto Reforma Cubierta de Evaristo Pastor Catalán" in texto_indice
     assert "102 págs." in texto_indice
     assert "27.41 MB" in texto_indice
-    assert "ANEXO A.1" in texto_ficha
+    assert "ANEXO A" in texto_ficha
+    assert "A.1" in texto_ficha
     assert "Proyecto Reforma Cubierta" in texto_ficha
+    assert "Evaristo" in texto_ficha
+    assert "Pastor Catalán" in texto_ficha
+    assert "Memoria Técnica" in texto_ficha
+    assert "Completa" in texto_ficha
     assert "Proyecto aportado por la propiedad." in texto_ficha
     assert "Documento incorporado a continuación." in texto_ficha
+    assert "..." not in texto_ficha
     assert "Páginas:" not in texto_ficha
     assert "Tamaño:" not in texto_ficha
     assert "Fecha de incorporación:" not in texto_ficha

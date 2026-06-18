@@ -9340,62 +9340,164 @@ def _pdf_bytes_indice_anexo_a_v2(documentos: list[dict]) -> bytes:
 
 def _pdf_bytes_ficha_anexo_a_v2(documento: dict, pdf_integrado: bool) -> bytes:
     from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
+    from reportlab.platypus import Paragraph
 
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     margen = 22 * mm
-    y = height - 42 * mm
+    title_width = width * 0.70
+    meta_width = width * 0.62
+
+    def build_paragraph(
+        texto: str,
+        style: ParagraphStyle,
+        ancho: float,
+    ) -> tuple[Paragraph, float, float]:
+        parrafo = Paragraph(html.escape(texto), style)
+        ancho_real, alto_real = parrafo.wrap(ancho, height)
+        return parrafo, ancho_real, alto_real
+
+    label_style = ParagraphStyle(
+        "AnexoADocCoverLabel",
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=13,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#6b7280"),
+        spaceAfter=0,
+    )
+    number_style = ParagraphStyle(
+        "AnexoADocCoverNumber",
+        fontName="Helvetica-Bold",
+        fontSize=16,
+        leading=20,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#1f2933"),
+        spaceAfter=0,
+    )
+    meta_label_style = ParagraphStyle(
+        "AnexoADocCoverMetaLabel",
+        fontName="Helvetica-Bold",
+        fontSize=9,
+        leading=12,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#6b7280"),
+        spaceAfter=0,
+    )
+    meta_style = ParagraphStyle(
+        "AnexoADocCoverMeta",
+        fontName="Helvetica",
+        fontSize=10,
+        leading=14,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#374151"),
+        spaceAfter=0,
+    )
+    status_style = ParagraphStyle(
+        "AnexoADocCoverStatus",
+        fontName="Helvetica",
+        fontSize=10,
+        leading=14,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#374151"),
+        spaceAfter=0,
+    )
+
+    numero = _texto_pdf_anexo(documento.get("numero") or documento.get("numero_anexo"))
+    titulo = _texto_pdf_anexo(documento.get("nombre"))
+    title_paragraph = None
+    title_height = 0
+    for font_size in (22, 20, 18, 16):
+        candidate_style = ParagraphStyle(
+            "AnexoADocCoverTitle",
+            fontName="Helvetica-Bold",
+            fontSize=font_size,
+            leading=font_size + 5,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#1f2933"),
+            spaceAfter=0,
+            wordWrap="LTR",
+        )
+        candidate, _candidate_width, candidate_height = build_paragraph(
+            titulo,
+            candidate_style,
+            title_width,
+        )
+        if candidate_height <= (font_size + 5) * 4 or font_size == 16:
+            title_paragraph = candidate
+            title_height = candidate_height
+            break
+
+    elementos: list[tuple[Paragraph, float, float, float]] = []
+    for texto, style, ancho, gap_after in [
+        ("ANEXO A", label_style, title_width, 22),
+        (numero, number_style, title_width, 24),
+    ]:
+        parrafo, ancho_real, alto_real = build_paragraph(texto, style, ancho)
+        elementos.append((parrafo, ancho_real, alto_real, gap_after))
+
+    if title_paragraph is None:
+        title_paragraph, _title_width, title_height = build_paragraph(
+            titulo,
+            label_style,
+            title_width,
+        )
+    elementos.append((title_paragraph, title_width, title_height, 26))
 
     c.setStrokeColor(colors.HexColor("#1f2933"))
     c.setLineWidth(1)
     c.line(margen, height - 24 * mm, width - margen, height - 24 * mm)
     c.line(margen, 24 * mm, width - margen, 24 * mm)
-    c.setFillColor(colors.HexColor("#6b7280"))
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(
-        margen,
-        y,
-        f"ANEXO {_texto_pdf_anexo(documento.get('numero') or documento.get('numero_anexo'))}",
-    )
-    y -= 24
-    c.setFillColor(colors.HexColor("#1f2933"))
-    c.setFont("Helvetica-Bold", 22)
-    for linea in dividir_texto_pdf_v2(_texto_pdf_anexo(documento.get("nombre")), 52)[:4]:
-        c.drawString(margen, y, linea)
-        y -= 24
-    y -= 12
-    c.setStrokeColor(colors.HexColor("#d8dee6"))
-    c.line(margen, y, width - margen, y)
-    y -= 24
+
     campos = [
         ("Descripción", documento.get("descripcion")),
         ("Observaciones", documento.get("observaciones")),
     ]
-    c.setFont("Helvetica", 10)
     for etiqueta, valor in campos:
         valor_limpio = limpiar_texto(valor)
         if not valor_limpio or valor_limpio == "-":
             continue
-        c.setFillColor(colors.HexColor("#111827"))
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(margen, y, f"{etiqueta}:")
-        c.setFont("Helvetica", 10)
-        for indice, linea in enumerate(dividir_texto_pdf_v2(valor_limpio, 84)[:4]):
-            c.drawString(margen + 42 * mm, y if indice == 0 else y - (indice * 13), linea)
-        y -= 16 + (max(0, len(dividir_texto_pdf_v2(valor_limpio, 84)[:4]) - 1) * 13)
-    y -= 14
+        etiqueta_parrafo, etiqueta_ancho, etiqueta_alto = build_paragraph(
+            etiqueta.upper(),
+            meta_label_style,
+            meta_width,
+        )
+        valor_parrafo, valor_ancho, valor_alto = build_paragraph(
+            valor_limpio,
+            meta_style,
+            meta_width,
+        )
+        elementos.append((etiqueta_parrafo, etiqueta_ancho, etiqueta_alto, 5))
+        elementos.append((valor_parrafo, valor_ancho, valor_alto, 14))
+
     estado = (
         "Documento incorporado a continuación."
         if pdf_integrado
         else "El documento queda referenciado, pero el PDF aportado no se pudo incorporar físicamente."
     )
-    c.setFillColor(colors.HexColor("#374151"))
-    c.setFont("Helvetica", 10)
-    c.drawString(margen, y, estado)
+    estado_parrafo, estado_ancho, estado_alto = build_paragraph(estado, status_style, meta_width)
+    elementos.append((estado_parrafo, estado_ancho, estado_alto, 0))
+
+    block_height = sum(alto + gap for _parrafo, _ancho, alto, gap in elementos)
+    y = (height + block_height) / 2
+    for parrafo, ancho, alto, gap_after in elementos:
+        y -= alto
+        parrafo.drawOn(c, (width - ancho) / 2, y)
+        if parrafo is title_paragraph:
+            y -= 3
+            c.setStrokeColor(colors.HexColor("#d8dee6"))
+            c.setLineWidth(0.6)
+            c.line((width - meta_width) / 2, y, (width + meta_width) / 2, y)
+            y -= gap_after
+            continue
+        y -= gap_after
+
     c.save()
     return buffer.getvalue()
 
