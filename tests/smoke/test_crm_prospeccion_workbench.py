@@ -23,6 +23,7 @@ def test_plantilla_administrador_fincas_existe_y_renderiza_variables(isolated_im
     assert "Adjunto una breve presentación" in cuerpo
     assert "IEE.CV" in cuerpo
     assert "pueden responder directamente a este correo" in cuerpo
+    assert "estaré encantado de comentar el caso sin compromiso" not in cuerpo
     assert "600 111 222" not in cuerpo
     assert "contacto@example.test" not in cuerpo
     assert "Arquitecto Técnico · Perito Judicial" not in cuerpo

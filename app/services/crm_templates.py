@@ -55,8 +55,6 @@ Mi forma de trabajar se basa en inspecciones ordenadas, reportaje fotográfico e
 
 Adjunto una breve presentación para que puedan conocer mejor mi forma de trabajo.
 
-Si actualmente tienen alguna comunidad con un IEE.CV pendiente, una incidencia de humedades o cualquier otra patología constructiva, estaré encantado de comentar el caso sin compromiso.
-
 Muchas gracias por su tiempo y quedo a su disposición para cualquier consulta o futura colaboración.
 
 P.D.: Si actualmente gestionan alguna comunidad con un IEE.CV pendiente, humedades o una patología constructiva, pueden responder directamente a este correo y estaré encantado de valorar el caso.""",
