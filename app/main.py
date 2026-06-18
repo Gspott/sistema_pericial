@@ -18007,10 +18007,18 @@ def generar_informe_v2_pdf_endpoint(
                 tamano_mb=bytes_a_mb(len(pdf_bytes)),
             )
             inicio_paso = time.perf_counter()
+            debug_paginacion_dir = None
+            if debug_pipeline_activo:
+                debug_paginacion_dir = (
+                    Path(tempfile.gettempdir())
+                    / "pericial_pdf_debug"
+                    / f"expediente_{expediente_id}_{perfil_pdf.get('codigo')}_{uuid4().hex}"
+                )
             pdf_bytes = paginar_pdf_final_bytes(
                 pdf_bytes,
                 perfil=perfil_pdf,
                 debug=debug_pipeline_activo,
+                debug_dir=debug_paginacion_dir,
             )
             registrar_paso_pdf_v2(
                 debug_pipeline_activo,
@@ -18018,6 +18026,7 @@ def generar_informe_v2_pdf_endpoint(
                 "fin_paginacion_final",
                 tamano_mb=bytes_a_mb(len(pdf_bytes)),
                 duracion_s=round(time.perf_counter() - inicio_paso, 3),
+                debug_dir=str(debug_paginacion_dir or ""),
             )
     finally:
         app.state.pdf_temp_image_dirs.pop(sesion_optimizacion.token, None)

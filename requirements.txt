@@ -20,6 +20,7 @@ python-docx==1.2.0
 python-multipart==0.0.22
 pytest>=8.0.0
 requests==2.32.3
+reportlab>=5.0.0
 SQLAlchemy==2.0.48
 starlette==0.52.1
 typing-inspection==0.4.2

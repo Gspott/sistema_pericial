@@ -2256,10 +2256,16 @@ def test_pdf_v2_paginacion_se_llama_en_todos_los_perfiles(
         lambda request, contexto: _pdf_simple_bytes(1),
     )
 
-    def registrar_paginacion(pdf_bytes, perfil="master", config=None, debug=False):
+    def registrar_paginacion(pdf_bytes, perfil="master", config=None, debug=False, debug_dir=None):
         codigo = perfil.get("codigo") if isinstance(perfil, dict) else perfil
         llamadas.append(codigo)
-        return paginar_real(pdf_bytes, perfil=perfil, config=config, debug=debug)
+        return paginar_real(
+            pdf_bytes,
+            perfil=perfil,
+            config=config,
+            debug=debug,
+            debug_dir=debug_dir,
+        )
 
     monkeypatch.setattr(main_module, "paginar_pdf_final_bytes", registrar_paginacion)
 
@@ -2549,6 +2555,34 @@ def test_pdf_pagination_servicio_numera_multipagina_y_ultima(tmp_path):
     assert "Página 3 de 3" in (reader.pages[2].extract_text() or "")
 
 
+def test_pdf_pagination_servicio_overlay_visible_sobre_fondo_oscuro(tmp_path):
+    from reportlab.pdfgen import canvas
+    from pypdf import PdfReader
+
+    from app.services.pdf_pagination import paginar_pdf_final_bytes
+
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=(595, 842))
+    c.setFillColorRGB(0.05, 0.05, 0.05)
+    c.rect(0, 0, 595, 842, stroke=0, fill=1)
+    c.showPage()
+    c.save()
+
+    paginado = paginar_pdf_final_bytes(buffer.getvalue(), debug=True, debug_dir=tmp_path)
+    reader = PdfReader(BytesIO(paginado))
+    contenido = reader.pages[0].get_contents().get_data()
+
+    assert "Página 1 de 1" in (reader.pages[0].extract_text() or "")
+    assert b" rg" in contenido
+    assert b" re" in contenido
+    assert (tmp_path / "final_antes_paginacion.pdf").exists()
+    assert (tmp_path / "final_despues_paginacion.pdf").exists()
+    assert (tmp_path / "overlay_test_page_1.pdf").exists()
+    assert (tmp_path / "final_despues_paginacion.pdf").stat().st_size > (
+        tmp_path / "final_antes_paginacion.pdf"
+    ).stat().st_size
+
+
 def test_pdf_pagination_servicio_funciona_horizontal_y_tamanos_distintos():
     from pypdf import PdfReader, PdfWriter
 
@@ -2603,10 +2637,10 @@ def test_pdf_pagination_si_falla_devuelve_original_y_registra_warning(
 
     pdf_original = _pdf_simple_bytes(1)
 
-    def fail_page(pagina, texto, writer=None):
+    def fail_overlay(ancho, alto, texto, config):
         raise RuntimeError("fallo pagination smoke")
 
-    monkeypatch.setattr(pdf_pagination, "_anadir_paginacion_a_pagina", fail_page)
+    monkeypatch.setattr(pdf_pagination, "_crear_overlay_paginacion", fail_overlay)
 
     with caplog.at_level(logging.WARNING):
         resultado = pdf_pagination.paginar_pdf_final_bytes(pdf_original)
