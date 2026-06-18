@@ -732,6 +732,7 @@
                     <a class="boton secundario" href="/crm/prospeccion?email=sin_email">Sin email</a>
                     <a class="boton secundario" href="/crm/prospeccion/agenda">Agenda programados</a>
                     <a class="boton secundario" href="/emails">Emails enviados</a>
+                    <a class="boton secundario" href="/crm/prospeccion/enviados">Enviados CRM</a>
                 </div>
 
                 <div class="crm-divider"></div>
@@ -752,6 +753,7 @@
                     <div class="crm-inline-actions">
                         <a class="boton secundario" href="/crm/prospeccion?tipo=administrador_fincas&sin_accion=1&email=con_email">5 emails esta semana</a>
                         <a class="boton secundario" href="/crm/prospeccion/agenda">Agenda</a>
+                        <a class="boton secundario" href="/crm/prospeccion/enviados">Emails enviados</a>
                         <a class="boton secundario" href="/leads">Listado clásico</a>
                     </div>
                 </div>
@@ -905,7 +907,7 @@
                     data-from-name="{{ email_identidad.nombre }}"
                     data-from-email="{{ email_identidad.email }}"
                     data-signature="{{ email_identidad.firma_texto }}"
-                    data-attachment-name="">
+                    data-attachment-name="{{ preview_email.adjunto_nombre }}">
                     <div class="crm-preview-shell">
                         <div class="crm-preview-header">
                             <div>
@@ -934,7 +936,9 @@
                                         <div data-preview-body>{{ preview_email.cuerpo }}</div>
                                         <div class="crm-mail-signature" data-preview-signature>{{ email_identidad.firma_texto }}</div>
                                     </div>
-                                    <div class="crm-mail-attachments" data-preview-attachments>Adjuntos: Sin adjuntos previstos</div>
+                                    <div class="crm-mail-attachments" data-preview-attachments>
+                                        Adjuntos: {% if preview_email.adjunto_nombre %}📎 {{ preview_email.adjunto_nombre }}{% else %}Sin adjuntos previstos{% endif %}
+                                    </div>
                                 </article>
                             </section>
                             <section id="preview-pane-mobile" class="crm-preview-pane" role="tabpanel" aria-labelledby="preview-tab-mobile" data-preview-pane="mobile">
@@ -952,7 +956,9 @@
                                         <div data-preview-body>{{ preview_email.cuerpo }}</div>
                                         <div class="crm-mail-signature" data-preview-signature>{{ email_identidad.firma_texto }}</div>
                                     </div>
-                                    <div class="crm-mail-attachments" data-preview-attachments>Adjuntos: Sin adjuntos previstos</div>
+                                    <div class="crm-mail-attachments" data-preview-attachments>
+                                        Adjuntos: {% if preview_email.adjunto_nombre %}📎 {{ preview_email.adjunto_nombre }}{% else %}Sin adjuntos previstos{% endif %}
+                                    </div>
                                 </article>
                             </section>
                         </div>
@@ -999,6 +1005,7 @@
                     <div class="crm-history-row">
                         <strong>{{ email_log.estado }}</strong> · {{ email_log.tipo }}<br>
                         <span class="crm-muted">{{ email_log.fecha_envio }} · {{ email_log.asunto }}</span>
+                        <div><a href="/crm/prospeccion/enviados?email_id={{ email_log.id }}">Ver email</a></div>
                     </div>
                     {% endfor %}
                     {% endif %}

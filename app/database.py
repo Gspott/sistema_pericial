@@ -651,6 +651,11 @@ def init_db():
     asegurar_columna(cur, "leads", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
     asegurar_columna(cur, "leads", "updated_at", "TEXT")
     asegurar_columna(cur, "leads", "owner_user_id", "INTEGER")
+    asegurar_columna(cur, "leads", "fecha_primer_contacto", "TEXT")
+    asegurar_columna(cur, "leads", "fecha_segundo_contacto", "TEXT")
+    asegurar_columna(cur, "leads", "apertura_email", "TEXT")
+    asegurar_columna(cur, "leads", "respuesta_email", "TEXT")
+    asegurar_columna(cur, "leads", "observaciones", "TEXT")
 
     cur.execute(
         """

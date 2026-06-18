@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <title>Emails enviados CRM</title>
+    <style>
+        body { background: #eef1f5; }
+        .crm-sent { max-width: none; width: min(1760px, calc(100vw - 32px)); }
+        .sent-topbar, .sent-zone {
+            border: 1px solid #d3d9e2;
+            background: #fff;
+            border-radius: 8px;
+        }
+        .sent-topbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+        .sent-topbar h1 { margin: 0; font-size: 1.22rem; }
+        .sent-topbar p { margin: 3px 0 0; color: #536273; font-size: .82rem; }
+        .sent-grid {
+            display: grid;
+            grid-template-columns: minmax(720px, 1fr) 520px;
+            gap: 10px;
+            align-items: start;
+        }
+        .sent-zone { padding: 12px; min-width: 0; }
+        .sent-panel {
+            position: sticky;
+            top: 10px;
+            max-height: calc(100vh - 22px);
+            overflow: auto;
+        }
+        .sent-alert { border-radius: 8px; padding: 9px 12px; margin: 0 0 10px; }
+        .sent-alert-ok { background: #e8f6ee; border: 1px solid #b8dfc8; }
+        .sent-alert-error { background: #fff1f1; border: 1px solid #f0b9b9; }
+        .sent-table-wrap {
+            overflow: auto;
+            border: 1px solid #d9dee7;
+            border-radius: 8px;
+            background: #fff;
+            max-height: calc(100vh - 150px);
+        }
+        .sent-table {
+            width: 100%;
+            min-width: 980px;
+            border-collapse: collapse;
+            font-size: .82rem;
+        }
+        .sent-table th, .sent-table td {
+            border-bottom: 1px solid #e6eaf0;
+            padding: 7px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .sent-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f0f4f8;
+            color: #27374c;
+            font-size: .7rem;
+            text-transform: uppercase;
+        }
+        .sent-table tr.is-selected td { background: #eef6ff; }
+        .sent-muted { color: #637083; font-size: .76rem; }
+        .sent-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: #eef3f8;
+            color: #26384f;
+            font-size: .73rem;
+            white-space: nowrap;
+        }
+        .sent-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+        .sent-actions .boton { min-height: 28px; padding: 5px 8px; font-size: .75rem; }
+        .sent-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+            padding: 9px;
+            border: 1px solid #e1e6ee;
+            border-radius: 7px;
+            background: #f8fafc;
+            margin-bottom: 10px;
+            font-size: .8rem;
+        }
+        .sent-summary .full { grid-column: 1 / -1; }
+        .sent-mail {
+            border: 1px solid #d7dde6;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+            margin-bottom: 12px;
+        }
+        .sent-mail-head {
+            padding: 14px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #fff;
+        }
+        .sent-mail-head h2 { margin: 0 0 10px; font-size: 1.08rem; }
+        .sent-mail-meta {
+            display: grid;
+            grid-template-columns: 78px 1fr;
+            gap: 4px 10px;
+            color: #5f6368;
+            font-size: .82rem;
+        }
+        .sent-mail-meta strong { color: #202124; font-weight: 600; }
+        .sent-block-title {
+            margin: 14px 0 6px;
+            font-size: .86rem;
+            color: #27374c;
+        }
+        .sent-body {
+            padding: 14px 16px;
+            white-space: pre-wrap;
+            line-height: 1.55;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: .92rem;
+        }
+        .sent-note {
+            padding: 9px 10px;
+            border: 1px solid #d9e6f6;
+            border-radius: 7px;
+            background: #f3f8ff;
+            color: #32445b;
+            font-size: .8rem;
+            margin-bottom: 10px;
+        }
+        .sent-empty-panel {
+            min-height: 240px;
+            display: grid;
+            place-items: center;
+            border: 1px dashed #cbd4df;
+            border-radius: 8px;
+            color: #637083;
+            text-align: center;
+            padding: 18px;
+        }
+        @media (max-width: 1120px) {
+            .sent-grid { grid-template-columns: 1fr; }
+            .sent-panel { position: static; max-height: none; }
+        }
+        @media (max-width: 720px) {
+            .crm-sent { width: auto; }
+            .sent-topbar, .sent-summary { display: grid; grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <div class="page crm-sent">
+        {% if mensaje %}
+        <div class="sent-alert sent-alert-ok">{{ mensaje }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="sent-alert sent-alert-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="sent-topbar">
+            <div>
+                <h1>Emails enviados CRM</h1>
+                <p>Consulta interna de emails registrados por Sistema Pericial.</p>
+            </div>
+            <div class="sent-actions">
+                <a class="boton secundario" href="/crm/prospeccion">Volver al Workbench</a>
+                <a class="boton secundario" href="/crm/prospeccion/agenda">Agenda programados</a>
+            </div>
+        </div>
+
+        <div class="sent-grid">
+            <main class="sent-zone">
+                <div class="sent-table-wrap">
+                    <table class="sent-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Destinatario</th>
+                                <th>Lead</th>
+                                <th>Tipo</th>
+                                <th>Plantilla</th>
+                                <th>Asunto</th>
+                                <th>Estado</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if emails %}
+                            {% for email in emails %}
+                            <tr class="{% if selected_email and selected_email.id == email.id %}is-selected{% endif %}">
+                                <td>
+                                    {{ email.fecha }}
+                                    {% if email.fecha_programada %}<div class="sent-muted">Prog. {{ email.fecha_programada }}</div>{% endif %}
+                                </td>
+                                <td>{{ email.destinatario }}</td>
+                                <td>
+                                    {% if email.lead_nombre %}
+                                    <strong>{{ email.lead_nombre }}</strong>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>{{ email.tipo }}</td>
+                                <td>{{ email.plantilla_nombre or '-' }}</td>
+                                <td>{{ email.asunto }}</td>
+                                <td><span class="sent-badge">{{ email.estado }}</span></td>
+                                <td>
+                                    <div class="sent-actions">
+                                        <a class="boton" href="/crm/prospeccion/enviados?email_id={{ email.id }}">Ver email</a>
+                                        {% if email.lead_id %}
+                                        <a class="boton secundario" href="/crm/prospeccion?lead_id={{ email.lead_id }}">Lead</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td colspan="8"><p class="empty">No hay emails CRM registrados.</p></td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+
+            <aside class="sent-zone sent-panel">
+                <h2>Detalle</h2>
+                {% if selected_email %}
+                <div class="sent-summary">
+                    <div class="full"><strong>{{ selected_email.asunto }}</strong></div>
+                    <div><span class="sent-muted">Estado</span><br>{{ selected_email.estado }}</div>
+                    <div><span class="sent-muted">Tipo</span><br>{{ selected_email.tipo }}</div>
+                    <div><span class="sent-muted">Lead</span><br>{{ selected_email.lead_nombre or '-' }}</div>
+                    <div><span class="sent-muted">Fecha</span><br>{{ selected_email.fecha }}</div>
+                    {% if selected_email.nombre_adjunto %}
+                    <div class="full"><span class="sent-muted">Adjunto</span><br>{{ selected_email.nombre_adjunto }}</div>
+                    {% endif %}
+                </div>
+
+                <article class="sent-mail">
+                    <div class="sent-mail-head">
+                        <h2>{{ selected_email.asunto }}</h2>
+                        <div class="sent-mail-meta">
+                            <span>De:</span><strong>{{ email_identidad.nombre }} &lt;{{ email_identidad.email }}&gt;</strong>
+                            <span>Para:</span><strong>{{ selected_email.destinatario }}</strong>
+                            <span>Asunto:</span><strong>{{ selected_email.asunto }}</strong>
+                            <span>Fecha:</span><strong>{{ selected_email.fecha }}</strong>
+                            <span>Estado:</span><strong>{{ selected_email.estado }}</strong>
+                            <span>Lead:</span><strong>{{ selected_email.lead_nombre or '-' }}</strong>
+                        </div>
+                    </div>
+                </article>
+
+                <h3 class="sent-block-title">Contenido comercial guardado</h3>
+                <div class="sent-note">Texto final editado registrado por Sistema Pericial. No se edita desde esta vista.</div>
+                <div class="sent-mail">
+                    <div class="sent-body">{{ selected_email.cuerpo or '(Sin cuerpo guardado)' }}</div>
+                </div>
+
+                <h3 class="sent-block-title">Vista final con firma corporativa</h3>
+                <div class="sent-note">Vista reconstruida con la firma corporativa centralizada para consulta interna.</div>
+                <div class="sent-mail">
+                    <div class="sent-body">{{ selected_email.cuerpo_final_estimado or '(Sin cuerpo guardado)' }}</div>
+                </div>
+                {% else %}
+                <div class="sent-empty-panel">Selecciona un email para consultar destinatario, asunto, cuerpo guardado y vista final estimada.</div>
+                {% endif %}
+            </aside>
+        </div>
+    </div>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+</html>

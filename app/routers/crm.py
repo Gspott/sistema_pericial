@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from pathlib import Path
 import re
 from urllib.parse import urlencode
 
@@ -21,6 +22,12 @@ from app.services.crm_templates import (
 )
 
 router = APIRouter()
+
+PRESENTACION_ADMINISTRADORES_FILENAME = "carlos-blanco-presentacion-administradores.png"
+PRESENTACION_ADMINISTRADORES_CID = "carlos-blanco-presentacion-administradores@sistema-pericial"
+PRESENTACION_ADMINISTRADORES_PATH = (
+    Path(__file__).resolve().parents[2] / "static" / "crm" / PRESENTACION_ADMINISTRADORES_FILENAME
+)
 
 TIPOS_LEAD = (
     ("administrador_fincas", "Administrador de fincas"),
@@ -413,6 +420,12 @@ def _plantilla_panel(slug: str, tipo: str):
     return plantilla_para_tipo(tipo)
 
 
+def _nombre_adjunto_preview_plantilla(plantilla) -> str:
+    if plantilla.slug == "presentacion_administrador_fincas" and PRESENTACION_ADMINISTRADORES_PATH.exists():
+        return PRESENTACION_ADMINISTRADORES_FILENAME
+    return ""
+
+
 def _renderizar_preview_email(lead, current_user, slug: str = "") -> dict:
     tipo = inferir_tipo_lead(lead)
     plantilla = _plantilla_panel(slug, tipo)
@@ -431,13 +444,14 @@ def _renderizar_preview_email(lead, current_user, slug: str = "") -> dict:
         "plantilla": plantilla,
         "asunto": asunto,
         "cuerpo": cuerpo,
+        "adjunto_nombre": _nombre_adjunto_preview_plantilla(plantilla),
     }
 
 
 def _historial_lead(cur, lead_id: int, owner_user_id: int) -> dict:
     emails = cur.execute(
         """
-        SELECT fecha_envio, tipo, asunto, estado, error_mensaje
+        SELECT id, fecha_envio, tipo, asunto, estado, error_mensaje
         FROM emails_enviados
         WHERE referencia_entidad_tipo = 'lead'
           AND referencia_entidad_id = ?
@@ -555,6 +569,78 @@ def _email_programado_view(email) -> dict:
     }
 
 
+def _obtener_emails_crm(cur, owner_user_id: int):
+    return cur.execute(
+        """
+        SELECT ee.*,
+               l.nombre AS lead_nombre,
+               l.email AS lead_email,
+               l.telefono AS lead_telefono,
+               l.estado AS lead_estado
+        FROM emails_enviados ee
+        LEFT JOIN leads l
+          ON l.id = ee.referencia_entidad_id
+         AND ee.referencia_entidad_tipo = 'lead'
+         AND l.owner_user_id = ee.owner_user_id
+        WHERE ee.owner_user_id = ?
+          AND (
+            ee.referencia_entidad_tipo = 'lead'
+            OR ee.tipo IN (
+              'presentacion_comercial',
+              'seguimiento_comercial',
+              'presentacion_programada',
+              'seguimiento_programado'
+            )
+          )
+        ORDER BY ee.fecha_envio DESC, ee.id DESC
+        """,
+        (owner_user_id,),
+    ).fetchall()
+
+
+def _get_owned_email_crm(cur, email_id: int, owner_user_id: int):
+    return cur.execute(
+        """
+        SELECT ee.*,
+               l.nombre AS lead_nombre,
+               l.email AS lead_email,
+               l.telefono AS lead_telefono,
+               l.estado AS lead_estado
+        FROM emails_enviados ee
+        LEFT JOIN leads l
+          ON l.id = ee.referencia_entidad_id
+         AND ee.referencia_entidad_tipo = 'lead'
+         AND l.owner_user_id = ee.owner_user_id
+        WHERE ee.id = ? AND ee.owner_user_id = ?
+        """,
+        (email_id, owner_user_id),
+    ).fetchone()
+
+
+def _email_crm_view(email) -> dict:
+    fecha_programada = _extraer_valor_error_mensaje(email["error_mensaje"], "programado_para")
+    cuerpo = email["cuerpo_texto"] or ""
+    return {
+        "id": email["id"],
+        "fecha": email["fecha_envio"],
+        "fecha_programada": fecha_programada,
+        "destinatario": email["destinatario"],
+        "asunto": email["asunto"],
+        "tipo": email["tipo"],
+        "plantilla_nombre": _plantilla_nombre_desde_email(email),
+        "estado": email["estado"],
+        "lead_id": email["referencia_entidad_id"] if email["referencia_entidad_tipo"] == "lead" else None,
+        "lead_nombre": email["lead_nombre"] or "",
+        "lead_email": email["lead_email"] or "",
+        "lead_telefono": email["lead_telefono"] or "",
+        "lead_estado": email["lead_estado"] or "",
+        "cuerpo": cuerpo,
+        "cuerpo_final_estimado": _cuerpo_final_estimado(cuerpo),
+        "tiene_adjunto": bool(email["tiene_adjunto"]),
+        "nombre_adjunto": email["nombre_adjunto"] or "",
+    }
+
+
 def _email_programado_es_seguimiento(email) -> bool:
     plantilla_slug = _extraer_valor_error_mensaje(email["error_mensaje"], "plantilla")
     return limpiar_texto(email["tipo"]).startswith("seguimiento_") or _es_plantilla_seguimiento(plantilla_slug)
@@ -584,10 +670,12 @@ def _aplicar_estado_post_envio_programado(cur, email, owner_user_id: int) -> Non
         if tarea_seguimiento:
             _marcar_tarea_hecha(cur, tarea_seguimiento["id"], lead_id, owner_user_id)
         _crear_tarea_revision_post_seguimiento_si_no_existe(cur, lead_id, owner_user_id)
+        _registrar_metricas_contacto_lead(cur, lead_id, owner_user_id, "seguimiento")
         nuevo_estado = "seguimiento_enviado"
     else:
         _registrar_contacto_presentacion(cur, lead_id, owner_user_id)
         _crear_tarea_seguimiento_si_no_existe(cur, lead_id, owner_user_id)
+        _registrar_metricas_contacto_lead(cur, lead_id, owner_user_id, "presentacion")
         nuevo_estado = "pendiente_respuesta"
     cur.execute(
         """
@@ -756,13 +844,67 @@ def _registrar_contacto_email(
     )
 
 
+def _registrar_metricas_contacto_lead(cur, lead_id: int, owner_user_id: int, tipo_contacto: str) -> None:
+    campo_fecha = "fecha_segundo_contacto" if tipo_contacto == "seguimiento" else "fecha_primer_contacto"
+    cur.execute(
+        f"""
+        UPDATE leads
+        SET {campo_fecha} = COALESCE({campo_fecha}, ?),
+            apertura_email = COALESCE(apertura_email, 'no_registrada'),
+            respuesta_email = COALESCE(respuesta_email, 'pendiente'),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND owner_user_id = ?
+        """,
+        (datetime.now().strftime("%Y-%m-%dT%H:%M"), lead_id, owner_user_id),
+    )
+
+
+def _imagen_presentacion_administradores() -> dict | None:
+    if not PRESENTACION_ADMINISTRADORES_PATH.exists():
+        return None
+    return {
+        "contenido": PRESENTACION_ADMINISTRADORES_PATH.read_bytes(),
+        "maintype": "image",
+        "subtype": "png",
+        "filename": PRESENTACION_ADMINISTRADORES_FILENAME,
+        "cid": f"<{PRESENTACION_ADMINISTRADORES_CID}>",
+    }
+
+
+def _es_presentacion_administradores(plantilla) -> bool:
+    return plantilla.slug == "presentacion_administrador_fincas"
+
+
+def _crear_mensaje_crm_con_plantilla(destinatario: str, asunto: str, cuerpo: str, plantilla):
+    imagen_presentacion = _imagen_presentacion_administradores() if _es_presentacion_administradores(plantilla) else None
+    imagen_html = ""
+    if imagen_presentacion:
+        imagen_html = (
+            f'<div style="margin:22px 0 18px;">'
+            f'<img src="cid:{PRESENTACION_ADMINISTRADORES_CID}" '
+            f'alt="Presentación profesional Carlos Blanco" '
+            f'style="display:block;width:100%;max-width:620px;height:auto;border:1px solid #e4e0d8;border-radius:6px;">'
+            f"</div>"
+        )
+    body_html = construir_email_html_base(asunto, f"{texto_a_html(cuerpo)}\n{imagen_html}", footer_text="")
+    adjuntos = [imagen_presentacion] if imagen_presentacion else None
+    imagenes_inline = [imagen_presentacion] if imagen_presentacion else None
+    return crear_mensaje_email(
+        destinatario,
+        asunto,
+        _cuerpo_texto_salida(cuerpo),
+        body_html,
+        adjuntos=adjuntos,
+        imagenes_inline=imagenes_inline,
+    )
+
+
 def _preparar_mensaje_comercial(destinatario: str, tipo_lead: str, lead, current_user, proposito: str):
     email_comercial = construir_email_comercial(tipo_lead, lead, current_user, proposito=proposito)
     plantilla = email_comercial["plantilla"]
     asunto = email_comercial["asunto"]
     cuerpo = email_comercial["cuerpo"]
-    body_html = construir_email_html_base(asunto, texto_a_html(cuerpo), footer_text="")
-    mensaje_email = crear_mensaje_email(destinatario, asunto, _cuerpo_texto_salida(cuerpo), body_html)
+    mensaje_email = _crear_mensaje_crm_con_plantilla(destinatario, asunto, cuerpo, plantilla)
     return plantilla, asunto, cuerpo, mensaje_email
 
 
@@ -772,6 +914,27 @@ def _cuerpo_texto_salida(cuerpo: str) -> str:
 
 def _identidad_email_preview() -> dict:
     return contexto_identidad_email(email_sender.SMTP_FROM_NAME, email_sender.SMTP_FROM_EMAIL)
+
+
+def _plantilla_nombre_desde_email(email) -> str:
+    plantilla_slug = _extraer_valor_error_mensaje(email["error_mensaje"], "plantilla")
+    plantilla = obtener_plantilla_comercial(plantilla_slug) if plantilla_slug else None
+    if plantilla:
+        return plantilla.nombre
+    tipo = limpiar_texto(email["tipo"])
+    if tipo in {"presentacion_comercial", "presentacion_programada"}:
+        return plantilla_para_tipo("administrador_fincas").nombre
+    if tipo in {"seguimiento_comercial", "seguimiento_programado"}:
+        return plantilla_seguimiento_para_tipo("administrador_fincas").nombre
+    return ""
+
+
+def _cuerpo_final_estimado(cuerpo: str) -> str:
+    cuerpo_limpio = limpiar_texto(cuerpo)
+    firma = construir_firma_texto()
+    if "contacto@carlosblancoperito.es" in cuerpo_limpio or "623 829 228" in cuerpo_limpio:
+        return cuerpo_limpio
+    return "\n\n".join(parte for parte in (cuerpo_limpio, firma) if parte)
 
 
 def _es_plantilla_seguimiento(slug: str) -> bool:
@@ -896,6 +1059,41 @@ def prospeccion_agenda(
     )
 
 
+@router.get("/crm/prospeccion/enviados", response_class=HTMLResponse)
+def prospeccion_enviados(
+    request: Request,
+    email_id: int = Query(0),
+    mensaje: str = Query("", max_length=160),
+    error: str = Query("", max_length=160),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        emails = _obtener_emails_crm(cur, current_user["id"])
+        selected_row = None
+        if email_id:
+            selected_row = _get_owned_email_crm(cur, email_id, current_user["id"])
+        if selected_row is None and emails:
+            selected_row = emails[0]
+        selected_email = _email_crm_view(selected_row) if selected_row else None
+    finally:
+        conn.close()
+
+    return render_template(
+        request,
+        "crm/prospeccion_enviados.html",
+        {
+            "emails": [_email_crm_view(email) for email in emails],
+            "selected_email": selected_email,
+            "email_identidad": _identidad_email_preview(),
+            "firma_texto": construir_firma_texto(),
+            "mensaje": limpiar_texto(mensaje),
+            "error": limpiar_texto(error),
+        },
+    )
+
+
 @router.post("/crm/prospeccion/agenda/{email_id}/confirmar")
 def confirmar_email_programado(
     request: Request,
@@ -923,8 +1121,9 @@ def confirmar_email_programado(
         if not _email_valido(destinatario):
             return _redirect_agenda(error="El destinatario no tiene un formato valido.", email_id=email_id)
 
-        body_html = construir_email_html_base(asunto_limpio, texto_a_html(cuerpo_limpio), footer_text="")
-        mensaje_email = crear_mensaje_email(destinatario, asunto_limpio, _cuerpo_texto_salida(cuerpo_limpio), body_html)
+        plantilla_slug = _extraer_valor_error_mensaje(email_programado["error_mensaje"], "plantilla")
+        plantilla = obtener_plantilla_comercial(plantilla_slug) or plantilla_para_tipo("administrador_fincas")
+        mensaje_email = _crear_mensaje_crm_con_plantilla(destinatario, asunto_limpio, cuerpo_limpio, plantilla)
         tipo_confirmado = _tipo_confirmado_desde_programado(email_programado)
         enviar_mensaje_email(
             mensaje_email,
@@ -1022,7 +1221,7 @@ def cancelar_email_programado(request: Request, email_id: int):
 def reprogramar_email_programado(
     request: Request,
     email_id: int,
-    fecha_programada: str = Form(...),
+    fecha_programada: str = Form(""),
 ):
     current_user = get_current_user(request)
     fecha_limpia = limpiar_texto(fecha_programada)
@@ -1162,8 +1361,7 @@ def enviar_email_editado_workbench(
 
         plantilla = obtener_plantilla_comercial(plantilla_slug) or plantilla_para_tipo(inferir_tipo_lead(lead))
         es_seguimiento = _es_plantilla_seguimiento(plantilla.slug)
-        body_html = construir_email_html_base(asunto_limpio, texto_a_html(cuerpo_limpio), footer_text="")
-        mensaje_email = crear_mensaje_email(destinatario, asunto_limpio, _cuerpo_texto_salida(cuerpo_limpio), body_html)
+        mensaje_email = _crear_mensaje_crm_con_plantilla(destinatario, asunto_limpio, cuerpo_limpio, plantilla)
         contexto = "seguimiento editado" if es_seguimiento else "presentacion editada"
         enviar_mensaje_email(mensaje_email, contexto=f"{contexto} lead {lead_id} plantilla {plantilla.slug}")
 
@@ -1190,10 +1388,12 @@ def enviar_email_editado_workbench(
             if tarea_seguimiento:
                 _marcar_tarea_hecha(cur, tarea_seguimiento["id"], lead_id, current_user["id"])
             _crear_tarea_revision_post_seguimiento_si_no_existe(cur, lead_id, current_user["id"])
+            _registrar_metricas_contacto_lead(cur, lead_id, current_user["id"], "seguimiento")
             nuevo_estado = "seguimiento_enviado"
         else:
             _registrar_contacto_presentacion(cur, lead_id, current_user["id"])
             _crear_tarea_seguimiento_si_no_existe(cur, lead_id, current_user["id"])
+            _registrar_metricas_contacto_lead(cur, lead_id, current_user["id"], "presentacion")
             nuevo_estado = "pendiente_respuesta"
         cur.execute(
             """
@@ -1226,7 +1426,7 @@ def programar_email_workbench(
     plantilla_slug: str = Form(...),
     asunto: str = Form(...),
     cuerpo: str = Form(...),
-    fecha_programada: str = Form(...),
+    fecha_programada: str = Form(""),
 ):
     current_user = get_current_user(request)
     asunto_limpio = limpiar_texto(asunto)
@@ -1310,6 +1510,8 @@ def enviar_presentacion_administradores(request: Request, lead_id: int):
             destinatario=destinatario,
             asunto=asunto,
             cuerpo_texto=cuerpo,
+            nombre_adjunto=PRESENTACION_ADMINISTRADORES_FILENAME,
+            tiene_adjunto=True,
             estado="enviado",
             referencia_entidad_tipo="lead",
             referencia_entidad_id=lead_id,
@@ -1317,6 +1519,7 @@ def enviar_presentacion_administradores(request: Request, lead_id: int):
         )
         _registrar_contacto_presentacion(cur, lead_id, current_user["id"])
         _crear_tarea_seguimiento_si_no_existe(cur, lead_id, current_user["id"])
+        _registrar_metricas_contacto_lead(cur, lead_id, current_user["id"], "presentacion")
         cur.execute(
             """
             UPDATE leads
@@ -1398,6 +1601,7 @@ def enviar_seguimiento_administradores(request: Request, lead_id: int):
         if tarea_seguimiento:
             _marcar_tarea_hecha(cur, tarea_seguimiento["id"], lead_id, current_user["id"])
         _crear_tarea_revision_post_seguimiento_si_no_existe(cur, lead_id, current_user["id"])
+        _registrar_metricas_contacto_lead(cur, lead_id, current_user["id"], "seguimiento")
         cur.execute(
             """
             UPDATE leads

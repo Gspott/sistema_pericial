@@ -4,7 +4,7 @@ from app.database import get_connection
 
 logger = logging.getLogger(__name__)
 
-MAX_CUERPO_TEXTO = 1000
+MAX_CUERPO_TEXTO = 20000
 MAX_ERROR_MENSAJE = 500
 
 
