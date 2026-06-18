@@ -996,6 +996,25 @@
                     <section class="diagnostic-summary" aria-label="Revisión de coherencia">
                         <h3>Revisión de coherencia</h3>
                         <p class="editor-note">Motor V1 informativo. No bloquea guardado ni exportación.</p>
+                        <section class="context-block" aria-label="Calidad del informe">
+                            <h4>CALIDAD DEL INFORME</h4>
+                            <div class="diagnostic-state {{ 'ok' if revision_coherencia.dashboard_calidad.nivel == 'verde' else 'warning' if revision_coherencia.dashboard_calidad.nivel == 'amarillo' else 'error' }}">
+                                {% if revision_coherencia.dashboard_calidad.nivel == 'verde' %}🟢{% elif revision_coherencia.dashboard_calidad.nivel == 'amarillo' %}🟡{% else %}🔴{% endif %}
+                                Calidad global: <strong>{{ revision_coherencia.dashboard_calidad.score_global }}/100</strong>
+                                <p class="chapter-meta">Estado: {{ revision_coherencia.dashboard_calidad.estado | replace('_', ' ') }}</p>
+                            </div>
+                            <ul class="evidence-list">
+                                <li class="evidence-item">Integridad: <strong>{{ revision_coherencia.dashboard_calidad.score_integridad }}</strong></li>
+                                <li class="evidence-item">Riesgo técnico: <strong>{{ revision_coherencia.dashboard_calidad.score_riesgo_tecnico }}</strong></li>
+                                <li class="evidence-item">Riesgo jurídico: <strong>{{ revision_coherencia.dashboard_calidad.score_riesgo_juridico }}</strong></li>
+                            </ul>
+                            <ul class="evidence-list">
+                                <li class="evidence-item">❌ Errores: <strong>{{ revision_coherencia.dashboard_calidad.totales.errores }}</strong></li>
+                                <li class="evidence-item">⚠ Advertencias: <strong>{{ revision_coherencia.dashboard_calidad.totales.advertencias }}</strong></li>
+                                <li class="evidence-item">🔍 Riesgos técnicos: <strong>{{ revision_coherencia.dashboard_calidad.totales.riesgos_periciales }}</strong></li>
+                                <li class="evidence-item">⚖ Riesgos jurídicos: <strong>{{ revision_coherencia.dashboard_calidad.totales.revision_juridica }}</strong></li>
+                            </ul>
+                        </section>
                         <div class="diagnostic-state {% if revision_coherencia.errores %}error{% elif revision_coherencia.advertencias %}warning{% else %}ok{% endif %}">
                             {{ revision_coherencia.errores | length }} errores · {{ revision_coherencia.advertencias_coherencia | length }} advertencias · {{ revision_coherencia.riesgos_periciales | length }} afirmaciones a revisar · {{ revision_coherencia.revision_juridica | length }} revisión jurídica · {{ revision_coherencia.informacion | length }} info
                             {% if revision_coherencia.score is not none %}

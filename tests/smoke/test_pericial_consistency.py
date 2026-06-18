@@ -59,6 +59,26 @@ def _guardar_capitulo(cur, expediente_id: int, clave: str, titulo: str, contenid
     )
 
 
+def _guardar_capitulos_principales_ok(cur, expediente_id: int):
+    capitulos = (
+        ("resumen_ejecutivo", "Resumen ejecutivo"),
+        ("antecedentes_objeto", "Antecedentes y objeto"),
+        ("metodologia", "Metodología"),
+        ("analisis_causal", "Análisis causal"),
+        ("inventario_resumido_danos", "Inventario resumido de daños"),
+        ("conclusiones_periciales", "Conclusiones"),
+    )
+    for orden, (clave, titulo) in enumerate(capitulos, start=1):
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            clave,
+            titulo,
+            f"Contenido técnico suficiente para {titulo.lower()} del expediente.",
+            orden,
+        )
+
+
 def test_consistency_service_returns_stable_structure(isolated_import):
     isolated_import("app.main")
 
@@ -82,6 +102,7 @@ def test_consistency_service_returns_stable_structure(isolated_import):
         "advertencias_coherencia",
         "riesgos_periciales",
         "revision_juridica",
+        "dashboard_calidad",
         "informacion",
         "score",
         "resumen",
@@ -92,10 +113,112 @@ def test_consistency_service_returns_stable_structure(isolated_import):
     assert isinstance(resultado["advertencias_coherencia"], list)
     assert isinstance(resultado["riesgos_periciales"], list)
     assert isinstance(resultado["revision_juridica"], list)
+    assert isinstance(resultado["dashboard_calidad"], dict)
     assert isinstance(resultado["informacion"], list)
     assert {"codigo", "severidad", "categoria", "mensaje", "entidad", "entidad_id"} <= set(
         resultado["informacion"][0]
     )
+
+
+def test_quality_dashboard_exists_and_scores_clean_report(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulos_principales_ok(cur, expediente_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+    dashboard = resultado["dashboard_calidad"]
+
+    assert dashboard["score_global"] == 100
+    assert dashboard["score_integridad"] == 100
+    assert dashboard["score_riesgo_tecnico"] == 100
+    assert dashboard["score_riesgo_juridico"] == 100
+    assert dashboard["estado"] == "listo"
+    assert dashboard["nivel"] == "verde"
+
+
+def test_quality_dashboard_state_changes_with_errors(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        conn.commit()
+    finally:
+        conn.close()
+
+    dashboard = analizar_consistencia_expediente(expediente_id)["dashboard_calidad"]
+
+    assert dashboard["estado"] == "revision_necesaria"
+    assert dashboard["nivel"] == "rojo"
+    assert dashboard["totales"]["errores"] > 0
+
+
+def test_quality_dashboard_levels_are_deterministic(isolated_import):
+    isolated_import("app.main")
+
+    from app.services.pericial_consistency import calcular_dashboard_calidad
+
+    verde = calcular_dashboard_calidad([], [], [], [])
+    amarillo = calcular_dashboard_calidad(
+        [],
+        [{"codigo": "PHOTO_NOT_REFERENCED"} for _ in range(3)],
+        [],
+        [],
+    )
+    rojo = calcular_dashboard_calidad(
+        [{"codigo": "EMPTY_CHAPTER"} for _ in range(2)],
+        [{"codigo": "PHOTO_NOT_REFERENCED"} for _ in range(3)],
+        [{"codigo": "RISK_STRUCTURAL_COLLAPSE"} for _ in range(3)],
+        [{"codigo": "LEGAL_EXCESSIVE_CERTAINTY"} for _ in range(2)],
+    )
+
+    assert verde["nivel"] == "verde"
+    assert amarillo["nivel"] == "amarillo"
+    assert rojo["nivel"] == "rojo"
+
+
+def test_quality_dashboard_totals_match_existing_incidents(isolated_import):
+    isolated_import("app.main")
+
+    from app.database import get_connection
+    from app.services.pericial_consistency import analizar_consistencia_expediente
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        expediente_id = _crear_expediente_basico(cur)
+        _guardar_capitulo(
+            cur,
+            expediente_id,
+            "conclusiones_periciales",
+            "Conclusiones",
+            "Queda demostrado que la causa es la cubierta y existe riesgo de colapso.",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resultado = analizar_consistencia_expediente(expediente_id)
+    totales = resultado["dashboard_calidad"]["totales"]
+
+    assert totales["errores"] == len(resultado["errores"])
+    assert totales["advertencias"] == len(resultado["advertencias_coherencia"])
+    assert totales["riesgos_periciales"] == len(resultado["riesgos_periciales"])
+    assert totales["revision_juridica"] == len(resultado["revision_juridica"])
 
 
 def test_consistency_detects_empty_chapter(isolated_import):
@@ -430,6 +553,8 @@ def test_consistency_block_is_rendered_in_informe_v2_editor(isolated_import):
     response = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
 
     assert response.status_code == 200
+    assert "CALIDAD DEL INFORME" in response.text
+    assert "Calidad global" in response.text
     assert "Revisión de coherencia" in response.text
     assert "Afirmaciones a revisar" in response.text
     assert "Redacción potencialmente impugnable" in response.text

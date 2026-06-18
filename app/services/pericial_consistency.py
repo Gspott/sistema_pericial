@@ -650,6 +650,82 @@ def parse_fecha(valor: str) -> date | None:
     return None
 
 
+def limitar_score(valor: int) -> int:
+    return max(0, min(100, int(valor)))
+
+
+def nivel_score(score: int) -> str:
+    if score >= 90:
+        return "verde"
+    if score >= 70:
+        return "amarillo"
+    return "rojo"
+
+
+def calcular_dashboard_calidad(
+    errores: list[dict],
+    advertencias_coherencia: list[dict],
+    riesgos_periciales: list[dict],
+    revision_juridica: list[dict],
+) -> dict:
+    total_errores = len(errores)
+    total_advertencias = len(advertencias_coherencia)
+    total_riesgos = len(riesgos_periciales)
+    total_revision_juridica = len(revision_juridica)
+    conclusiones_sin_soporte = sum(
+        1
+        for item in advertencias_coherencia
+        if item.get("codigo") == "UNSUPPORTED_CONCLUSION_BASIC"
+    )
+
+    score_global = limitar_score(
+        100
+        - total_errores * 20
+        - total_advertencias * 5
+        - total_riesgos * 7
+        - total_revision_juridica * 5
+    )
+    score_integridad = limitar_score(
+        100
+        - total_errores * 25
+        - total_advertencias * 5
+    )
+    score_riesgo_tecnico = limitar_score(
+        100
+        - total_riesgos * 10
+        - conclusiones_sin_soporte * 10
+    )
+    score_riesgo_juridico = limitar_score(100 - total_revision_juridica * 10)
+
+    total_incidencias = (
+        total_errores
+        + total_advertencias
+        + total_riesgos
+        + total_revision_juridica
+    )
+    if total_errores or total_riesgos >= 3 or total_revision_juridica >= 4 or score_global < 70:
+        estado = "revision_necesaria"
+    elif total_incidencias:
+        estado = "con_advertencias"
+    else:
+        estado = "listo"
+
+    return {
+        "score_global": score_global,
+        "score_integridad": score_integridad,
+        "score_riesgo_tecnico": score_riesgo_tecnico,
+        "score_riesgo_juridico": score_riesgo_juridico,
+        "estado": estado,
+        "nivel": nivel_score(score_global),
+        "totales": {
+            "errores": total_errores,
+            "advertencias": total_advertencias,
+            "riesgos_periciales": total_riesgos,
+            "revision_juridica": total_revision_juridica,
+        },
+    }
+
+
 def aplicar_reglas(cur, expediente_id: int) -> dict:
     capitulos = cargar_capitulos(cur, expediente_id)
     texto_informe = cargar_texto_informe(capitulos)
@@ -827,6 +903,12 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
         for item in advertencias
         if item.get("categoria") not in {"riesgo_pericial", "revision_juridica"}
     ]
+    dashboard_calidad = calcular_dashboard_calidad(
+        errores,
+        advertencias_coherencia,
+        riesgos_periciales,
+        revision_juridica,
+    )
     return {
         "expediente_id": expediente_id,
         "errores": errores,
@@ -834,6 +916,7 @@ def aplicar_reglas(cur, expediente_id: int) -> dict:
         "advertencias_coherencia": advertencias_coherencia,
         "riesgos_periciales": riesgos_periciales,
         "revision_juridica": revision_juridica,
+        "dashboard_calidad": dashboard_calidad,
         "informacion": informacion,
         "score": score,
         "resumen": {
