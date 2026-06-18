@@ -8517,7 +8517,7 @@ def recopilar_documentacion_anexo_v2(
                 archivo_original = Path(limpiar_texto(documento.get("archivo_ruta"))).name
             mime_type = limpiar_texto(documento.get("mime_type"))
             es_pdf = mime_type.lower() in ("application/pdf", "application/x-pdf") or archivo_original.lower().endswith(".pdf")
-            numero_anexo = f"A.{len(documentos) + 2}"
+            numero_anexo = f"A.{len(documentos) + 1}"
             documentos.append(
                 {
                     "orden": documento.get("orden"),
@@ -9603,9 +9603,7 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
         )
 
     if unidades_anexo_a:
-        paginas_anexo_a = generar_paginas_indice_anexo_a_v2(
-            [unidad["metadata"] for unidad in unidades_anexo_a]
-        )
+        paginas_anexo_a = []
         for unidad in unidades_anexo_a:
             paginas_anexo_a.extend(unidad["paginas"])
         inserciones.setdefault(pagina_fallback_anexo_a, []).extend(paginas_anexo_a)

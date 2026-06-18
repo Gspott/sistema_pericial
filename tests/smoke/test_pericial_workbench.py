@@ -2468,10 +2468,10 @@ def test_pdf_v2_master_con_anexo_pequeno_responde(
     assert response.status_code == 200
     assert response.content != pdf_original
     reader = PdfReader(BytesIO(response.content))
-    assert len(reader.pages) == 3
-    assert "Página 1 de 3" in (reader.pages[0].extract_text() or "")
-    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in (reader.pages[1].extract_text() or "")
-    assert "Página 3 de 3" in (reader.pages[2].extract_text() or "")
+    assert len(reader.pages) == 2
+    assert "Página 1 de 2" in (reader.pages[0].extract_text() or "")
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" not in (reader.pages[1].extract_text() or "")
+    assert "Página 2 de 2" in (reader.pages[1].extract_text() or "")
 
 
 def test_pdf_v2_email_ghostscript_lento_hace_timeout_y_fallback(
@@ -2531,8 +2531,8 @@ def test_pdf_v2_email_ghostscript_lento_hace_timeout_y_fallback(
 
     assert response.status_code == 200
     reader = PdfReader(BytesIO(response.content))
-    assert len(reader.pages) == 3
-    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in (reader.pages[1].extract_text() or "")
+    assert len(reader.pages) == 2
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" not in (reader.pages[1].extract_text() or "")
     assert comandos
     assert "-dPDFSETTINGS=/ebook" in comandos[0][0]
     assert comandos[0][1] == pdf_annex_optimizer.GHOSTSCRIPT_PROFILES["email"]["timeout"]
@@ -3410,7 +3410,7 @@ def test_pdf_v2_anexo_a_respeta_inclusion_y_excluye_adjuntos_internos(isolated_i
         {
             "orden": 10,
             "nombre": "Documento incluido",
-            "numero_anexo": "A.2",
+            "numero_anexo": "A.1",
             "tipo": "Presupuesto",
             "fecha": "2026-06-15",
             "descripcion": "Documento que debe imprimirse.",
@@ -3517,6 +3517,13 @@ def test_pdf_v2_integra_anexo_a_como_portadilla_mas_documento(
         "generar_paginas_portadilla_anexo_a_v2",
         fake_portadilla,
     )
+    monkeypatch.setattr(
+        main_module,
+        "generar_paginas_indice_anexo_a_v2",
+        lambda documentos: (_ for _ in ()).throw(
+            AssertionError("La tabla documental duplicada del Anexo A no debe insertarse")
+        ),
+    )
 
     fusionado = main_module.fusionar_pdf_informe_v2_con_anexos_integrados(
         informe,
@@ -3550,16 +3557,13 @@ def test_pdf_v2_integra_anexo_a_como_portadilla_mas_documento(
         int(float(pagina.mediabox.width))
         for pagina in PdfReader(BytesIO(fusionado)).pages
     ]
-    assert anchos == [500, 595, 510, 520, 530, 515, 515]
+    assert anchos == [500, 510, 520, 530, 515, 515]
     textos = [
         pagina.extract_text() or ""
         for pagina in PdfReader(BytesIO(fusionado)).pages
     ]
-    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in textos[1]
-    assert "A.1" in textos[1]
-    assert "A.2" in textos[1]
-    assert "Documento integrado" in textos[1]
-    assert "Documento corrupto" in textos[1]
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" not in textos[1]
+    assert "Relación de documentación aportada" not in "\n".join(textos)
     assert ruta_anexo.read_bytes() == bytes_anexo_original
 
 
@@ -3671,7 +3675,7 @@ def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
         int(float(pagina.mediabox.width))
         for pagina in PdfReader(BytesIO(fusionado)).pages
     ]
-    assert anchos == [500, 595, 530]
+    assert anchos == [500, 530]
 
 
 def test_pdf_v2_endpoint_integra_anexo_a_y_mediciones_en_merge_unico(
@@ -4265,9 +4269,10 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Conclusiones periciales" not in html
     assert "14. Conclusiones periciales" not in html
     assert "ANEXO A. DOCUMENTACIÓN APORTADA" in html
-    assert "A.1 Relación de documentación aportada" in html
+    assert html.count("Relación de documentación aportada") == 1
+    assert "A.1 Relación de documentación aportada" not in html
+    assert "A.1" in html
     assert "A.2" in html
-    assert "A.3" in html
     assert "Presupuesto pericial de reparación" in html
     assert "Factura de reparación de cubierta" in html
     assert "Presupuesto base de valoración." in html

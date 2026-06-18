@@ -820,11 +820,11 @@
         <section class="annex-section">
             <h2>ANEXO A. DOCUMENTACIÓN APORTADA</h2>
             {% if anexos.documentacion %}
-            <h3>A.1 Relación de documentación aportada</h3>
+            <h3>Relación de documentación aportada</h3>
             <div class="doc-card-grid">
                 {% for documento in anexos.documentacion %}
                 <article class="doc-card">
-                    <div class="doc-card-order">{{ documento.numero_anexo or ("A." ~ (loop.index + 1)) }}</div>
+                    <div class="doc-card-order">{{ documento.numero_anexo or ("A." ~ loop.index) }}</div>
                     <div>
                         <h3>{{ documento.nombre }}</h3>
                         <dl>
