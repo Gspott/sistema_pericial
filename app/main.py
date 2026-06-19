@@ -1772,6 +1772,566 @@ def limpiar_texto(valor) -> str:
     return str(valor or "").strip()
 
 
+def normalizar_busqueda_expediente(valor) -> str:
+    texto = unicodedata.normalize("NFKD", limpiar_texto(valor).lower())
+    return "".join(c for c in texto if not unicodedata.combining(c))
+
+
+def columnas_tabla_cursor(cur, tabla: str) -> set[str]:
+    try:
+        return {fila["name"] for fila in cur.execute(f"PRAGMA table_info({tabla})").fetchall()}
+    except sqlite3.Error:
+        return set()
+
+
+def tabla_existe_cursor(cur, tabla: str) -> bool:
+    fila = cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (tabla,),
+    ).fetchone()
+    return fila is not None
+
+
+def contexto_coincidencia_expediente(texto: str, termino: str, radio: int = 80) -> dict | None:
+    texto_limpio = limpiar_texto(texto)
+    termino_limpio = limpiar_texto(termino)
+    if not texto_limpio or not termino_limpio:
+        return None
+    texto_normalizado = normalizar_busqueda_expediente(texto_limpio)
+    termino_normalizado = normalizar_busqueda_expediente(termino_limpio)
+    indice = texto_normalizado.find(termino_normalizado)
+    if indice < 0:
+        return None
+    inicio = max(0, indice - radio)
+    fin = min(len(texto_limpio), indice + len(termino_limpio) + radio)
+    return {
+        "antes": texto_limpio[inicio:indice],
+        "match": texto_limpio[indice:indice + len(termino_limpio)],
+        "despues": texto_limpio[indice + len(termino_limpio):fin],
+        "inicio_recortado": inicio > 0,
+        "fin_recortado": fin < len(texto_limpio),
+    }
+
+
+def buscar_en_filas_expediente(
+    resultados: list[dict],
+    filas,
+    campos: list[tuple[str, str]],
+    termino: str,
+    grupo: str,
+    tipo: str,
+    titulo_fn,
+    url_fn,
+) -> None:
+    for fila in filas:
+        item = dict(fila)
+        for campo, etiqueta in campos:
+            contexto = contexto_coincidencia_expediente(item.get(campo), termino)
+            if contexto is None:
+                continue
+            resultados.append(
+                {
+                    "grupo": grupo,
+                    "tipo": tipo,
+                    "titulo": titulo_fn(item),
+                    "campo": etiqueta,
+                    "contexto": contexto,
+                    "url": url_fn(item),
+                }
+            )
+
+
+def consultar_filas_busqueda_expediente(
+    cur,
+    tabla: str,
+    columnas: list[str],
+    where_sql: str,
+    parametros: tuple,
+    joins_sql: str = "",
+    order_sql: str = "",
+) -> list:
+    columnas_disponibles = columnas_tabla_cursor(cur, tabla)
+    columnas_select = [
+        columna
+        for columna in columnas
+        if "." in columna or columna in columnas_disponibles
+    ]
+    if not tabla_existe_cursor(cur, tabla) or not columnas_select:
+        return []
+    sql = f"""
+        SELECT {", ".join(columnas_select)}
+        FROM {tabla}
+        {joins_sql}
+        WHERE {where_sql}
+        {order_sql}
+    """
+    try:
+        return cur.execute(sql, parametros).fetchall()
+    except sqlite3.Error:
+        return []
+
+
+def buscar_en_expediente_global(cur, expediente_id: int, termino: str) -> dict:
+    termino = limpiar_texto(termino)
+    resultado = {
+        "query": termino,
+        "ejecutada": bool(termino),
+        "total": 0,
+        "grupos": [],
+    }
+    if not termino:
+        return resultado
+
+    grupos_orden = [
+        ("informe_v2", "Informe V2"),
+        ("expediente", "Notas del expediente"),
+        ("estancias", "Estancias"),
+        ("patologias", "Daños y patologías"),
+        ("fotografias", "Fotografías"),
+        ("documentos", "Documentación aportada"),
+        ("valoracion", "Valoración / mediciones"),
+        ("costes", "Costes / actuaciones"),
+    ]
+    resultados: list[dict] = []
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "informe_v2_capitulos",
+        ["id", "expediente_id", "clave", "titulo", "contenido", "estado_revision"],
+        "expediente_id = ?",
+        (expediente_id,),
+        order_sql="ORDER BY orden ASC, id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("titulo", "Título"), ("contenido", "Contenido"), ("estado_revision", "Estado")],
+        termino,
+        "informe_v2",
+        "Informe V2",
+        lambda item: f"Capítulo: {limpiar_texto(item.get('titulo')) or limpiar_texto(item.get('clave'))}",
+        lambda item: f"/expedientes/{expediente_id}/informe-v2-editor#capitulo-{item.get('clave')}",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "informe_v2_metadatos",
+        ["id", "expediente_id", "titulo_portada", "subtitulo_portada"],
+        "expediente_id = ?",
+        (expediente_id,),
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("titulo_portada", "Título de portada"), ("subtitulo_portada", "Subtítulo de portada")],
+        termino,
+        "informe_v2",
+        "Informe V2",
+        lambda _item: "Presentación del informe",
+        lambda _item: f"/expedientes/{expediente_id}/informe-v2-editor#presentacion-informe",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "expedientes",
+        [
+            "id", "numero_expediente", "cliente", "direccion", "referencia_catastral",
+            "observaciones_generales", "observaciones_bloque", "observaciones_unidad",
+            "procedimiento_judicial", "juzgado", "auto_judicial", "parte_solicitante",
+            "objeto_pericia", "alcance_limitaciones", "metodologia_pericial",
+            "descripcion_dano", "causa_probable", "pruebas_indicios",
+            "evolucion_preexistencia", "propuesta_reparacion", "urgencia_gravedad",
+        ],
+        "id = ?",
+        (expediente_id,),
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("numero_expediente", "Número"), ("cliente", "Cliente"),
+            ("direccion", "Dirección"), ("referencia_catastral", "Referencia catastral"),
+            ("observaciones_generales", "Observaciones generales"),
+            ("observaciones_bloque", "Observaciones del edificio"),
+            ("observaciones_unidad", "Observaciones de la unidad"),
+            ("procedimiento_judicial", "Procedimiento judicial"),
+            ("juzgado", "Juzgado"), ("auto_judicial", "Auto judicial"),
+            ("parte_solicitante", "Parte solicitante"),
+            ("objeto_pericia", "Objeto de la pericia"),
+            ("alcance_limitaciones", "Alcance y limitaciones"),
+            ("metodologia_pericial", "Metodología pericial"),
+            ("descripcion_dano", "Descripción del daño"),
+            ("causa_probable", "Causa probable"),
+            ("pruebas_indicios", "Pruebas e indicios"),
+            ("evolucion_preexistencia", "Evolución / preexistencia"),
+            ("propuesta_reparacion", "Propuesta de reparación"),
+            ("urgencia_gravedad", "Urgencia / gravedad"),
+        ],
+        termino,
+        "expediente",
+        "Notas del expediente",
+        lambda item: f"Expediente {limpiar_texto(item.get('numero_expediente'))}",
+        lambda item: f"/editar-expediente/{item.get('id')}",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "visitas",
+        ["id", "expediente_id", "fecha", "tecnico", "observaciones_visita", "ambito_visita"],
+        "expediente_id = ?",
+        (expediente_id,),
+        order_sql="ORDER BY id DESC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("fecha", "Fecha"), ("tecnico", "Técnico"), ("observaciones_visita", "Observaciones"), ("ambito_visita", "Ámbito")],
+        termino,
+        "expediente",
+        "Visita",
+        lambda item: f"Visita {limpiar_texto(item.get('fecha')) or item.get('id')}",
+        lambda item: f"/editar-visita/{item.get('id')}",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "estancias",
+        [
+            "estancias.id", "estancias.visita_id", "nombre", "tipo_estancia", "planta",
+            "ventilacion", "acabado_pavimento", "acabado_paramento",
+            "acabado_techo", "observaciones",
+        ],
+        "v.expediente_id = ?",
+        (expediente_id,),
+        joins_sql="JOIN visitas v ON v.id = estancias.visita_id",
+        order_sql="ORDER BY estancias.id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("nombre", "Nombre"), ("tipo_estancia", "Tipo"), ("planta", "Planta"),
+            ("ventilacion", "Ventilación"), ("acabado_pavimento", "Pavimento"),
+            ("acabado_paramento", "Paramento"), ("acabado_techo", "Techo"),
+            ("observaciones", "Observaciones"),
+        ],
+        termino,
+        "estancias",
+        "Estancia",
+        lambda item: limpiar_texto(item.get("nombre")) or f"Estancia {item.get('id')}",
+        lambda item: f"/editar-estancia/{item.get('id')}",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "registros_patologias",
+        [
+            "registros_patologias.id", "registros_patologias.visita_id",
+            "estancias.nombre AS estancia_nombre", "elemento", "patologia",
+            "observaciones", "localizacion_dano", "detalle_localizacion",
+            "rol_patologia_observado",
+        ],
+        "v.expediente_id = ?",
+        (expediente_id,),
+        joins_sql=(
+            "JOIN visitas v ON v.id = registros_patologias.visita_id "
+            "LEFT JOIN estancias ON estancias.id = registros_patologias.estancia_id"
+        ),
+        order_sql="ORDER BY registros_patologias.id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("estancia_nombre", "Estancia"), ("elemento", "Elemento"),
+            ("patologia", "Patología"), ("observaciones", "Observaciones"),
+            ("localizacion_dano", "Localización"),
+            ("detalle_localizacion", "Detalle de localización"),
+            ("rol_patologia_observado", "Rol técnico"),
+        ],
+        termino,
+        "patologias",
+        "Patología interior",
+        lambda item: f"{limpiar_texto(item.get('patologia')) or 'Patología'} · {limpiar_texto(item.get('estancia_nombre'))}",
+        lambda item: f"/registrar-patologias/{item.get('visita_id')}",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "registros_patologias_exteriores",
+        [
+            "registros_patologias_exteriores.id", "registros_patologias_exteriores.visita_id",
+            "zona_exterior", "elemento_exterior", "localizacion_dano_exterior",
+            "patologia", "observaciones",
+        ],
+        "v.expediente_id = ?",
+        (expediente_id,),
+        joins_sql="JOIN visitas v ON v.id = registros_patologias_exteriores.visita_id",
+        order_sql="ORDER BY registros_patologias_exteriores.id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("zona_exterior", "Zona exterior"), ("elemento_exterior", "Elemento"),
+            ("localizacion_dano_exterior", "Localización"),
+            ("patologia", "Patología"), ("observaciones", "Observaciones"),
+        ],
+        termino,
+        "patologias",
+        "Patología exterior",
+        lambda item: f"{limpiar_texto(item.get('patologia')) or 'Patología exterior'} · {limpiar_texto(item.get('zona_exterior'))}",
+        lambda item: f"/registrar-patologias/{item.get('visita_id')}",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "visita_fotos",
+        ["visita_fotos.id", "visita_id", "categoria", "ruta", "descripcion"],
+        "v.expediente_id = ?",
+        (expediente_id,),
+        joins_sql="JOIN visitas v ON v.id = visita_fotos.visita_id",
+        order_sql="ORDER BY visita_fotos.id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("descripcion", "Pie / descripción"), ("categoria", "Categoría"), ("ruta", "Archivo")],
+        termino,
+        "fotografias",
+        "Fotografía",
+        lambda item: f"Foto {item.get('id')}",
+        lambda item: f"/editar-visita/{item.get('visita_id')}",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "informe_v2_laminas_fotograficas",
+        ["id", "expediente_id", "titulo", "subtitulo", "tipo", "layout"],
+        "expediente_id = ?",
+        (expediente_id,),
+        order_sql="ORDER BY orden ASC, id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("titulo", "Título"), ("subtitulo", "Subtítulo"), ("tipo", "Tipo"), ("layout", "Maquetación")],
+        termino,
+        "fotografias",
+        "Lámina fotográfica",
+        lambda item: f"Lámina: {limpiar_texto(item.get('titulo')) or item.get('id')}",
+        lambda _item: f"/expedientes/{expediente_id}/informe-v2-editor#photo-board-title",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "informe_v2_lamina_fotos",
+        ["informe_v2_lamina_fotos.id", "pie_foto", "observacion", "lf.titulo AS lamina_titulo"],
+        "lf.expediente_id = ?",
+        (expediente_id,),
+        joins_sql="JOIN informe_v2_laminas_fotograficas lf ON lf.id = informe_v2_lamina_fotos.lamina_id",
+        order_sql="ORDER BY lf.orden ASC, informe_v2_lamina_fotos.orden ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("pie_foto", "Pie de foto"), ("observacion", "Observación"), ("lamina_titulo", "Lámina")],
+        termino,
+        "fotografias",
+        "Fotografía de lámina",
+        lambda item: f"Foto de lámina: {limpiar_texto(item.get('lamina_titulo'))}",
+        lambda _item: f"/expedientes/{expediente_id}/informe-v2-editor#photo-board-title",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "expediente_documentos",
+        [
+            "id", "expediente_id", "nombre_visible", "descripcion", "tipo_documento",
+            "archivo_ruta", "archivo_nombre_original", "mime_type",
+        ],
+        "expediente_id = ?",
+        (expediente_id,),
+        order_sql="ORDER BY orden ASC, id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("nombre_visible", "Nombre"), ("descripcion", "Descripción"),
+            ("tipo_documento", "Categoría"), ("archivo_nombre_original", "Archivo"),
+            ("archivo_ruta", "Ruta documental"), ("mime_type", "Tipo MIME"),
+        ],
+        termino,
+        "documentos",
+        "Documento aportado",
+        lambda item: limpiar_texto(item.get("nombre_visible")) or f"Documento {item.get('id')}",
+        lambda _item: f"/expedientes/{expediente_id}/pericial-workbench#documentacion-aportada",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "valoracion_expediente",
+        [
+            "id", "expediente_id", "finalidad_valoracion", "alcance_valoracion",
+            "documentacion_utilizada", "datos_registrales", "identificacion_bien",
+            "ubicacion_valoracion", "descripcion_entorno", "criterios_metodo_valoracion",
+            "variables_mercado", "metodo_homogeneizacion",
+            "metodo_comparacion_justificacion", "metodo_comparacion_observaciones",
+            "metodo_coste_justificacion", "metodo_coste_observaciones",
+            "incidencias_condicionantes_manuales", "incidencias_advertencias_manuales",
+            "incidencias_limitaciones_manuales", "condicionantes_limitaciones_valoracion",
+            "observaciones_valoracion",
+        ],
+        "expediente_id = ?",
+        (expediente_id,),
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("finalidad_valoracion", "Finalidad"), ("alcance_valoracion", "Alcance"),
+            ("documentacion_utilizada", "Documentación utilizada"),
+            ("datos_registrales", "Datos registrales"),
+            ("identificacion_bien", "Identificación del bien"),
+            ("ubicacion_valoracion", "Ubicación"),
+            ("descripcion_entorno", "Entorno"),
+            ("criterios_metodo_valoracion", "Criterios de método"),
+            ("variables_mercado", "Variables de mercado"),
+            ("metodo_homogeneizacion", "Homogeneización"),
+            ("metodo_comparacion_justificacion", "Justificación comparación"),
+            ("metodo_comparacion_observaciones", "Observaciones comparación"),
+            ("metodo_coste_justificacion", "Justificación coste"),
+            ("metodo_coste_observaciones", "Observaciones coste"),
+            ("incidencias_condicionantes_manuales", "Condicionantes"),
+            ("incidencias_advertencias_manuales", "Advertencias"),
+            ("incidencias_limitaciones_manuales", "Limitaciones"),
+            ("condicionantes_limitaciones_valoracion", "Condicionantes / limitaciones"),
+            ("observaciones_valoracion", "Observaciones"),
+        ],
+        termino,
+        "valoracion",
+        "Valoración",
+        lambda _item: "Datos de valoración",
+        lambda _item: f"/expedientes/{expediente_id}/valoracion",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "valoracion_visita_observaciones",
+        [
+            "id", "visita_id", "expediente_id", "estado_observado",
+            "reforma_observada", "ocupacion_observada",
+            "observaciones_inspeccion_valoracion", "incidencias_valoracion",
+            "comprobaciones_fisicas", "observaciones_portal",
+            "observaciones_cuadro_contadores",
+        ],
+        "expediente_id = ?",
+        (expediente_id,),
+        order_sql="ORDER BY id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("estado_observado", "Estado observado"),
+            ("reforma_observada", "Reforma observada"),
+            ("ocupacion_observada", "Ocupación observada"),
+            ("observaciones_inspeccion_valoracion", "Observaciones de inspección"),
+            ("incidencias_valoracion", "Incidencias"),
+            ("comprobaciones_fisicas", "Comprobaciones físicas"),
+            ("observaciones_portal", "Portal"),
+            ("observaciones_cuadro_contadores", "Cuadro de contadores"),
+        ],
+        termino,
+        "valoracion",
+        "Observaciones de valoración",
+        lambda item: f"Visita {item.get('visita_id')}",
+        lambda item: f"/visitas/{item.get('visita_id')}/valoracion-observaciones",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "valoracion_visita",
+        [
+            "valoracion_visita.id", "valoracion_visita.visita_id",
+            "finalidad_valoracion", "identificacion_bien", "estado_conservacion",
+            "calidades", "ubicacion_valoracion", "criterios_metodo_valoracion",
+            "testigos_comparables", "condicionantes_limitaciones_valoracion",
+            "observaciones_valoracion", "documentacion_utilizada", "datos_registrales",
+            "descripcion_entorno", "variables_mercado",
+        ],
+        "v.expediente_id = ?",
+        (expediente_id,),
+        joins_sql="JOIN visitas v ON v.id = valoracion_visita.visita_id",
+        order_sql="ORDER BY valoracion_visita.id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [
+            ("finalidad_valoracion", "Finalidad"), ("identificacion_bien", "Identificación"),
+            ("estado_conservacion", "Estado"), ("calidades", "Calidades"),
+            ("ubicacion_valoracion", "Ubicación"), ("criterios_metodo_valoracion", "Método"),
+            ("testigos_comparables", "Testigos"), ("condicionantes_limitaciones_valoracion", "Limitaciones"),
+            ("observaciones_valoracion", "Observaciones"), ("documentacion_utilizada", "Documentación"),
+            ("datos_registrales", "Datos registrales"), ("descripcion_entorno", "Entorno"),
+            ("variables_mercado", "Variables de mercado"),
+        ],
+        termino,
+        "valoracion",
+        "Valoración de visita",
+        lambda item: f"Valoración visita {item.get('visita_id')}",
+        lambda item: f"/visitas/{item.get('visita_id')}/valoracion-observaciones",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "actuaciones_reparacion",
+        ["id", "expediente_id", "titulo", "descripcion", "observaciones"],
+        "expediente_id = ?",
+        (expediente_id,),
+        order_sql="ORDER BY orden ASC, id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("titulo", "Título"), ("descripcion", "Descripción"), ("observaciones", "Observaciones")],
+        termino,
+        "costes",
+        "Actuación de reparación",
+        lambda item: limpiar_texto(item.get("titulo")) or f"Actuación {item.get('id')}",
+        lambda _item: f"/expedientes/{expediente_id}/actuaciones-reparacion",
+    )
+
+    filas = consultar_filas_busqueda_expediente(
+        cur,
+        "actuacion_partidas",
+        ["actuacion_partidas.id", "descripcion_snapshot", "unidad_snapshot", "ar.titulo AS actuacion_titulo"],
+        "ar.expediente_id = ?",
+        (expediente_id,),
+        joins_sql="JOIN actuaciones_reparacion ar ON ar.id = actuacion_partidas.actuacion_id",
+        order_sql="ORDER BY ar.orden ASC, actuacion_partidas.id ASC",
+    )
+    buscar_en_filas_expediente(
+        resultados,
+        filas,
+        [("descripcion_snapshot", "Descripción"), ("unidad_snapshot", "Unidad"), ("actuacion_titulo", "Actuación")],
+        termino,
+        "costes",
+        "Partida de actuación",
+        lambda item: limpiar_texto(item.get("descripcion_snapshot")) or f"Partida {item.get('id')}",
+        lambda _item: f"/expedientes/{expediente_id}/actuaciones-reparacion",
+    )
+
+    for clave, etiqueta in grupos_orden:
+        items = [item for item in resultados if item["grupo"] == clave]
+        if items:
+            resultado["grupos"].append({"clave": clave, "titulo": etiqueta, "items": items})
+    resultado["total"] = len(resultados)
+    return resultado
+
+
 def parse_optional_int(valor):
     texto = limpiar_texto(valor)
     if not texto:
@@ -12346,7 +12906,7 @@ def borrar_partida_actuacion_reparacion(request: Request, partida_id: int):
 
 
 @app.get("/detalle-expediente/{expediente_id}", response_class=HTMLResponse)
-def detalle_expediente(request: Request, expediente_id: int):
+def detalle_expediente(request: Request, expediente_id: int, q: str = Query("")):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -12670,6 +13230,8 @@ def detalle_expediente(request: Request, expediente_id: int):
             ),
         }
 
+    busqueda_expediente = buscar_en_expediente_global(cur, expediente_id, q)
+
     conn.close()
 
     expediente_data = dict(expediente)
@@ -12734,6 +13296,7 @@ def detalle_expediente(request: Request, expediente_id: int):
             "resumen_tipo": resumen_tipo,
             "revision_informe": revision_informe,
             "timeline_economico": timeline_economico,
+            "busqueda_expediente": busqueda_expediente,
             "tiene_presupuesto_reparacion": (
                 presupuesto_reparacion["tiene_costes"]
                 or actuaciones_reparacion["total_pem"] > 0

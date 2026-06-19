@@ -344,6 +344,187 @@ def test_pericial_workbench_renderiza_diagnostico_y_datos(isolated_import):
     assert "Editar informe" in response.text
 
 
+def test_expediente_search_encuentra_datos_persistidos_y_contexto(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "expediente_search")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        visita_id = cur.execute(
+            "SELECT id FROM visitas WHERE expediente_id=? LIMIT 1",
+            (expediente_id,),
+        ).fetchone()["id"]
+        estancia_id = cur.execute(
+            """
+            SELECT e.id
+            FROM estancias e
+            JOIN visitas v ON v.id = e.visita_id
+            WHERE v.expediente_id=?
+            LIMIT 1
+            """,
+            (expediente_id,),
+        ).fetchone()["id"]
+        cur.execute(
+            """
+            UPDATE expedientes
+            SET observaciones_generales=?
+            WHERE id=?
+            """,
+            ("Nota interna con epsilonsearch para seguimiento.", expediente_id),
+        )
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, orden, titulo, contenido, editado_manual,
+                generado_desde, estado_revision, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, 1, 'test', 'En revisión', CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "metodologia",
+                3,
+                "Metodología",
+                "Contenido guardado con alfasearch dentro del informe.",
+            ),
+        )
+        cur.execute(
+            """
+            UPDATE estancias
+            SET observaciones=?
+            WHERE id=?
+            """,
+            ("Observación técnica con betasearch en estancia.", estancia_id),
+        )
+        cur.execute(
+            """
+            INSERT INTO visita_fotos (visita_id, categoria, ruta, descripcion)
+            VALUES (?, 'exterior', 'demo/busqueda.jpg', ?)
+            """,
+            (visita_id, "Pie de foto con gammasearch visible."),
+        )
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, descripcion, tipo_documento,
+                archivo_ruta, archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'application/pdf', 20, CURRENT_TIMESTAMP)
+            """,
+            (
+                expediente_id,
+                "Contrato deltasearch",
+                "Documento aportado con deltasearch en descripción.",
+                "Contrato",
+                f"expediente_documentos/{expediente_id}/deltasearch.pdf",
+                "deltasearch.pdf",
+            ),
+        )
+        cur.execute(
+            """
+            INSERT INTO valoracion_expediente (
+                expediente_id, observaciones_valoracion, updated_at
+            )
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            """,
+            (expediente_id, "Valoración con zetasearch en observaciones."),
+        )
+        cur.execute(
+            """
+            UPDATE actuaciones_reparacion
+            SET observaciones=?
+            WHERE expediente_id=?
+            """,
+            ("Coste revisado con etasearch en observaciones.", expediente_id),
+        )
+        conn.commit()
+
+        casos = {
+            "alfasearch": ("informe_v2", "/informe-v2-editor#capitulo-metodologia"),
+            "betasearch": ("estancias", f"/editar-estancia/{estancia_id}"),
+            "gammasearch": ("fotografias", f"/editar-visita/{visita_id}"),
+            "deltasearch": ("documentos", "/pericial-workbench#documentacion-aportada"),
+            "epsilonsearch": ("expediente", f"/editar-expediente/{expediente_id}"),
+            "zetasearch": ("valoracion", f"/expedientes/{expediente_id}/valoracion"),
+            "etasearch": ("costes", f"/expedientes/{expediente_id}/actuaciones-reparacion"),
+        }
+        for termino, (grupo_esperado, url_esperada) in casos.items():
+            resultado = main_module.buscar_en_expediente_global(cur, expediente_id, termino)
+            items = [
+                item
+                for grupo in resultado["grupos"]
+                for item in grupo["items"]
+            ]
+            assert resultado["total"] >= 1
+            assert any(item["grupo"] == grupo_esperado for item in items)
+            assert any(url_esperada in item["url"] for item in items)
+            assert any(item["contexto"]["match"].lower() == termino for item in items)
+            assert all(item["contexto"]["antes"] or item["contexto"]["despues"] for item in items)
+
+        vacio = main_module.buscar_en_expediente_global(cur, expediente_id, "")
+        assert vacio["ejecutada"] is False
+        assert vacio["total"] == 0
+
+        total_capitulos = cur.execute(
+            "SELECT COUNT(*) FROM informe_v2_capitulos WHERE expediente_id=?",
+            (expediente_id,),
+        ).fetchone()[0]
+        observaciones = cur.execute(
+            "SELECT observaciones_generales FROM expedientes WHERE id=?",
+            (expediente_id,),
+        ).fetchone()["observaciones_generales"]
+    finally:
+        conn.close()
+
+    assert total_capitulos == 1
+    assert observaciones == "Nota interna con epsilonsearch para seguimiento."
+
+
+def test_expediente_search_renderiza_resultados_y_no_ejecuta_vacio(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "expediente_search_render")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, orden, titulo, contenido, editado_manual,
+                generado_desde, estado_revision, updated_at
+            )
+            VALUES (?, 'resumen_ejecutivo', 1, 'Resumen ejecutivo', ?, 1, 'test', 'Pendiente', CURRENT_TIMESTAMP)
+            """,
+            (expediente_id, "Texto con rendersearch para mostrar contexto."),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    vacio = client.get(f"/detalle-expediente/{expediente_id}")
+    response = client.get(f"/detalle-expediente/{expediente_id}?q=rendersearch")
+    editor = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+
+    assert vacio.status_code == 200
+    assert "Buscar en expediente" in vacio.text
+    assert "Resultados encontrados:" not in vacio.text
+    assert response.status_code == 200
+    assert "Resultados encontrados: <strong>1</strong>" in response.text
+    assert "Informe V2" in response.text
+    assert "<mark>rendersearch</mark>" in response.text
+    assert f"/expedientes/{expediente_id}/informe-v2-editor#capitulo-resumen_ejecutivo" in response.text
+    assert editor.status_code == 200
+    assert "Texto con rendersearch para mostrar contexto." in editor.text
+
+
 def test_workbench_gestiona_documentos_anexo_a_y_respeta_ownership(isolated_import):
     main_module = isolated_import("app.main")
 

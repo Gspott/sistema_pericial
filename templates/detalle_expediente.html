@@ -165,6 +165,77 @@
             max-width: 38ch;
         }
 
+        .expediente-search-form {
+            display: grid;
+            gap: 10px;
+        }
+
+        .expediente-search-row {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .expediente-search-row input {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .expediente-search-summary {
+            margin: 10px 0;
+            color: #475569;
+            font-size: 0.92rem;
+        }
+
+        .expediente-search-group {
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .expediente-search-group + .expediente-search-group {
+            margin-top: 14px;
+        }
+
+        .expediente-search-group h3 {
+            margin: 0 0 8px;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #334155;
+        }
+
+        .expediente-search-result {
+            padding: 10px 0;
+        }
+
+        .expediente-search-result + .expediente-search-result {
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .expediente-search-title {
+            margin: 0 0 4px;
+            font-weight: 700;
+        }
+
+        .expediente-search-meta {
+            margin: 0 0 6px;
+            color: #64748b;
+            font-size: 0.86rem;
+        }
+
+        .expediente-search-context {
+            margin: 0 0 8px;
+            color: #1f2937;
+            line-height: 1.45;
+        }
+
+        .expediente-search-context mark {
+            padding: 0 2px;
+            border-radius: 3px;
+            background: #fde68a;
+            color: inherit;
+        }
+
         @media (max-width: 640px) {
             .expediente-tree {
                 gap: 10px;
@@ -199,6 +270,10 @@
                 .workbench-access-note {
                     font-size: 0.8rem;
                     max-width: none;
+                }
+
+                .expediente-search-row {
+                    display: grid;
                 }
         }
     </style>
@@ -318,6 +393,49 @@
                 {% endif %}
             </div>
             {% endif %}
+        </section>
+
+        <section class="form-section" data-collapsible data-collapse-id="busqueda_expediente">
+            <button class="form-section-toggle" type="button" data-collapsible-button aria-expanded="true">
+                <span class="form-section-title">Buscar en expediente</span>
+                <span class="form-section-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div class="form-section-body" data-collapsible-body>
+                <form class="expediente-search-form" method="get" action="/detalle-expediente/{{ expediente.id }}">
+                    <label for="expediente-search-input">Buscar en expediente</label>
+                    <div class="expediente-search-row">
+                        <input id="expediente-search-input" name="q" type="search" value="{{ busqueda_expediente.query if busqueda_expediente else '' }}" placeholder="Texto, referencia, estancia, documento...">
+                        <button class="boton" type="submit">Buscar</button>
+                    </div>
+                </form>
+
+                {% if busqueda_expediente and busqueda_expediente.ejecutada %}
+                <p class="expediente-search-summary">
+                    Resultados encontrados: <strong>{{ busqueda_expediente.total }}</strong>
+                </p>
+                {% if busqueda_expediente.total %}
+                    {% for grupo in busqueda_expediente.grupos %}
+                    <div class="expediente-search-group">
+                        <h3>{{ grupo.titulo }}</h3>
+                        {% for item in grupo["items"] %}
+                        <article class="expediente-search-result">
+                            <p class="expediente-search-title">{{ item.titulo }}</p>
+                            <p class="expediente-search-meta">{{ item.tipo }} · {{ item.campo }}</p>
+                            <p class="expediente-search-context">
+                                {% if item.contexto.inicio_recortado %}...{% endif %}{{ item.contexto.antes }}<mark>{{ item.contexto.match }}</mark>{{ item.contexto.despues }}{% if item.contexto.fin_recortado %}...{% endif %}
+                            </p>
+                            <a class="boton secundario" href="{{ item.url }}">Abrir resultado</a>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty">No se han encontrado coincidencias en los datos persistidos del expediente.</p>
+                {% endif %}
+                {% else %}
+                <p class="empty">Busca texto guardado en informe, estancias, patologías, fotografías, documentos, valoración y notas.</p>
+                {% endif %}
+            </div>
         </section>
 
         <section class="expediente-secondary-actions" aria-labelledby="otras-acciones-expediente">
