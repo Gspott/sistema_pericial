@@ -5881,6 +5881,7 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
             contexto,
             total_paginas_informe,
         )
+        contexto["indice_paginas"] = indice_paginas
         if indice_paginas:
             contexto_con_indice = {
                 **contexto,
@@ -5898,6 +5899,7 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
                     **contexto,
                     "indice_paginas": indice_paginas,
                 }
+                contexto["indice_paginas"] = indice_paginas
                 pdf_bytes = generar_pdf_desde_html(renderizar_html(contexto_con_indice))
     except Exception as exc:
         raise HTTPException(

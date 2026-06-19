@@ -9452,6 +9452,24 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
                 sobrescribir=True,
             )
 
+    def registrar_destinos_indice_visible() -> None:
+        indice_paginas = contexto.get("indice_paginas") or {}
+        if not isinstance(indice_paginas, dict):
+            return
+        for item in contexto.get("indice") or []:
+            clave = limpiar_texto((item or {}).get("clave"))
+            if not clave:
+                continue
+            try:
+                pagina = int(indice_paginas.get(clave)) - 1
+            except (TypeError, ValueError):
+                continue
+            registrar_destino_html(
+                f"pdf-target-{clave}",
+                pagina,
+                sobrescribir=True,
+            )
+
     def extraer_destino_anotacion(annot_obj) -> str:
         destino = annot_obj.get("/Dest")
         if destino is None:
@@ -9511,6 +9529,7 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
 
     try:
         registrar_destinos_nominales_chromium()
+        registrar_destinos_indice_visible()
         registrar_destino_html("pdf-target-portada", 0)
         registrar_destino_html(
             "pdf-target-indice",

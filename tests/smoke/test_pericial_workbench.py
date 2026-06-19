@@ -4156,6 +4156,109 @@ def test_pdf_v2_normaliza_todos_los_destinos_nominales_del_indice(isolated_impor
         assert (pagina_ref.idnum, pagina_ref.generation) in page_refs
 
 
+def test_pdf_v2_indice_resuelve_goto_a_paginas_visibles(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject
+
+    entradas = [
+        ("Portada", "pdf-target-portada", "portada", 1),
+        ("Índice", "pdf-target-indice", "indice", 2),
+        ("Resumen ejecutivo", "pdf-target-resumen_ejecutivo", "resumen_ejecutivo", 4),
+        ("Antecedentes y objeto", "pdf-target-antecedentes_objeto", "antecedentes_objeto", 6),
+        ("Metodología", "pdf-target-metodologia", "metodologia", 8),
+        ("Conclusiones", "pdf-target-conclusiones", "conclusiones", 17),
+        ("Anexo A. Reportaje fotográfico", "pdf-target-anexo_a", "anexo_a", 19),
+        ("Anexo B. Fichas de daños por estancia", "pdf-target-anexo_b", "anexo_b", 28),
+        ("Anexo C. Valoración económica detallada", "pdf-target-anexo_c", "anexo_c", 68),
+        (
+            "Documentación aportada al expediente",
+            "pdf-target-documentacion_aportada",
+            "documentacion_aportada",
+            88,
+        ),
+        ("Documento 1", "pdf-target-documentacion_doc_1", "documentacion_doc_1", 91),
+        ("Documento 4", "pdf-target-documentacion_doc_4", "documentacion_doc_4", 117),
+    ]
+    writer = PdfWriter()
+    for _ in range(120):
+        writer.add_blank_page(width=595, height=842)
+
+    anotaciones = ArrayObject()
+    for indice, (_titulo, destino, _clave, _pagina) in enumerate(entradas):
+        y = 800 - (indice * 14)
+        annot = DictionaryObject(
+            {
+                NameObject("/Type"): NameObject("/Annot"),
+                NameObject("/Subtype"): NameObject("/Link"),
+                NameObject("/Rect"): ArrayObject(
+                    [
+                        NumberObject(36),
+                        NumberObject(y),
+                        NumberObject(360),
+                        NumberObject(y + 10),
+                    ]
+                ),
+                NameObject("/Dest"): NameObject(f"/{destino}"),
+            }
+        )
+        anotaciones.append(writer._add_object(annot))
+    writer.pages[1][NameObject("/Annots")] = anotaciones
+
+    buffer = BytesIO()
+    writer.write(buffer)
+    contexto = {
+        "indice": [
+            {"clave": clave, "titulo": titulo}
+            for titulo, _destino, clave, _pagina in entradas
+        ],
+        "indice_paginas": {
+            clave: pagina
+            for _titulo, _destino, clave, pagina in entradas
+        },
+        "capitulos": [
+            {"clave": "resumen_ejecutivo", "numero_pdf": 1, "titulo": "Resumen ejecutivo"},
+            {"clave": "antecedentes_objeto", "numero_pdf": 2, "titulo": "Antecedentes y objeto"},
+            {"clave": "metodologia", "numero_pdf": 3, "titulo": "Metodología"},
+        ],
+        "conclusiones": {"numero": 13, "titulo": "Conclusiones"},
+        "anexos": {
+            "documentacion": [
+                {"nombre": "Documento aportado 1"},
+                {"nombre": "Documento aportado 2"},
+                {"nombre": "Documento aportado 3"},
+                {"nombre": "Documento aportado 4"},
+            ],
+        },
+    }
+
+    pdf_normalizado = main_module.agregar_bookmarks_pdf_v2(buffer.getvalue(), contexto)
+    reader = PdfReader(BytesIO(pdf_normalizado))
+    referencias_paginas = {
+        (pagina.indirect_reference.idnum, pagina.indirect_reference.generation): numero
+        for numero, pagina in enumerate(reader.pages, start=1)
+        if getattr(pagina, "indirect_reference", None)
+    }
+    anotaciones_indice = [
+        annot.get_object()
+        for annot in reader.pages[1].get("/Annots") or []
+        if annot.get_object().get("/Subtype") == "/Link"
+    ]
+
+    assert len(anotaciones_indice) == len(entradas)
+    for annot, (_titulo, destino_html, _clave, pagina_esperada) in zip(anotaciones_indice, entradas):
+        assert "/Dest" not in annot
+        assert annot["/A"]["/S"] == "/GoTo"
+        destino_pdf = annot["/A"]["/D"]
+        assert destino_pdf[1] == "/Fit"
+        pagina_ref = destino_pdf[0]
+        pagina_destino = referencias_paginas.get((pagina_ref.idnum, pagina_ref.generation))
+        assert pagina_destino == pagina_esperada, destino_html
+        if destino_html != "pdf-target-indice":
+            assert pagina_destino != 2
+
+
 def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
     isolated_import,
     monkeypatch,
