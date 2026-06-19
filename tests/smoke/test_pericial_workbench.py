@@ -1923,7 +1923,9 @@ def test_pdf_v2_usa_capitulos_guardados_y_convive_con_informe_clasico(
     assert contexto["informe"]["titulo_portada_pdf"] == "Título PDF personalizado"
     assert contexto["informe"]["subtitulo_portada_pdf"] == "Subtítulo PDF personalizado"
     assert contexto["indice"][0]["titulo"] == "Portada"
-    assert contexto["indice"][-1]["titulo"] == "Justificación de mediciones"
+    assert contexto["indice"][-2]["titulo"] == "Justificación de mediciones"
+    assert contexto["indice"][-1]["titulo"] == "Documentación aportada al expediente"
+    assert contexto["indice"][-1]["grupo"] == "documentacion"
     assert contexto["conclusiones"]["titulo"] == "Conclusiones"
     assert all(
         capitulo["clave"] not in {
@@ -3269,9 +3271,9 @@ def test_pdf_v2_expediente_sin_capitulos_no_regenera_borradores(
     assert len(contexto["capitulos_editor"]) == len(main_module.INFORME_V2_CAPITULOS)
     assert len(contexto["capitulos"]) == len(main_module.INFORME_V2_CAPITULOS) - 3
     assert all(capitulo["contenido"] == "" for capitulo in contexto["capitulos_editor"])
-    assert contexto["anexos"]["analisis_partida_4"]["contenido_pdf"].startswith("E.1 Objeto")
+    assert contexto["anexos"]["analisis_partida_4"]["contenido_pdf"].startswith("D.1 Objeto")
     assert contexto["anexos"]["analisis_partida_4"]["guardado"] is False
-    assert contexto["anexos"]["justificacion_mediciones"]["contenido_pdf"].startswith("F.1 Criterios de medición")
+    assert contexto["anexos"]["justificacion_mediciones"]["contenido_pdf"].startswith("E.1 Criterios de medición")
     assert contexto["anexos"]["justificacion_mediciones"]["guardado"] is False
     assert contexto["pdf_mediciones_anexo_f"] is None
     assert contexto["informe"]["titulo_portada"] == ""
@@ -3341,7 +3343,7 @@ def test_pdf_v2_anexa_pdf_mediciones_tras_anexo_f(
     assert contexto["pdf_mediciones_anexo_f"]["archivo_nombre_original"] == "mediciones-completas.pdf"
     assert capturado["fusion_documentos_anexo_a"] == []
     assert capturado["fusion_pdf_mediciones"]["archivo_nombre_original"] == "mediciones-completas.pdf"
-    assert "F.4 Desarrollo completo de mediciones" in html
+    assert "E.4 Desarrollo completo de mediciones" in html
     assert "Se incorpora a continuación la hoja de cálculo de mediciones elaborada por el perito." in html
     assert "Documento incorporado: Desarrollo completo de mediciones." in html
     assert "mediciones-completas.pdf" not in html
@@ -3574,6 +3576,7 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
 
     documento_1 = {
         "numero_anexo": "A.1",
+        "numero_documento_label": "Documento 1",
         "nombre": "Proyecto Reforma Cubierta de Evaristo Pastor Catalán con Memoria Técnica Completa",
         "tipo": "Proyecto",
         "fecha": "2026-06-18",
@@ -3586,6 +3589,7 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
     }
     documento_2 = {
         "numero_anexo": "A.2",
+        "numero_documento_label": "Documento 2",
         "nombre": "Ficha catastral",
         "tipo": "Ficha",
         "paginas": 1,
@@ -3602,14 +3606,16 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
     assert len(ficha) == 1
     texto_indice = indice[0].extract_text() or ""
     texto_ficha = ficha[0].extract_text() or ""
-    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in texto_indice
-    assert "A.1" in texto_indice
-    assert "A.2" in texto_indice
+    assert "DOCUMENTACIÓN APORTADA AL EXPEDIENTE" in texto_indice
+    assert "Documento 1" in texto_indice
+    assert "Documento 2" in texto_indice
     assert "Proyecto Reforma Cubierta de Evaristo Pastor Catalán" in texto_indice
-    assert "102 págs." in texto_indice
-    assert "27.41 MB" in texto_indice
-    assert "ANEXO A" in texto_ficha
-    assert "A.1" in texto_ficha
+    assert "102 págs." not in texto_indice
+    assert "27.41 MB" not in texto_indice
+    assert "DOCUMENTACIÓN APORTADA AL EXPEDIENTE" in texto_ficha
+    assert "Documento 1" in texto_ficha
+    assert "ANEXO A" not in texto_ficha
+    assert "A.1" not in texto_ficha
     assert "Proyecto Reforma Cubierta" in texto_ficha
     assert "Evaristo" in texto_ficha
     assert "Pastor Catalán" in texto_ficha
@@ -4254,6 +4260,26 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "INFORME PERICIAL</span>" not in html
     assert "Arquitecto Técnico" in html
     assert "toc-row is-annex" in html
+    assert 'id="pdf-target-portada"' in html
+    assert 'id="pdf-target-indice"' in html
+    assert 'href="#pdf-target-resumen_ejecutivo"' in html
+    assert 'id="pdf-target-resumen_ejecutivo"' in html
+    assert 'href="#pdf-target-conclusiones"' in html
+    assert 'id="pdf-target-conclusiones"' in html
+    assert 'href="#pdf-target-anexo_a"' in html
+    assert 'id="pdf-target-anexo_a"' in html
+    assert 'href="#pdf-target-anexo_b"' in html
+    assert 'id="pdf-target-anexo_b"' in html
+    assert 'href="#pdf-target-anexo_c"' in html
+    assert 'id="pdf-target-anexo_c"' in html
+    assert 'href="#pdf-target-anexo_d"' in html
+    assert 'id="pdf-target-anexo_d"' in html
+    assert 'href="#pdf-target-anexo_e"' in html
+    assert 'id="pdf-target-anexo_e"' in html
+    assert 'href="#pdf-target-documentacion_aportada"' in html
+    assert 'id="pdf-target-documentacion_aportada"' in html
+    assert 'id="pdf-target-relacion_documental"' in html
+    assert html.count('href="#pdf-target-') == len(contexto["indice"])
     assert "Sistema Pericial" not in html
     assert "Diagnóstico del informe" not in html
     assert "Control determinista de completitud. No se imprime en el PDF." not in html
@@ -4266,7 +4292,7 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Advertencias editoriales" not in html
     assert "Posible redundancia detectada" not in html
     assert "Guía editorial. No se imprime en el PDF." not in html
-    assert "F.4 Desarrollo completo de mediciones" not in html
+    assert "E.4 Desarrollo completo de mediciones" not in html
     assert html.count("13. Conclusiones") == 1
     assert len(contexto["conclusiones"]["bloques"]) == 1
     assert "Conclusión técnica redactada por el técnico." not in html
@@ -4274,11 +4300,34 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Conclusiones técnicas" not in html
     assert "Conclusiones periciales" not in html
     assert "14. Conclusiones periciales" not in html
-    assert "ANEXO A. DOCUMENTACIÓN APORTADA" in html
-    assert html.count("Relación de documentación aportada") == 1
+    indice_por_clave = {item["clave"]: item for item in contexto["indice"]}
+    assert indice_por_clave["anexo_a"]["titulo"] == "Reportaje fotográfico"
+    assert indice_por_clave["anexo_b"]["titulo"] == "Fichas de daños por estancia"
+    assert indice_por_clave["anexo_c"]["titulo"] == "Valoración económica detallada"
+    assert indice_por_clave["anexo_d"]["titulo"] == "Análisis de ejecución de la partida nº 4"
+    assert indice_por_clave["anexo_e"]["titulo"] == "Justificación de mediciones"
+    assert (
+        indice_por_clave["documentacion_aportada"]["titulo"]
+        == "Documentación aportada al expediente"
+    )
+    assert [
+        item["clave"]
+        for item in contexto["indice"]
+        if item["grupo"] in {"anexos", "documentacion"}
+    ] == [
+        "anexo_a",
+        "anexo_b",
+        "anexo_c",
+        "anexo_d",
+        "anexo_e",
+        "documentacion_aportada",
+    ]
+    assert "ANEXO A. DOCUMENTACIÓN APORTADA" not in html
+    assert "DOCUMENTACIÓN APORTADA AL EXPEDIENTE" in html
+    assert html.count("Relación documental") == 1
     assert "A.1 Relación de documentación aportada" not in html
-    assert "A.1" in html
-    assert "A.2" in html
+    assert "Documento 1" in html
+    assert "Documento 2" in html
     assert "Presupuesto pericial de reparación" in html
     assert "Factura de reparación de cubierta" in html
     assert "Presupuesto base de valoración." in html
@@ -4288,18 +4337,18 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "presupuesto-original-privado.pdf" not in html
     assert "presupuesto_hash.pdf" not in html
     assert "expediente_documentos/" not in html
-    assert "ANEXO B. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS" in html
-    assert "B.1 FILTRACIONES Y HUMEDADES" in html
-    assert "B.2 DETERIORO DE REVESTIMIENTOS Y ACABADOS" in html
-    assert "B.3 MOHOS Y COLONIZACIÓN BIOLÓGICA" in html
-    assert "B.4 DAÑOS EN CARPINTERÍAS Y ELEMENTOS AUXILIARES" in html
-    assert "B.5 DAÑOS EXTERIORES Y FACHADA" in html
-    assert "B.6 OTRAS EVIDENCIAS FOTOGRÁFICAS" in html
-    assert "Figura B-1" in html
+    assert "ANEXO A. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS" in html
+    assert "A.1 FILTRACIONES Y HUMEDADES" in html
+    assert "A.2 DETERIORO DE REVESTIMIENTOS Y ACABADOS" in html
+    assert "A.3 MOHOS Y COLONIZACIÓN BIOLÓGICA" in html
+    assert "A.4 DAÑOS EN CARPINTERÍAS Y ELEMENTOS AUXILIARES" in html
+    assert "A.5 DAÑOS EXTERIORES Y FACHADA" in html
+    assert "A.6 OTRAS EVIDENCIAS FOTOGRÁFICAS" in html
+    assert "Figura A-1" in html
     assert "Estancia asociada:" not in html
     assert "Patología de referencia:" not in html
     assert "Se muestran 6 fotografías representativas de 7 clasificadas en este grupo." in html
-    assert "ANEXO C. FICHAS DE DAÑOS POR ESTANCIA" in html
+    assert "ANEXO B. FICHAS DE DAÑOS POR ESTANCIA" in html
     assert html.index('class="damage-section danos_observados"') < html.index(
         'class="damage-section observaciones"'
     )
@@ -4309,9 +4358,9 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "Daños observados:" in html
     assert "Observaciones:" in html
     assert "Evidencias fotográficas:" in html
-    assert "ANEXO D. VALORACIÓN ECONÓMICA DETALLADA" in html
-    assert "annex-section annex-d-landscape" in html
-    assert "@page anexo-d-landscape" in html
+    assert "ANEXO C. VALORACIÓN ECONÓMICA DETALLADA" in html
+    assert "annex-section annex-valuation-landscape" in html
+    assert "@page annex-valuation-landscape" in html
     assert "margin: 16mm 11mm 19mm;" in html
     assert "PRESUPUESTO DE EJECUCIÓN MATERIAL" in html
     assert "365,70 €" in html
@@ -4322,13 +4371,13 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "10,0000 m2" not in html
     assert "8616.00 EUR" not in html
     assert '<td class="money amount">8.616,00 €</td>' in html
-    assert "ANEXO E. ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4" in html
+    assert "ANEXO D. ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4" in html
     assert "E.1 Objeto" in html
     assert "Contenido manual guardado del Anexo E." in html
     assert "Conclusión manual del Anexo E." in html
     assert "[Completar conclusión técnica sobre la partida analizada.]" not in html
     assert "E.6 Conclusión" in html
-    assert "ANEXO F. JUSTIFICACIÓN DE MEDICIONES" in html
+    assert "ANEXO E. JUSTIFICACIÓN DE MEDICIONES" in html
     assert "Contenido manual guardado del Anexo F." in html
     assert "Observación manual del Anexo F." in html
     assert "[Completar desglose de mediciones por estancia, zona o actuación.]" not in html
@@ -4340,6 +4389,12 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert "demo/estancia.jpg" in html
     assert "Falso techo snapshot" in html
     assert "365.70 EUR" not in html
+    assert html.index("ANEXO A. REPORTAJE FOTOGRÁFICO") < html.index(
+        "ANEXO B. FICHAS DE DAÑOS"
+    )
+    assert html.index("ANEXO E. JUSTIFICACIÓN DE MEDICIONES") < html.index(
+        "DOCUMENTACIÓN APORTADA AL EXPEDIENTE"
+    )
     assert contexto["anexos"]["valoracion"]["total_pem"] == 8981.7
     assert [
         documento["nombre"]
@@ -4650,12 +4705,12 @@ def test_pdf_v2_renderiza_laminas_sin_romper_anexos_b_c_ni_originales(
             ruta.unlink(missing_ok=True)
 
     assert response.status_code == 200
-    assert "ANEXO B. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS" in html
-    assert "ANEXO B. LÁMINAS COMPARATIVAS" in html
+    assert "ANEXO A. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS" in html
+    assert "ANEXO A. LÁMINAS COMPARATIVAS" in html
     assert "Comparativa de daños y reparación" in html
     assert "Antes" in html
     assert "Después" in html
-    assert "ANEXO C. FICHAS DE DAÑOS POR ESTANCIA" in html
+    assert "ANEXO B. FICHAS DE DAÑOS POR ESTANCIA" in html
     assert len(contexto["anexos"]["laminas_fotograficas"]) == 2
     assert original_actual == original_bytes
     from pypdf import PdfReader

@@ -6459,28 +6459,28 @@ TIPOS_DOCUMENTALES_ANEXO_A = (
 
 def contenido_base_anexo_e_partida_4_v2() -> str:
     return (
-        "E.1 Objeto\n\n"
+        "D.1 Objeto\n\n"
         "El presente anexo tiene por objeto analizar la ejecución material de la partida nº 4 incluida en el presupuesto de reparación de cubierta aportado para su estudio, verificando su adecuación técnica respecto a los trabajos realmente observados durante la inspección.\n\n"
-        "E.2 Documentación analizada\n\n"
+        "D.2 Documentación analizada\n\n"
         "Para la elaboración del presente análisis se ha tenido en consideración la documentación aportada por la propiedad, el presupuesto de reparación de cubierta, el reportaje fotográfico disponible y la inspección visual realizada durante la visita técnica.\n\n"
-        "E.3 Descripción de la partida analizada\n\n"
+        "D.3 Descripción de la partida analizada\n\n"
         "[Completar descripción de la partida nº 4 según presupuesto aportado.]\n\n"
-        "E.4 Comprobaciones realizadas\n\n"
+        "D.4 Comprobaciones realizadas\n\n"
         "[Completar comprobaciones efectuadas durante la inspección.]\n\n"
-        "E.5 Valoración técnica\n\n"
+        "D.5 Valoración técnica\n\n"
         "[Completar valoración sobre ejecución correcta, parcial, insuficiente o no verificable.]\n\n"
-        "E.6 Conclusión\n\n"
+        "D.6 Conclusión\n\n"
         "[Completar conclusión técnica sobre la partida analizada.]"
     )
 
 
 def contenido_base_anexo_f_mediciones_v2() -> str:
     return (
-        "F.1 Criterios de medición\n\n"
+        "E.1 Criterios de medición\n\n"
         "Las mediciones empleadas en la valoración económica se han obtenido a partir de la inspección realizada, de las superficies afectadas observadas durante la visita y de las comprobaciones efectuadas mediante reportaje fotográfico y documentación disponible.\n\n"
-        "F.2 Desarrollo de mediciones\n\n"
+        "E.2 Desarrollo de mediciones\n\n"
         "[Completar desglose de mediciones por estancia, zona o actuación.]\n\n"
-        "F.3 Observaciones\n\n"
+        "E.3 Observaciones\n\n"
         "[Completar observaciones sobre estimaciones, limitaciones, mediciones indirectas o zonas no accesibles.]"
     )
 
@@ -8198,7 +8198,7 @@ ANEXO_B_MAX_FOTOS_POR_GRUPO = 6
 
 ANEXO_B_CATEGORIAS = [
     {
-        "codigo": "B.1",
+        "codigo": "A.1",
         "clave": "filtraciones_humedades",
         "titulo": "FILTRACIONES Y HUMEDADES",
         "intro": (
@@ -8221,7 +8221,7 @@ ANEXO_B_CATEGORIAS = [
         ),
     },
     {
-        "codigo": "B.2",
+        "codigo": "A.2",
         "clave": "revestimientos_acabados",
         "titulo": "DETERIORO DE REVESTIMIENTOS Y ACABADOS",
         "intro": (
@@ -8246,7 +8246,7 @@ ANEXO_B_CATEGORIAS = [
         ),
     },
     {
-        "codigo": "B.3",
+        "codigo": "A.3",
         "clave": "mohos_colonizacion",
         "titulo": "MOHOS Y COLONIZACIÓN BIOLÓGICA",
         "intro": (
@@ -8266,7 +8266,7 @@ ANEXO_B_CATEGORIAS = [
         ),
     },
     {
-        "codigo": "B.4",
+        "codigo": "A.4",
         "clave": "carpinterias_auxiliares",
         "titulo": "DAÑOS EN CARPINTERÍAS Y ELEMENTOS AUXILIARES",
         "intro": (
@@ -8288,7 +8288,7 @@ ANEXO_B_CATEGORIAS = [
         ),
     },
     {
-        "codigo": "B.5",
+        "codigo": "A.5",
         "clave": "exteriores_fachada",
         "titulo": "DAÑOS EXTERIORES Y FACHADA",
         "intro": (
@@ -8312,7 +8312,7 @@ ANEXO_B_CATEGORIAS = [
         ),
     },
     {
-        "codigo": "B.6",
+        "codigo": "A.6",
         "clave": "otras_evidencias",
         "titulo": "OTRAS EVIDENCIAS FOTOGRÁFICAS",
         "intro": (
@@ -8921,6 +8921,11 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
             paginas_pdf = contar_paginas_pdf_upload_v2(documento.get("archivo_ruta"))
             documento["paginas_pdf"] = paginas_pdf
             desplazamiento_paginas_anexo_a += paginas_pdf + 1
+    desplazamiento_paginas_documentacion_aportada = 0
+    if pdf_mediciones_anexo_f:
+        desplazamiento_paginas_documentacion_aportada = contar_paginas_pdf_upload_v2(
+            pdf_mediciones_anexo_f.get("archivo_ruta")
+        )
     indice = [
         {"numero": 1, "titulo": "Portada", "grupo": "cuerpo", "clave": "portada"},
         {"numero": 2, "titulo": "Índice", "grupo": "cuerpo", "clave": "indice"},
@@ -8944,12 +8949,17 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
     )
     indice.extend(
         [
-            {"numero": "A", "titulo": "Documentación aportada", "grupo": "anexos", "clave": "anexo_a"},
-            {"numero": "B", "titulo": "Reportaje fotográfico", "grupo": "anexos", "clave": "anexo_b"},
-            {"numero": "C", "titulo": "Fichas de daños por estancia", "grupo": "anexos", "clave": "anexo_c"},
-            {"numero": "D", "titulo": "Valoración económica detallada", "grupo": "anexos", "clave": "anexo_d"},
-            {"numero": "E", "titulo": "Análisis de ejecución de la partida nº 4", "grupo": "anexos", "clave": "anexo_e"},
-            {"numero": "F", "titulo": "Justificación de mediciones", "grupo": "anexos", "clave": "anexo_f"},
+            {"numero": "A", "titulo": "Reportaje fotográfico", "grupo": "anexos", "clave": "anexo_a"},
+            {"numero": "B", "titulo": "Fichas de daños por estancia", "grupo": "anexos", "clave": "anexo_b"},
+            {"numero": "C", "titulo": "Valoración económica detallada", "grupo": "anexos", "clave": "anexo_c"},
+            {"numero": "D", "titulo": "Análisis de ejecución de la partida nº 4", "grupo": "anexos", "clave": "anexo_d"},
+            {"numero": "E", "titulo": "Justificación de mediciones", "grupo": "anexos", "clave": "anexo_e"},
+            {
+                "numero": "",
+                "titulo": "Documentación aportada al expediente",
+                "grupo": "documentacion",
+                "clave": "documentacion_aportada",
+            },
         ]
     )
 
@@ -8970,6 +8980,7 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
         "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
         "tecnico": limpiar_texto(ultima_visita["tecnico"]) if ultima_visita else "",
         "fecha_visita": limpiar_texto(ultima_visita["fecha"]) if ultima_visita else "",
+        "desplazamiento_paginas_documentacion_aportada": desplazamiento_paginas_documentacion_aportada,
     }
 
 
@@ -9280,7 +9291,7 @@ def _pdf_bytes_indice_anexo_a_v2(documentos: list[dict]) -> bytes:
         bottomMargin=18 * mm,
     )
     title_style = ParagraphStyle(
-        "AnexoATitle",
+        "DocumentacionAportadaTitle",
         fontName="Helvetica-Bold",
         fontSize=16,
         leading=20,
@@ -9288,38 +9299,32 @@ def _pdf_bytes_indice_anexo_a_v2(documentos: list[dict]) -> bytes:
         spaceAfter=8,
     )
     body_style = ParagraphStyle(
-        "AnexoABody",
+        "DocumentacionAportadaBody",
         fontName="Helvetica",
         fontSize=8.5,
         leading=11,
         textColor=colors.HexColor("#374151"),
     )
     story = [
-        Paragraph("ANEXO A. DOCUMENTACIÓN APORTADA", title_style),
+        Paragraph("DOCUMENTACIÓN APORTADA AL EXPEDIENTE", title_style),
         Paragraph(
-            "Índice documental de los archivos incorporados físicamente al anexo.",
+            "Relación documental de los archivos incorporados al expediente.",
             body_style,
         ),
         Spacer(1, 8),
     ]
     data = [[
-        Paragraph("Ref.", body_style),
+        Paragraph("Referencia", body_style),
         Paragraph("Documento", body_style),
-        Paragraph("Categoría", body_style),
-        Paragraph("Páginas", body_style),
-        Paragraph("Tamaño", body_style),
     ]]
-    for item in documentos:
+    for indice, item in enumerate(documentos, start=1):
         data.append(
             [
-                Paragraph(_texto_pdf_anexo(item.get("numero") or item.get("numero_anexo")), body_style),
+                Paragraph(f"Documento {indice}", body_style),
                 Paragraph(_texto_pdf_anexo(item.get("nombre")), body_style),
-                Paragraph(_texto_pdf_anexo(item.get("categoria") or item.get("tipo")), body_style),
-                Paragraph(_texto_pdf_anexo(item.get("paginas_label")), body_style),
-                Paragraph(_texto_pdf_anexo(item.get("tamano_label")), body_style),
             ]
         )
-    table = Table(data, colWidths=[18 * mm, 80 * mm, 36 * mm, 24 * mm, 24 * mm])
+    table = Table(data, colWidths=[32 * mm, 142 * mm])
     table.setStyle(
         TableStyle(
             [
@@ -9409,7 +9414,11 @@ def _pdf_bytes_ficha_anexo_a_v2(documento: dict, pdf_integrado: bool) -> bytes:
         spaceAfter=0,
     )
 
-    numero = _texto_pdf_anexo(documento.get("numero") or documento.get("numero_anexo"))
+    numero = _texto_pdf_anexo(
+        documento.get("numero_documento_label")
+        or documento.get("numero")
+        or documento.get("numero_anexo")
+    )
     titulo = _texto_pdf_anexo(documento.get("nombre"))
     title_paragraph = None
     title_height = 0
@@ -9436,7 +9445,7 @@ def _pdf_bytes_ficha_anexo_a_v2(documento: dict, pdf_integrado: bool) -> bytes:
 
     elementos: list[tuple[Paragraph, float, float, float]] = []
     for texto, style, ancho, gap_after in [
-        ("ANEXO A", label_style, title_width, 22),
+        ("DOCUMENTACIÓN APORTADA AL EXPEDIENTE", label_style, title_width, 22),
         (numero, number_style, title_width, 24),
     ]:
         parrafo, ancho_real, alto_real = build_paragraph(texto, style, ancho)
@@ -9660,22 +9669,12 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
         return pdf_informe
 
     inserciones: dict[int, list] = {}
-    pagina_anexo_b = encontrar_pagina_pdf_v2(
-        informe_reader,
-        ["ANEXO B", "REPORTAJE FOTOGRÁFICO"],
-        inicio=3,
-    )
-    pagina_fallback_anexo_a = (
-        max(0, pagina_anexo_b - 1)
-        if pagina_anexo_b is not None
-        else max(0, len(informe_reader.pages) - 1)
-    )
 
     unidades_anexo_a = []
     for indice_documento, documento in enumerate(documentos_pdf, start=1):
-        numero_anexo = f"A.{indice_documento}"
-        documento["numero_anexo"] = numero_anexo
-        etiqueta = documento.get("nombre") or documento.get("archivo") or "documento Anexo A"
+        numero_documento = f"Documento {indice_documento}"
+        documento["numero_documento_label"] = numero_documento
+        etiqueta = documento.get("nombre") or documento.get("archivo") or numero_documento
         ruta_original_documento = resolver_ruta_upload_relativa_segura(documento.get("archivo_ruta"))
         metadata_documento = _metadata_documento_anexo_a_v2(documento, ruta_original_documento)
         documento.update(metadata_documento)
@@ -9686,7 +9685,7 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
                 categoria="anexo_a",
             )
             ruta_documento = Path(resultado_optimizacion.get("ruta") or ruta_documento)
-        paginas_documento = leer_paginas_pdf_path_v2(ruta_documento, f"Anexo A {etiqueta}")
+        paginas_documento = leer_paginas_pdf_path_v2(ruta_documento, f"{numero_documento} {etiqueta}")
         if paginas_documento and not int(documento.get("paginas") or 0):
             documento["paginas"] = len(paginas_documento)
             documento["paginas_label"] = _formatear_paginas_anexo_a(len(paginas_documento))
@@ -9704,11 +9703,10 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
             }
         )
 
+    paginas_documentacion_aportada = []
     if unidades_anexo_a:
-        paginas_anexo_a = []
         for unidad in unidades_anexo_a:
-            paginas_anexo_a.extend(unidad["paginas"])
-        inserciones.setdefault(pagina_fallback_anexo_a, []).extend(paginas_anexo_a)
+            paginas_documentacion_aportada.extend(unidad["paginas"])
 
     if pdf_mediciones:
         ruta_mediciones = resolver_ruta_upload_relativa_segura(pdf_mediciones.get("archivo_ruta"))
@@ -9720,18 +9718,18 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
             ruta_mediciones = Path(resultado_optimizacion.get("ruta") or ruta_mediciones)
         paginas_mediciones = leer_paginas_pdf_path_v2(
             ruta_mediciones,
-            "Anexo F.4 Desarrollo completo de mediciones",
+            "Anexo E.4 Desarrollo completo de mediciones",
         )
         if paginas_mediciones:
             pagina_f4 = encontrar_pagina_pdf_v2(
                 informe_reader,
-                ["F.4", "Desarrollo completo de mediciones"],
+                ["E.4", "Desarrollo completo de mediciones"],
             )
             if pagina_f4 is None:
                 pagina_f4 = max(0, len(informe_reader.pages) - 1)
             inserciones.setdefault(pagina_f4, []).extend(paginas_mediciones)
 
-    if not inserciones:
+    if not inserciones and not paginas_documentacion_aportada:
         return pdf_informe
 
     writer = PdfWriter()
@@ -9739,6 +9737,8 @@ def fusionar_pdf_informe_v2_con_anexos_integrados(
         writer.add_page(pagina)
         for pagina_insertada in inserciones.get(indice_pagina, []):
             writer.add_page(pagina_insertada)
+    for pagina_documentacion in paginas_documentacion_aportada:
+        writer.add_page(pagina_documentacion)
 
     salida = BytesIO()
     writer.write(salida)

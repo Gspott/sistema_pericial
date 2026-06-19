@@ -176,10 +176,12 @@
 
         .toc-row {
             align-items: baseline;
+            color: inherit;
             display: flex;
             gap: 9px;
             min-height: 18px;
             padding: 4px 0;
+            text-decoration: none;
         }
 
         .toc-number {
@@ -285,6 +287,14 @@
             font-size: 26px;
             line-height: 1.2;
             margin: 0;
+        }
+
+        .annex-cover-note {
+            color: #3f4a56;
+            font-size: 13px;
+            line-height: 1.55;
+            margin: 16px auto 0;
+            max-width: 118mm;
         }
 
         .annex-letter {
@@ -688,27 +698,27 @@
             padding: 10px;
         }
 
-        @page anexo-d-landscape {
+        @page annex-valuation-landscape {
             size: A4 landscape;
             margin: 16mm 11mm 19mm;
         }
 
-        .annex-d-landscape {
-            page: anexo-d-landscape;
+        .annex-valuation-landscape {
+            page: annex-valuation-landscape;
         }
 
-        .annex-d-landscape .valuation-table th:first-child,
-        .annex-d-landscape .valuation-table td:first-child {
+        .annex-valuation-landscape .valuation-table th:first-child,
+        .annex-valuation-landscape .valuation-table td:first-child {
             text-align: left;
         }
 
-        .annex-d-landscape .valuation-table th:nth-child(n + 2),
-        .annex-d-landscape .valuation-table td:nth-child(n + 2) {
+        .annex-valuation-landscape .valuation-table th:nth-child(n + 2),
+        .annex-valuation-landscape .valuation-table td:nth-child(n + 2) {
             text-align: right;
         }
 
-        .annex-d-landscape .amount,
-        .annex-d-landscape .economic-summary-value {
+        .annex-valuation-landscape .amount,
+        .annex-valuation-landscape .economic-summary-value {
             font-weight: 700;
         }
 
@@ -743,8 +753,8 @@
     {{- texto or "-" -}}
     {%- endif -%}
     {%- endmacro %}
-    {% macro separador_anexo(letra, titulo) -%}
-    <section class="annex-cover">
+    {% macro separador_anexo(letra, titulo, target_id="") -%}
+    <section class="annex-cover"{% if target_id %} id="{{ target_id }}"{% endif %}>
         <div>
             <p class="annex-letter">ANEXO {{ letra }}</p>
             <h2>{{ titulo }}</h2>
@@ -753,7 +763,7 @@
     {%- endmacro %}
 
     <main class="document">
-        <section class="cover">
+        <section class="cover" id="pdf-target-portada">
             <div class="cover-heading">
                 <p class="cover-kicker">Dictamen técnico pericial</p>
                 <h1>{{ informe.titulo_portada_pdf }}</h1>
@@ -773,26 +783,29 @@
             </div>
         </section>
 
-        <section class="toc">
+        <section class="toc" id="pdf-target-indice">
             <h2>Índice</h2>
             <div class="toc-list">
                 <div class="toc-group-title">Cuerpo del informe</div>
                 {% for item in indice %}
                 {% if item.grupo == "anexos" and loop.previtem is defined and loop.previtem.grupo != "anexos" %}
-                <div class="toc-group-title">Anexos</div>
+                <div class="toc-group-title">Anexos técnicos</div>
                 {% endif %}
-                <div class="toc-row{% if item.grupo == 'anexos' %} is-annex{% endif %}">
-                    <span class="toc-number">{% if item.grupo == "anexos" %}Anexo {{ item.numero }}.{% else %}{{ item.numero }}.{% endif %}</span>
+                {% if item.grupo == "documentacion" and loop.previtem is defined and loop.previtem.grupo != "documentacion" %}
+                <div class="toc-group-title">Documentación aportada al expediente</div>
+                {% endif %}
+                <a class="toc-row{% if item.grupo in ['anexos', 'documentacion'] %} is-annex{% endif %}" href="#pdf-target-{{ item.clave }}">
+                    <span class="toc-number">{% if item.grupo == "anexos" %}Anexo {{ item.numero }}.{% elif item.grupo == "documentacion" %}{% else %}{{ item.numero }}.{% endif %}</span>
                     <span class="toc-title">{{ item.titulo }}</span>
                     <span class="toc-leader"></span>
                     <span class="toc-page">{{ (indice_paginas or {}).get(item.clave, "") }}</span>
-                </div>
+                </a>
                 {% endfor %}
             </div>
         </section>
 
         {% for capitulo in capitulos %}
-        <section class="chapter report-chapter chapter-{{ capitulo.clave }}">
+        <section class="chapter report-chapter chapter-{{ capitulo.clave }}" id="pdf-target-{{ capitulo.clave }}">
             <h2 class="chapter-heading">{{ capitulo.numero_pdf }}. {{ capitulo.titulo }}</h2>
             {% if capitulo.contenido_pdf %}
             <div class="chapter-content">{{ capitulo.contenido_pdf }}</div>
@@ -800,7 +813,7 @@
         </section>
         {% endfor %}
 
-        <section class="chapter report-chapter chapter-conclusiones">
+        <section class="chapter report-chapter chapter-conclusiones" id="pdf-target-conclusiones">
             <h2 class="chapter-heading">{{ conclusiones.numero }}. {{ conclusiones.titulo }}</h2>
             {% if conclusiones.bloques %}
             {% for bloque in conclusiones.bloques %}
@@ -816,34 +829,11 @@
             {% endif %}
         </section>
 
-        {{ separador_anexo("A", "DOCUMENTACIÓN APORTADA") }}
+        {{ separador_anexo("A", "REPORTAJE FOTOGRÁFICO", "pdf-target-anexo_a") }}
         <section class="annex-section">
-            <h2>ANEXO A. DOCUMENTACIÓN APORTADA</h2>
-            {% if anexos.documentacion %}
-            <h3>Relación de documentación aportada</h3>
-            <div class="doc-card-grid">
-                {% for documento in anexos.documentacion %}
-                <article class="doc-card">
-                    <div class="doc-card-order">{{ documento.numero_anexo or ("A." ~ loop.index) }}</div>
-                    <div>
-                        <h3>{{ documento.nombre }}</h3>
-                        <dl>
-                            <dt>Descripción</dt><dd>{{ documento.descripcion or "-" }}</dd>
-                        </dl>
-                    </div>
-                </article>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="empty-note">No consta documentación aportada estructurada asociada al expediente.</p>
-            {% endif %}
-        </section>
-
-        {{ separador_anexo("B", "REPORTAJE FOTOGRÁFICO") }}
-        <section class="annex-section">
-            <h2>ANEXO B. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS</h2>
+            <h2>ANEXO A. REPORTAJE FOTOGRÁFICO DE PATOLOGÍAS</h2>
             {% if anexos.fotografias_grupos %}
-            {% set figura_b = namespace(valor=0) %}
+            {% set figura_a = namespace(valor=0) %}
             {% for grupo in anexos.fotografias_grupos %}
             <article class="photo-group">
                 <h3>{{ grupo.codigo }} {{ grupo.titulo }}</h3>
@@ -851,11 +841,11 @@
                 {% if grupo.fotos %}
                 <div class="photo-grid">
                     {% for foto in grupo.fotos %}
-                    {% set figura_b.valor = figura_b.valor + 1 %}
+                    {% set figura_a.valor = figura_a.valor + 1 %}
                     <figure>
                         <img src="{{ foto.url }}" alt="Fotografía del expediente">
                         <figcaption>
-                            <span class="photo-figure-id">Figura B-{{ figura_b.valor }}</span>
+                            <span class="photo-figure-id">Figura A-{{ figura_a.valor }}</span>
                             {{ foto.pie or "Fotografía del expediente" }}
                         </figcaption>
                     </figure>
@@ -878,7 +868,7 @@
 
         {% if anexos.laminas_fotograficas %}
         <section class="annex-section photo-board-section">
-            <h2>ANEXO B. LÁMINAS COMPARATIVAS</h2>
+            <h2>ANEXO A. LÁMINAS COMPARATIVAS</h2>
             {% for lamina in anexos.laminas_fotograficas %}
             <article class="photo-board">
                 <h3>LÁMINA COMPARATIVA Nº {{ lamina.numero }} · {{ lamina.titulo }}</h3>
@@ -909,13 +899,13 @@
         </section>
         {% endif %}
 
-        {{ separador_anexo("C", "FICHAS DE DAÑOS POR ESTANCIA") }}
+        {{ separador_anexo("B", "FICHAS DE DAÑOS POR ESTANCIA", "pdf-target-anexo_b") }}
         <section class="annex-section">
-            <h2>ANEXO C. FICHAS DE DAÑOS POR ESTANCIA</h2>
+            <h2>ANEXO B. FICHAS DE DAÑOS POR ESTANCIA</h2>
             {% if anexos.fichas_danos %}
             {% for ficha in anexos.fichas_danos %}
             <article class="damage-sheet">
-                <h3>C.{{ loop.index }} {{ ficha.nombre }}</h3>
+                <h3>B.{{ loop.index }} {{ ficha.nombre }}</h3>
                 {% if ficha.nivel or ficha.unidad %}
                 <p class="damage-meta">
                     {% if ficha.nivel %}{{ ficha.nivel }}{% endif %}{% if ficha.nivel and ficha.unidad %} · {% endif %}{% if ficha.unidad %}{{ ficha.unidad }}{% endif %}
@@ -970,9 +960,9 @@
             {% endif %}
         </section>
 
-        {{ separador_anexo("D", "VALORACIÓN ECONÓMICA DETALLADA") }}
-        <section class="annex-section annex-d-landscape">
-            <h2>ANEXO D. VALORACIÓN ECONÓMICA DETALLADA</h2>
+        {{ separador_anexo("C", "VALORACIÓN ECONÓMICA DETALLADA", "pdf-target-anexo_c") }}
+        <section class="annex-section annex-valuation-landscape">
+            <h2>ANEXO C. VALORACIÓN ECONÓMICA DETALLADA</h2>
             {% if anexos.valoracion and anexos.valoracion.tiene_costes %}
             <div class="economic-summary">
                 <div class="economic-summary-label">PRESUPUESTO DE EJECUCIÓN MATERIAL</div>
@@ -1016,30 +1006,59 @@
             {% endif %}
         </section>
 
-        {{ separador_anexo("E", "ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4") }}
+        {{ separador_anexo("D", "ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4", "pdf-target-anexo_d") }}
         <section class="annex-section">
-            <h2>ANEXO E. ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4 DEL PRESUPUESTO DE REPARACIÓN DE CUBIERTA</h2>
+            <h2>ANEXO D. ANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4 DEL PRESUPUESTO DE REPARACIÓN DE CUBIERTA</h2>
             {% if anexos.analisis_partida_4.contenido_pdf %}
             <article class="analysis-block chapter-content">{{ anexos.analisis_partida_4.contenido_pdf }}</article>
             {% else %}
-            <p class="empty-note">No consta contenido editable para el Anexo E.</p>
+            <p class="empty-note">No consta contenido editable para el Anexo D.</p>
             {% endif %}
         </section>
 
-        {{ separador_anexo("F", "JUSTIFICACIÓN DE MEDICIONES") }}
+        {{ separador_anexo("E", "JUSTIFICACIÓN DE MEDICIONES", "pdf-target-anexo_e") }}
         <section class="annex-section">
-            <h2>ANEXO F. JUSTIFICACIÓN DE MEDICIONES</h2>
+            <h2>ANEXO E. JUSTIFICACIÓN DE MEDICIONES</h2>
             {% if anexos.justificacion_mediciones.contenido_pdf %}
             <article class="analysis-block chapter-content">{{ anexos.justificacion_mediciones.contenido_pdf }}</article>
             {% else %}
-            <p class="empty-note">No consta contenido editable para el Anexo F.</p>
+            <p class="empty-note">No consta contenido editable para el Anexo E.</p>
             {% endif %}
             {% if anexos.justificacion_mediciones.pdf_adjunto %}
             <article class="analysis-block annex-f-separator">
-                <h3>F.4 Desarrollo completo de mediciones</h3>
+                <h3>E.4 Desarrollo completo de mediciones</h3>
                 <p>Se incorpora a continuación la hoja de cálculo de mediciones elaborada por el perito.</p>
                 <p class="empty-note">Documento incorporado: Desarrollo completo de mediciones.</p>
             </article>
+            {% endif %}
+        </section>
+
+        <section class="annex-cover" id="pdf-target-documentacion_aportada">
+            <div>
+                <p class="annex-letter">Documentación aportada al expediente</p>
+                <h2>DOCUMENTACIÓN APORTADA AL EXPEDIENTE</h2>
+                <p class="annex-cover-note">Documentación facilitada e incorporada al expediente como soporte del presente informe.</p>
+            </div>
+        </section>
+        <section class="annex-section" id="pdf-target-relacion_documental">
+            <h2>DOCUMENTACIÓN APORTADA AL EXPEDIENTE</h2>
+            {% if anexos.documentacion %}
+            <h3>Relación documental</h3>
+            <div class="doc-card-grid">
+                {% for documento in anexos.documentacion %}
+                <article class="doc-card">
+                    <div class="doc-card-order">Documento {{ loop.index }}</div>
+                    <div>
+                        <h3>{{ documento.nombre }}</h3>
+                        <dl>
+                            <dt>Descripción</dt><dd>{{ documento.descripcion or "-" }}</dd>
+                        </dl>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-note">No consta documentación aportada estructurada asociada al expediente.</p>
             {% endif %}
         </section>
     </main>

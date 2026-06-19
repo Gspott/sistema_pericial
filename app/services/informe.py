@@ -5840,12 +5840,11 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
             pdf_bytes,
             contexto.get("indice") or [],
         )
-        desplazamiento_anexo_a = int(contexto.get("desplazamiento_paginas_anexo_a") or 0)
-        if desplazamiento_anexo_a:
-            for item in contexto.get("indice") or []:
-                clave = item.get("clave")
-                if item.get("grupo") == "anexos" and clave != "anexo_a" and clave in indice_paginas:
-                    indice_paginas[clave] += desplazamiento_anexo_a
+        desplazamiento_documentacion = int(
+            contexto.get("desplazamiento_paginas_documentacion_aportada") or 0
+        )
+        if desplazamiento_documentacion and "documentacion_aportada" in indice_paginas:
+            indice_paginas["documentacion_aportada"] += desplazamiento_documentacion
         if indice_paginas:
             contexto_con_indice = {
                 **contexto,
