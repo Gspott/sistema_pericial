@@ -4259,6 +4259,132 @@ def test_pdf_v2_indice_resuelve_goto_a_paginas_visibles(isolated_import):
             assert pagina_destino != 2
 
 
+def test_pdf_v2_bookmarks_usan_paginas_finales_del_indice(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader, PdfWriter
+
+    def paginas_por_titulo_outline(reader):
+        paginas = {}
+
+        def visitar(items):
+            for item in items:
+                if isinstance(item, list):
+                    visitar(item)
+                    continue
+                titulo = getattr(item, "title", None)
+                if not titulo:
+                    continue
+                paginas[titulo] = reader.get_destination_page_number(item) + 1
+
+        visitar(reader.outline)
+        return paginas
+
+    writer = PdfWriter()
+    for _ in range(230):
+        writer.add_blank_page(width=595, height=842)
+    buffer = BytesIO()
+    writer.write(buffer)
+
+    capitulos = [
+        ("resumen_ejecutivo", 1, "Resumen ejecutivo", 4),
+        ("antecedentes_objeto", 2, "Antecedentes y objeto", 6),
+        ("metodologia", 3, "Metodología", 8),
+        ("limitaciones", 4, "Limitaciones", 9),
+        ("analisis_causal", 5, "Análisis causal", 10),
+        ("inventario_resumido_danos", 6, "Inventario resumido de daños", 11),
+        ("actuaciones_verificadas", 7, "Actuaciones verificadas", 13),
+        ("propuesta_reparacion", 8, "Propuesta de reparación", 14),
+        ("valoracion_economica", 9, "Valoración económica", 15),
+        ("recomendaciones_tecnicas", 10, "Recomendaciones técnicas", 16),
+    ]
+    documentos = [
+        ("documentacion_doc_1", "Resumen general del presupuesto de ejecución material", 89),
+        ("documentacion_doc_2", "Ficha catastral", 104),
+        ("documentacion_doc_3", "Contrato para realización de obras", 106),
+        ("documentacion_doc_4", "Proyecto Reforma Cubierta de Evaristo Pastor Catalán", 115),
+        ("documentacion_doc_5", "Presupuesto constructora", 218),
+    ]
+    indice_paginas = {
+        "portada": 1,
+        "indice": 2,
+        **{clave: pagina for clave, _numero, _titulo, pagina in capitulos},
+        "conclusiones": 17,
+        "anexo_a": 19,
+        "anexo_b": 28,
+        "anexo_c": 68,
+        "anexo_d": 77,
+        "anexo_e": 82,
+        "documentacion_aportada": 86,
+        **{clave: pagina for clave, _nombre, pagina in documentos},
+    }
+    contexto = {
+        "indice": [
+            {"clave": clave, "titulo": titulo, "grupo": "cuerpo", "numero": numero}
+            for clave, numero, titulo, _pagina in capitulos
+        ],
+        "indice_paginas": indice_paginas,
+        "capitulos": [
+            {"clave": clave, "numero_pdf": numero, "titulo": titulo}
+            for clave, numero, titulo, _pagina in capitulos
+        ],
+        "conclusiones": {"numero": 13, "titulo": "Conclusiones"},
+        "anexos": {
+            "documentacion": [
+                {
+                    "nombre": nombre,
+                    "indice_clave": clave,
+                }
+                for clave, nombre, _pagina in documentos
+            ],
+        },
+    }
+
+    pdf_con_bookmarks = main_module.agregar_bookmarks_pdf_v2(buffer.getvalue(), contexto)
+    reader = PdfReader(BytesIO(pdf_con_bookmarks))
+    titulos_raiz = _outline_top_titles(reader.outline)
+    paginas_outline = paginas_por_titulo_outline(reader)
+
+    assert titulos_raiz == [
+        "Informe",
+        "Anexos técnicos",
+        "Documentación aportada al expediente",
+    ]
+    paginas_esperadas = {
+        "Informe": 1,
+        "Portada": 1,
+        "Índice": 2,
+        "1. Resumen ejecutivo": 4,
+        "2. Antecedentes y objeto": 6,
+        "3. Metodología": 8,
+        "4. Limitaciones": 9,
+        "5. Análisis causal": 10,
+        "6. Inventario resumido de daños": 11,
+        "7. Actuaciones verificadas": 13,
+        "8. Propuesta de reparación": 14,
+        "9. Valoración económica": 15,
+        "10. Recomendaciones técnicas": 16,
+        "13. Conclusiones": 17,
+        "Anexos técnicos": 19,
+        "Anexo A. Reportaje fotográfico": 19,
+        "Anexo B. Fichas de daños por estancia": 28,
+        "Anexo C. Valoración económica detallada": 68,
+        "Anexo D. Análisis de ejecución de la partida nº 4": 77,
+        "Anexo E. Justificación de mediciones": 82,
+        "Documentación aportada al expediente": 86,
+        "Relación de documentación aportada": 87,
+        "Documento 1. Resumen general del presupuesto de ejecución material": 89,
+        "Documento 2. Ficha catastral": 104,
+        "Documento 3. Contrato para realización de obras": 106,
+        "Documento 4. Proyecto Reforma Cubierta de Evaristo Pastor Catalán": 115,
+        "Documento 5. Presupuesto constructora": 218,
+    }
+    for titulo, pagina in paginas_esperadas.items():
+        assert paginas_outline[titulo] == pagina
+        if titulo != "Índice":
+            assert paginas_outline[titulo] != 2
+
+
 def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
     isolated_import,
     monkeypatch,

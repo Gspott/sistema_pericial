@@ -9470,6 +9470,51 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
                 sobrescribir=True,
             )
 
+    def pagina_indice_visible(clave: str | None) -> int | None:
+        clave_limpia = limpiar_texto(clave)
+        if not clave_limpia:
+            return None
+        indice_paginas = contexto.get("indice_paginas") or {}
+        if not isinstance(indice_paginas, dict):
+            return None
+        try:
+            pagina = int(indice_paginas.get(clave_limpia)) - 1
+        except (TypeError, ValueError):
+            return None
+        return max(0, min(pagina, total_paginas - 1))
+
+    def pagina_destino_registrado(destino: str | None) -> int | None:
+        destino_limpio = normalizar_nombre_destino_pdf_v2(destino or "")
+        if not destino_limpio:
+            return None
+        destino_info = destinos_enlaces.get(destino_limpio)
+        if not destino_info:
+            return None
+        try:
+            pagina = int(destino_info.get("pagina"))
+        except (TypeError, ValueError):
+            return None
+        return max(0, min(pagina, total_paginas - 1))
+
+    def pagina_bookmark(
+        clave: str | None = None,
+        patrones: list[str] | None = None,
+        inicio: int = 0,
+        fallback: int | None = None,
+    ) -> int | None:
+        pagina = pagina_indice_visible(clave)
+        if pagina is not None:
+            return pagina
+        if clave:
+            pagina = pagina_destino_registrado(f"pdf-target-{clave}")
+            if pagina is not None:
+                return pagina
+        if patrones:
+            return pagina_por_patrones(patrones, inicio=inicio, fallback=fallback)
+        if fallback is None:
+            return None
+        return max(0, min(int(fallback), total_paginas - 1))
+
     def extraer_destino_anotacion(annot_obj) -> str:
         destino = annot_obj.get("/Dest")
         if destino is None:
@@ -9530,24 +9575,36 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
     try:
         registrar_destinos_nominales_chromium()
         registrar_destinos_indice_visible()
-        registrar_destino_html("pdf-target-portada", 0)
+        pagina_portada = pagina_bookmark("portada", fallback=0)
+        pagina_indice = pagina_bookmark(
+            "indice",
+            ["Índice"],
+            inicio=1,
+            fallback=1,
+        )
+        registrar_destino_html("pdf-target-portada", pagina_portada)
         registrar_destino_html(
             "pdf-target-indice",
-            pagina_por_patrones(["Índice"], inicio=1, fallback=1),
+            pagina_indice,
         )
-        raiz_informe = add_outline("Informe", 0)
+        raiz_informe = add_outline("Informe", pagina_portada)
+        add_outline("Portada", pagina_portada, parent=raiz_informe)
+        add_outline("Índice", pagina_indice, parent=raiz_informe)
         for capitulo in contexto.get("capitulos") or []:
+            clave = limpiar_texto(capitulo.get("clave"))
             numero = limpiar_texto(capitulo.get("numero_pdf"))
             titulo = limpiar_texto(capitulo.get("titulo"))
             patrones = [f"{numero}. {titulo}" if numero else titulo]
-            pagina = pagina_por_patrones(patrones, inicio=1)
-            registrar_destino_html(f"pdf-target-{capitulo.get('clave')}", pagina)
+            pagina = pagina_bookmark(clave, patrones, inicio=1)
+            if clave:
+                registrar_destino_html(f"pdf-target-{clave}", pagina)
             add_outline(f"{numero}. {titulo}" if numero else titulo, pagina, parent=raiz_informe)
 
         conclusiones = contexto.get("conclusiones") or {}
         numero_conclusiones = limpiar_texto(conclusiones.get("numero"))
         titulo_conclusiones = limpiar_texto(conclusiones.get("titulo")) or "Conclusiones"
-        pagina_conclusiones = pagina_por_patrones(
+        pagina_conclusiones = pagina_bookmark(
+            "conclusiones",
             [f"{numero_conclusiones}. {titulo_conclusiones}" if numero_conclusiones else titulo_conclusiones],
             inicio=1,
         )
@@ -9559,30 +9616,38 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
         )
 
         anexos_tecnicos = [
-            ("Anexo A. Reportaje fotográfico", ["ANEXO A", "REPORTAJE FOTOGRÁFICO"]),
-            ("Anexo B. Fichas de daños por estancia", ["ANEXO B", "FICHAS DE DAÑOS"]),
-            ("Anexo C. Valoración económica detallada", ["ANEXO C", "VALORACIÓN ECONÓMICA"]),
-            ("Anexo D. Análisis de ejecución de la partida nº 4", ["ANEXO D", "ANÁLISIS DE EJECUCIÓN"]),
-            ("Anexo E. Justificación de mediciones", ["ANEXO E", "JUSTIFICACIÓN DE MEDICIONES"]),
+            ("anexo_a", "Anexo A. Reportaje fotográfico", ["ANEXO A", "REPORTAJE FOTOGRÁFICO"]),
+            ("anexo_b", "Anexo B. Fichas de daños por estancia", ["ANEXO B", "FICHAS DE DAÑOS"]),
+            ("anexo_c", "Anexo C. Valoración económica detallada", ["ANEXO C", "VALORACIÓN ECONÓMICA"]),
+            ("anexo_d", "Anexo D. Análisis de ejecución de la partida nº 4", ["ANEXO D", "ANÁLISIS DE EJECUCIÓN"]),
+            ("anexo_e", "Anexo E. Justificación de mediciones", ["ANEXO E", "JUSTIFICACIÓN DE MEDICIONES"]),
         ]
-        pagina_primer_anexo = pagina_por_patrones(anexos_tecnicos[0][1], inicio=1, fallback=0)
+        pagina_primer_anexo = pagina_bookmark(
+            anexos_tecnicos[0][0],
+            anexos_tecnicos[0][2],
+            inicio=1,
+            fallback=0,
+        )
         raiz_anexos = add_outline("Anexos técnicos", pagina_primer_anexo)
-        for indice_anexo, (titulo, patrones) in enumerate(anexos_tecnicos, start=1):
-            pagina = pagina_por_patrones(patrones, inicio=1)
-            registrar_destino_html(f"pdf-target-anexo_{chr(96 + indice_anexo)}", pagina)
+        for clave_anexo, titulo, patrones in anexos_tecnicos:
+            pagina = pagina_bookmark(clave_anexo, patrones, inicio=1)
+            registrar_destino_html(f"pdf-target-{clave_anexo}", pagina)
             add_outline(titulo, pagina, parent=raiz_anexos)
 
         titulo_documentacion = "Documentación aportada al expediente"
-        pagina_documentacion = pagina_por_patrones(
+        pagina_documentacion = pagina_bookmark(
+            "documentacion_aportada",
             ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE"],
             inicio=1,
         )
         registrar_destino_html("pdf-target-documentacion_aportada", pagina_documentacion)
         raiz_documentacion = add_outline(titulo_documentacion, pagina_documentacion)
-        pagina_relacion = pagina_por_patrones(
+        pagina_relacion_fallback = (pagina_documentacion + 1) if pagina_documentacion is not None else None
+        pagina_relacion = pagina_bookmark(
+            "relacion_documental",
             ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE", "Relación documental"],
             inicio=(pagina_documentacion or 0),
-            fallback=pagina_documentacion,
+            fallback=pagina_relacion_fallback,
         )
         registrar_destino_html("pdf-target-relacion_documental", pagina_relacion)
         add_outline("Relación de documentación aportada", pagina_relacion, parent=raiz_documentacion)
@@ -9595,11 +9660,12 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
             nombre = limpiar_texto(documento.get("nombre"))
             etiqueta = f"Documento {indice_documento}"
             titulo = f"{etiqueta}. {nombre}" if nombre else etiqueta
+            clave_documento = limpiar_texto(documento.get("indice_clave")) or f"documentacion_doc_{indice_documento}"
             patrones_documento = ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE", etiqueta]
             if nombre:
                 patrones_documento.append(nombre)
-            pagina = pagina_por_patrones(patrones_documento, inicio=inicio_documentos)
-            registrar_destino_html(f"pdf-target-documentacion_doc_{indice_documento}", pagina)
+            pagina = pagina_bookmark(clave_documento, patrones_documento, inicio=inicio_documentos)
+            registrar_destino_html(f"pdf-target-{clave_documento}", pagina)
             add_outline(titulo, pagina, parent=raiz_documentacion)
 
         normalizar_enlaces_internos()
