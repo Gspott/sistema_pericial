@@ -3967,6 +3967,99 @@ def test_pdf_v2_agrega_bookmarks_jerarquicos(isolated_import):
     assert annot["/A"]["/D"][1] == "/Fit"
 
 
+def test_pdf_v2_normaliza_todos_los_destinos_nominales_del_indice(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from playwright.sync_api import sync_playwright
+    from pypdf import PdfReader
+
+    enlaces = [
+        ("Portada", "pdf-target-portada"),
+        ("Índice", "pdf-target-indice"),
+        ("Resumen ejecutivo", "pdf-target-resumen_ejecutivo"),
+        ("Conclusiones", "pdf-target-conclusiones"),
+        ("Anexo A. Reportaje fotográfico", "pdf-target-anexo_a"),
+        ("Anexo B. Fichas de daños", "pdf-target-anexo_b"),
+        ("Documentación aportada", "pdf-target-documentacion_aportada"),
+        ("Documento 2. Factura", "pdf-target-documentacion_doc_2"),
+    ]
+    paginas = [
+        ("pdf-target-portada", "Dictamen técnico pericial"),
+        ("pdf-target-indice", "Índice"),
+        ("pdf-target-resumen_ejecutivo", "1. Resumen ejecutivo"),
+        ("pdf-target-conclusiones", "13. Conclusiones"),
+        ("pdf-target-anexo_a", "ANEXO A REPORTAJE FOTOGRÁFICO"),
+        ("pdf-target-anexo_b", "ANEXO B FICHAS DE DAÑOS POR ESTANCIA"),
+        ("pdf-target-documentacion_aportada", "DOCUMENTACIÓN APORTADA AL EXPEDIENTE"),
+        ("pdf-target-documentacion_doc_1", "DOCUMENTACIÓN APORTADA AL EXPEDIENTE Documento 1 Contrato"),
+        ("pdf-target-documentacion_doc_2", "DOCUMENTACIÓN APORTADA AL EXPEDIENTE Documento 2 Factura"),
+    ]
+    html = """
+    <!doctype html>
+    <html><head><meta charset="utf-8"><style>
+    body { font-family: Arial, sans-serif; }
+    a { display: block; margin: 8px 0; }
+    section { break-before: page; page-break-before: always; min-height: 720px; }
+    section:first-of-type { break-before: auto; page-break-before: auto; }
+    </style></head><body>
+    <nav>
+    """ + "\n".join(
+        f'<a href="#{destino}">{titulo}</a>'
+        for titulo, destino in enlaces
+    ) + """
+    </nav>
+    """ + "\n".join(
+        f'<section id="{destino}"><h1>{texto}</h1></section>'
+        for destino, texto in paginas
+    ) + """
+    </body></html>
+    """
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        pdf_base = page.pdf(format="A4")
+        browser.close()
+
+    contexto = {
+        "capitulos": [{"numero_pdf": 1, "titulo": "Resumen ejecutivo"}],
+        "conclusiones": {"numero": 13, "titulo": "Conclusiones"},
+        "anexos": {
+            "documentacion": [
+                {"nombre": "Contrato"},
+                {"nombre": "Factura"},
+            ],
+        },
+    }
+    reader_base = PdfReader(BytesIO(pdf_base))
+    assert reader_base.named_destinations
+
+    pdf_normalizado = main_module.agregar_bookmarks_pdf_v2(pdf_base, contexto)
+    reader = PdfReader(BytesIO(pdf_normalizado))
+    page_refs = {
+        (
+            pagina.indirect_reference.idnum,
+            pagina.indirect_reference.generation,
+        )
+        for pagina in reader.pages
+        if getattr(pagina, "indirect_reference", None)
+    }
+    anotaciones_indice = [
+        annot.get_object()
+        for annot in reader.pages[0].get("/Annots") or []
+        if annot.get_object().get("/Subtype") == "/Link"
+    ]
+
+    assert len(anotaciones_indice) == len(enlaces)
+    for annot in anotaciones_indice:
+        assert "/Dest" not in annot
+        assert annot["/A"]["/S"] == "/GoTo"
+        destino = annot["/A"]["/D"]
+        assert destino[1] in {"/Fit", "/XYZ"}
+        pagina_ref = destino[0]
+        assert (pagina_ref.idnum, pagina_ref.generation) in page_refs
+
+
 def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
     isolated_import,
     monkeypatch,

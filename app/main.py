@@ -9353,7 +9353,7 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
     contexto = contexto or {}
     try:
         from pypdf import PdfReader, PdfWriter
-        from pypdf.generic import ArrayObject, DictionaryObject, NameObject
+        from pypdf.generic import ArrayObject, DictionaryObject, FloatObject, NameObject, NumberObject
     except ImportError:
         logger.warning("No se pudieron añadir marcadores PDF V2: pypdf no está instalado.")
         return pdf_bytes
@@ -9371,7 +9371,7 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
     if not total_paginas:
         return pdf_bytes
 
-    destinos_enlaces: dict[str, int] = {"pdf-target-portada": 0}
+    destinos_enlaces: dict[str, dict] = {}
 
     def pagina_por_patrones(patrones: list[str], inicio: int = 0, fallback: int | None = None) -> int | None:
         pagina = encontrar_pagina_pdf_v2(reader, patrones, inicio=inicio)
@@ -9393,12 +9393,62 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
             logger.warning("No se pudo añadir marcador PDF V2 %s: %s", titulo_limpio, exc)
             return None
 
-    def registrar_destino_html(destino: str, pagina: int | None) -> None:
+    def objeto_numero_pdf(valor):
+        try:
+            numero = float(valor)
+        except (TypeError, ValueError):
+            return NumberObject(0)
+        if numero.is_integer():
+            return NumberObject(int(numero))
+        return FloatObject(numero)
+
+    def normalizar_nombre_destino_pdf_v2(destino: str) -> str:
+        return limpiar_texto(str(destino)).lstrip("#/")
+
+    def registrar_destino_html(
+        destino: str,
+        pagina: int | None,
+        tipo: str = "/Fit",
+        left=None,
+        top=None,
+        zoom=None,
+        sobrescribir: bool = False,
+    ) -> None:
         if pagina is None:
             return
-        destino_limpio = limpiar_texto(destino).lstrip("#/")
-        if destino_limpio:
-            destinos_enlaces[destino_limpio] = max(0, min(int(pagina), total_paginas - 1))
+        destino_limpio = normalizar_nombre_destino_pdf_v2(destino)
+        if not destino_limpio:
+            return
+        if destino_limpio in destinos_enlaces and not sobrescribir:
+            return
+        destinos_enlaces[destino_limpio] = {
+            "pagina": max(0, min(int(pagina), total_paginas - 1)),
+            "tipo": limpiar_texto(tipo) or "/Fit",
+            "left": left,
+            "top": top,
+            "zoom": zoom,
+        }
+
+    def registrar_destinos_nominales_chromium() -> None:
+        try:
+            destinos = reader.named_destinations
+        except Exception as exc:
+            logger.warning("No se pudieron leer destinos nominales PDF V2: %s", exc)
+            return
+        for nombre, destino in (destinos or {}).items():
+            try:
+                pagina = reader.get_destination_page_number(destino)
+            except Exception:
+                continue
+            registrar_destino_html(
+                nombre,
+                pagina,
+                tipo=destino.get("/Type") or "/Fit",
+                left=destino.get("/Left"),
+                top=destino.get("/Top"),
+                zoom=destino.get("/Zoom"),
+                sobrescribir=True,
+            )
 
     def extraer_destino_anotacion(annot_obj) -> str:
         destino = annot_obj.get("/Dest")
@@ -9411,7 +9461,7 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
             return ""
         if isinstance(destino, (list, tuple, ArrayObject)):
             return ""
-        return limpiar_texto(str(destino)).lstrip("#/")
+        return normalizar_nombre_destino_pdf_v2(str(destino))
 
     def normalizar_enlaces_internos() -> None:
         for pagina in writer.pages:
@@ -9424,18 +9474,32 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
                 if annot_obj.get("/Subtype") != "/Link":
                     continue
                 destino = extraer_destino_anotacion(annot_obj)
-                pagina_destino = destinos_enlaces.get(destino)
-                if pagina_destino is None:
+                destino_info = destinos_enlaces.get(destino)
+                if destino_info is None:
                     continue
                 try:
+                    pagina_destino = int(destino_info.get("pagina") or 0)
                     pagina_objetivo = writer.pages[pagina_destino]
                     referencia_pagina = getattr(pagina_objetivo, "indirect_reference", None)
                     if referencia_pagina is None:
                         continue
+                    tipo_destino = limpiar_texto(destino_info.get("tipo")) or "/Fit"
+                    if tipo_destino == "/XYZ":
+                        destino_pdf = ArrayObject(
+                            [
+                                referencia_pagina,
+                                NameObject("/XYZ"),
+                                objeto_numero_pdf(destino_info.get("left")),
+                                objeto_numero_pdf(destino_info.get("top")),
+                                objeto_numero_pdf(destino_info.get("zoom")),
+                            ]
+                        )
+                    else:
+                        destino_pdf = ArrayObject([referencia_pagina, NameObject("/Fit")])
                     annot_obj[NameObject("/A")] = DictionaryObject(
                         {
                             NameObject("/S"): NameObject("/GoTo"),
-                            NameObject("/D"): ArrayObject([referencia_pagina, NameObject("/Fit")]),
+                            NameObject("/D"): destino_pdf,
                         }
                     )
                     if "/Dest" in annot_obj:
@@ -9444,6 +9508,8 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
                     logger.warning("No se pudo normalizar enlace interno PDF V2 %s: %s", destino, exc)
 
     try:
+        registrar_destinos_nominales_chromium()
+        registrar_destino_html("pdf-target-portada", 0)
         registrar_destino_html(
             "pdf-target-indice",
             pagina_por_patrones(["Índice"], inicio=1, fallback=1),
