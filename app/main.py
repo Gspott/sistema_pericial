@@ -7752,7 +7752,9 @@ def reemplazar_coincidencias_seleccionadas_informe_v2(
 def contenido_cliente_capitulo_informe_v2(form_data, clave: str, guardado: dict | None) -> str:
     campo_form = f"contenido_{clave}"
     if campo_form in form_data:
-        return str(form_data.get(campo_form) or "")
+        contenido_form = str(form_data.get(campo_form) or "")
+        if contenido_form or not guardado:
+            return contenido_form
     return limpiar_texto((guardado or {}).get("contenido"))
 
 

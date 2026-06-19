@@ -1856,6 +1856,102 @@ def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_impo
     assert final_por_clave["metodologia"]["contenido"] == "Texto con Anexo A pendiente."
 
 
+def test_informe_v2_buscar_reemplazar_encuentra_contenido_guardado_en_todos_los_capitulos(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_find_replace_saved")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        for clave, titulo, orden, contenido in [
+            (
+                "resumen_ejecutivo",
+                "Resumen ejecutivo",
+                1,
+                "Se encuentra descrito en Anexo C.",
+            ),
+            (
+                "antecedentes_objeto",
+                "Antecedentes y objeto",
+                2,
+                "Véase Anexo A.",
+            ),
+        ]:
+            cur.execute(
+                """
+                INSERT INTO informe_v2_capitulos (
+                    expediente_id, clave, titulo, orden, contenido,
+                    generado_desde, editado_manual, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                (
+                    expediente_id,
+                    clave,
+                    titulo,
+                    orden,
+                    contenido,
+                    "pericial-editor-1",
+                    "2026-06-10 12:00:00",
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    conteo_anexo_c = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/contar",
+        data={"buscar": "Anexo C"},
+    )
+    assert conteo_anexo_c.status_code == 200
+    assert conteo_anexo_c.json()["total"] == 1
+    coincidencia_c = conteo_anexo_c.json()["coincidencias"][0]
+    assert coincidencia_c["clave"] == "resumen_ejecutivo"
+    assert coincidencia_c["titulo"] == "Resumen ejecutivo"
+    assert coincidencia_c["encontrado"] == "Anexo C"
+    assert "Se encuentra descrito en " in coincidencia_c["contexto_antes"]
+
+    conteo_anexo_a = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/contar",
+        data={
+            "buscar": "Anexo A",
+            "contenido_resumen_ejecutivo": "",
+            "contenido_antecedentes_objeto": "",
+        },
+    )
+    assert conteo_anexo_a.status_code == 200
+    assert conteo_anexo_a.json()["total"] == 1
+    coincidencia_a = conteo_anexo_a.json()["coincidencias"][0]
+    assert coincidencia_a["clave"] == "antecedentes_objeto"
+    assert coincidencia_a["titulo"] == "Antecedentes y objeto"
+    assert coincidencia_a["encontrado"] == "Anexo A"
+    assert "Véase " in coincidencia_a["contexto_antes"]
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        contenidos = {
+            fila["clave"]: fila["contenido"]
+            for fila in cur.execute(
+                """
+                SELECT clave, contenido
+                FROM informe_v2_capitulos
+                WHERE expediente_id = ?
+                """,
+                (expediente_id,),
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert contenidos["resumen_ejecutivo"] == "Se encuentra descrito en Anexo C."
+    assert contenidos["antecedentes_objeto"] == "Véase Anexo A."
+
+
 def test_informe_v2_crea_snapshot_al_modificar_capitulo(isolated_import):
     main_module = isolated_import("app.main")
 
