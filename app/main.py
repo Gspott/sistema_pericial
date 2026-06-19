@@ -9218,6 +9218,117 @@ def encontrar_pagina_pdf_v2(reader, patrones: list[str], inicio: int = 0) -> int
     return None
 
 
+def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
+    contexto = contexto or {}
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        logger.warning("No se pudieron añadir marcadores PDF V2: pypdf no está instalado.")
+        return pdf_bytes
+
+    try:
+        reader = PdfReader(BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        for pagina in reader.pages:
+            writer.add_page(pagina)
+    except Exception as exc:
+        logger.warning("No se pudieron leer páginas para marcadores PDF V2: %s", exc)
+        return pdf_bytes
+
+    total_paginas = len(reader.pages)
+    if not total_paginas:
+        return pdf_bytes
+
+    def pagina_por_patrones(patrones: list[str], inicio: int = 0, fallback: int | None = None) -> int | None:
+        pagina = encontrar_pagina_pdf_v2(reader, patrones, inicio=inicio)
+        if pagina is None:
+            pagina = fallback
+        if pagina is None:
+            return None
+        return max(0, min(int(pagina), total_paginas - 1))
+
+    def add_outline(titulo: str, pagina: int | None, parent=None):
+        if pagina is None:
+            return None
+        titulo_limpio = limpiar_texto(titulo)
+        if not titulo_limpio:
+            return None
+        try:
+            return writer.add_outline_item(titulo_limpio, pagina, parent=parent)
+        except Exception as exc:
+            logger.warning("No se pudo añadir marcador PDF V2 %s: %s", titulo_limpio, exc)
+            return None
+
+    try:
+        raiz_informe = add_outline("Informe", 0)
+        for capitulo in contexto.get("capitulos") or []:
+            numero = limpiar_texto(capitulo.get("numero_pdf"))
+            titulo = limpiar_texto(capitulo.get("titulo"))
+            patrones = [f"{numero}. {titulo}" if numero else titulo]
+            pagina = pagina_por_patrones(patrones, inicio=1)
+            add_outline(f"{numero}. {titulo}" if numero else titulo, pagina, parent=raiz_informe)
+
+        conclusiones = contexto.get("conclusiones") or {}
+        numero_conclusiones = limpiar_texto(conclusiones.get("numero"))
+        titulo_conclusiones = limpiar_texto(conclusiones.get("titulo")) or "Conclusiones"
+        pagina_conclusiones = pagina_por_patrones(
+            [f"{numero_conclusiones}. {titulo_conclusiones}" if numero_conclusiones else titulo_conclusiones],
+            inicio=1,
+        )
+        add_outline(
+            f"{numero_conclusiones}. {titulo_conclusiones}" if numero_conclusiones else titulo_conclusiones,
+            pagina_conclusiones,
+            parent=raiz_informe,
+        )
+
+        anexos_tecnicos = [
+            ("Anexo A. Reportaje fotográfico", ["ANEXO A", "REPORTAJE FOTOGRÁFICO"]),
+            ("Anexo B. Fichas de daños por estancia", ["ANEXO B", "FICHAS DE DAÑOS"]),
+            ("Anexo C. Valoración económica detallada", ["ANEXO C", "VALORACIÓN ECONÓMICA"]),
+            ("Anexo D. Análisis de ejecución de la partida nº 4", ["ANEXO D", "ANÁLISIS DE EJECUCIÓN"]),
+            ("Anexo E. Justificación de mediciones", ["ANEXO E", "JUSTIFICACIÓN DE MEDICIONES"]),
+        ]
+        pagina_primer_anexo = pagina_por_patrones(anexos_tecnicos[0][1], inicio=1, fallback=0)
+        raiz_anexos = add_outline("Anexos técnicos", pagina_primer_anexo)
+        for titulo, patrones in anexos_tecnicos:
+            pagina = pagina_por_patrones(patrones, inicio=1)
+            add_outline(titulo, pagina, parent=raiz_anexos)
+
+        titulo_documentacion = "Documentación aportada al expediente"
+        pagina_documentacion = pagina_por_patrones(
+            ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE"],
+            inicio=1,
+        )
+        raiz_documentacion = add_outline(titulo_documentacion, pagina_documentacion)
+        pagina_relacion = pagina_por_patrones(
+            ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE", "Relación documental"],
+            inicio=(pagina_documentacion or 0),
+            fallback=pagina_documentacion,
+        )
+        add_outline("Relación de documentación aportada", pagina_relacion, parent=raiz_documentacion)
+
+        inicio_documentos = (pagina_relacion + 1) if pagina_relacion is not None else (pagina_documentacion or 0)
+        for indice_documento, documento in enumerate(
+            (contexto.get("anexos") or {}).get("documentacion") or [],
+            start=1,
+        ):
+            nombre = limpiar_texto(documento.get("nombre"))
+            etiqueta = f"Documento {indice_documento}"
+            titulo = f"{etiqueta}. {nombre}" if nombre else etiqueta
+            patrones_documento = ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE", etiqueta]
+            if nombre:
+                patrones_documento.append(nombre)
+            pagina = pagina_por_patrones(patrones_documento, inicio=inicio_documentos)
+            add_outline(titulo, pagina, parent=raiz_documentacion)
+
+        salida = BytesIO()
+        writer.write(salida)
+        return salida.getvalue()
+    except Exception as exc:
+        logger.warning("No se pudieron añadir marcadores PDF V2: %s", exc)
+        return pdf_bytes
+
+
 def leer_paginas_pdf_upload_v2(ruta_relativa: str | None, etiqueta: str) -> list:
     ruta_pdf = resolver_ruta_upload_relativa_segura(ruta_relativa)
     return leer_paginas_pdf_path_v2(ruta_pdf, etiqueta)
@@ -19020,6 +19131,21 @@ def generar_informe_v2_pdf_endpoint(
                 duracion_s=round(time.perf_counter() - inicio_paso, 3),
                 debug_dir=str(debug_paginacion_dir or ""),
             )
+        registrar_paso_pdf_v2(
+            debug_pipeline_activo,
+            expediente_id,
+            "inicio_bookmarks_pdf",
+            tamano_mb=bytes_a_mb(len(pdf_bytes)),
+        )
+        inicio_paso = time.perf_counter()
+        pdf_bytes = agregar_bookmarks_pdf_v2(pdf_bytes, contexto)
+        registrar_paso_pdf_v2(
+            debug_pipeline_activo,
+            expediente_id,
+            "fin_bookmarks_pdf",
+            tamano_mb=bytes_a_mb(len(pdf_bytes)),
+            duracion_s=round(time.perf_counter() - inicio_paso, 3),
+        )
     finally:
         app.state.pdf_temp_image_dirs.pop(sesion_optimizacion.token, None)
         sesion_optimizacion.cleanup()

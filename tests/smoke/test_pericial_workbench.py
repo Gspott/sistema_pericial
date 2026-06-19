@@ -37,6 +37,41 @@ def _pdf_simple_bytes(total_paginas: int = 1, width: int = 595, height: int = 84
     return buffer.getvalue()
 
 
+def _pdf_texto_paginas(paginas: list[str]) -> bytes:
+    from reportlab.pdfgen import canvas
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer)
+    for texto in paginas:
+        y = 780
+        for linea in texto.splitlines():
+            pdf.drawString(48, y, linea)
+            y -= 18
+        pdf.showPage()
+    pdf.save()
+    return buffer.getvalue()
+
+
+def _outline_titles(outline) -> list[str]:
+    titulos = []
+    for item in outline:
+        if isinstance(item, list):
+            titulos.extend(_outline_titles(item))
+            continue
+        titulo = getattr(item, "title", None)
+        if titulo:
+            titulos.append(titulo)
+    return titulos
+
+
+def _outline_top_titles(outline) -> list[str]:
+    return [
+        item.title
+        for item in outline
+        if not isinstance(item, list) and getattr(item, "title", None)
+    ]
+
+
 def _crear_documento_pdf_expediente(
     main_module,
     cur,
@@ -3628,6 +3663,64 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
     assert "Tamaño:" not in texto_ficha
     assert "Fecha de incorporación:" not in texto_ficha
     assert "Categoría:" not in texto_ficha
+
+
+def test_pdf_v2_agrega_bookmarks_jerarquicos(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from pypdf import PdfReader
+
+    pdf_base = _pdf_texto_paginas(
+        [
+            "Dictamen técnico pericial",
+            "1. Resumen ejecutivo",
+            "2. Antecedentes y objeto",
+            "13. Conclusiones",
+            "ANEXO A\nREPORTAJE FOTOGRÁFICO",
+            "ANEXO B\nFICHAS DE DAÑOS POR ESTANCIA",
+            "ANEXO C\nVALORACIÓN ECONÓMICA DETALLADA",
+            "ANEXO D\nANÁLISIS DE EJECUCIÓN DE LA PARTIDA Nº 4",
+            "ANEXO E\nJUSTIFICACIÓN DE MEDICIONES",
+            "DOCUMENTACIÓN APORTADA AL EXPEDIENTE\nRelación documental\nDocumento 1. Contrato de obra\nDocumento 2. Factura",
+            "DOCUMENTACIÓN APORTADA AL EXPEDIENTE\nDocumento 1\nContrato de obra",
+            "DOCUMENTACIÓN APORTADA AL EXPEDIENTE\nDocumento 2\nFactura",
+        ]
+    )
+    contexto = {
+        "capitulos": [
+            {"numero_pdf": 1, "titulo": "Resumen ejecutivo"},
+            {"numero_pdf": 2, "titulo": "Antecedentes y objeto"},
+        ],
+        "conclusiones": {"numero": 13, "titulo": "Conclusiones"},
+        "anexos": {
+            "documentacion": [
+                {"nombre": "Contrato de obra"},
+                {"nombre": "Factura"},
+            ],
+        },
+    }
+
+    pdf_con_bookmarks = main_module.agregar_bookmarks_pdf_v2(pdf_base, contexto)
+    reader = PdfReader(BytesIO(pdf_con_bookmarks))
+    titulos = _outline_titles(reader.outline)
+    titulos_raiz = _outline_top_titles(reader.outline)
+
+    assert len(reader.pages) == 12
+    assert titulos_raiz == [
+        "Informe",
+        "Anexos técnicos",
+        "Documentación aportada al expediente",
+    ]
+    assert "Informe" in titulos
+    assert "1. Resumen ejecutivo" in titulos
+    assert "13. Conclusiones" in titulos
+    assert "Anexos técnicos" in titulos
+    assert "Anexo A. Reportaje fotográfico" in titulos
+    assert "Anexo E. Justificación de mediciones" in titulos
+    assert "Documentación aportada al expediente" in titulos
+    assert "Relación de documentación aportada" in titulos
+    assert "Documento 1. Contrato de obra" in titulos
+    assert "Documento 2. Factura" in titulos
 
 
 def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
