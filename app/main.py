@@ -7674,6 +7674,37 @@ def contar_coincidencias_texto_informe_v2(texto: str, buscar: str) -> int:
     return texto_base.count(aguja)
 
 
+def buscar_coincidencias_texto_informe_v2(
+    texto: str,
+    buscar: str,
+    contexto_chars: int = 80,
+) -> list[dict]:
+    texto_base = str(texto or "")
+    aguja = str(buscar or "")
+    if not aguja:
+        return []
+    coincidencias = []
+    inicio_busqueda = 0
+    while True:
+        indice = texto_base.find(aguja, inicio_busqueda)
+        if indice < 0:
+            break
+        fin = indice + len(aguja)
+        contexto_inicio = max(0, indice - contexto_chars)
+        contexto_fin = min(len(texto_base), fin + contexto_chars)
+        coincidencias.append(
+            {
+                "indice": indice,
+                "fin": fin,
+                "contexto_antes": texto_base[contexto_inicio:indice],
+                "encontrado": texto_base[indice:fin],
+                "contexto_despues": texto_base[fin:contexto_fin],
+            }
+        )
+        inicio_busqueda = fin
+    return coincidencias
+
+
 def reemplazar_texto_informe_v2(texto: str, buscar: str, reemplazo: str) -> tuple[str, int]:
     texto_base = str(texto or "")
     aguja = str(buscar or "")
@@ -7683,6 +7714,39 @@ def reemplazar_texto_informe_v2(texto: str, buscar: str, reemplazo: str) -> tupl
     if not coincidencias:
         return texto_base, 0
     return texto_base.replace(aguja, str(reemplazo or "")), coincidencias
+
+
+def reemplazar_coincidencias_seleccionadas_informe_v2(
+    texto: str,
+    coincidencias: list[dict],
+    buscar: str,
+    reemplazo: str,
+) -> tuple[str, int]:
+    texto_actual = str(texto or "")
+    aguja = str(buscar or "")
+    if not aguja:
+        return texto_actual, 0
+    reemplazo_texto = str(reemplazo or "")
+    posiciones = []
+    for coincidencia in coincidencias:
+        try:
+            indice = int(coincidencia.get("indice"))
+        except (TypeError, ValueError):
+            raise ValueError("Coincidencia no válida.")
+        encontrado = str(coincidencia.get("encontrado") or aguja)
+        if encontrado != aguja:
+            raise ValueError("La coincidencia seleccionada no coincide con el texto buscado.")
+        fin = indice + len(aguja)
+        if indice < 0 or texto_actual[indice:fin] != aguja:
+            raise ValueError("La coincidencia seleccionada está obsoleta. Vuelve a buscar antes de reemplazar.")
+        posiciones.append(indice)
+
+    texto_nuevo = texto_actual
+    reemplazadas = 0
+    for indice in sorted(set(posiciones), reverse=True):
+        texto_nuevo = texto_nuevo[:indice] + reemplazo_texto + texto_nuevo[indice + len(aguja):]
+        reemplazadas += 1
+    return texto_nuevo, reemplazadas
 
 
 def contenido_cliente_capitulo_informe_v2(form_data, clave: str, guardado: dict | None) -> str:
@@ -13249,24 +13313,45 @@ async def contar_buscar_reemplazar_informe_v2(request: Request, expediente_id: i
             )
         guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
         capitulos = []
+        coincidencias_detalle = []
         total = 0
         for definicion in INFORME_V2_CAPITULOS:
             clave = definicion["clave"]
             contenido = contenido_cliente_capitulo_informe_v2(form_data, clave, guardados.get(clave))
-            coincidencias = contar_coincidencias_texto_informe_v2(contenido, buscar)
+            coincidencias = buscar_coincidencias_texto_informe_v2(contenido, buscar)
             if coincidencias:
-                total += coincidencias
+                total += len(coincidencias)
                 capitulos.append(
                     {
                         "clave": clave,
                         "titulo": definicion["titulo"],
-                        "coincidencias": coincidencias,
+                        "coincidencias": len(coincidencias),
                     }
                 )
+                for indice_local, coincidencia in enumerate(coincidencias, start=1):
+                    coincidencias_detalle.append(
+                        {
+                            "id": f"{clave}:{coincidencia['indice']}:{indice_local}",
+                            "clave": clave,
+                            "titulo": definicion["titulo"],
+                            **coincidencia,
+                            "estado": "pendiente",
+                        }
+                    )
     finally:
         conn.close()
 
-    return JSONResponse({"ok": True, "total": total, "capitulos": capitulos})
+    return JSONResponse(
+        {
+            "ok": True,
+            "total": total,
+            "pendientes": total,
+            "reemplazadas": 0,
+            "omitidas": 0,
+            "capitulos": capitulos,
+            "coincidencias": coincidencias_detalle,
+        }
+    )
 
 
 @app.post("/informes-v2/{expediente_id}/buscar-reemplazar/reemplazar")
@@ -13277,12 +13362,13 @@ async def reemplazar_buscar_reemplazar_informe_v2(request: Request, expediente_i
     reemplazo = str(form_data.get("reemplazar") or "")
     alcance = limpiar_texto(form_data.get("alcance")) or "actual"
     campo_actual = limpiar_texto(form_data.get("campo_actual"))
+    coincidencias_raw = str(form_data.get("coincidencias") or "[]")
     if not buscar:
         return JSONResponse(
             {"ok": False, "error": "El texto a buscar no puede estar vacío.", "code": "empty_search"},
             status_code=400,
         )
-    if alcance not in {"actual", "todo"}:
+    if alcance not in {"actual", "todo", "seleccion"}:
         return JSONResponse(
             {"ok": False, "error": "Alcance no permitido para buscar y reemplazar."},
             status_code=400,
@@ -13292,6 +13378,31 @@ async def reemplazar_buscar_reemplazar_informe_v2(request: Request, expediente_i
             {"ok": False, "error": "Selecciona un capítulo válido para reemplazar."},
             status_code=400,
         )
+    coincidencias_seleccionadas = []
+    if alcance == "seleccion":
+        try:
+            coincidencias_seleccionadas = json.loads(coincidencias_raw)
+        except json.JSONDecodeError:
+            return JSONResponse(
+                {"ok": False, "error": "Selección de coincidencias no válida."},
+                status_code=400,
+            )
+        if not isinstance(coincidencias_seleccionadas, list) or not coincidencias_seleccionadas:
+            return JSONResponse(
+                {"ok": False, "error": "No hay coincidencias pendientes seleccionadas."},
+                status_code=400,
+            )
+        for coincidencia in coincidencias_seleccionadas:
+            if not isinstance(coincidencia, dict):
+                return JSONResponse(
+                    {"ok": False, "error": "Selección de coincidencias no válida."},
+                    status_code=400,
+                )
+            if limpiar_texto(coincidencia.get("clave")) not in INFORME_V2_CAPITULOS_POR_CLAVE:
+                return JSONResponse(
+                    {"ok": False, "error": "La selección contiene un capítulo no permitido."},
+                    status_code=400,
+                )
 
     conn = get_connection()
     cur = conn.cursor()
@@ -13304,11 +13415,20 @@ async def reemplazar_buscar_reemplazar_informe_v2(request: Request, expediente_i
                 status_code=400,
             )
         guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
-        claves_objetivo = (
-            [campo_actual]
-            if alcance == "actual"
-            else [definicion["clave"] for definicion in INFORME_V2_CAPITULOS]
-        )
+        if alcance == "seleccion":
+            claves_objetivo = sorted(
+                {
+                    limpiar_texto(coincidencia.get("clave"))
+                    for coincidencia in coincidencias_seleccionadas
+                },
+                key=lambda clave: INFORME_V2_CAPITULOS_POR_CLAVE[clave]["orden"],
+            )
+        else:
+            claves_objetivo = (
+                [campo_actual]
+                if alcance == "actual"
+                else [definicion["clave"] for definicion in INFORME_V2_CAPITULOS]
+            )
         conflictos = detectar_conflictos_buscar_reemplazar_informe_v2(
             guardados,
             form_data,
@@ -13330,11 +13450,36 @@ async def reemplazar_buscar_reemplazar_informe_v2(request: Request, expediente_i
         for clave in claves_objetivo:
             definicion = INFORME_V2_CAPITULOS_POR_CLAVE[clave]
             contenido = contenido_cliente_capitulo_informe_v2(form_data, clave, guardados.get(clave))
-            contenido_nuevo, coincidencias = reemplazar_texto_informe_v2(
-                contenido,
-                buscar,
-                reemplazo,
-            )
+            if alcance == "seleccion":
+                seleccion_capitulo = [
+                    coincidencia
+                    for coincidencia in coincidencias_seleccionadas
+                    if limpiar_texto(coincidencia.get("clave")) == clave
+                ]
+                try:
+                    contenido_nuevo, coincidencias = reemplazar_coincidencias_seleccionadas_informe_v2(
+                        contenido,
+                        seleccion_capitulo,
+                        buscar,
+                        reemplazo,
+                    )
+                except ValueError as exc:
+                    conn.rollback()
+                    return JSONResponse(
+                        {
+                            "ok": False,
+                            "error": str(exc),
+                            "code": "stale_match",
+                            "clave": clave,
+                        },
+                        status_code=409,
+                    )
+            else:
+                contenido_nuevo, coincidencias = reemplazar_texto_informe_v2(
+                    contenido,
+                    buscar,
+                    reemplazo,
+                )
             if not coincidencias:
                 continue
             total += coincidencias

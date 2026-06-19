@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -1694,6 +1695,16 @@ def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_impo
     assert "Buscar y reemplazar" in editor.text
     assert "/buscar-reemplazar/contar" in editor.text
     assert "/buscar-reemplazar/reemplazar" in editor.text
+    assert "find-replace-list" in editor.text
+    assert "Reemplazar esta" in editor.text
+    assert "Omitir" in editor.text
+    assert "Ir al capítulo" in editor.text
+    assert "Reemplazar todas las pendientes" in editor.text
+    assert "¿Reemplazar todas las coincidencias pendientes?" in editor.text
+    assert 'estado: "omitida"' in editor.text
+    assert "<mark>" in editor.text
+    assert "Reemplazar en capítulo actual" not in editor.text
+    assert 'body.append("updated_at_" + campo, getKnownUpdatedAt(campo));' in editor.text
 
     conteo = client.post(
         f"/informes-v2/{expediente_id}/buscar-reemplazar/contar",
@@ -1705,6 +1716,17 @@ def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_impo
     )
     assert conteo.status_code == 200
     assert conteo.json()["total"] == 3
+    assert conteo.json()["pendientes"] == 3
+    assert conteo.json()["reemplazadas"] == 0
+    assert conteo.json()["omitidas"] == 0
+    assert len(conteo.json()["coincidencias"]) == 3
+    primera = conteo.json()["coincidencias"][0]
+    assert primera["clave"] == "resumen_ejecutivo"
+    assert primera["titulo"] == "Resumen ejecutivo"
+    assert primera["encontrado"] == "Anexo B"
+    assert primera["estado"] == "pendiente"
+    assert "Referencia al " in primera["contexto_antes"]
+    assert " y otra referencia" in primera["contexto_despues"]
 
     vacio = client.post(
         f"/informes-v2/{expediente_id}/buscar-reemplazar/contar",
@@ -1718,14 +1740,14 @@ def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_impo
         data={
             "buscar": "Anexo B",
             "reemplazar": "Anexo A",
-            "alcance": "actual",
-            "campo_actual": "resumen_ejecutivo",
+            "alcance": "seleccion",
+            "coincidencias": json.dumps([primera]),
             "contenido_resumen_ejecutivo": "Referencia al Anexo B y otra referencia al Anexo B.",
             "updated_at_resumen_ejecutivo": "2026-06-10 12:00:00",
         },
     )
     assert reemplazo_actual.status_code == 200
-    assert reemplazo_actual.json()["total"] == 2
+    assert reemplazo_actual.json()["total"] == 1
     assert reemplazo_actual.json()["capitulos"][0]["clave"] == "resumen_ejecutivo"
     updated_at_resumen = reemplazo_actual.json()["capitulos"][0]["updated_at"]
 
@@ -1744,7 +1766,7 @@ def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_impo
         conn.close()
     por_clave = {fila["clave"]: fila for fila in filas}
     assert por_clave["resumen_ejecutivo"]["contenido"] == (
-        "Referencia al Anexo A y otra referencia al Anexo A."
+        "Referencia al Anexo A y otra referencia al Anexo B."
     )
     assert por_clave["metodologia"]["contenido"] == "Texto con Anexo B pendiente."
 
@@ -1753,8 +1775,16 @@ def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_impo
         data={
             "buscar": "Anexo B",
             "reemplazar": "Anexo A",
-            "alcance": "actual",
-            "campo_actual": "metodologia",
+            "alcance": "seleccion",
+            "coincidencias": json.dumps(
+                [
+                    {
+                        "clave": "metodologia",
+                        "indice": 10,
+                        "encontrado": "Anexo B",
+                    }
+                ]
+            ),
             "contenido_metodologia": "Texto con Anexo B pendiente.",
             "updated_at_metodologia": "2026-06-10 11:59:00",
         },
@@ -1762,36 +1792,68 @@ def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_impo
     assert conflicto.status_code == 409
     assert conflicto.json()["code"] == "conflict"
 
+    obsoleta = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/reemplazar",
+        data={
+            "buscar": "Anexo B",
+            "reemplazar": "Anexo A",
+            "alcance": "seleccion",
+            "coincidencias": json.dumps([primera]),
+            "contenido_resumen_ejecutivo": "Referencia al Anexo A y otra referencia al Anexo B.",
+            "updated_at_resumen_ejecutivo": updated_at_resumen,
+        },
+    )
+    assert obsoleta.status_code == 409
+    assert obsoleta.json()["code"] == "stale_match"
+
     reemplazo_todo = client.post(
         f"/informes-v2/{expediente_id}/buscar-reemplazar/reemplazar",
         data={
             "buscar": "Anexo B",
             "reemplazar": "Anexo A",
-            "alcance": "todo",
-            "contenido_resumen_ejecutivo": "Referencia al Anexo A y otra referencia al Anexo A.",
+            "alcance": "seleccion",
+            "coincidencias": json.dumps(
+                [
+                    {
+                        "clave": "resumen_ejecutivo",
+                        "indice": len("Referencia al Anexo A y otra referencia al "),
+                        "encontrado": "Anexo B",
+                    },
+                    {
+                        "clave": "metodologia",
+                        "indice": len("Texto con "),
+                        "encontrado": "Anexo B",
+                    },
+                ]
+            ),
+            "contenido_resumen_ejecutivo": "Referencia al Anexo A y otra referencia al Anexo B.",
             "updated_at_resumen_ejecutivo": updated_at_resumen,
             "contenido_metodologia": "Texto con Anexo B pendiente.",
             "updated_at_metodologia": "2026-06-10 12:01:00",
         },
     )
     assert reemplazo_todo.status_code == 200
-    assert reemplazo_todo.json()["total"] == 1
+    assert reemplazo_todo.json()["total"] == 2
 
     conn = get_connection()
     try:
         cur = conn.cursor()
-        metodologia = cur.execute(
+        filas_finales = cur.execute(
             """
-            SELECT contenido
+            SELECT clave, contenido
             FROM informe_v2_capitulos
-            WHERE expediente_id = ? AND clave = 'metodologia'
+            WHERE expediente_id = ?
             """,
             (expediente_id,),
-        ).fetchone()
+        ).fetchall()
     finally:
         conn.close()
 
-    assert metodologia["contenido"] == "Texto con Anexo A pendiente."
+    final_por_clave = {fila["clave"]: fila for fila in filas_finales}
+    assert final_por_clave["resumen_ejecutivo"]["contenido"] == (
+        "Referencia al Anexo A y otra referencia al Anexo A."
+    )
+    assert final_por_clave["metodologia"]["contenido"] == "Texto con Anexo A pendiente."
 
 
 def test_informe_v2_crea_snapshot_al_modificar_capitulo(isolated_import):

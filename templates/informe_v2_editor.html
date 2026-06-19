@@ -274,6 +274,83 @@
             min-height: 1.2em;
         }
 
+        .find-replace-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .find-replace-match {
+            background: #f8fafc;
+            border: 1px solid #dbe3ee;
+            border-radius: 8px;
+            display: grid;
+            gap: 7px;
+            padding: 9px;
+        }
+
+        .find-replace-match.reemplazada {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+        }
+
+        .find-replace-match.omitida {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            opacity: 0.82;
+        }
+
+        .find-replace-match-head {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            justify-content: space-between;
+        }
+
+        .find-replace-chapter {
+            color: #0f172a;
+            font-size: 0.84rem;
+            font-weight: 800;
+        }
+
+        .find-replace-state {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            color: #475569;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 7px;
+            text-transform: uppercase;
+        }
+
+        .find-replace-state.reemplazada {
+            background: #dcfce7;
+            border-color: #86efac;
+            color: #166534;
+        }
+
+        .find-replace-state.omitida {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .find-replace-context {
+            color: #334155;
+            font-size: 0.86rem;
+            line-height: 1.5;
+            margin: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .find-replace-context mark {
+            background: #fef3c7;
+            border-radius: 3px;
+            color: #78350f;
+            font-weight: 800;
+            padding: 0 2px;
+        }
+
         .presentation-grid {
             display: grid;
             gap: 12px;
@@ -1276,10 +1353,10 @@
                         </div>
                         <div class="actions">
                             <button class="boton secundario" type="button" id="find-replace-count">Buscar coincidencias</button>
-                            <button class="boton secundario" type="button" id="find-replace-current">Reemplazar en capítulo actual</button>
-                            <button class="boton secundario" type="button" id="find-replace-all">Reemplazar en todo el informe</button>
+                            <button class="boton secundario" type="button" id="find-replace-all">Reemplazar todas las pendientes</button>
                         </div>
                         <p class="find-replace-result" id="find-replace-result" aria-live="polite"></p>
+                        <div class="find-replace-list" id="find-replace-list" aria-live="polite"></div>
                     </section>
 
                     <section class="chapter-editor" id="presentacion-informe">
@@ -1819,15 +1896,16 @@
             const findSearchEl = document.getElementById("find-replace-search");
             const findValueEl = document.getElementById("find-replace-value");
             const findCountButton = document.getElementById("find-replace-count");
-            const findCurrentButton = document.getElementById("find-replace-current");
             const findAllButton = document.getElementById("find-replace-all");
             const findResultEl = document.getElementById("find-replace-result");
+            const findListEl = document.getElementById("find-replace-list");
             const pendingTimers = new Map();
             const dirtyFields = new Set();
             const savingFields = new Set();
             const conflictFields = new Set();
             const debounceMs = 1000;
             let activeReplaceCampo = replaceTextareas.length ? replaceTextareas[0].dataset.autosaveCampo : "";
+            let findMatches = [];
 
             async function saveReviewState(select) {
                 const campo = select.dataset.reviewState;
@@ -1940,6 +2018,70 @@
                 findResultEl.style.color = isError ? "#991b1b" : "#475569";
             }
 
+            function escapeHtml(value) {
+                return String(value || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            function findSummary() {
+                return findMatches.reduce(function (summary, match) {
+                    summary.total += 1;
+                    summary[match.estado] = (summary[match.estado] || 0) + 1;
+                    return summary;
+                }, { total: 0, pendiente: 0, reemplazada: 0, omitida: 0 });
+            }
+
+            function updateFindSummary() {
+                const summary = findSummary();
+                if (!summary.total) {
+                    setFindResult("", false);
+                    return;
+                }
+                setFindResult(
+                    summary.total + " encontradas · " +
+                    summary.pendiente + " pendientes · " +
+                    summary.reemplazada + " reemplazadas · " +
+                    summary.omitida + " omitidas",
+                    false
+                );
+            }
+
+            function renderFindMatches() {
+                if (!findListEl) {
+                    return;
+                }
+                if (!findMatches.length) {
+                    findListEl.innerHTML = "";
+                    return;
+                }
+                findListEl.innerHTML = findMatches.map(function (match, index) {
+                    const disabled = match.estado !== "pendiente" ? " disabled" : "";
+                    return (
+                        '<article class="find-replace-match ' + escapeHtml(match.estado) + '" data-find-index="' + index + '">' +
+                            '<div class="find-replace-match-head">' +
+                                '<span class="find-replace-chapter">Capítulo: ' + escapeHtml(match.titulo) + '</span>' +
+                                '<span class="find-replace-state ' + escapeHtml(match.estado) + '">' + escapeHtml(match.estado) + '</span>' +
+                            '</div>' +
+                            '<p class="find-replace-context">...' +
+                                escapeHtml(match.contexto_antes) +
+                                '<mark>' + escapeHtml(match.encontrado) + '</mark>' +
+                                escapeHtml(match.contexto_despues) +
+                            '...</p>' +
+                            '<div class="actions">' +
+                                '<button class="boton secundario" type="button" data-find-replace-one="' + index + '"' + disabled + '>Reemplazar esta</button>' +
+                                '<button class="boton secundario" type="button" data-find-skip="' + index + '"' + disabled + '>Omitir</button>' +
+                                '<button class="boton secundario" type="button" data-find-go="' + index + '">Ir al capítulo</button>' +
+                            '</div>' +
+                        '</article>'
+                    );
+                }).join("");
+                updateFindSummary();
+            }
+
             function buildFindReplaceBody(alcance) {
                 const search = findSearchEl ? findSearchEl.value : "";
                 const replacement = findValueEl ? findValueEl.value : "";
@@ -1953,6 +2095,18 @@
                     body.append("contenido_" + campo, textarea.value);
                     body.append("updated_at_" + campo, getKnownUpdatedAt(campo));
                 });
+                return body;
+            }
+
+            function buildSelectedReplaceBody(matches) {
+                const body = buildFindReplaceBody("seleccion");
+                body.append("coincidencias", JSON.stringify(matches.map(function (match) {
+                    return {
+                        clave: match.clave,
+                        indice: match.indice,
+                        encontrado: match.encontrado,
+                    };
+                })));
                 return body;
             }
 
@@ -1995,6 +2149,8 @@
             async function countFindReplaceMatches() {
                 if (!findSearchEl || !findSearchEl.value) {
                     setFindResult("Introduce un texto para buscar.", true);
+                    findMatches = [];
+                    renderFindMatches();
                     return;
                 }
                 try {
@@ -2002,27 +2158,41 @@
                         "/informes-v2/" + expedienteId + "/buscar-reemplazar/contar",
                         buildFindReplaceBody("todo")
                     );
-                    setFindResult(data.total + " coincidencia" + (data.total === 1 ? "" : "s") + " en el informe.", false);
+                    findMatches = (data.coincidencias || []).map(function (match) {
+                        return Object.assign({}, match, { estado: "pendiente" });
+                    });
+                    renderFindMatches();
+                    if (!findMatches.length) {
+                        setFindResult("0 encontradas · 0 pendientes · 0 reemplazadas · 0 omitidas", false);
+                    }
                 } catch (error) {
                     setFindResult(error.message, true);
                 }
             }
 
-            async function replaceMatches(alcance) {
+            async function replaceSelectedMatches(matches) {
                 if (!findSearchEl || !findSearchEl.value) {
                     setFindResult("Introduce un texto para buscar.", true);
                     return;
                 }
-                if (alcance === "todo" && !window.confirm("¿Reemplazar coincidencias en todo el informe?")) {
+                if (!matches.length) {
+                    setFindResult("No hay coincidencias pendientes seleccionadas.", true);
                     return;
                 }
                 try {
                     const data = await requestFindReplace(
                         "/informes-v2/" + expedienteId + "/buscar-reemplazar/reemplazar",
-                        buildFindReplaceBody(alcance)
+                        buildSelectedReplaceBody(matches)
                     );
                     applyReplacedChapters(data.capitulos);
-                    setFindResult(data.total + " coincidencia" + (data.total === 1 ? "" : "s") + " reemplazada" + (data.total === 1 ? "" : "s") + ".", false);
+                    const replacedIds = new Set(matches.map(function (match) { return match.id; }));
+                    findMatches = findMatches.map(function (match) {
+                        if (replacedIds.has(match.id) && match.estado === "pendiente") {
+                            return Object.assign({}, match, { estado: "reemplazada" });
+                        }
+                        return match;
+                    });
+                    renderFindMatches();
                     setStatus("Buscar y reemplazar completado.", "saved");
                 } catch (error) {
                     if (error.status === 409 && error.data && error.data.conflictos) {
@@ -2033,6 +2203,33 @@
                     }
                     setFindResult(error.message, true);
                     setStatus(error.message, "error");
+                }
+            }
+
+            function skipFindMatch(index) {
+                const match = findMatches[index];
+                if (!match || match.estado !== "pendiente") {
+                    return;
+                }
+                findMatches[index] = Object.assign({}, match, { estado: "omitida" });
+                renderFindMatches();
+            }
+
+            function goToFindMatch(index) {
+                const match = findMatches[index];
+                if (!match) {
+                    return;
+                }
+                const chapter = document.getElementById("capitulo-" + match.clave);
+                const textarea = document.querySelector('[data-autosave-campo="' + match.clave + '"]');
+                if (chapter) {
+                    chapter.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+                if (textarea) {
+                    textarea.focus();
+                    if (typeof textarea.setSelectionRange === "function") {
+                        textarea.setSelectionRange(match.indice, match.fin);
+                    }
                 }
             }
 
@@ -2273,14 +2470,37 @@
             if (findCountButton) {
                 findCountButton.addEventListener("click", countFindReplaceMatches);
             }
-            if (findCurrentButton) {
-                findCurrentButton.addEventListener("click", function () {
-                    replaceMatches("actual");
-                });
-            }
             if (findAllButton) {
                 findAllButton.addEventListener("click", function () {
-                    replaceMatches("todo");
+                    const pendingMatches = findMatches.filter(function (match) {
+                        return match.estado === "pendiente";
+                    });
+                    if (!pendingMatches.length) {
+                        setFindResult("No hay coincidencias pendientes.", true);
+                        return;
+                    }
+                    if (!window.confirm("¿Reemplazar todas las coincidencias pendientes?")) {
+                        return;
+                    }
+                    replaceSelectedMatches(pendingMatches);
+                });
+            }
+            if (findListEl) {
+                findListEl.addEventListener("click", function (event) {
+                    const replaceButton = event.target.closest("[data-find-replace-one]");
+                    const skipButton = event.target.closest("[data-find-skip]");
+                    const goButton = event.target.closest("[data-find-go]");
+                    if (replaceButton) {
+                        const index = Number(replaceButton.dataset.findReplaceOne);
+                        const match = findMatches[index];
+                        if (match && match.estado === "pendiente") {
+                            replaceSelectedMatches([match]);
+                        }
+                    } else if (skipButton) {
+                        skipFindMatch(Number(skipButton.dataset.findSkip));
+                    } else if (goButton) {
+                        goToFindMatch(Number(goButton.dataset.findGo));
+                    }
                 });
             }
 
