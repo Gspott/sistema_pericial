@@ -5834,8 +5834,39 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
             browser.close()
             return pdf
 
+    def contar_paginas_pdf(pdf_bytes: bytes) -> int:
+        try:
+            from pypdf import PdfReader
+
+            return len(PdfReader(BytesIO(pdf_bytes)).pages)
+        except Exception:
+            return 0
+
+    def completar_paginas_documentos_aportados(
+        indice_paginas: dict[str, int],
+        contexto_pdf: dict,
+        total_paginas_informe: int,
+    ) -> dict[str, int]:
+        if total_paginas_informe <= 0:
+            return indice_paginas
+        paginas = dict(indice_paginas)
+        desplazamiento_documentacion = int(
+            contexto_pdf.get("desplazamiento_paginas_documentacion_aportada") or 0
+        )
+        pagina_documento = total_paginas_informe + desplazamiento_documentacion + 1
+        for item in contexto_pdf.get("indice") or []:
+            if item.get("grupo") != "documentacion_documento":
+                continue
+            clave = str(item.get("clave") or "").strip()
+            if not clave:
+                continue
+            paginas[clave] = pagina_documento
+            pagina_documento += 1 + int(item.get("paginas_pdf") or 0)
+        return paginas
+
     try:
         pdf_bytes = generar_pdf_desde_html(renderizar_html(contexto))
+        total_paginas_informe = contar_paginas_pdf(pdf_bytes)
         indice_paginas = extraer_paginas_indice_informe_v2(
             pdf_bytes,
             contexto.get("indice") or [],
@@ -5845,12 +5876,29 @@ def generar_informe_v2_pdf_bytes(request: Request, contexto: dict) -> bytes:
         )
         if desplazamiento_documentacion and "documentacion_aportada" in indice_paginas:
             indice_paginas["documentacion_aportada"] += desplazamiento_documentacion
+        indice_paginas = completar_paginas_documentos_aportados(
+            indice_paginas,
+            contexto,
+            total_paginas_informe,
+        )
         if indice_paginas:
             contexto_con_indice = {
                 **contexto,
                 "indice_paginas": indice_paginas,
             }
             pdf_bytes = generar_pdf_desde_html(renderizar_html(contexto_con_indice))
+            total_paginas_informe_actualizado = contar_paginas_pdf(pdf_bytes)
+            if total_paginas_informe_actualizado and total_paginas_informe_actualizado != total_paginas_informe:
+                indice_paginas = completar_paginas_documentos_aportados(
+                    indice_paginas,
+                    contexto,
+                    total_paginas_informe_actualizado,
+                )
+                contexto_con_indice = {
+                    **contexto,
+                    "indice_paginas": indice_paginas,
+                }
+                pdf_bytes = generar_pdf_desde_html(renderizar_html(contexto_con_indice))
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -5897,6 +5945,8 @@ def extraer_paginas_indice_informe_v2(pdf_bytes: bytes, indice: list[dict]) -> d
             patrones = ["indice"]
         elif item.get("grupo") == "anexos":
             patrones = [f"ANEXO {numero} {titulo}"]
+        elif item.get("grupo") == "documentacion_documento":
+            continue
         else:
             patrones = [f"{numero} {titulo}"]
         patrones_normalizados = [

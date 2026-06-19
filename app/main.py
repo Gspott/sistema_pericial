@@ -6248,12 +6248,12 @@ INFORME_V2_CAPITULOS = [
     },
     {
         "clave": "anexo_e_partida_4",
-        "titulo": "ANEXO E. Análisis de ejecución de la partida nº 4",
+        "titulo": "ANEXO D. Análisis de ejecución de la partida nº 4",
         "orden": 12,
     },
     {
         "clave": "anexo_f_mediciones",
-        "titulo": "ANEXO F. Justificación de mediciones",
+        "titulo": "ANEXO E. Justificación de mediciones",
         "orden": 13,
     },
 ]
@@ -7060,7 +7060,7 @@ def evaluar_advertencias_editoriales_informe_v2(
             if contar_menciones_editoriales_v2(contenido(clave), terminos_fotos) >= 5:
                 agregar(
                     clave,
-                    "El capítulo contiene numerosas referencias a fotografías. Parte del contenido podría estar ya cubierto por el Anexo B (reportaje fotográfico).",
+                    "El capítulo contiene numerosas referencias a fotografías. Parte del contenido podría estar ya cubierto por el Anexo A (reportaje fotográfico).",
                     "Reduzca las menciones foto a foto y deje el detalle visual al anexo automático.",
                     "A",
                 )
@@ -7078,7 +7078,7 @@ def evaluar_advertencias_editoriales_informe_v2(
             if contar_menciones_editoriales_v2(contenido(clave), terminos_estancias) >= 5:
                 agregar(
                     clave,
-                    "El capítulo contiene un inventario detallado de estancias o daños por estancia. Parte de la información podría estar ya cubierta por el Anexo C.",
+                    "El capítulo contiene un inventario detallado de estancias o daños por estancia. Parte de la información podría estar ya cubierta por el Anexo B.",
                     "Mantenga aquí la síntesis y deje el detalle estancia por estancia a las fichas automáticas.",
                     "B",
                 )
@@ -7536,12 +7536,12 @@ def preparar_editor_informe_v2(cur, expediente) -> dict:
     diagnostico_informe = evaluar_diagnostico_informe_v2(capitulos, workbench)
     diagnostico_informe["anexos_derivados"] = [
         {
-            "titulo": "Anexo B",
+            "titulo": "Anexo A",
             "texto": "✓ Disponible" if anexos_derivados["anexo_b"]["disponible"] else "No disponible",
             "disponible": anexos_derivados["anexo_b"]["disponible"],
         },
         {
-            "titulo": "Anexo C",
+            "titulo": "Anexo B",
             "texto": "✓ Disponible" if anexos_derivados["anexo_c"]["disponible"] else "No disponible",
             "disponible": anexos_derivados["anexo_c"]["disponible"],
         },
@@ -7664,6 +7664,55 @@ def guardar_capitulo_informe_v2(
             "pericial-wb-2",
         ),
     )
+
+
+def contar_coincidencias_texto_informe_v2(texto: str, buscar: str) -> int:
+    texto_base = str(texto or "")
+    aguja = str(buscar or "")
+    if not aguja:
+        return 0
+    return texto_base.count(aguja)
+
+
+def reemplazar_texto_informe_v2(texto: str, buscar: str, reemplazo: str) -> tuple[str, int]:
+    texto_base = str(texto or "")
+    aguja = str(buscar or "")
+    if not aguja:
+        return texto_base, 0
+    coincidencias = texto_base.count(aguja)
+    if not coincidencias:
+        return texto_base, 0
+    return texto_base.replace(aguja, str(reemplazo or "")), coincidencias
+
+
+def contenido_cliente_capitulo_informe_v2(form_data, clave: str, guardado: dict | None) -> str:
+    campo_form = f"contenido_{clave}"
+    if campo_form in form_data:
+        return str(form_data.get(campo_form) or "")
+    return limpiar_texto((guardado or {}).get("contenido"))
+
+
+def detectar_conflictos_buscar_reemplazar_informe_v2(
+    guardados: dict,
+    form_data,
+    claves: list[str],
+) -> list[dict]:
+    conflictos = []
+    for clave in claves:
+        guardado = guardados.get(clave)
+        if not guardado:
+            continue
+        updated_at_actual = limpiar_texto(guardado.get("updated_at"))
+        updated_at_cliente = limpiar_texto(form_data.get(f"updated_at_{clave}"))
+        if updated_at_actual and updated_at_actual != updated_at_cliente:
+            conflictos.append(
+                {
+                    "clave": clave,
+                    "titulo": INFORME_V2_CAPITULOS_POR_CLAVE[clave]["titulo"],
+                    "updated_at": updated_at_actual,
+                }
+            )
+    return conflictos
 
 
 def crear_snapshot_capitulo_informe_v2(
@@ -8916,10 +8965,14 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
         base_url,
     )
     desplazamiento_paginas_anexo_a = 0
+    indice_documento_aportado = 0
     for documento in anexos.get("documentacion") or []:
         if documento_anexo_a_pdf_v2(documento):
+            indice_documento_aportado += 1
             paginas_pdf = contar_paginas_pdf_upload_v2(documento.get("archivo_ruta"))
             documento["paginas_pdf"] = paginas_pdf
+            documento["numero_documento_label"] = f"Documento {indice_documento_aportado}"
+            documento["indice_clave"] = f"documentacion_doc_{indice_documento_aportado}"
             desplazamiento_paginas_anexo_a += paginas_pdf + 1
     desplazamiento_paginas_documentacion_aportada = 0
     if pdf_mediciones_anexo_f:
@@ -8962,6 +9015,20 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
             },
         ]
     )
+    for documento in anexos.get("documentacion") or []:
+        if not documento_anexo_a_pdf_v2(documento):
+            continue
+        numero_documento = limpiar_texto(documento.get("numero_documento_label"))
+        clave_documento = limpiar_texto(documento.get("indice_clave"))
+        indice.append(
+            {
+                "numero": numero_documento,
+                "titulo": limpiar_texto(documento.get("nombre")) or "Documento aportado",
+                "grupo": "documentacion_documento",
+                "clave": clave_documento,
+                "paginas_pdf": int(documento.get("paginas_pdf") or 0),
+            }
+        )
 
     expediente_dict["tipo_trabajo_label"] = etiquetar_opcion(
         expediente_dict.get("tipo_informe", ""), TIPO_INFORME_LABELS
@@ -9128,7 +9195,7 @@ def diagnosticar_peso_anexos_pdf_v2(
         anexos.append(
             {
                 "categoria": "anexo_a",
-                "nombre": limpiar_texto(documento.get("nombre")) or "Anexo A",
+                "nombre": limpiar_texto(documento.get("nombre")) or "Documentación aportada",
                 **peso,
             }
         )
@@ -9142,7 +9209,7 @@ def diagnosticar_peso_anexos_pdf_v2(
             anexos.append(
                 {
                     "categoria": "anexo_f",
-                    "nombre": limpiar_texto(pdf_mediciones.get("archivo_nombre_original")) or "Anexo F",
+                    "nombre": limpiar_texto(pdf_mediciones.get("archivo_nombre_original")) or "Anexo E",
                     **peso,
                 }
             )
@@ -9168,7 +9235,7 @@ def diagnosticar_peso_anexos_pdf_v2(
         )
     if total and anexo_a_bytes / total > 0.7:
         avisos.append(
-            "El Anexo A representa más del 70 % del peso estimado del PDF."
+            "La documentación aportada representa más del 70 % del peso estimado del PDF."
         )
     if total_mb < 10:
         nivel = "verde"
@@ -9222,6 +9289,7 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
     contexto = contexto or {}
     try:
         from pypdf import PdfReader, PdfWriter
+        from pypdf.generic import ArrayObject, DictionaryObject, NameObject
     except ImportError:
         logger.warning("No se pudieron añadir marcadores PDF V2: pypdf no está instalado.")
         return pdf_bytes
@@ -9238,6 +9306,8 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
     total_paginas = len(reader.pages)
     if not total_paginas:
         return pdf_bytes
+
+    destinos_enlaces: dict[str, int] = {"pdf-target-portada": 0}
 
     def pagina_por_patrones(patrones: list[str], inicio: int = 0, fallback: int | None = None) -> int | None:
         pagina = encontrar_pagina_pdf_v2(reader, patrones, inicio=inicio)
@@ -9259,13 +9329,68 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
             logger.warning("No se pudo añadir marcador PDF V2 %s: %s", titulo_limpio, exc)
             return None
 
+    def registrar_destino_html(destino: str, pagina: int | None) -> None:
+        if pagina is None:
+            return
+        destino_limpio = limpiar_texto(destino).lstrip("#/")
+        if destino_limpio:
+            destinos_enlaces[destino_limpio] = max(0, min(int(pagina), total_paginas - 1))
+
+    def extraer_destino_anotacion(annot_obj) -> str:
+        destino = annot_obj.get("/Dest")
+        if destino is None:
+            accion = annot_obj.get("/A")
+            if accion:
+                accion_obj = accion.get_object() if hasattr(accion, "get_object") else accion
+                destino = accion_obj.get("/D") or accion_obj.get("/URI")
+        if destino is None:
+            return ""
+        if isinstance(destino, (list, tuple, ArrayObject)):
+            return ""
+        return limpiar_texto(str(destino)).lstrip("#/")
+
+    def normalizar_enlaces_internos() -> None:
+        for pagina in writer.pages:
+            anotaciones = pagina.get("/Annots") or []
+            for anotacion in anotaciones:
+                try:
+                    annot_obj = anotacion.get_object()
+                except Exception:
+                    continue
+                if annot_obj.get("/Subtype") != "/Link":
+                    continue
+                destino = extraer_destino_anotacion(annot_obj)
+                pagina_destino = destinos_enlaces.get(destino)
+                if pagina_destino is None:
+                    continue
+                try:
+                    pagina_objetivo = writer.pages[pagina_destino]
+                    referencia_pagina = getattr(pagina_objetivo, "indirect_reference", None)
+                    if referencia_pagina is None:
+                        continue
+                    annot_obj[NameObject("/A")] = DictionaryObject(
+                        {
+                            NameObject("/S"): NameObject("/GoTo"),
+                            NameObject("/D"): ArrayObject([referencia_pagina, NameObject("/Fit")]),
+                        }
+                    )
+                    if "/Dest" in annot_obj:
+                        del annot_obj[NameObject("/Dest")]
+                except Exception as exc:
+                    logger.warning("No se pudo normalizar enlace interno PDF V2 %s: %s", destino, exc)
+
     try:
+        registrar_destino_html(
+            "pdf-target-indice",
+            pagina_por_patrones(["Índice"], inicio=1, fallback=1),
+        )
         raiz_informe = add_outline("Informe", 0)
         for capitulo in contexto.get("capitulos") or []:
             numero = limpiar_texto(capitulo.get("numero_pdf"))
             titulo = limpiar_texto(capitulo.get("titulo"))
             patrones = [f"{numero}. {titulo}" if numero else titulo]
             pagina = pagina_por_patrones(patrones, inicio=1)
+            registrar_destino_html(f"pdf-target-{capitulo.get('clave')}", pagina)
             add_outline(f"{numero}. {titulo}" if numero else titulo, pagina, parent=raiz_informe)
 
         conclusiones = contexto.get("conclusiones") or {}
@@ -9275,6 +9400,7 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
             [f"{numero_conclusiones}. {titulo_conclusiones}" if numero_conclusiones else titulo_conclusiones],
             inicio=1,
         )
+        registrar_destino_html("pdf-target-conclusiones", pagina_conclusiones)
         add_outline(
             f"{numero_conclusiones}. {titulo_conclusiones}" if numero_conclusiones else titulo_conclusiones,
             pagina_conclusiones,
@@ -9290,8 +9416,9 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
         ]
         pagina_primer_anexo = pagina_por_patrones(anexos_tecnicos[0][1], inicio=1, fallback=0)
         raiz_anexos = add_outline("Anexos técnicos", pagina_primer_anexo)
-        for titulo, patrones in anexos_tecnicos:
+        for indice_anexo, (titulo, patrones) in enumerate(anexos_tecnicos, start=1):
             pagina = pagina_por_patrones(patrones, inicio=1)
+            registrar_destino_html(f"pdf-target-anexo_{chr(96 + indice_anexo)}", pagina)
             add_outline(titulo, pagina, parent=raiz_anexos)
 
         titulo_documentacion = "Documentación aportada al expediente"
@@ -9299,12 +9426,14 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
             ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE"],
             inicio=1,
         )
+        registrar_destino_html("pdf-target-documentacion_aportada", pagina_documentacion)
         raiz_documentacion = add_outline(titulo_documentacion, pagina_documentacion)
         pagina_relacion = pagina_por_patrones(
             ["DOCUMENTACIÓN APORTADA AL EXPEDIENTE", "Relación documental"],
             inicio=(pagina_documentacion or 0),
             fallback=pagina_documentacion,
         )
+        registrar_destino_html("pdf-target-relacion_documental", pagina_relacion)
         add_outline("Relación de documentación aportada", pagina_relacion, parent=raiz_documentacion)
 
         inicio_documentos = (pagina_relacion + 1) if pagina_relacion is not None else (pagina_documentacion or 0)
@@ -9319,8 +9448,10 @@ def agregar_bookmarks_pdf_v2(pdf_bytes: bytes, contexto: dict | None) -> bytes:
             if nombre:
                 patrones_documento.append(nombre)
             pagina = pagina_por_patrones(patrones_documento, inicio=inicio_documentos)
+            registrar_destino_html(f"pdf-target-documentacion_doc_{indice_documento}", pagina)
             add_outline(titulo, pagina, parent=raiz_documentacion)
 
+        normalizar_enlaces_internos()
         salida = BytesIO()
         writer.write(salida)
         return salida.getvalue()
@@ -12490,7 +12621,7 @@ def subir_documento_anexo_a_workbench(
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             return redirect_detalle_expediente(
                 expediente_id,
-                error="El gestor documental del Anexo A solo aplica a expedientes de patologías.",
+                error="El gestor documental de documentación aportada solo aplica a expedientes de patologías.",
             )
         try:
             archivo_ruta, nombre_original, mime_type = guardar_documento_pdf_expediente(
@@ -12530,7 +12661,7 @@ def subir_documento_anexo_a_workbench(
 
     return redirect_pericial_workbench(
         expediente_id,
-        mensaje="Documento incorporado al Anexo A.",
+        mensaje="Documento incorporado a documentación aportada.",
     )
 
 
@@ -12610,7 +12741,7 @@ def eliminar_documento_anexo_a_workbench(
 
     return redirect_pericial_workbench(
         expediente_id,
-        mensaje="Documento eliminado del Anexo A.",
+        mensaje="Documento eliminado de documentación aportada.",
     )
 
 
@@ -12630,7 +12761,7 @@ def subir_pdf_mediciones_anexo_f_informe_v2(
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             return redirect_detalle_expediente(
                 expediente_id,
-                error="El PDF de mediciones de Anexo F solo aplica a expedientes de patologías.",
+                error="El PDF de mediciones de Anexo E solo aplica a expedientes de patologías.",
             )
         try:
             archivo_ruta, nombre_original, mime_type = guardar_documento_pdf_expediente(
@@ -12650,7 +12781,7 @@ def subir_pdf_mediciones_anexo_f_informe_v2(
             """,
             (
                 expediente_id,
-                "PDF de mediciones para Anexo F",
+                "PDF de mediciones para Anexo E",
                 "Desarrollo completo de mediciones incorporado al informe.",
                 TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES,
                 archivo_ruta,
@@ -12669,7 +12800,7 @@ def subir_pdf_mediciones_anexo_f_informe_v2(
 
     return redirect_informe_v2_editor(
         expediente_id,
-        mensaje="PDF de mediciones incorporado al Anexo F.",
+        mensaje="PDF de mediciones incorporado al Anexo E.",
     )
 
 
@@ -12684,7 +12815,7 @@ def eliminar_pdf_mediciones_anexo_f_informe_v2(request: Request, expediente_id: 
         if limpiar_texto(expediente["tipo_informe"]) != "patologias":
             return redirect_detalle_expediente(
                 expediente_id,
-                error="El PDF de mediciones de Anexo F solo aplica a expedientes de patologías.",
+                error="El PDF de mediciones de Anexo E solo aplica a expedientes de patologías.",
             )
         eliminados = eliminar_pdfs_mediciones_anexo_f_informe_v2(cur, expediente_id)
         conn.commit()
@@ -12692,9 +12823,9 @@ def eliminar_pdf_mediciones_anexo_f_informe_v2(request: Request, expediente_id: 
         conn.close()
 
     mensaje = (
-        "PDF de mediciones eliminado del Anexo F."
+        "PDF de mediciones eliminado del Anexo E."
         if eliminados
-        else "No había PDF de mediciones asociado al Anexo F."
+        else "No había PDF de mediciones asociado al Anexo E."
     )
     return redirect_informe_v2_editor(expediente_id, mensaje=mensaje)
 
@@ -13091,6 +13222,155 @@ async def autosave_informe_v2(request: Request, expediente_id: int):
             "ok": True,
             "campo": campo,
             "updated_at": limpiar_texto(fila["updated_at"]) if fila else "",
+        }
+    )
+
+
+@app.post("/informes-v2/{expediente_id}/buscar-reemplazar/contar")
+async def contar_buscar_reemplazar_informe_v2(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+    buscar = str(form_data.get("buscar") or "")
+    if not buscar:
+        return JSONResponse(
+            {"ok": False, "error": "El texto a buscar no puede estar vacío.", "code": "empty_search"},
+            status_code=400,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return JSONResponse(
+                {"ok": False, "error": "La búsqueda del informe solo aplica a expedientes de patologías."},
+                status_code=400,
+            )
+        guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
+        capitulos = []
+        total = 0
+        for definicion in INFORME_V2_CAPITULOS:
+            clave = definicion["clave"]
+            contenido = contenido_cliente_capitulo_informe_v2(form_data, clave, guardados.get(clave))
+            coincidencias = contar_coincidencias_texto_informe_v2(contenido, buscar)
+            if coincidencias:
+                total += coincidencias
+                capitulos.append(
+                    {
+                        "clave": clave,
+                        "titulo": definicion["titulo"],
+                        "coincidencias": coincidencias,
+                    }
+                )
+    finally:
+        conn.close()
+
+    return JSONResponse({"ok": True, "total": total, "capitulos": capitulos})
+
+
+@app.post("/informes-v2/{expediente_id}/buscar-reemplazar/reemplazar")
+async def reemplazar_buscar_reemplazar_informe_v2(request: Request, expediente_id: int):
+    current_user = get_current_user(request)
+    form_data = await request.form()
+    buscar = str(form_data.get("buscar") or "")
+    reemplazo = str(form_data.get("reemplazar") or "")
+    alcance = limpiar_texto(form_data.get("alcance")) or "actual"
+    campo_actual = limpiar_texto(form_data.get("campo_actual"))
+    if not buscar:
+        return JSONResponse(
+            {"ok": False, "error": "El texto a buscar no puede estar vacío.", "code": "empty_search"},
+            status_code=400,
+        )
+    if alcance not in {"actual", "todo"}:
+        return JSONResponse(
+            {"ok": False, "error": "Alcance no permitido para buscar y reemplazar."},
+            status_code=400,
+        )
+    if alcance == "actual" and campo_actual not in INFORME_V2_CAPITULOS_POR_CLAVE:
+        return JSONResponse(
+            {"ok": False, "error": "Selecciona un capítulo válido para reemplazar."},
+            status_code=400,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "patologias":
+            return JSONResponse(
+                {"ok": False, "error": "El reemplazo del informe solo aplica a expedientes de patologías."},
+                status_code=400,
+            )
+        guardados = obtener_capitulos_guardados_informe_v2(cur, expediente_id)
+        claves_objetivo = (
+            [campo_actual]
+            if alcance == "actual"
+            else [definicion["clave"] for definicion in INFORME_V2_CAPITULOS]
+        )
+        conflictos = detectar_conflictos_buscar_reemplazar_informe_v2(
+            guardados,
+            form_data,
+            claves_objetivo,
+        )
+        if conflictos:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Hay una versión más reciente de algún capítulo. Recarga antes de reemplazar.",
+                    "code": "conflict",
+                    "conflictos": conflictos,
+                },
+                status_code=409,
+            )
+
+        capitulos_actualizados = []
+        total = 0
+        for clave in claves_objetivo:
+            definicion = INFORME_V2_CAPITULOS_POR_CLAVE[clave]
+            contenido = contenido_cliente_capitulo_informe_v2(form_data, clave, guardados.get(clave))
+            contenido_nuevo, coincidencias = reemplazar_texto_informe_v2(
+                contenido,
+                buscar,
+                reemplazo,
+            )
+            if not coincidencias:
+                continue
+            total += coincidencias
+            guardar_capitulo_informe_v2(
+                cur,
+                expediente_id,
+                clave,
+                contenido_nuevo,
+                origen_version="buscar_reemplazar",
+            )
+            fila = cur.execute(
+                """
+                SELECT updated_at
+                FROM informe_v2_capitulos
+                WHERE expediente_id = ? AND clave = ?
+                """,
+                (expediente_id, clave),
+            ).fetchone()
+            capitulos_actualizados.append(
+                {
+                    "clave": clave,
+                    "titulo": definicion["titulo"],
+                    "contenido": contenido_nuevo,
+                    "coincidencias": coincidencias,
+                    "updated_at": limpiar_texto(fila["updated_at"]) if fila else "",
+                }
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "total": total,
+            "capitulos": capitulos_actualizados,
         }
     )
 

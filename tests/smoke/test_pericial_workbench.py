@@ -624,17 +624,20 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Advertencias editoriales (" in response.text
     assert "Capítulos obligatorios" in response.text
     assert "Anexos derivados" in response.text
-    assert "Anexo B · Reportaje fotográfico" in response.text
+    assert "Anexo A · Reportaje fotográfico" in response.text
+    assert "Anexo B · Reportaje fotográfico" not in response.text
     assert "Fotografías detectadas: <strong>1</strong>" in response.text
     assert "Patologías con fotografías: <strong>1</strong>" in response.text
     assert "✓ Disponible" in response.text
     assert "El reportaje fotográfico se generará automáticamente agrupado por patología. No es necesario describir individualmente cada fotografía." in response.text
-    assert "Anexo C · Fichas de daños" in response.text
+    assert "Anexo B · Fichas de daños" in response.text
+    assert "Anexo C · Fichas de daños" not in response.text
     assert "Estancias con daños: <strong>1</strong>" in response.text
     assert "Patologías interiores: <strong>1</strong>" in response.text
     assert "Las fichas de daños se generarán automáticamente agrupadas por estancia. No es necesario reproducir aquí el inventario completo de daños estancia por estancia." in response.text
-    assert "PDF de mediciones para Anexo F" in response.text
-    assert "Adjunta aquí la hoja de cálculo de mediciones exportada a PDF. Se incorporará al informe final después del Anexo F." in response.text
+    assert "PDF de mediciones para Anexo E" in response.text
+    assert "PDF de mediciones para Anexo F" not in response.text
+    assert "Adjunta aquí la hoja de cálculo de mediciones exportada a PDF. Se incorporará al informe final dentro del Anexo E." in response.text
     assert f"/expedientes/{expediente_id}/informe-v2/anexo-f-mediciones-pdf" in response.text
     assert "Contexto del expediente" in response.text
     assert "Información de apoyo. No se imprime en el PDF." in response.text
@@ -667,9 +670,9 @@ def test_informe_v2_editor_precarga_guarda_y_no_sobrescribe(isolated_import):
     assert "Error al guardar. Usa Guardar datos o revisa la conexión." in response.text
     assert "Hay cambios pendientes de guardar." in response.text
     assert "autosave-status" in response.text
-    assert "ANEXO E. Análisis de ejecución de la partida nº 4" in response.text
+    assert "ANEXO D. Análisis de ejecución de la partida nº 4" in response.text
     assert "contenido_anexo_e_partida_4" in response.text
-    assert "ANEXO F. Justificación de mediciones" in response.text
+    assert "ANEXO E. Justificación de mediciones" in response.text
     assert "contenido_anexo_f_mediciones" in response.text
     assert 'data-autosave-campo="conclusiones_periciales"' in response.text
     assert "contenido_conclusiones_periciales" in response.text
@@ -839,7 +842,7 @@ def test_informe_v2_pdf_mediciones_anexo_f_subir_reemplazar_eliminar(isolated_im
     editor_inicial = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
 
     assert editor_inicial.status_code == 200
-    assert "PDF de mediciones para Anexo F" in editor_inicial.text
+    assert "PDF de mediciones para Anexo E" in editor_inicial.text
     assert "Subir PDF" in editor_inicial.text
     assert "Adjunta aquí la hoja de cálculo de mediciones exportada a PDF." in editor_inicial.text
 
@@ -896,7 +899,7 @@ def test_informe_v2_pdf_mediciones_anexo_f_subir_reemplazar_eliminar(isolated_im
             (expediente_id, main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES),
         ).fetchone()
         assert documento is not None
-        assert documento["nombre_visible"] == "PDF de mediciones para Anexo F"
+        assert documento["nombre_visible"] == "PDF de mediciones para Anexo E"
         assert documento["archivo_nombre_original"] == "mediciones-anexo-f.pdf"
         primera_ruta = documento["archivo_ruta"]
         primera_path = main_module.resolver_ruta_upload_relativa_segura(primera_ruta)
@@ -1008,12 +1011,12 @@ def test_informe_v2_advertencias_editoriales_detectan_redundancias(isolated_impo
 
     assert {"A", "B", "C", "D", "E"} <= reglas
     assert any(
-        item["clave"] == "resumen_ejecutivo" and "Anexo B" in item["explicacion"]
+        item["clave"] == "resumen_ejecutivo" and "Anexo A" in item["explicacion"]
         for item in advertencias
     )
     assert any(
         item["clave"] == "inventario_resumido_danos"
-        and "Anexo C" in item["explicacion"]
+        and "Anexo B" in item["explicacion"]
         for item in advertencias
     )
     assert any(
@@ -1635,6 +1638,160 @@ def test_informe_v2_autosave_vacio_no_pisa_contenido_existente(isolated_import):
         conn.close()
 
     assert row["contenido"] == "Resumen que no debe vaciarse"
+
+
+def test_informe_v2_buscar_reemplazar_respeta_alcance_y_updated_at(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_find_replace")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        for clave, titulo, orden, contenido, updated_at in [
+            (
+                "resumen_ejecutivo",
+                "Resumen ejecutivo",
+                1,
+                "Referencia al Anexo B y otra referencia al Anexo B.",
+                "2026-06-10 12:00:00",
+            ),
+            (
+                "metodologia",
+                "Metodología",
+                3,
+                "Texto con Anexo B pendiente.",
+                "2026-06-10 12:01:00",
+            ),
+        ]:
+            cur.execute(
+                """
+                INSERT INTO informe_v2_capitulos (
+                    expediente_id, clave, titulo, orden, contenido,
+                    generado_desde, editado_manual, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                (
+                    expediente_id,
+                    clave,
+                    titulo,
+                    orden,
+                    contenido,
+                    "pericial-editor-1",
+                    updated_at,
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    editor = client.get(f"/expedientes/{expediente_id}/informe-v2-editor")
+    assert editor.status_code == 200
+    assert "Buscar y reemplazar" in editor.text
+    assert "/buscar-reemplazar/contar" in editor.text
+    assert "/buscar-reemplazar/reemplazar" in editor.text
+
+    conteo = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/contar",
+        data={
+            "buscar": "Anexo B",
+            "contenido_resumen_ejecutivo": "Referencia al Anexo B y otra referencia al Anexo B.",
+            "contenido_metodologia": "Texto con Anexo B pendiente.",
+        },
+    )
+    assert conteo.status_code == 200
+    assert conteo.json()["total"] == 3
+
+    vacio = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/contar",
+        data={"buscar": ""},
+    )
+    assert vacio.status_code == 400
+    assert vacio.json()["code"] == "empty_search"
+
+    reemplazo_actual = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/reemplazar",
+        data={
+            "buscar": "Anexo B",
+            "reemplazar": "Anexo A",
+            "alcance": "actual",
+            "campo_actual": "resumen_ejecutivo",
+            "contenido_resumen_ejecutivo": "Referencia al Anexo B y otra referencia al Anexo B.",
+            "updated_at_resumen_ejecutivo": "2026-06-10 12:00:00",
+        },
+    )
+    assert reemplazo_actual.status_code == 200
+    assert reemplazo_actual.json()["total"] == 2
+    assert reemplazo_actual.json()["capitulos"][0]["clave"] == "resumen_ejecutivo"
+    updated_at_resumen = reemplazo_actual.json()["capitulos"][0]["updated_at"]
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        filas = cur.execute(
+            """
+            SELECT clave, contenido, updated_at
+            FROM informe_v2_capitulos
+            WHERE expediente_id = ?
+            """,
+            (expediente_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    por_clave = {fila["clave"]: fila for fila in filas}
+    assert por_clave["resumen_ejecutivo"]["contenido"] == (
+        "Referencia al Anexo A y otra referencia al Anexo A."
+    )
+    assert por_clave["metodologia"]["contenido"] == "Texto con Anexo B pendiente."
+
+    conflicto = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/reemplazar",
+        data={
+            "buscar": "Anexo B",
+            "reemplazar": "Anexo A",
+            "alcance": "actual",
+            "campo_actual": "metodologia",
+            "contenido_metodologia": "Texto con Anexo B pendiente.",
+            "updated_at_metodologia": "2026-06-10 11:59:00",
+        },
+    )
+    assert conflicto.status_code == 409
+    assert conflicto.json()["code"] == "conflict"
+
+    reemplazo_todo = client.post(
+        f"/informes-v2/{expediente_id}/buscar-reemplazar/reemplazar",
+        data={
+            "buscar": "Anexo B",
+            "reemplazar": "Anexo A",
+            "alcance": "todo",
+            "contenido_resumen_ejecutivo": "Referencia al Anexo A y otra referencia al Anexo A.",
+            "updated_at_resumen_ejecutivo": updated_at_resumen,
+            "contenido_metodologia": "Texto con Anexo B pendiente.",
+            "updated_at_metodologia": "2026-06-10 12:01:00",
+        },
+    )
+    assert reemplazo_todo.status_code == 200
+    assert reemplazo_todo.json()["total"] == 1
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        metodologia = cur.execute(
+            """
+            SELECT contenido
+            FROM informe_v2_capitulos
+            WHERE expediente_id = ? AND clave = 'metodologia'
+            """,
+            (expediente_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert metodologia["contenido"] == "Texto con Anexo A pendiente."
 
 
 def test_informe_v2_crea_snapshot_al_modificar_capitulo(isolated_import):
@@ -3141,8 +3298,8 @@ def test_informe_v2_editor_muestra_aviso_anexos_pdf_externos(
     assert response.status_code == 200
     assert "Peso estimado del PDF" in response.text
     assert "El PDF final puede ser pesado porque contiene anexos externos" in response.text
-    assert "Anexo A" in response.text
-    assert "Anexo F" in response.text
+    assert "Documentación aportada" in response.text
+    assert "Anexo E" in response.text
 
 
 def test_pdf_v2_diagnostico_anexos_devuelve_desglose_estable(
@@ -3244,7 +3401,7 @@ def test_informe_v2_editor_muestra_diagnostico_anexos_pesados(
     assert "Anexo documental smoke" in response.text
     assert "Hay anexos individuales de más de 10 MB" in response.text
     assert "El PDF final estimado supera 20 MB" in response.text
-    assert "El Anexo A representa más del 70 %" in response.text
+    assert "La documentación aportada representa más del 70 %" in response.text
     assert "El perfil Email/Judicial puede intentar comprimir anexos externos" in response.text
 
 
@@ -3340,7 +3497,7 @@ def test_pdf_v2_anexa_pdf_mediciones_tras_anexo_f(
             """,
             (
                 expediente_id,
-                "PDF de mediciones para Anexo F",
+                "PDF de mediciones para Anexo E",
                 "Desarrollo completo de mediciones incorporado al informe.",
                 main_module.TIPO_DOCUMENTO_INFORME_V2_ANEXO_F_MEDICIONES,
                 f"expediente_documentos/{expediente_id}/mediciones.pdf",
@@ -3668,7 +3825,8 @@ def test_pdf_v2_anexo_a_genera_indice_y_ficha_documental(isolated_import):
 def test_pdf_v2_agrega_bookmarks_jerarquicos(isolated_import):
     main_module = isolated_import("app.main")
 
-    from pypdf import PdfReader
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject
 
     pdf_base = _pdf_texto_paginas(
         [
@@ -3686,6 +3844,26 @@ def test_pdf_v2_agrega_bookmarks_jerarquicos(isolated_import):
             "DOCUMENTACIÓN APORTADA AL EXPEDIENTE\nDocumento 2\nFactura",
         ]
     )
+    reader_base = PdfReader(BytesIO(pdf_base))
+    writer_base = PdfWriter()
+    for pagina in reader_base.pages:
+        writer_base.add_page(pagina)
+    enlace_indice = DictionaryObject(
+        {
+            NameObject("/Type"): NameObject("/Annot"),
+            NameObject("/Subtype"): NameObject("/Link"),
+            NameObject("/Rect"): ArrayObject(
+                [NumberObject(0), NumberObject(0), NumberObject(120), NumberObject(18)]
+            ),
+            NameObject("/Dest"): NameObject("/pdf-target-anexo_a"),
+        }
+    )
+    writer_base.pages[0][NameObject("/Annots")] = ArrayObject(
+        [writer_base._add_object(enlace_indice)]
+    )
+    buffer_base = BytesIO()
+    writer_base.write(buffer_base)
+    pdf_base = buffer_base.getvalue()
     contexto = {
         "capitulos": [
             {"numero_pdf": 1, "titulo": "Resumen ejecutivo"},
@@ -3721,6 +3899,10 @@ def test_pdf_v2_agrega_bookmarks_jerarquicos(isolated_import):
     assert "Relación de documentación aportada" in titulos
     assert "Documento 1. Contrato de obra" in titulos
     assert "Documento 2. Factura" in titulos
+    annot = reader.pages[0]["/Annots"][0].get_object()
+    assert "/Dest" not in annot
+    assert annot["/A"]["/S"] == "/GoTo"
+    assert annot["/A"]["/D"][1] == "/Fit"
 
 
 def test_pdf_v2_fusion_integrada_usa_ruta_optimizada_si_procede(
@@ -4292,13 +4474,13 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
             ),
             (
                 "anexo_e_partida_4",
-                "ANEXO E. Análisis de ejecución de la partida nº 4",
+                "ANEXO D. Análisis de ejecución de la partida nº 4",
                 13,
                 "E.1 Objeto\n\nContenido manual guardado del Anexo E.\n\nE.6 Conclusión\n\nConclusión manual del Anexo E.",
             ),
             (
                 "anexo_f_mediciones",
-                "ANEXO F. Justificación de mediciones",
+                "ANEXO E. Justificación de mediciones",
                 14,
                 "F.1 Criterios de medición\n\nContenido manual guardado del Anexo F.\n\nF.3 Observaciones\n\nObservación manual del Anexo F.",
             ),
@@ -4371,6 +4553,14 @@ def test_pdf_v2_fusiona_conclusiones_y_renderiza_anexos_derivados(
     assert 'id="pdf-target-anexo_e"' in html
     assert 'href="#pdf-target-documentacion_aportada"' in html
     assert 'id="pdf-target-documentacion_aportada"' in html
+    assert 'href="#pdf-target-documentacion_doc_1"' in html
+    assert 'href="#pdf-target-documentacion_doc_2"' in html
+    assert 'id="pdf-target-documentacion_doc_1"' in html
+    assert 'id="pdf-target-documentacion_doc_2"' in html
+    assert "Documento 1." in html
+    assert "Presupuesto pericial de reparación" in html
+    assert "Documento 2." in html
+    assert "Factura de reparación de cubierta" in html
     assert 'id="pdf-target-relacion_documental"' in html
     assert html.count('href="#pdf-target-') == len(contexto["indice"])
     assert "Sistema Pericial" not in html

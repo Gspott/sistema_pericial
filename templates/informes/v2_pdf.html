@@ -205,6 +205,21 @@
             font-weight: 700;
         }
 
+        .toc-row.is-document {
+            font-size: 12.5px;
+            padding-left: 9mm;
+        }
+
+        .toc-row.is-document .toc-number {
+            min-width: 24mm;
+            text-align: left;
+        }
+
+        .toc-row.is-document .toc-title {
+            color: #374151;
+            line-height: 1.36;
+        }
+
         .toc-leader {
             border-bottom: 1px dotted #a8b0bb;
             flex: 1 1 auto;
@@ -218,6 +233,15 @@
             min-width: 28px;
             text-align: right;
             white-space: nowrap;
+        }
+
+        .pdf-link-target {
+            display: block;
+            font-size: 0;
+            height: 0;
+            line-height: 0;
+            overflow: hidden;
+            width: 0;
         }
 
         .chapter {
@@ -791,11 +815,11 @@
                 {% if item.grupo == "anexos" and loop.previtem is defined and loop.previtem.grupo != "anexos" %}
                 <div class="toc-group-title">Anexos técnicos</div>
                 {% endif %}
-                {% if item.grupo == "documentacion" and loop.previtem is defined and loop.previtem.grupo != "documentacion" %}
+                {% if item.grupo == "documentacion" and loop.previtem is defined and loop.previtem.grupo not in ["documentacion", "documentacion_documento"] %}
                 <div class="toc-group-title">Documentación aportada al expediente</div>
                 {% endif %}
-                <a class="toc-row{% if item.grupo in ['anexos', 'documentacion'] %} is-annex{% endif %}" href="#pdf-target-{{ item.clave }}">
-                    <span class="toc-number">{% if item.grupo == "anexos" %}Anexo {{ item.numero }}.{% elif item.grupo == "documentacion" %}{% else %}{{ item.numero }}.{% endif %}</span>
+                <a class="toc-row{% if item.grupo in ['anexos', 'documentacion'] %} is-annex{% endif %}{% if item.grupo == 'documentacion_documento' %} is-document{% endif %}" href="#pdf-target-{{ item.clave }}">
+                    <span class="toc-number">{% if item.grupo == "anexos" %}Anexo {{ item.numero }}.{% elif item.grupo == "documentacion" %}{% elif item.grupo == "documentacion_documento" %}{{ item.numero }}.{% else %}{{ item.numero }}.{% endif %}</span>
                     <span class="toc-title">{{ item.titulo }}</span>
                     <span class="toc-leader"></span>
                     <span class="toc-page">{{ (indice_paginas or {}).get(item.clave, "") }}</span>
@@ -1044,6 +1068,11 @@
             <h2>DOCUMENTACIÓN APORTADA AL EXPEDIENTE</h2>
             {% if anexos.documentacion %}
             <h3>Relación documental</h3>
+            {% for item in indice %}
+            {% if item.grupo == "documentacion_documento" %}
+            <span class="pdf-link-target" id="pdf-target-{{ item.clave }}"></span>
+            {% endif %}
+            {% endfor %}
             <div class="doc-card-grid">
                 {% for documento in anexos.documentacion %}
                 <article class="doc-card">

@@ -239,6 +239,41 @@
             width: 100%;
         }
 
+        .find-replace-panel {
+            display: grid;
+            gap: 10px;
+        }
+
+        .find-replace-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .find-replace-grid label {
+            display: grid;
+            gap: 5px;
+            font-size: 0.82rem;
+            font-weight: 800;
+        }
+
+        .find-replace-grid input {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font: inherit;
+            padding: 8px;
+            width: 100%;
+        }
+
+        .find-replace-result {
+            color: #475569;
+            font-size: 0.82rem;
+            font-weight: 800;
+            margin: 0;
+            min-height: 1.2em;
+        }
+
         .presentation-grid {
             display: grid;
             gap: 12px;
@@ -995,11 +1030,11 @@
                             <strong>{{ diagnostico_anexos_pdf.informe_principal_mb }} MB</strong>
                         </div>
                         <div class="pdf-weight-metric">
-                            <span>Anexo A</span>
+                            <span>Documentación aportada</span>
                             <strong>{{ diagnostico_anexos_pdf.anexo_a_mb }} MB</strong>
                         </div>
                         <div class="pdf-weight-metric">
-                            <span>Anexo F</span>
+                            <span>Anexo E</span>
                             <strong>{{ diagnostico_anexos_pdf.anexo_f_mb }} MB</strong>
                         </div>
                         <div class="pdf-weight-metric">
@@ -1013,7 +1048,7 @@
                     </div>
                     {% if diagnostico_anexos_pdf.anexo_a_documentos %}
                     <p class="editor-note">
-                        Anexo A documental:
+                        Documentación aportada:
                         {{ diagnostico_anexos_pdf.anexo_a_documentos }} documentos ·
                         {{ diagnostico_anexos_pdf.anexo_a_paginas }} páginas ·
                         {{ diagnostico_anexos_pdf.anexo_a_mb }} MB
@@ -1034,7 +1069,7 @@
                             <strong>{{ anexo_pdf.nombre }}</strong> ·
                             {{ anexo_pdf.tamano_mb }} MB ·
                             {{ anexo_pdf.paginas }} pág. ·
-                            {{ "Anexo A" if anexo_pdf.categoria == "anexo_a" else "Anexo F" if anexo_pdf.categoria == "anexo_f" else anexo_pdf.categoria }}
+                            {{ "Documentación aportada" if anexo_pdf.categoria == "anexo_a" else "Anexo E" if anexo_pdf.categoria == "anexo_f" else anexo_pdf.categoria }}
                         </li>
                         {% endfor %}
                     </ul>
@@ -1222,6 +1257,31 @@
                         <button class="boton primario" type="submit">Guardar datos</button>
                     </div>
 
+                    <section class="chapter-editor find-replace-panel" aria-label="Buscar y reemplazar texto">
+                        <div class="chapter-head">
+                            <div>
+                                <h2>Buscar y reemplazar</h2>
+                                <p class="chapter-meta">Sustituye texto manualmente en capítulos del Informe V2.</p>
+                            </div>
+                        </div>
+                        <div class="find-replace-grid">
+                            <label>
+                                <span>Buscar</span>
+                                <input type="text" id="find-replace-search" autocomplete="off">
+                            </label>
+                            <label>
+                                <span>Reemplazar por</span>
+                                <input type="text" id="find-replace-value" autocomplete="off">
+                            </label>
+                        </div>
+                        <div class="actions">
+                            <button class="boton secundario" type="button" id="find-replace-count">Buscar coincidencias</button>
+                            <button class="boton secundario" type="button" id="find-replace-current">Reemplazar en capítulo actual</button>
+                            <button class="boton secundario" type="button" id="find-replace-all">Reemplazar en todo el informe</button>
+                        </div>
+                        <p class="find-replace-result" id="find-replace-result" aria-live="polite"></p>
+                    </section>
+
                     <section class="chapter-editor" id="presentacion-informe">
                         <div class="chapter-head">
                             <div>
@@ -1335,9 +1395,9 @@
                             {% endif %}
                         </details>
                         {% if capitulo.clave == "anexo_f_mediciones" %}
-                        <aside class="annex-pdf-panel" aria-label="PDF de mediciones para Anexo F">
-                            <h3>PDF de mediciones para Anexo F</h3>
-                            <p class="editor-note">Adjunta aquí la hoja de cálculo de mediciones exportada a PDF. Se incorporará al informe final después del Anexo F.</p>
+                        <aside class="annex-pdf-panel" aria-label="PDF de mediciones para Anexo E">
+                            <h3>PDF de mediciones para Anexo E</h3>
+                            <p class="editor-note">Adjunta aquí la hoja de cálculo de mediciones exportada a PDF. Se incorporará al informe final dentro del Anexo E.</p>
                             {% if pdf_mediciones_anexo_f %}
                             <div class="annex-pdf-current">
                                 <strong>{{ pdf_mediciones_anexo_f.archivo_nombre_original or pdf_mediciones_anexo_f.nombre_visible }}</strong>
@@ -1345,12 +1405,12 @@
                                 <button class="boton secundario" type="submit" form="delete-anexo-f-mediciones-pdf">Eliminar</button>
                             </div>
                             <div class="annex-pdf-input-row">
-                                <input type="file" name="archivo" accept="application/pdf,.pdf" form="upload-anexo-f-mediciones-pdf" aria-label="Reemplazar PDF de mediciones para Anexo F">
+                                <input type="file" name="archivo" accept="application/pdf,.pdf" form="upload-anexo-f-mediciones-pdf" aria-label="Reemplazar PDF de mediciones para Anexo E">
                                 <button class="boton secundario" type="submit" form="upload-anexo-f-mediciones-pdf">Reemplazar PDF</button>
                             </div>
                             {% else %}
                             <div class="annex-pdf-input-row">
-                                <input type="file" name="archivo" accept="application/pdf,.pdf" form="upload-anexo-f-mediciones-pdf" aria-label="Subir PDF de mediciones para Anexo F">
+                                <input type="file" name="archivo" accept="application/pdf,.pdf" form="upload-anexo-f-mediciones-pdf" aria-label="Subir PDF de mediciones para Anexo E">
                                 <button class="boton secundario" type="submit" form="upload-anexo-f-mediciones-pdf">Subir PDF</button>
                             </div>
                             {% endif %}
@@ -1579,7 +1639,7 @@
                         <p class="editor-note">Información generada automáticamente. No se imprime desde este panel.</p>
                         <div class="derived-annex-grid">
                             <article class="derived-annex-card {{ 'available' if anexos_derivados.anexo_b.disponible else 'unavailable' }}">
-                                <h4>Anexo B · Reportaje fotográfico</h4>
+                                <h4>Anexo A · Reportaje fotográfico</h4>
                                 <ul class="context-list">
                                     <li class="context-line">Fotografías detectadas: <strong>{{ anexos_derivados.anexo_b.fotografias }}</strong></li>
                                     <li class="context-line">Patologías con fotografías: <strong>{{ anexos_derivados.anexo_b.patologias_con_fotos }}</strong></li>
@@ -1587,7 +1647,7 @@
                                 <p class="chapter-help-warning">{{ anexos_derivados.anexo_b.mensaje }}</p>
                             </article>
                             <article class="derived-annex-card {{ 'available' if anexos_derivados.anexo_c.disponible else 'unavailable' }}">
-                                <h4>Anexo C · Fichas de daños</h4>
+                                <h4>Anexo B · Fichas de daños</h4>
                                 <ul class="context-list">
                                     <li class="context-line">Estancias con daños: <strong>{{ anexos_derivados.anexo_c.estancias_con_danos }}</strong></li>
                                     <li class="context-line">Patologías interiores: <strong>{{ anexos_derivados.anexo_c.patologias_interiores }}</strong></li>
@@ -1752,11 +1812,22 @@
             const expedienteId = "{{ expediente.id }}";
             const statusEl = document.getElementById("autosave-status");
             const textareas = Array.from(document.querySelectorAll("[data-autosave-campo]"));
+            const replaceFields = new Set([{% for capitulo in capitulos %}"{{ capitulo.clave }}"{% if not loop.last %}, {% endif %}{% endfor %}]);
+            const replaceTextareas = textareas.filter(function (textarea) {
+                return replaceFields.has(textarea.dataset.autosaveCampo);
+            });
+            const findSearchEl = document.getElementById("find-replace-search");
+            const findValueEl = document.getElementById("find-replace-value");
+            const findCountButton = document.getElementById("find-replace-count");
+            const findCurrentButton = document.getElementById("find-replace-current");
+            const findAllButton = document.getElementById("find-replace-all");
+            const findResultEl = document.getElementById("find-replace-result");
             const pendingTimers = new Map();
             const dirtyFields = new Set();
             const savingFields = new Set();
             const conflictFields = new Set();
             const debounceMs = 1000;
+            let activeReplaceCampo = replaceTextareas.length ? replaceTextareas[0].dataset.autosaveCampo : "";
 
             async function saveReviewState(select) {
                 const campo = select.dataset.reviewState;
@@ -1859,6 +1930,110 @@
                 }
                 status.textContent = text;
                 status.className = "chapter-save-status " + state;
+            }
+
+            function setFindResult(text, isError) {
+                if (!findResultEl) {
+                    return;
+                }
+                findResultEl.textContent = text || "";
+                findResultEl.style.color = isError ? "#991b1b" : "#475569";
+            }
+
+            function buildFindReplaceBody(alcance) {
+                const search = findSearchEl ? findSearchEl.value : "";
+                const replacement = findValueEl ? findValueEl.value : "";
+                const body = new FormData();
+                body.append("buscar", search);
+                body.append("reemplazar", replacement);
+                body.append("alcance", alcance);
+                body.append("campo_actual", activeReplaceCampo || "");
+                replaceTextareas.forEach(function (textarea) {
+                    const campo = textarea.dataset.autosaveCampo;
+                    body.append("contenido_" + campo, textarea.value);
+                    body.append("updated_at_" + campo, getKnownUpdatedAt(campo));
+                });
+                return body;
+            }
+
+            async function requestFindReplace(endpoint, body) {
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    body: body,
+                    credentials: "same-origin",
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    const error = new Error(data.error || "No se pudo completar la operación.");
+                    error.status = response.status;
+                    error.data = data;
+                    throw error;
+                }
+                return data;
+            }
+
+            function applyReplacedChapters(chapters) {
+                (chapters || []).forEach(function (chapter) {
+                    const campo = chapter.clave;
+                    const textarea = document.querySelector('[data-autosave-campo="' + campo + '"]');
+                    if (!textarea) {
+                        return;
+                    }
+                    textarea.value = chapter.contenido || "";
+                    setKnownUpdatedAt(campo, chapter.updated_at || "");
+                    clearLocalDraft(campo);
+                    hideLocalRecovery(campo);
+                    dirtyFields.delete(campo);
+                    savingFields.delete(campo);
+                    conflictFields.delete(campo);
+                    const knownTime = formatLocalTime(chapter.updated_at || "");
+                    setChapterStatus(campo, "Guardado" + (knownTime ? " " + knownTime : ""), "saved");
+                });
+            }
+
+            async function countFindReplaceMatches() {
+                if (!findSearchEl || !findSearchEl.value) {
+                    setFindResult("Introduce un texto para buscar.", true);
+                    return;
+                }
+                try {
+                    const data = await requestFindReplace(
+                        "/informes-v2/" + expedienteId + "/buscar-reemplazar/contar",
+                        buildFindReplaceBody("todo")
+                    );
+                    setFindResult(data.total + " coincidencia" + (data.total === 1 ? "" : "s") + " en el informe.", false);
+                } catch (error) {
+                    setFindResult(error.message, true);
+                }
+            }
+
+            async function replaceMatches(alcance) {
+                if (!findSearchEl || !findSearchEl.value) {
+                    setFindResult("Introduce un texto para buscar.", true);
+                    return;
+                }
+                if (alcance === "todo" && !window.confirm("¿Reemplazar coincidencias en todo el informe?")) {
+                    return;
+                }
+                try {
+                    const data = await requestFindReplace(
+                        "/informes-v2/" + expedienteId + "/buscar-reemplazar/reemplazar",
+                        buildFindReplaceBody(alcance)
+                    );
+                    applyReplacedChapters(data.capitulos);
+                    setFindResult(data.total + " coincidencia" + (data.total === 1 ? "" : "s") + " reemplazada" + (data.total === 1 ? "" : "s") + ".", false);
+                    setStatus("Buscar y reemplazar completado.", "saved");
+                } catch (error) {
+                    if (error.status === 409 && error.data && error.data.conflictos) {
+                        error.data.conflictos.forEach(function (conflict) {
+                            conflictFields.add(conflict.clave);
+                            setChapterStatus(conflict.clave, "Conflicto", "conflict");
+                        });
+                    }
+                    setFindResult(error.message, true);
+                    setStatus(error.message, "error");
+                }
             }
 
             function parseUtcTimestamp(timestamp) {
@@ -2052,6 +2227,11 @@
                     markDirty(textarea);
                     scheduleSave(textarea);
                 });
+                textarea.addEventListener("focus", function () {
+                    if (replaceFields.has(campo)) {
+                        activeReplaceCampo = campo;
+                    }
+                });
                 textarea.addEventListener("change", function () {
                     saveField(textarea);
                 });
@@ -2089,6 +2269,20 @@
                     }
                 });
             });
+
+            if (findCountButton) {
+                findCountButton.addEventListener("click", countFindReplaceMatches);
+            }
+            if (findCurrentButton) {
+                findCurrentButton.addEventListener("click", function () {
+                    replaceMatches("actual");
+                });
+            }
+            if (findAllButton) {
+                findAllButton.addEventListener("click", function () {
+                    replaceMatches("todo");
+                });
+            }
 
             refreshVisibleTimestamps();
 
