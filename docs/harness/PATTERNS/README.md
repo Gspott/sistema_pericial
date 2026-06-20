@@ -15,3 +15,6 @@ Patrones reutilizables para cambios futuros. No sustituyen specs ni playbooks; c
 - [proposal_to_invoice_flow.md](proposal_to_invoice_flow.md)
 - [mobile_partial_structure.md](mobile_partial_structure.md)
 - [backup_sandbox_pattern.md](backup_sandbox_pattern.md)
+- [autosave_standard.md](autosave_standard.md)
+- [autosave_rollout_summary.md](autosave_rollout_summary.md)
+- [project_standards_guard.md](project_standards_guard.md)

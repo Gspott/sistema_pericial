@@ -33,7 +33,7 @@
             {% for email in emails %}
             <div class="card">
                 <h2>{{ email.asunto }}</h2>
-                <p><strong>Fecha:</strong> {{ email.fecha_envio }}</p>
+                <p><strong>Fecha:</strong> {{ email.fecha_envio|datetime_madrid }}</p>
                 <p><strong>Tipo:</strong> {{ email.tipo }}</p>
                 <p><strong>Destinatario:</strong> {{ email.destinatario }}</p>
                 {% set email_estado_clase = 'estado-aceptada' if email.estado == 'enviado' else 'estado-rechazada' %}

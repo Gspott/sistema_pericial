@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/js/autosave.js?v=1" defer></script>
     <title>{{ concepto.codigo }} · Costes</title>
     <style>
         .costes-detail-page {
@@ -191,7 +192,16 @@
         <div class="costes-detail-grid">
             <section class="card" aria-labelledby="editar-partida-title">
                 <h2 id="editar-partida-title">Editar partida</h2>
-                <form method="post" action="/costes/{{ concepto.id }}">
+                <form method="post" action="/costes/{{ concepto.id }}"
+                    data-autosave-form
+                    data-autosave-url="/costes/{{ concepto.id }}/autosave"
+                    data-autosave-status="#autosave_coste_{{ concepto.id }}"
+                    data-autosave-updated-at="#coste_updated_at_{{ concepto.id }}"
+                    data-autosave-debounce="1200">
+                    <input type="hidden" id="coste_updated_at_{{ concepto.id }}" name="updated_at" value="{{ concepto.updated_at or '' }}">
+                    {% set autosave_status_id = "autosave_coste_" ~ concepto.id %}
+                    {% set autosave_status_label = "Listo para editar" %}
+                    {% include "components/autosave_status.html" %}
                     <div class="costes-form-grid">
                         <label class="costes-form-wide" for="base_id">
                             Base

@@ -1,5 +1,4 @@
 import sqlite3
-from datetime import date
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -7,6 +6,7 @@ from fastapi.responses import HTMLResponse
 from app.database import get_connection
 from app.routers.facturacion import calcular_resumen_iva, obtener_trimestre_actual
 from app.services.backups import listar_backups
+from app.utils.timezone import today_madrid
 
 router = APIRouter()
 
@@ -68,7 +68,7 @@ def nombre_cliente(factura) -> str:
 def dashboard(request: Request):
     current_user = get_current_user(request)
     owner_user_id = current_user["id"]
-    hoy = date.today().isoformat()
+    hoy = today_madrid().isoformat()
     year_actual, trimestre_actual = obtener_trimestre_actual()
 
     conn = get_connection()

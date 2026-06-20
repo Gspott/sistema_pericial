@@ -8,6 +8,8 @@ Primer check documental obligatorio:
 python3 scripts/audit_docs.py
 ```
 
+`audit_docs.py` incluye avisos informativos de `PROJECT-STANDARDS-GUARD-1`; en particular, alerta sobre posibles usos nuevos de `datetime.now()` o `datetime.utcnow()` en archivos Python modificados.
+
 Comando principal recomendado:
 
 ```bash
@@ -92,3 +94,4 @@ pytest tests/smoke/test_informe_context.py
 - No enviar emails reales.
 - No levantar tuneles o deploy externo como parte de validacion automatica.
 - Usar DB temporal para smoke tests de persistencia.
+- Revisar `docs/harness/VALIDATION/project_standards_guard.md` cuando una tarea toque fechas, formularios largos, seleccion reactiva, estado visual, concurrencia, PDF/documentos o flujos mobile/desktop.

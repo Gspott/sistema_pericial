@@ -1229,7 +1229,7 @@
                         <strong>Lámina {{ lamina.numero }} · {{ lamina.titulo }}</strong>
                         <p class="photo-board-meta">
                             {{ lamina.total_fotos }} fotografía{% if lamina.total_fotos != 1 %}s{% endif %} · {{ lamina.layout_nombre }}
-                            · creada {{ lamina.created_at or "-" }}
+                            · creada {{ lamina.created_at|datetime_madrid if lamina.created_at else "-" }}
                             {% if lamina.subtitulo %}<br>{{ lamina.subtitulo }}{% endif %}
                         </p>
                         <details>

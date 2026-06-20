@@ -23,7 +23,7 @@
                     {% if cliente.razon_social %}<p><strong>Razón social:</strong> {{ cliente.razon_social }}</p>{% endif %}
                     {% if cliente.email %}<p><strong>Email:</strong> {{ cliente.email }}</p>{% endif %}
                     {% if cliente.telefono %}<p><strong>Teléfono:</strong> {{ cliente.telefono }}</p>{% endif %}
-                    <p class="empty">Alta: {{ cliente.created_at }}</p>
+                    <p class="empty">Alta: {{ cliente.created_at|datetime_madrid }}</p>
                 </div>
                 <div class="card-actions">
                     <a class="boton secundario" href="/clientes/{{ cliente.id }}/editar">Editar</a>

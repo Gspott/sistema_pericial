@@ -1,10 +1,10 @@
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 import re
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.database import get_connection
 from app.services import email_sender
@@ -20,6 +20,7 @@ from app.services.crm_templates import (
     renderizar_plantilla_comercial,
     variables_para_lead,
 )
+from app.utils.timezone import datetime_local_madrid_minutes, now_madrid_iso, today_madrid
 
 router = APIRouter()
 
@@ -78,6 +79,24 @@ def render_template(request: Request, template_name: str, context: dict | None =
 
 def limpiar_texto(valor: str | None) -> str:
     return (valor or "").strip()
+
+
+def existe_conflicto_updated_at(valor_actual: str | None, valor_cliente: str | None) -> bool:
+    actual = limpiar_texto(valor_actual)
+    cliente = limpiar_texto(valor_cliente)
+    return bool(actual and cliente and actual != cliente)
+
+
+def respuesta_autosave_conflicto(updated_at: str | None = None) -> JSONResponse:
+    return JSONResponse(
+        {
+            "ok": False,
+            "conflict": True,
+            "updated_at": limpiar_texto(updated_at),
+            "message": "Otro proceso ha modificado el registro.",
+        },
+        status_code=409,
+    )
 
 
 def _email_valido(valor: str) -> bool:
@@ -223,6 +242,8 @@ def _lead_view(lead) -> dict:
         "tipo_label": TIPOS_LEAD_LABELS[tipo],
         "email": lead["email"],
         "telefono": lead["telefono"],
+        "notas": lead["notas"],
+        "updated_at": lead["updated_at"],
         "localidad": localidad,
         "fuente": lead["origen"],
         "estado": lead["estado"],
@@ -237,7 +258,7 @@ def _lead_view(lead) -> dict:
         "puede_enviar_seguimiento": tiene_seguimiento_pendiente or tiene_presentacion_enviada,
         "propuestas_enviadas": lead["propuestas_enviadas"] or 0,
         "emails_programados": lead["emails_programados_count"] or 0,
-        "seguimiento_vencido": bool(proxima_tarea_fecha and proxima_tarea_fecha <= date.today().isoformat()),
+        "seguimiento_vencido": bool(proxima_tarea_fecha and proxima_tarea_fecha <= today_madrid().isoformat()),
         "plantilla_presentacion": plantilla.nombre,
         "plantilla_seguimiento": plantilla_seguimiento.nombre,
     }
@@ -384,7 +405,7 @@ def _metricas(leads) -> dict:
 
 
 def _acciones_prioritarias(leads) -> dict:
-    hoy = date.today().isoformat()
+    hoy = today_madrid().isoformat()
     return {
         "admins_sin_accion": sum(
             1 for lead in leads if inferir_tipo_lead(lead) == "administrador_fincas" and _sin_accion_comercial(lead)
@@ -714,7 +735,7 @@ def _crear_tarea_seguimiento_si_no_existe(cur, lead_id: int, owner_user_id: int)
     if existente:
         return False
 
-    fecha_programada = (date.today() + timedelta(days=10)).isoformat()
+    fecha_programada = (today_madrid() + timedelta(days=10)).isoformat()
     cur.execute(
         """
         INSERT INTO lead_tareas (
@@ -750,7 +771,7 @@ def _crear_tarea_revision_post_seguimiento_si_no_existe(cur, lead_id: int, owner
     if existente:
         return False
 
-    fecha_programada = (date.today() + timedelta(days=30)).isoformat()
+    fecha_programada = (today_madrid() + timedelta(days=30)).isoformat()
     cur.execute(
         """
         INSERT INTO lead_tareas (
@@ -807,7 +828,7 @@ def _registrar_contacto_presentacion(cur, lead_id: int, owner_user_id: int) -> N
         """,
         (
             lead_id,
-            datetime.now().strftime("%Y-%m-%dT%H:%M"),
+            now_madrid_iso(timespec="minutes"),
             "email",
             "Presentación comercial enviada.",
             "Pendiente de respuesta",
@@ -834,7 +855,7 @@ def _registrar_contacto_email(
         """,
         (
             lead_id,
-            datetime.now().strftime("%Y-%m-%dT%H:%M"),
+            now_madrid_iso(timespec="minutes"),
             "email",
             resumen,
             resultado,
@@ -855,7 +876,7 @@ def _registrar_metricas_contacto_lead(cur, lead_id: int, owner_user_id: int, tip
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND owner_user_id = ?
         """,
-        (datetime.now().strftime("%Y-%m-%dT%H:%M"), lead_id, owner_user_id),
+        (now_madrid_iso(timespec="minutes"), lead_id, owner_user_id),
     )
 
 
@@ -1188,7 +1209,7 @@ def cancelar_email_programado(request: Request, email_id: int):
             """,
             (
                 EMAIL_CANCELADO_ESTADO,
-                _metadata_programado(fecha_programada, plantilla_slug, f"cancelado_en={datetime.now().strftime('%Y-%m-%dT%H:%M')}"),
+                _metadata_programado(fecha_programada, plantilla_slug, f"cancelado_en={now_madrid_iso(timespec='minutes')}"),
                 email_id,
                 current_user["id"],
                 EMAIL_PROGRAMADO_ESTADO,
@@ -1331,6 +1352,75 @@ def crear_lead_rapido_workbench(
         conn.close()
 
     return _redirect_workbench(mensaje="Lead guardado. Formulario listo para otro.", lead_id=lead_id)
+
+
+@router.post("/crm/prospeccion/leads/{lead_id}/notas/autosave")
+async def autosave_notas_lead_workbench(request: Request, lead_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        lead = _get_owned_lead(cur, lead_id, current_user["id"])
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead no encontrado")
+        if existe_conflicto_updated_at(lead["updated_at"], form.get("updated_at")):
+            return respuesta_autosave_conflicto(lead["updated_at"])
+        cur.execute(
+            """
+            UPDATE leads
+            SET notas = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND owner_user_id = ?
+            """,
+            (limpiar_texto(form.get("notas")), lead_id, current_user["id"]),
+        )
+        actualizado = _get_owned_lead(cur, lead_id, current_user["id"])
+        conn.commit()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "updated_at": limpiar_texto(actualizado["updated_at"] if actualizado else ""),
+            "saved_at": now_madrid_iso(),
+            "message": "Guardado correctamente",
+        }
+    )
+
+
+@router.post("/crm/prospeccion/leads/{lead_id}/notas")
+def guardar_notas_lead_workbench(
+    request: Request,
+    lead_id: int,
+    notas: str = Form(""),
+    updated_at: str = Form(""),
+):
+    current_user = get_current_user(request)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        lead = _get_owned_lead(cur, lead_id, current_user["id"])
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead no encontrado")
+        if existe_conflicto_updated_at(lead["updated_at"], updated_at):
+            return _redirect_workbench(
+                error="Otro proceso ha modificado el registro.",
+                lead_id=lead_id,
+            )
+        cur.execute(
+            """
+            UPDATE leads
+            SET notas = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND owner_user_id = ?
+            """,
+            (limpiar_texto(notas), lead_id, current_user["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return _redirect_workbench(mensaje="Notas del lead actualizadas.", lead_id=lead_id)
 
 
 @router.post("/crm/prospeccion/leads/{lead_id}/enviar-editado")
@@ -1653,7 +1743,7 @@ def registrar_llamada_workbench(request: Request, lead_id: int):
             """,
             (
                 lead_id,
-                datetime.now().strftime("%Y-%m-%dT%H:%M"),
+                now_madrid_iso(timespec="minutes"),
                 "llamada",
                 "Llamada registrada desde Workbench de prospección.",
                 "Contactado",

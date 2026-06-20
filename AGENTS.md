@@ -20,7 +20,8 @@ Antes de tocar archivos, leer en este orden:
 6. [docs/harness/VALIDATION/minimal_checks.md](docs/harness/VALIDATION/minimal_checks.md)
 7. [docs/harness/GOLDEN_PRINCIPLES.md](docs/harness/GOLDEN_PRINCIPLES.md)
 8. Playbook aplicable en `docs/harness/PLAYBOOKS/`.
-9. Documento tematico afectado en `docs/`.
+9. Estandares transversales aplicables en [docs/harness/PATTERNS/project_standards_guard.md](docs/harness/PATTERNS/project_standards_guard.md).
+10. Documento tematico afectado en `docs/`.
 
 ## Reglas criticas
 
@@ -38,6 +39,7 @@ Antes de tocar archivos, leer en este orden:
 - No hardcodear versiones fijas u obsoletas de service worker/PWA.
 - Validar cualquier JS modificado con `node --check <archivo.js>`.
 - Mantener `AGENTS.md` y `agents.md` sincronizados si ambos existen.
+- Respetar `TIMEZONE-STANDARD-1`, `AUTOSAVE-STANDARD-1`, seleccion reactiva, estado visual, concurrencia, tests, mobile-first/documental y trazabilidad harness segun `PROJECT-STANDARDS-GUARD-1`.
 
 ## Canon funcional resumido
 

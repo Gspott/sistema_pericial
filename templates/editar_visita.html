@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
+    <script src="/static/js/autosave.js?v=1" defer></script>
 
     <title>Editar visita</title>
 </head>
@@ -101,7 +102,16 @@
             {% if error %}
             <p class="error">{{ error }}</p>
             {% endif %}
-            <form method="post" action="/actualizar-visita/{{ visita.id }}">
+            <form method="post" action="/actualizar-visita/{{ visita.id }}"
+                data-autosave-form
+                data-autosave-url="/visitas/{{ visita.id }}/autosave"
+                data-autosave-status="#autosave_visita_{{ visita.id }}"
+                data-autosave-updated-at="#visita_updated_at_{{ visita.id }}"
+                data-autosave-debounce="1200">
+                <input id="visita_updated_at_{{ visita.id }}" type="hidden" name="updated_at" value="{{ visita.updated_at_token or '' }}">
+                {% set autosave_status_id = "autosave_visita_" ~ visita.id %}
+                {% set autosave_status_label = "Listo para editar" %}
+                {% include "components/autosave_status.html" %}
                 <p class="visita-primary-label">Datos esenciales</p>
 
                 <label for="fecha">Fecha</label>

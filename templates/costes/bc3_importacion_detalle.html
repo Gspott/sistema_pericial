@@ -33,7 +33,7 @@
     <div class="page costes-bc3-page">
         <header class="card">
             <h1>Importación BC3</h1>
-            <p class="subtitle">{{ fuente.descripcion }} · {{ fuente.created_at }}</p>
+            <p class="subtitle">{{ fuente.descripcion }} · {{ fuente.created_at|datetime_madrid }}</p>
             <p>Base: {{ fuente.base_nombre or 'Sin base' }}</p>
             <p>Archivo trazado: <span class="costes-code">{{ fuente.archivo_original }}</span></p>
             <div class="costes-actions">

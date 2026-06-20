@@ -112,7 +112,7 @@
                         {% for captura in capturas %}
                         <tr>
                             <td><img class="costes-capture-thumb" src="/uploads/{{ captura.archivo_imagen }}" alt="Captura de costes"></td>
-                            <td class="costes-date">{{ captura.created_at }}</td>
+                            <td class="costes-date">{{ captura.created_at|datetime_madrid }}</td>
                             <td>{{ label_estado(captura.estado) }}</td>
                             <td>{{ captura.fuente_descripcion or captura.archivo_imagen }}</td>
                             <td>

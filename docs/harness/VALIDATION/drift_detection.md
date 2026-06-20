@@ -24,12 +24,14 @@ El objetivo es avisar pronto cuando la documentacion, el harness o la estructura
 - Existencia de `pytest.ini`, `tests/smoke/` y referencia a smoke tests desde `scripts/validate_harness.sh`.
 - Drift PWA entre version de registro en `static/pwa.js` y cache en `static/sw.js`.
 - Tamano excesivo de `app/main.py` como warning informativo.
+- Posibles usos nuevos de `datetime.now()` o `datetime.utcnow()` en archivos Python modificados, como warning informativo de `TIMEZONE-STANDARD-1`.
 
 ## Que no detecta
 
 - Correctitud funcional de rutas.
 - Reglas fiscales reales.
 - Regresiones visuales mobile.
+- Cumplimiento semantico completo de autosave, seleccion reactiva o concurrencia.
 - Envio SMTP real.
 - Playwright/PDF real.
 - Integraciones externas.

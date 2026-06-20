@@ -5,7 +5,7 @@ from io import BytesIO
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from app.config import (
     SMTP_FROM_EMAIL,
@@ -37,6 +37,7 @@ from app.services.propuestas_catalogo import (
     SERVICIOS_CATALOGO,
     SERVICIOS_CATALOGO_OPCIONES,
 )
+from app.utils.timezone import now_madrid_iso
 
 router = APIRouter()
 
@@ -120,6 +121,24 @@ def render_template(request: Request, template_name: str, context: dict | None =
 
 def limpiar_texto(valor: str | None) -> str:
     return (valor or "").strip()
+
+
+def existe_conflicto_updated_at(valor_actual: str | None, valor_cliente: str | None) -> bool:
+    actual = limpiar_texto(valor_actual)
+    cliente = limpiar_texto(valor_cliente)
+    return bool(actual and cliente and actual != cliente)
+
+
+def respuesta_autosave_conflicto(updated_at: str | None = None) -> JSONResponse:
+    return JSONResponse(
+        {
+            "ok": False,
+            "conflict": True,
+            "updated_at": limpiar_texto(updated_at),
+            "message": "Otro proceso ha modificado el registro.",
+        },
+        status_code=409,
+    )
 
 
 def parse_optional_int(valor: str | None) -> int | None:
@@ -1577,7 +1596,11 @@ def enviar_propuesta_email(request: Request, propuesta_id: int):
 
 
 @router.get("/propuestas/{propuesta_id}/editar", response_class=HTMLResponse)
-def editar_propuesta(request: Request, propuesta_id: int):
+def editar_propuesta(
+    request: Request,
+    propuesta_id: int,
+    error: str = Query(""),
+):
     current_user = get_current_user(request)
     conn = get_connection()
     cur = conn.cursor()
@@ -1603,7 +1626,7 @@ def editar_propuesta(request: Request, propuesta_id: int):
             "form_action": f"/propuestas/{propuesta_id}/editar",
             "titulo": "Editar propuesta",
             "submit_label": "Guardar cambios",
-            "error": "",
+            "error": error,
             "estados_propuesta": PROPUESTA_ESTADOS,
             "leads": leads,
             "clientes": clientes,
@@ -1611,6 +1634,113 @@ def editar_propuesta(request: Request, propuesta_id: int):
             "cliente_relacionado": cliente,
             "tiene_lineas": tiene_lineas,
         },
+    )
+
+
+@router.post("/propuestas/{propuesta_id}/autosave")
+async def autosave_propuesta_formulario_largo(request: Request, propuesta_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    lead_id_int = parse_optional_int(form.get("lead_id"))
+    cliente_id_int = parse_optional_int(form.get("cliente_id"))
+    base, iva_pct, importe_iva, total_propuesta = calcular_honorarios(
+        parse_float(form.get("base_imponible"), 0),
+        parse_float(form.get("iva_porcentaje"), 21),
+    )
+    payload = {
+        "numero_propuesta": limpiar_texto(form.get("numero_propuesta")),
+        "lead_id": lead_id_int or "",
+        "cliente_id": cliente_id_int or "",
+        "fecha": limpiar_texto(form.get("fecha")),
+        "tipo_trabajo": limpiar_texto(form.get("tipo_trabajo")),
+        "direccion_inmueble": limpiar_texto(form.get("direccion_inmueble")),
+        "alcance": limpiar_texto(form.get("alcance")),
+        "plazo_estimado": limpiar_texto(form.get("plazo_estimado")),
+        "base_imponible": base,
+        "iva_porcentaje": iva_pct,
+        "importe_iva": importe_iva,
+        "total_propuesta": total_propuesta,
+        "condiciones": limpiar_texto(form.get("condiciones")),
+    }
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        propuesta_existente = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        if not propuesta_existente:
+            raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        if existe_conflicto_updated_at(propuesta_existente["updated_at"], form.get("updated_at")):
+            return respuesta_autosave_conflicto(propuesta_existente["updated_at"])
+
+        _, _, lead, cliente = cargar_contexto_formulario(
+            cur,
+            current_user["id"],
+            lead_id=lead_id_int,
+            cliente_id=cliente_id_int,
+        )
+        error = ""
+        if not payload["numero_propuesta"]:
+            error = "El número de propuesta es obligatorio."
+        elif not payload["fecha"]:
+            error = "La fecha es obligatoria."
+        elif lead_id_int and lead is None:
+            error = "El lead indicado no existe."
+        elif cliente_id_int and cliente is None:
+            error = "El cliente indicado no existe."
+        if error:
+            return JSONResponse({"ok": False, "message": error}, status_code=400)
+
+        tiene_lineas = bool(obtener_lineas_propuesta(cur, propuesta_id))
+        if tiene_lineas:
+            payload["base_imponible"] = propuesta_existente["base_imponible"]
+            payload["iva_porcentaje"] = propuesta_existente["iva_porcentaje"]
+            payload["importe_iva"] = propuesta_existente["importe_iva"]
+            payload["total_propuesta"] = propuesta_existente["total_propuesta"]
+
+        actualizado_en = now_madrid_iso()
+        cur.execute(
+            """
+            UPDATE propuestas
+            SET numero_propuesta = ?, lead_id = ?, cliente_id = ?, fecha = ?,
+                tipo_trabajo = ?, direccion_inmueble = ?, alcance = ?,
+                plazo_estimado = ?, base_imponible = ?, iva_porcentaje = ?,
+                importe_iva = ?, total_propuesta = ?, iva = ?, total = ?,
+                condiciones = ?, updated_at = ?
+            WHERE id = ? AND owner_user_id = ?
+            """,
+            (
+                payload["numero_propuesta"],
+                lead_id_int,
+                cliente_id_int,
+                payload["fecha"],
+                payload["tipo_trabajo"],
+                payload["direccion_inmueble"],
+                payload["alcance"],
+                payload["plazo_estimado"],
+                payload["base_imponible"],
+                payload["iva_porcentaje"],
+                payload["importe_iva"],
+                payload["total_propuesta"],
+                payload["importe_iva"],
+                payload["total_propuesta"],
+                payload["condiciones"],
+                actualizado_en,
+                propuesta_id,
+                current_user["id"],
+            ),
+        )
+        actualizado = get_owned_propuesta(cur, propuesta_id, current_user["id"])
+        conn.commit()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "updated_at": limpiar_texto(actualizado["updated_at"] if actualizado else ""),
+            "saved_at": now_madrid_iso(),
+            "message": "Guardado correctamente",
+        }
     )
 
 
@@ -1629,6 +1759,7 @@ def actualizar_propuesta(
     base_imponible: str = Form("0"),
     iva_porcentaje: str = Form("21"),
     condiciones: str = Form(""),
+    updated_at: str = Form(""),
 ):
     current_user = get_current_user(request)
     lead_id_int = parse_optional_int(lead_id)
@@ -1660,6 +1791,11 @@ def actualizar_propuesta(
         propuesta_existente = get_owned_propuesta(cur, propuesta_id, current_user["id"])
         if not propuesta_existente:
             raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+        if existe_conflicto_updated_at(propuesta_existente["updated_at"], updated_at):
+            return RedirectResponse(
+                url=f"/propuestas/{propuesta_id}/editar?error={quote('Otro proceso ha modificado el registro.')}",
+                status_code=303,
+            )
         tiene_lineas = bool(obtener_lineas_propuesta(cur, propuesta_id))
         if tiene_lineas:
             propuesta["base_imponible"] = propuesta_existente["base_imponible"]
@@ -1686,6 +1822,7 @@ def actualizar_propuesta(
 
         if error:
             propuesta["estado"] = propuesta_existente["estado"]
+            propuesta["updated_at"] = propuesta_existente["updated_at"]
             return render_template(
                 request,
                 "propuestas/form.html",
@@ -1711,7 +1848,7 @@ def actualizar_propuesta(
                 tipo_trabajo = ?, direccion_inmueble = ?, alcance = ?,
                 plazo_estimado = ?, base_imponible = ?, iva_porcentaje = ?,
                 importe_iva = ?, total_propuesta = ?, iva = ?, total = ?,
-                condiciones = ?, updated_at = CURRENT_TIMESTAMP
+                condiciones = ?, updated_at = ?
             WHERE id = ? AND owner_user_id = ?
             """,
             (
@@ -1730,6 +1867,7 @@ def actualizar_propuesta(
                 propuesta["importe_iva"],
                 propuesta["total_propuesta"],
                 propuesta["condiciones"],
+                now_madrid_iso(),
                 propuesta_id,
                 current_user["id"],
             ),

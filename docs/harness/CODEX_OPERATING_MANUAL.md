@@ -27,6 +27,7 @@
 - Antes de tareas grandes, revisar `docs/harness/BACKLOG/` y `docs/harness/STATE/`.
 - Registrar fallos relevantes en `docs/harness/FAILURES/`.
 - Reutilizar `docs/harness/PATTERNS/` antes de inventar estructuras nuevas.
+- Antes de tareas transversales, revisar `docs/harness/PATTERNS/project_standards_guard.md` y la checklist `docs/harness/VALIDATION/project_standards_guard.md`.
 - Antes de planificar una tarea real, elegir un `TASK_PACK` o justificar por que no aplica.
 - Para tareas de valoracion inmobiliaria, preferir `docs/harness/TASK_PACKS/valoracion_change.md`; combinarlo con `db_change.md`, `informe_change.md` o `mobile_ui.md` si la fase toca esquema, outputs o UX sensible.
 - Antes de tocar archivos en cualquier fase relevante, crear un plan en `docs/harness/PLANS/active/` con `bash scripts/start_harness_task.sh SLUG TASK_PACK`; el wrapper actualiza `docs/harness/STATE/current_plan.txt` con la ruta relativa del plan.

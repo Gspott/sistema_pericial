@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
+    {% if propuesta.id is defined and propuesta.id %}
+    <script src="/static/js/autosave.js" defer></script>
+    {% endif %}
     <title>{{ titulo }}</title>
 </head>
 <body>
@@ -25,7 +28,21 @@
             </div>
             {% endif %}
 
-            <form method="post" action="{{ form_action }}" data-proposal-template-form>
+            <form method="post" action="{{ form_action }}" data-proposal-template-form
+                  {% if propuesta.id is defined and propuesta.id %}
+                  data-autosave-form
+                  data-autosave-url="/propuestas/{{ propuesta.id }}/autosave"
+                  data-autosave-status="#autosave_propuesta_{{ propuesta.id }}"
+                  data-autosave-updated-at="#propuesta_updated_at_{{ propuesta.id }}"
+                  data-autosave-debounce="1200"
+                  {% endif %}>
+                {% if propuesta.id is defined and propuesta.id %}
+                <input id="propuesta_updated_at_{{ propuesta.id }}" name="updated_at" type="hidden" value="{{ propuesta.updated_at or '' }}">
+                {% set autosave_status_id = "autosave_propuesta_" ~ propuesta.id %}
+                {% set autosave_status_label = "Listo para editar" %}
+                {% include "components/autosave_status.html" %}
+                {% endif %}
+
                 <label for="numero_propuesta">Número de propuesta</label>
                 <input id="numero_propuesta" name="numero_propuesta" type="text" value="{{ propuesta.numero_propuesta or '' }}" required>
 

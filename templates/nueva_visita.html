@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
+    <script src="/static/js/autosave.js?v=1" defer></script>
 
     <title>Nueva visita</title>
 </head>
@@ -175,7 +176,12 @@
                 <p class="empty">Todavía no hay fotos del portal o contadores.</p>
                 {% endif %}
             </div>
-            <form class="visita-exterior-form" method="post" action="/guardar-visita/{{ expediente.id }}">
+            <form class="visita-exterior-form" method="post" action="/guardar-visita/{{ expediente.id }}"
+                data-autosave-form
+                data-autosave-url="/visitas/{{ visita_form.id }}/valoracion-observaciones/autosave"
+                data-autosave-status="#autosave_valoracion_observaciones_{{ visita_form.id }}"
+                data-autosave-updated-at="#valoracion_observaciones_updated_at_{{ visita_form.id }}"
+                data-autosave-debounce="1200">
                 <input type="hidden" name="visita_id" value="{{ visita_form.id }}">
                 <input type="hidden" name="fecha" value="{{ visita_form.fecha }}">
                 <input type="hidden" name="tecnico" value="{{ visita_form.tecnico }}">
@@ -183,6 +189,10 @@
                 <input type="hidden" name="ambito_visita" value="{{ visita_form.ambito_visita or 'edificio_completo' }}">
                 <input type="hidden" name="nivel_id" value="{{ visita_form.nivel_id }}">
                 <input type="hidden" name="unidad_id" value="{{ visita_form.unidad_id }}">
+                <input id="valoracion_observaciones_updated_at_{{ visita_form.id }}" type="hidden" name="observaciones_updated_at" value="{{ valoracion_visita_observaciones.get('updated_at', '') }}">
+                {% set autosave_status_id = "autosave_valoracion_observaciones_" ~ visita_form.id %}
+                {% set autosave_status_label = "Listo para editar" %}
+                {% include "components/autosave_status.html" %}
 
                 <label for="observaciones_portal">Observaciones del portal</label>
                 <textarea id="observaciones_portal" name="observaciones_portal">{{ valoracion_visita_observaciones.get('observaciones_portal', '') }}</textarea>
@@ -226,8 +236,21 @@
         {% endif %}
 
         <div class="card visita-primary-card">
-            <form id="visita-form" method="post" action="/guardar-visita/{{ expediente.id }}">
+            <form id="visita-form" method="post" action="/guardar-visita/{{ expediente.id }}"
+                {% if visita_form.id %}
+                data-autosave-form
+                data-autosave-url="/visitas/{{ visita_form.id }}/autosave"
+                data-autosave-status="#autosave_visita_{{ visita_form.id }}"
+                data-autosave-updated-at="#visita_updated_at_{{ visita_form.id }}"
+                data-autosave-debounce="1200"
+                {% endif %}>
                 <input type="hidden" name="visita_id" value="{{ visita_form.id }}">
+                {% if visita_form.id %}
+                <input id="visita_updated_at_{{ visita_form.id }}" type="hidden" name="updated_at" value="{{ visita_form.updated_at or '' }}">
+                {% set autosave_status_id = "autosave_visita_" ~ visita_form.id %}
+                {% set autosave_status_label = "Listo para editar" %}
+                {% include "components/autosave_status.html" %}
+                {% endif %}
                 <input type="hidden" name="latitud" id="latitud" value="">
                 <input type="hidden" name="longitud" id="longitud" value="">
                 <input type="hidden" name="ubicacion_referencia" id="ubicacion_referencia"

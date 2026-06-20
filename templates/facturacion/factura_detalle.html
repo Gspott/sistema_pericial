@@ -241,7 +241,7 @@
             {% if eventos %}
                 {% for evento in eventos %}
                 <div class="inner-card">
-                    <p><strong>{{ evento.tipo }}</strong> · {{ evento.created_at }}</p>
+                    <p><strong>{{ evento.tipo }}</strong> · {{ evento.created_at|datetime_madrid }}</p>
                     {% if evento.descripcion %}<p>{{ evento.descripcion }}</p>{% endif %}
                 </div>
                 {% endfor %}

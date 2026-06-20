@@ -60,7 +60,7 @@
                     <tbody>
                         {% for item in importaciones %}
                         <tr>
-                            <td>{{ item.created_at }}</td>
+                            <td>{{ item.created_at|datetime_madrid }}</td>
                             <td>{{ item.base_nombre or 'Sin base' }}</td>
                             <td class="costes-code">{{ item.archivo_original }}</td>
                             <td>{{ item.descripcion }}</td>

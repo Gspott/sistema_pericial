@@ -14,7 +14,6 @@ import textwrap
 import time
 import unicodedata
 from urllib.parse import parse_qs, quote_plus, urlparse
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -95,6 +94,13 @@ from app.services.valoracion_comparacion import (
     preparar_testigo_comparacion,
 )
 from app.utils.helpers import formatear_plantas
+from app.utils.timezone import (
+    format_datetime_madrid,
+    format_date_madrid,
+    timestamp_filename_madrid,
+    today_madrid,
+    now_madrid_iso,
+)
 
 app = FastAPI()
 
@@ -122,6 +128,8 @@ app.mount("/static", StaticFiles(directory=str(STATIC_PATH)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_PATH)), name="uploads")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_PATH))
+templates.env.filters["datetime_madrid"] = format_datetime_madrid
+templates.env.filters["date_madrid"] = format_date_madrid
 app.state.templates = templates
 app.state.base_url = BASE_URL
 app.state.app_host = APP_HOST
@@ -2498,13 +2506,17 @@ def valoracion_visita_observaciones_form_vacio():
 
 
 def cargar_valoracion_visita_observaciones_form(cur, visita_id: int):
-    return fila_a_dict(
-        cur.execute(
-            "SELECT * FROM valoracion_visita_observaciones WHERE visita_id=?",
-            (visita_id,),
-        ).fetchone(),
-        VALORACION_VISITA_OBSERVACIONES_FIELDS,
+    fila = cur.execute(
+        "SELECT * FROM valoracion_visita_observaciones WHERE visita_id=?",
+        (visita_id,),
+    ).fetchone()
+    valores = fila_a_dict(fila, VALORACION_VISITA_OBSERVACIONES_FIELDS)
+    valores["updated_at"] = (
+        limpiar_texto(fila["updated_at"])
+        if fila and "updated_at" in fila.keys()
+        else ""
     )
+    return valores
 
 
 def cargar_valoracion_visita_observaciones_legacy(cur, visita_id: int):
@@ -2841,7 +2853,7 @@ def testigo_biblioteca_form_vacio(expediente_id: str = "") -> dict:
         "url_fuente": "",
         "fuente_tipo": "Idealista",
         "fuente_testigo": "",
-        "fecha_captura": datetime.now().date().isoformat(),
+        "fecha_captura": today_madrid().isoformat(),
         "fecha_testigo": "",
         "referencia_testigo": "",
         "direccion_testigo": "",
@@ -3188,7 +3200,7 @@ def valores_testigo_biblioteca_desde_form(form) -> tuple[dict, list[str], list[s
         if campo in valores:
             valores[campo] = "1" if form.get(campo) == "1" else "0"
     if not valores["fecha_captura"]:
-        valores["fecha_captura"] = datetime.now().date().isoformat()
+        valores["fecha_captura"] = today_madrid().isoformat()
     if not valores["fecha_testigo"]:
         valores["fecha_testigo"] = valores["fecha_captura"]
     if valores["fuente_tipo"] != "Otro" and not valores["fuente_testigo"]:
@@ -4055,6 +4067,113 @@ def actualizar_microedicion_workbench(cur, vinculo_id: int, valores: dict) -> No
     )
 
 
+def existe_conflicto_updated_at(valor_actual: str | None, valor_cliente: str | None) -> bool:
+    actual = limpiar_texto(valor_actual)
+    cliente = limpiar_texto(valor_cliente)
+    return bool(actual and cliente and actual != cliente)
+
+
+def respuesta_autosave_conflicto(updated_at: str | None = None) -> JSONResponse:
+    return JSONResponse(
+        {
+            "ok": False,
+            "conflict": True,
+            "updated_at": limpiar_texto(updated_at),
+            "message": "Otro proceso ha modificado el registro.",
+        },
+        status_code=409,
+    )
+
+
+def token_autosave_visita(visita) -> str:
+    if not visita:
+        return ""
+    payload = {
+        "fecha": limpiar_texto(visita["fecha"]),
+        "tecnico": limpiar_texto(visita["tecnico"]),
+        "observaciones_visita": limpiar_texto(visita["observaciones_visita"]),
+        "ambito_visita": limpiar_texto(visita["ambito_visita"]),
+        "nivel_id": visita["nivel_id"] or "",
+        "unidad_id": visita["unidad_id"] or "",
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def token_autosave_registro_patologia(registro) -> str:
+    if not registro:
+        return ""
+    payload = {
+        "estancia_id": registro["estancia_id"] or "",
+        "elemento": limpiar_texto(registro["elemento"]),
+        "localizacion_dano": limpiar_texto(registro["localizacion_dano"]),
+        "detalle_localizacion": limpiar_texto(registro["detalle_localizacion"]),
+        "rol_patologia_observado": limpiar_texto(registro["rol_patologia_observado"]),
+        "patologia": limpiar_texto(registro["patologia"]),
+        "observaciones": limpiar_texto(registro["observaciones"]),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def token_autosave_registro_patologia_exterior(registro) -> str:
+    if not registro:
+        return ""
+    payload = {
+        "zona_exterior": limpiar_texto(registro["zona_exterior"]),
+        "elemento_exterior": limpiar_texto(registro["elemento_exterior"]),
+        "localizacion_dano_exterior": limpiar_texto(
+            registro["localizacion_dano_exterior"]
+        ),
+        "patologia": limpiar_texto(registro["patologia"]),
+        "observaciones": limpiar_texto(registro["observaciones"]),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def token_autosave_estancia(estancia) -> str:
+    if not estancia:
+        return ""
+    payload = {
+        "nombre": limpiar_texto(estancia["nombre"]),
+        "tipo_estancia": limpiar_texto(estancia["tipo_estancia"]),
+        "ventilacion": limpiar_texto(estancia["ventilacion"]),
+        "planta": limpiar_texto(estancia["planta"]),
+        "acabado_pavimento": limpiar_texto(estancia["acabado_pavimento"]),
+        "acabado_paramento": limpiar_texto(estancia["acabado_paramento"]),
+        "acabado_techo": limpiar_texto(estancia["acabado_techo"]),
+        "observaciones": limpiar_texto(estancia["observaciones"]),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def token_autosave_cuadrante_mapa_patologia(cuadrante) -> str:
+    if not cuadrante:
+        return ""
+    payload = {
+        "descripcion": limpiar_texto(cuadrante["descripcion"]),
+        "patologia_detectada": limpiar_texto(cuadrante["patologia_detectada"]),
+        "patologia_id": cuadrante["patologia_id"] or "",
+        "gravedad": limpiar_texto(cuadrante["gravedad"]),
+        "observaciones": limpiar_texto(cuadrante["observaciones"]),
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def unidad_visita_desde_form(form) -> str:
+    ambito = limpiar_texto(form.get("ambito_visita")) or "edificio_completo"
+    if ambito == "zona_comun":
+        return limpiar_texto(form.get("unidad_id") or form.get("unidad_id_zona_comun"))
+    if ambito == "exterior":
+        return limpiar_texto(form.get("unidad_id") or form.get("unidad_id_exterior"))
+    if ambito == "unidad":
+        return limpiar_texto(form.get("unidad_id"))
+    return ""
+
+
 def obtener_items_inspeccion_estancia(tipo_estancia: str):
     tipo = limpiar_texto(tipo_estancia).lower()
     items = list(INSPECCION_ESTANCIA_BASE_ITEMS)
@@ -4487,7 +4606,7 @@ def persistir_climatologia(cur, visita_id: int, climatologia: dict):
             climatologia.get("ubicacion"),
             coordenadas.get("lat"),
             coordenadas.get("lon"),
-            datetime.now().isoformat(timespec="seconds"),
+            now_madrid_iso(),
         ),
     )
 
@@ -4596,7 +4715,7 @@ def propagar_acabados_estancia(
 
 
 def generar_numero_expediente():
-    sufijo_anio = datetime.now().strftime("%y")
+    sufijo_anio = today_madrid().strftime("%y")
 
     conn = get_connection()
     cur = conn.cursor()
@@ -4617,7 +4736,7 @@ def generar_numero_expediente():
 
 
 def generar_numero_expediente_desde_cursor(cur):
-    sufijo_anio = datetime.now().strftime("%y")
+    sufijo_anio = today_madrid().strftime("%y")
     row = cur.execute(
         """
         SELECT MAX(CAST(SUBSTR(numero_expediente, 1, 3) AS INTEGER)) AS ultima_secuencia
@@ -9670,7 +9789,7 @@ def preparar_contexto_pdf_informe_v2(cur, expediente, base_url: str = "") -> dic
         "informe": metadatos,
         "desplazamiento_paginas_anexo_a": desplazamiento_paginas_anexo_a,
         "capitulos_guardados": len(guardados),
-        "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
+        "fecha_emision": format_date_madrid(),
         "tecnico": limpiar_texto(ultima_visita["tecnico"]) if ultima_visita else "",
         "fecha_visita": limpiar_texto(ultima_visita["fecha"]) if ultima_visita else "",
         "desplazamiento_paginas_documentacion_aportada": desplazamiento_paginas_documentacion_aportada,
@@ -12335,7 +12454,7 @@ def nuevo_expediente(
         "nuevo_expediente.html",
         {
             "numero_expediente_sugerido": generar_numero_expediente(),
-            "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+            "anios_disponibles": list(range(today_madrid().year, 1899, -1)),
             "prefill": prefill,
         },
     )
@@ -14406,7 +14525,7 @@ def descargar_respaldo_informe_v2(request: Request, expediente_id: int):
             "cliente": limpiar_texto(expediente["cliente"]),
             "tipo_informe": limpiar_texto(expediente["tipo_informe"]),
         },
-        "fecha_exportacion": datetime.now().isoformat(timespec="seconds"),
+        "fecha_exportacion": now_madrid_iso(),
         "metadatos": {
             "titulo_portada": metadatos["titulo_portada"],
             "subtitulo_portada": metadatos["subtitulo_portada"],
@@ -15345,6 +15464,18 @@ async def guardar_microedicion_workbench_valoracion(
             (expediente_id, testigo_id, current_user["id"]),
         ).fetchone()
         require_row(vinculo, "Testigo no vinculado al expediente")
+        if existe_conflicto_updated_at(vinculo["updated_at"], form.get("updated_at")):
+            return RedirectResponse(
+                url=workbench_url(
+                    expediente_id,
+                    filtro if filtro in WORKBENCH_FILTROS else "todos",
+                    ordenar if ordenar in WORKBENCH_ORDENES else "homogeneizado",
+                    direccion if direccion in {"asc", "desc"} else "desc",
+                    str(testigo_id),
+                    error="Otro proceso ha modificado el registro.",
+                ),
+                status_code=303,
+            )
         actualizar_microedicion_workbench(cur, vinculo["id"], valores)
         conn.commit()
     finally:
@@ -15356,6 +15487,69 @@ async def guardar_microedicion_workbench_valoracion(
     return RedirectResponse(
         url=f"{redirect_url}&mensaje={quote_plus(mensaje)}",
         status_code=303,
+    )
+
+
+@app.post("/expediente/{expediente_id}/valoracion/workbench/testigo/{testigo_id}/autosave")
+async def autosave_microedicion_workbench_valoracion(
+    request: Request,
+    expediente_id: int,
+    testigo_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+    try:
+        valores = valores_microedicion_workbench_desde_form(form)
+    except ValueError as exc:
+        return JSONResponse(
+            {"ok": False, "message": str(exc)},
+            status_code=400,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        if limpiar_texto(expediente["tipo_informe"]) != "valoracion":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "message": "El workbench solo aplica a expedientes de valoración.",
+                },
+                status_code=400,
+            )
+        vinculo = cur.execute(
+            """
+            SELECT vet.*
+            FROM valoracion_expediente_testigos vet
+            JOIN expedientes e ON e.id = vet.expediente_id
+            WHERE vet.expediente_id = ?
+              AND vet.testigo_id = ?
+              AND e.owner_user_id = ?
+            """,
+            (expediente_id, testigo_id, current_user["id"]),
+        ).fetchone()
+        require_row(vinculo, "Testigo no vinculado al expediente")
+        if existe_conflicto_updated_at(vinculo["updated_at"], form.get("updated_at")):
+            return respuesta_autosave_conflicto(vinculo["updated_at"])
+        actualizar_microedicion_workbench(cur, vinculo["id"], valores)
+        actualizado = cur.execute(
+            "SELECT updated_at FROM valoracion_expediente_testigos WHERE id = ?",
+            (vinculo["id"],),
+        ).fetchone()
+        conn.commit()
+    finally:
+        conn.close()
+
+    updated_at = limpiar_texto(actualizado["updated_at"] if actualizado else "")
+    return JSONResponse(
+        {
+            "ok": True,
+            "updated_at": updated_at,
+            "saved_at": now_madrid_iso(),
+            "message": "Guardado correctamente",
+        }
     )
 
 
@@ -15942,7 +16136,7 @@ def editar_expediente(request: Request, expediente_id: int):
         "editar_expediente.html",
         {
             "expediente": expediente_data,
-            "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+            "anios_disponibles": list(range(today_madrid().year, 1899, -1)),
             "niveles_edificio": estructura_multiunidad["niveles"],
             "unidades_expediente": estructura_multiunidad["unidades"],
         },
@@ -16075,7 +16269,7 @@ def actualizar_expediente(
             {
                 "error": "Ya existe otro expediente con ese número.",
                 "expediente": expediente_form,
-                "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+                "anios_disponibles": list(range(today_madrid().year, 1899, -1)),
                 "niveles_edificio": estructura_multiunidad["niveles"],
                 "unidades_expediente": estructura_multiunidad["unidades"],
             },
@@ -16718,7 +16912,7 @@ def nueva_visita(
 
     visita_form = {
         "id": visita["id"] if visita else "",
-        "fecha": (visita["fecha"] if visita else datetime.now().strftime("%Y-%m-%d")),
+        "fecha": (visita["fecha"] if visita else today_madrid().isoformat()),
         "tecnico": (
             visita["tecnico"]
             if visita
@@ -16731,6 +16925,7 @@ def nueva_visita(
         ),
         "nivel_id": str(visita["nivel_id"] or "") if visita else "",
         "unidad_id": str(visita["unidad_id"] or "") if visita else "",
+        "updated_at": token_autosave_visita(visita) if visita else "",
     }
 
     return render_template(
@@ -16746,7 +16941,7 @@ def nueva_visita(
             "clima": clima,
             "clima_detalle": clima_detalle,
             "clima_error": clima_error,
-            "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+            "anios_disponibles": list(range(today_madrid().year, 1899, -1)),
             "es_informe_inspeccion": limpiar_texto(expediente["tipo_informe"]) == "inspeccion",
             "es_informe_habitabilidad": limpiar_texto(expediente["tipo_informe"]) == "habitabilidad",
             "es_informe_valoracion": limpiar_texto(expediente["tipo_informe"]) == "valoracion",
@@ -16781,6 +16976,7 @@ def nueva_visita(
             "comparables_valoracion_items": COMPARABLE_VALORACION_ITEMS,
             "comparables_valoracion": comparables_valoracion,
             "comparable_form": comparable_valoracion_form_vacio(),
+            "error": limpiar_texto(request.query_params.get("error")),
             "objeto_visita_label": (
                 describir_objeto_visita(visita)
                 if visita
@@ -16811,6 +17007,7 @@ async def guardar_visita(
     ambito_visita: str = Form("edificio_completo"),
     nivel_id: str = Form(""),
     unidad_id: str = Form(""),
+    updated_at: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -16820,7 +17017,7 @@ async def guardar_visita(
     expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
     require_row(expediente, "Expediente no encontrado")
 
-    fecha_limpia = limpiar_texto(fecha) or datetime.now().strftime("%Y-%m-%d")
+    fecha_limpia = limpiar_texto(fecha) or today_madrid().isoformat()
     tecnico_limpio = limpiar_texto(tecnico) or current_user["username"]
     observaciones_limpias = observaciones_visita or ""
     try:
@@ -16895,6 +17092,7 @@ async def guardar_visita(
                     "ambito_visita": limpiar_texto(ambito_visita) or "edificio_completo",
                     "nivel_id": nivel_id,
                     "unidad_id": unidad_id,
+                    "updated_at": updated_at,
                 },
                 "visita_fotos_exteriores": visita_fotos_exteriores,
                 "visita_fotos_portal_contadores": visita_fotos_portal_contadores,
@@ -16902,7 +17100,7 @@ async def guardar_visita(
                 "clima": clima,
                 "clima_detalle": clima_detalle,
                 "clima_error": "",
-                "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+                "anios_disponibles": list(range(today_madrid().year, 1899, -1)),
                 "es_informe_inspeccion": limpiar_texto(expediente["tipo_informe"]) == "inspeccion",
                 "es_informe_habitabilidad": limpiar_texto(expediente["tipo_informe"]) == "habitabilidad",
                 "es_informe_valoracion": limpiar_texto(expediente["tipo_informe"]) == "valoracion",
@@ -16957,6 +17155,15 @@ async def guardar_visita(
         if visita["expediente_id"] != expediente_id:
             conn.close()
             raise HTTPException(status_code=404, detail="Visita no encontrada")
+        if existe_conflicto_updated_at(token_autosave_visita(visita), updated_at):
+            conn.close()
+            return RedirectResponse(
+                url=(
+                    f"/nueva-visita/{expediente_id}?visita_id={visita_id}"
+                    "&error=Otro+proceso+ha+modificado+el+registro."
+                ),
+                status_code=303,
+            )
         cur.execute(
             """
             UPDATE visitas
@@ -17006,6 +17213,18 @@ async def guardar_visita(
             }
             if any(campo in form for campo in campos_observaciones):
                 existentes = cargar_valoracion_visita_observaciones_form(cur, visita_id)
+                if existe_conflicto_updated_at(
+                    existentes.get("updated_at"),
+                    form.get("observaciones_updated_at"),
+                ):
+                    conn.close()
+                    return RedirectResponse(
+                        url=(
+                            f"/nueva-visita/{expediente_id}?visita_id={visita_id}"
+                            "&error=Otro+proceso+ha+modificado+el+registro."
+                        ),
+                        status_code=303,
+                    )
                 valores_observaciones = {
                     campo: form.get(campo, existentes.get(campo, ""))
                     for campo in VALORACION_VISITA_OBSERVACIONES_FIELDS
@@ -17029,6 +17248,73 @@ async def guardar_visita(
     return RedirectResponse(
         url=f"/nueva-visita/{expediente_id}?visita_id={visita_id}#exterior-edificio",
         status_code=303,
+    )
+
+
+@app.post("/visitas/{visita_id}/autosave")
+async def autosave_visita(
+    request: Request,
+    visita_id: int,
+):
+    current_user = get_current_user(request)
+    form = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if existe_conflicto_updated_at(
+            token_autosave_visita(visita),
+            form.get("updated_at"),
+        ):
+            return respuesta_autosave_conflicto(token_autosave_visita(visita))
+        try:
+            ambito_visita_limpio, nivel_id_int, unidad_id_int = validar_asociacion_visita(
+                cur,
+                visita["expediente_id"],
+                current_user["id"],
+                form.get("ambito_visita", visita["ambito_visita"] or "edificio_completo"),
+                form.get("nivel_id", ""),
+                unidad_visita_desde_form(form),
+            )
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
+
+        fecha_limpia = limpiar_texto(form.get("fecha")) or limpiar_texto(visita["fecha"])
+        tecnico_limpio = limpiar_texto(form.get("tecnico")) or limpiar_texto(visita["tecnico"])
+        observaciones_limpias = form.get(
+            "observaciones_visita",
+            visita["observaciones_visita"] or "",
+        )
+        cur.execute(
+            """
+            UPDATE visitas
+            SET fecha=?, tecnico=?, observaciones_visita=?, ambito_visita=?, nivel_id=?, unidad_id=?
+            WHERE id=?
+            """,
+            (
+                fecha_limpia,
+                tecnico_limpio,
+                observaciones_limpias,
+                ambito_visita_limpio,
+                nivel_id_int,
+                unidad_id_int,
+                visita_id,
+            ),
+        )
+        visita_actualizada = get_owned_visita(cur, visita_id, current_user["id"])
+        conn.commit()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "updated_at": token_autosave_visita(visita_actualizada),
+            "saved_at": now_madrid_iso(),
+            "message": "Guardado correctamente",
+        }
     )
 
 
@@ -17142,20 +17428,23 @@ def editar_visita(request: Request, visita_id: int):
             url=f"/nueva-visita/{visita['expediente_id']}?visita_id={visita_id}",
             status_code=303,
         )
+    visita_data = dict(visita)
+    visita_data["updated_at_token"] = token_autosave_visita(visita)
 
     return render_template(
         request,
         "editar_visita.html",
         {
-            "visita": visita,
+            "visita": visita_data,
             "visita_fotos_exteriores": visita_fotos_exteriores,
             "permite_patologias_exteriores": permite_patologias_exteriores,
-            "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+            "anios_disponibles": list(range(today_madrid().year, 1899, -1)),
             "ambito_visita_options": AMBITO_VISITA_OPTIONS,
             "niveles_visita_options": opciones_visita_multiunidad["niveles"],
             "unidades_visita_options": opciones_visita_multiunidad["unidades_generales"],
             "zonas_comunes_visita_options": opciones_visita_multiunidad["unidades_comunes"],
             "exteriores_visita_options": opciones_visita_multiunidad["unidades_exteriores"],
+            "error": limpiar_texto(request.query_params.get("error")),
         },
     )
 
@@ -17191,6 +17480,7 @@ def editar_valoracion_visita_observaciones(request: Request, visita_id: int):
             "legacy_observaciones": legacy_observaciones,
             "observacion_grupos": VALORACION_VISITA_OBSERVACIONES_GROUPS,
             "valoracion_ayudas_rapidas": VALORACION_AYUDAS_RAPIDAS,
+            "error": limpiar_texto(request.query_params.get("error")),
         },
     )
 
@@ -17210,8 +17500,17 @@ async def guardar_valoracion_visita_observaciones(request: Request, visita_id: i
                 visita["expediente_id"],
                 error="Las observaciones de valoración solo aplican a visitas de valoración.",
             )
+        actuales = cargar_valoracion_visita_observaciones_form(cur, visita_id)
+        if existe_conflicto_updated_at(actuales.get("updated_at"), form.get("updated_at")):
+            return RedirectResponse(
+                url=(
+                    f"/visitas/{visita_id}/valoracion-observaciones"
+                    "?error=Otro+proceso+ha+modificado+el+registro."
+                ),
+                status_code=303,
+            )
         valores = {
-            campo: form.get(campo, "")
+            campo: form.get(campo, actuales.get(campo, ""))
             for campo in VALORACION_VISITA_OBSERVACIONES_FIELDS
         }
         upsert_valoracion_visita_observaciones(
@@ -17227,6 +17526,52 @@ async def guardar_valoracion_visita_observaciones(request: Request, visita_id: i
     return RedirectResponse(
         url=f"/nueva-visita/{visita['expediente_id']}?visita_id={visita_id}",
         status_code=303,
+    )
+
+
+@app.post("/visitas/{visita_id}/valoracion-observaciones/autosave")
+async def autosave_valoracion_visita_observaciones(request: Request, visita_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        visita = get_owned_visita(cur, visita_id, current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        if limpiar_texto(visita["tipo_informe"]) != "valoracion":
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "message": "Las observaciones de valoración solo aplican a visitas de valoración.",
+                },
+                status_code=400,
+            )
+        actuales = cargar_valoracion_visita_observaciones_form(cur, visita_id)
+        if existe_conflicto_updated_at(actuales.get("updated_at"), form.get("updated_at")):
+            return respuesta_autosave_conflicto(actuales.get("updated_at"))
+        valores = {
+            campo: form.get(campo, actuales.get(campo, ""))
+            for campo in VALORACION_VISITA_OBSERVACIONES_FIELDS
+        }
+        upsert_valoracion_visita_observaciones(
+            cur,
+            visita_id,
+            visita["expediente_id"],
+            valores,
+        )
+        actualizadas = cargar_valoracion_visita_observaciones_form(cur, visita_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "updated_at": actualizadas.get("updated_at", ""),
+            "saved_at": now_madrid_iso(),
+            "message": "Guardado correctamente",
+        }
     )
 
 
@@ -17420,6 +17765,7 @@ def actualizar_visita(
     ambito_visita: str = Form("edificio_completo"),
     nivel_id: str = Form(""),
     unidad_id: str = Form(""),
+    updated_at: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -17428,6 +17774,12 @@ def actualizar_visita(
 
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
+    if existe_conflicto_updated_at(token_autosave_visita(visita), updated_at):
+        conn.close()
+        return RedirectResponse(
+            url=f"/editar-visita/{visita_id}?error=Otro+proceso+ha+modificado+el+registro.",
+            status_code=303,
+        )
     try:
         ambito_visita_limpio, nivel_id_int, unidad_id_int = validar_asociacion_visita(
             cur,
@@ -17455,6 +17807,7 @@ def actualizar_visita(
                 "ambito_visita": limpiar_texto(ambito_visita) or "edificio_completo",
                 "nivel_id": parse_optional_int(nivel_id),
                 "unidad_id": parse_optional_int(unidad_id),
+                "updated_at_token": token_autosave_visita(visita),
             }
         )
         conn.close()
@@ -17466,7 +17819,7 @@ def actualizar_visita(
                 "visita": visita_data,
                 "visita_fotos_exteriores": visita_fotos_exteriores,
                 "permite_patologias_exteriores": permite_patologias_exteriores,
-                "anios_disponibles": list(range(datetime.now().year, 1899, -1)),
+                "anios_disponibles": list(range(today_madrid().year, 1899, -1)),
                 "ambito_visita_options": AMBITO_VISITA_OPTIONS,
                 "niveles_visita_options": opciones_visita_multiunidad["niveles"],
                 "unidades_visita_options": opciones_visita_multiunidad["unidades_generales"],
@@ -17885,6 +18238,7 @@ def editar_estancia(
     unidad_id_contexto: int | None = Query(None),
     next: str = Query(""),
     post_save: bool = Query(False),
+    error: str = Query(""),
 ):
     current_user = get_current_user(request)
 
@@ -17898,6 +18252,7 @@ def editar_estancia(
     for foto in fotos:
         foto["url"] = f"/uploads/{foto['archivo']}"
     estancia["fotos"] = fotos
+    estancia["updated_at_token"] = token_autosave_estancia(estancia)
     estancia_tiene_varias_plantas = bool(
         int(
             estancia.get("estancia_unidad_tiene_varias_plantas")
@@ -17932,8 +18287,87 @@ def editar_estancia(
             "opciones_planta_estancia": opciones_planta_unidad(estancia_numero_plantas)
             if estancia_tiene_varias_plantas
             else [],
+            "error": limpiar_texto(error),
         },
     )
+
+
+@app.post("/estancias/{estancia_id}/autosave")
+async def autosave_estancia(request: Request, estancia_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        estancia = get_owned_estancia(cur, estancia_id, current_user["id"])
+        require_row(estancia, "Estancia no encontrada")
+        token_actual = token_autosave_estancia(estancia)
+        if existe_conflicto_updated_at(token_actual, form.get("updated_at")):
+            return respuesta_autosave_conflicto(token_actual)
+
+        permite_editar_planta = bool(
+            int(
+                estancia["estancia_unidad_tiene_varias_plantas"]
+                or estancia["visita_unidad_tiene_varias_plantas"]
+                or 0
+            )
+        )
+        planta_final = (
+            limpiar_texto(form.get("planta"))
+            if permite_editar_planta
+            else estancia["planta"]
+        )
+        acabados_anteriores = {
+            "acabado_pavimento": estancia["acabado_pavimento"],
+            "acabado_paramento": estancia["acabado_paramento"],
+            "acabado_techo": estancia["acabado_techo"],
+        }
+        acabados_nuevos = {
+            "acabado_pavimento": limpiar_texto(form.get("acabado_pavimento")),
+            "acabado_paramento": limpiar_texto(form.get("acabado_paramento")),
+            "acabado_techo": limpiar_texto(form.get("acabado_techo")),
+        }
+
+        cur.execute(
+            """
+            UPDATE estancias
+            SET nombre=?, tipo_estancia=?, ventilacion=?, planta=?,
+                acabado_pavimento=?, acabado_paramento=?, acabado_techo=?,
+                observaciones=?
+            WHERE id=?
+            """,
+            (
+                limpiar_texto(form.get("nombre")) or limpiar_texto(estancia["nombre"]),
+                limpiar_texto(form.get("tipo_estancia"))
+                or limpiar_texto(estancia["tipo_estancia"]),
+                limpiar_texto(form.get("ventilacion")),
+                planta_final,
+                acabados_nuevos["acabado_pavimento"],
+                acabados_nuevos["acabado_paramento"],
+                acabados_nuevos["acabado_techo"],
+                limpiar_texto(form.get("observaciones")),
+                estancia_id,
+            ),
+        )
+        propagar_acabados_estancia(
+            cur,
+            estancia["expediente_id"],
+            estancia_id,
+            acabados_anteriores,
+            acabados_nuevos,
+        )
+        conn.commit()
+        actualizada = get_owned_estancia(cur, estancia_id, current_user["id"])
+        return JSONResponse(
+            {
+                "ok": True,
+                "updated_at": token_autosave_estancia(actualizada),
+                "saved_at": now_madrid_iso(),
+                "message": "Guardado correctamente",
+            }
+        )
+    finally:
+        conn.close()
 
 
 @app.post("/actualizar-estancia/{estancia_id}")
@@ -17952,6 +18386,7 @@ def actualizar_estancia(
     unidad_id_contexto: str = Form(""),
     next: str = Form(""),
     redirect_after_save: str = Form(""),
+    updated_at: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -17962,6 +18397,20 @@ def actualizar_estancia(
     require_row(estancia, "Estancia no encontrada")
 
     visita_id = estancia["visita_id"]
+    if existe_conflicto_updated_at(token_autosave_estancia(estancia), updated_at):
+        conn.close()
+        params = [f"error={quote_plus('Otro proceso ha modificado el registro.')}"]
+        unidad_id_contexto_int = parse_optional_int(unidad_id_contexto)
+        if unidad_id_contexto_int:
+            params.append(f"unidad_id_contexto={unidad_id_contexto_int}")
+        next_url_conflicto = normalizar_redirect_interno(next)
+        if next_url_conflicto:
+            params.append(f"next={quote_plus(next_url_conflicto)}")
+        return RedirectResponse(
+            url=f"/editar-estancia/{estancia_id}?{'&'.join(params)}",
+            status_code=303,
+        )
+
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
     acabados_anteriores = {
@@ -18144,7 +18593,7 @@ async def registrar_climatologia_visita(
     expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
     require_row(expediente, "Expediente no encontrado")
 
-    fecha_final = limpiar_texto(fecha) or datetime.now().strftime("%Y-%m-%d")
+    fecha_final = limpiar_texto(fecha) or today_madrid().isoformat()
     tecnico_final = (
         limpiar_texto(tecnico)
         or f"{current_user['nombre']} {current_user['apellido1']}".strip()
@@ -18266,7 +18715,7 @@ async def api_climatologia(
     expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
     require_row(expediente, "Expediente no encontrado")
 
-    fecha_final = limpiar_texto(fecha) or datetime.now().strftime("%Y-%m-%d")
+    fecha_final = limpiar_texto(fecha) or today_madrid().isoformat()
     tecnico_final = (
         limpiar_texto(tecnico)
         or f"{current_user['nombre']} {current_user['apellido1']}".strip()
@@ -18778,6 +19227,7 @@ def editar_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
         "cuadrante_id",
         "foto_detalle",
     )
+    cuadrante["updated_at_token"] = token_autosave_cuadrante_mapa_patologia(cuadrante)
     mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
     require_row(mapa, "Mapa no encontrado")
     patologias_vinculables, candidatos_por_id = obtener_registros_patologia_vinculables(
@@ -18801,8 +19251,94 @@ def editar_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
             "patologias_vinculables": patologias_vinculables,
             "patologia_ref_actual": patologia_vinculada["value"] if patologia_vinculada else "",
             "objeto_visita_label": objeto_visita_label,
+            "error": limpiar_texto(request.query_params.get("error")),
         },
     )
+
+
+@app.post("/mapas-patologia/cuadrantes/{cuadrante_id}/autosave")
+async def autosave_cuadrante_mapa_patologia(request: Request, cuadrante_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cuadrante = get_owned_cuadrante_mapa_patologia(
+            cur,
+            cuadrante_id,
+            current_user["id"],
+        )
+        require_row(cuadrante, "Cuadrante no encontrado")
+        token_actual = token_autosave_cuadrante_mapa_patologia(cuadrante)
+        if existe_conflicto_updated_at(token_actual, form.get("updated_at")):
+            return respuesta_autosave_conflicto(token_actual)
+
+        mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
+        require_row(mapa, "Mapa no encontrado")
+        patologia_id = None
+        patologia_detectada_limpia = limpiar_texto(form.get("patologia_detectada"))
+        patologia_ref_limpia = limpiar_texto(form.get("patologia_ref"))
+        if patologia_ref_limpia:
+            _, candidatos_por_id = obtener_registros_patologia_vinculables(
+                cur,
+                mapa["visita_id"],
+            )
+            try:
+                _, patologia_id_texto = patologia_ref_limpia.split(":", 1)
+                patologia_id = int(patologia_id_texto)
+            except (ValueError, AttributeError):
+                return JSONResponse(
+                    {"ok": False, "message": "Patología vinculada no válida"},
+                    status_code=400,
+                )
+            patologia_vinculada = resolver_patologia_vinculada(
+                candidatos_por_id,
+                patologia_id,
+                "",
+            )
+            if (
+                not patologia_vinculada
+                or patologia_vinculada["value"] != patologia_ref_limpia
+            ):
+                return JSONResponse(
+                    {"ok": False, "message": "Patología vinculada no válida"},
+                    status_code=400,
+                )
+            if not patologia_detectada_limpia:
+                patologia_detectada_limpia = patologia_vinculada["patologia"]
+
+        cur.execute(
+            """
+            UPDATE cuadrantes_mapa_patologia
+            SET descripcion=?, patologia_detectada=?, patologia_id=?,
+                gravedad=?, observaciones=?
+            WHERE id=?
+            """,
+            (
+                limpiar_texto(form.get("descripcion")),
+                patologia_detectada_limpia,
+                patologia_id,
+                limpiar_texto(form.get("gravedad")),
+                limpiar_texto(form.get("observaciones")),
+                cuadrante_id,
+            ),
+        )
+        conn.commit()
+        actualizado = get_owned_cuadrante_mapa_patologia(
+            cur,
+            cuadrante_id,
+            current_user["id"],
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "updated_at": token_autosave_cuadrante_mapa_patologia(actualizado),
+                "saved_at": now_madrid_iso(),
+                "message": "Guardado correctamente",
+            }
+        )
+    finally:
+        conn.close()
 
 
 @app.post("/actualizar-cuadrante-mapa-patologia/{cuadrante_id}")
@@ -18815,6 +19351,7 @@ def actualizar_cuadrante_mapa_patologia(
     gravedad: str = Form(""),
     observaciones: str = Form(""),
     fotos_detalle: list[UploadFile] = File([]),
+    updated_at: str = Form(""),
 ):
     current_user = get_current_user(request)
     conn = get_connection()
@@ -18822,6 +19359,19 @@ def actualizar_cuadrante_mapa_patologia(
 
     cuadrante = get_owned_cuadrante_mapa_patologia(cur, cuadrante_id, current_user["id"])
     require_row(cuadrante, "Cuadrante no encontrado")
+    if existe_conflicto_updated_at(
+        token_autosave_cuadrante_mapa_patologia(cuadrante),
+        updated_at,
+    ):
+        conn.close()
+        return RedirectResponse(
+            url=(
+                f"/editar-cuadrante-mapa-patologia/{cuadrante_id}"
+                "?error=Otro+proceso+ha+modificado+el+registro."
+            ),
+            status_code=303,
+        )
+
     mapa = get_owned_mapa_patologia(cur, cuadrante["mapa_id"], current_user["id"])
     require_row(mapa, "Mapa no encontrado")
     visita = get_owned_visita(cur, mapa["visita_id"], current_user["id"])
@@ -19335,6 +19885,7 @@ def editar_registro(
         "registro_id",
         "foto",
     )
+    registro["updated_at_token"] = token_autosave_registro_patologia(registro)
 
     estancias = cur.execute(
         """
@@ -19534,6 +20085,70 @@ def borrar_coste_patologia(request: Request, vinculo_id: int):
     return redirect_editar_registro_costes(registro_id, mensaje="Coste borrado.")
 
 
+@app.post("/patologias/registros/{registro_id}/autosave")
+async def autosave_registro_patologia(request: Request, registro_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        registro = get_owned_registro(cur, registro_id, current_user["id"])
+        require_row(registro, "Registro no encontrado")
+        token_actual = token_autosave_registro_patologia(registro)
+        if existe_conflicto_updated_at(token_actual, form.get("updated_at")):
+            return respuesta_autosave_conflicto(token_actual)
+
+        visita = get_owned_visita(cur, registro["visita_id"], current_user["id"])
+        require_row(visita, "Visita no encontrada")
+        estancia_id = parse_optional_int(form.get("estancia_id")) or registro["estancia_id"]
+        validar_estancia_para_visita(cur, visita, estancia_id)
+        patologia = limpiar_texto(form.get("patologia")) or limpiar_texto(
+            registro["patologia"]
+        )
+
+        cur.execute(
+            """
+            UPDATE registros_patologias
+            SET estancia_id=?, elemento=?, localizacion_dano=?,
+                detalle_localizacion=?, rol_patologia_observado=?,
+                patologia=?, observaciones=?
+            WHERE id=?
+            """,
+            (
+                estancia_id,
+                limpiar_texto(form.get("elemento")) or limpiar_texto(registro["elemento"]),
+                limpiar_texto(form.get("localizacion_dano"))
+                or limpiar_texto(registro["localizacion_dano"]),
+                limpiar_texto(form.get("detalle_localizacion")),
+                limpiar_texto(form.get("rol_patologia_observado")),
+                patologia,
+                limpiar_texto(form.get("observaciones")),
+                registro_id,
+            ),
+        )
+        cur.execute(
+            """
+            UPDATE cuadrantes_mapa_patologia
+            SET patologia_detectada=?
+            WHERE patologia_id=?
+              AND mapa_id IN (SELECT id FROM mapas_patologia WHERE visita_id=?)
+            """,
+            (patologia, registro_id, registro["visita_id"]),
+        )
+        conn.commit()
+        actualizado = get_owned_registro(cur, registro_id, current_user["id"])
+        return JSONResponse(
+            {
+                "ok": True,
+                "updated_at": token_autosave_registro_patologia(actualizado),
+                "saved_at": now_madrid_iso(),
+                "message": "Guardado correctamente",
+            }
+        )
+    finally:
+        conn.close()
+
+
 @app.post("/actualizar-registro/{registro_id}")
 def actualizar_registro(
     request: Request,
@@ -19547,6 +20162,7 @@ def actualizar_registro(
     observaciones: str = Form(""),
     fotos: list[UploadFile] = File([]),
     next: str = Form(""),
+    updated_at: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -19557,6 +20173,20 @@ def actualizar_registro(
     require_row(registro, "Registro no encontrado")
 
     visita_id = registro["visita_id"]
+    if existe_conflicto_updated_at(
+        token_autosave_registro_patologia(registro),
+        updated_at,
+    ):
+        conn.close()
+        params = [f"error={quote_plus('Otro proceso ha modificado el registro.')}"]
+        next_url_conflicto = normalizar_redirect_interno(next)
+        if next_url_conflicto:
+            params.append(f"next={quote_plus(next_url_conflicto)}")
+        return RedirectResponse(
+            url=f"/editar-registro/{registro_id}?{'&'.join(params)}",
+            status_code=303,
+        )
+
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
     validar_estancia_para_visita(cur, visita, estancia_id)
@@ -19718,7 +20348,12 @@ def guardar_registro_exterior(
 
 
 @app.get("/editar-registro-exterior/{registro_id}", response_class=HTMLResponse)
-def editar_registro_exterior(request: Request, registro_id: int, next: str = Query("")):
+def editar_registro_exterior(
+    request: Request,
+    registro_id: int,
+    next: str = Query(""),
+    error: str = Query(""),
+):
     current_user = get_current_user(request)
 
     conn = get_connection()
@@ -19733,6 +20368,7 @@ def editar_registro_exterior(request: Request, registro_id: int, next: str = Que
         "registro_id",
         "foto",
     )
+    registro["updated_at_token"] = token_autosave_registro_patologia_exterior(registro)
 
     patologias = cur.execute(
         "SELECT * FROM biblioteca_patologias ORDER BY nombre ASC"
@@ -19750,8 +20386,67 @@ def editar_registro_exterior(request: Request, registro_id: int, next: str = Que
             "patologias": patologias,
             "objeto_visita_label": objeto_visita_label,
             "next_url": normalizar_redirect_interno(next),
+            "error": limpiar_texto(error),
         },
     )
+
+
+@app.post("/patologias/registros-exteriores/{registro_id}/autosave")
+async def autosave_registro_patologia_exterior(request: Request, registro_id: int):
+    current_user = get_current_user(request)
+    form = await request.form()
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        registro = get_owned_registro_exterior(cur, registro_id, current_user["id"])
+        require_row(registro, "Registro exterior no encontrado")
+        token_actual = token_autosave_registro_patologia_exterior(registro)
+        if existe_conflicto_updated_at(token_actual, form.get("updated_at")):
+            return respuesta_autosave_conflicto(token_actual)
+
+        patologia = limpiar_texto(form.get("patologia")) or limpiar_texto(
+            registro["patologia"]
+        )
+        cur.execute(
+            """
+            UPDATE registros_patologias_exteriores
+            SET zona_exterior=?, elemento_exterior=?,
+                localizacion_dano_exterior=?, patologia=?, observaciones=?
+            WHERE id=?
+            """,
+            (
+                limpiar_texto(form.get("zona_exterior"))
+                or limpiar_texto(registro["zona_exterior"]),
+                limpiar_texto(form.get("elemento_exterior"))
+                or limpiar_texto(registro["elemento_exterior"]),
+                limpiar_texto(form.get("localizacion_dano_exterior"))
+                or limpiar_texto(registro["localizacion_dano_exterior"]),
+                patologia,
+                limpiar_texto(form.get("observaciones")),
+                registro_id,
+            ),
+        )
+        cur.execute(
+            """
+            UPDATE cuadrantes_mapa_patologia
+            SET patologia_detectada=?
+            WHERE patologia_id=?
+              AND mapa_id IN (SELECT id FROM mapas_patologia WHERE visita_id=?)
+            """,
+            (patologia, registro_id, registro["visita_id"]),
+        )
+        conn.commit()
+        actualizado = get_owned_registro_exterior(cur, registro_id, current_user["id"])
+        return JSONResponse(
+            {
+                "ok": True,
+                "updated_at": token_autosave_registro_patologia_exterior(actualizado),
+                "saved_at": now_madrid_iso(),
+                "message": "Guardado correctamente",
+            }
+        )
+    finally:
+        conn.close()
 
 
 @app.post("/actualizar-registro-exterior/{registro_id}")
@@ -19765,6 +20460,7 @@ def actualizar_registro_exterior(
     observaciones: str = Form(""),
     fotos: list[UploadFile] = File([]),
     next: str = Form(""),
+    updated_at: str = Form(""),
 ):
     current_user = get_current_user(request)
 
@@ -19775,6 +20471,20 @@ def actualizar_registro_exterior(
     require_row(registro, "Registro exterior no encontrado")
 
     visita_id = registro["visita_id"]
+    if existe_conflicto_updated_at(
+        token_autosave_registro_patologia_exterior(registro),
+        updated_at,
+    ):
+        conn.close()
+        params = [f"error={quote_plus('Otro proceso ha modificado el registro.')}"]
+        next_url_conflicto = normalizar_redirect_interno(next)
+        if next_url_conflicto:
+            params.append(f"next={quote_plus(next_url_conflicto)}")
+        return RedirectResponse(
+            url=f"/editar-registro-exterior/{registro_id}?{'&'.join(params)}",
+            status_code=303,
+        )
+
     visita = get_owned_visita(cur, visita_id, current_user["id"])
     require_row(visita, "Visita no encontrada")
     nombres_fotos = guardar_uploads_contextuales(

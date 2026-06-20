@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 import logging
 import re
@@ -9,6 +9,7 @@ from app.database import get_connection
 from app.services.crm_templates import obtener_plantilla_comercial, plantilla_para_tipo
 from app.services.email_sender import crear_mensaje_email, enviar_mensaje_email
 from app.services.email_templates import construir_email_html_base, construir_firma_texto, texto_a_html
+from app.utils.timezone import datetime_local_madrid_minutes, now_madrid_iso, today_madrid
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def _metadata_error_programado(error_mensaje: str | None, error: str) -> str:
     base = limpiar_texto(error_mensaje)
     partes = [base] if base else []
     partes.append(f"error_envio={limpiar_texto(error)[:220]}")
-    partes.append(f"error_en={datetime.now().strftime('%Y-%m-%dT%H:%M')}")
+    partes.append(f"error_en={now_madrid_iso(timespec='minutes')}")
     return "; ".join(partes)
 
 
@@ -137,7 +138,7 @@ def _crear_tarea_seguimiento_si_no_existe(cur, lead_id: int, owner_user_id: int)
     if existente:
         return False
 
-    fecha_programada = (date.today() + timedelta(days=10)).isoformat()
+    fecha_programada = (today_madrid() + timedelta(days=10)).isoformat()
     cur.execute(
         """
         INSERT INTO lead_tareas (
@@ -173,7 +174,7 @@ def _crear_tarea_revision_post_seguimiento_si_no_existe(cur, lead_id: int, owner
     if existente:
         return False
 
-    fecha_programada = (date.today() + timedelta(days=30)).isoformat()
+    fecha_programada = (today_madrid() + timedelta(days=30)).isoformat()
     cur.execute(
         """
         INSERT INTO lead_tareas (
@@ -237,7 +238,7 @@ def _registrar_contacto_email(
         """,
         (
             lead_id,
-            datetime.now().strftime("%Y-%m-%dT%H:%M"),
+            now_madrid_iso(timespec="minutes"),
             "email",
             resumen,
             resultado,
@@ -269,7 +270,7 @@ def _registrar_metricas_contacto_lead(cur, lead_id: int, owner_user_id: int, tip
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND owner_user_id = ?
         """,
-        (datetime.now().strftime("%Y-%m-%dT%H:%M"), lead_id, owner_user_id),
+        (now_madrid_iso(timespec="minutes"), lead_id, owner_user_id),
     )
 
 
@@ -419,7 +420,7 @@ def enviar_emails_programados_vencidos(
     solo lista candidatos y no modifica la base de datos.
     """
     limite = max(1, min(int(limit or 10), 100))
-    ahora_ref = limpiar_texto(ahora) or datetime.now().strftime("%Y-%m-%dT%H:%M")
+    ahora_ref = limpiar_texto(ahora) or datetime_local_madrid_minutes()
     resultado = {
         "dry_run": dry_run,
         "limit": limite,

@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
+    <script src="/static/js/autosave.js?v=1" defer></script>
 
     <style>
         .valuation-workbench {
@@ -382,6 +383,69 @@
             gap: 10px;
             margin-top: 14px;
             padding-top: 14px;
+        }
+
+        .autosave-status {
+            align-items: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            color: #334155;
+            display: inline-flex;
+            font-size: 0.88rem;
+            font-weight: 700;
+            gap: 8px;
+            justify-self: start;
+            padding: 7px 10px;
+        }
+
+        .autosave-status-dot {
+            background: #94a3b8;
+            border-radius: 999px;
+            display: inline-block;
+            height: 9px;
+            width: 9px;
+        }
+
+        .autosave-status.dirty {
+            background: #fffbeb;
+            border-color: #facc15;
+            color: #854d0e;
+        }
+
+        .autosave-status.dirty .autosave-status-dot {
+            background: #eab308;
+        }
+
+        .autosave-status.saving {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+
+        .autosave-status.saving .autosave-status-dot {
+            background: #2563eb;
+        }
+
+        .autosave-status.saved {
+            background: #f0fdf4;
+            border-color: #86efac;
+            color: #166534;
+        }
+
+        .autosave-status.saved .autosave-status-dot {
+            background: #16a34a;
+        }
+
+        .autosave-status.error,
+        .autosave-status.conflict {
+            background: #fff1f2;
+            border-color: #fda4af;
+            color: #9f1239;
+        }
+
+        .autosave-status.error .autosave-status-dot,
+        .autosave-status.conflict .autosave-status-dot {
+            background: #e11d48;
         }
 
         .microedit-inline {
@@ -969,7 +1033,7 @@
                                 <img class="visual-thumb" src="{{ foto.url }}" alt="Foto manual del testigo {{ panel_testigo.direccion_testigo or '' }}">
                                 <div class="visual-meta">
                                     <strong>{{ foto.descripcion or "Foto/captura manual" }}</strong>
-                                    <span>{{ foto.origen or "manual" }} · {{ foto.created_at or "sin fecha" }}</span>
+                                    <span>{{ foto.origen or "manual" }} · {{ foto.created_at|datetime_madrid if foto.created_at else "sin fecha" }}</span>
                                     <a class="select-link" href="{{ foto.url }}" target="_blank" rel="noopener">Ver foto</a>
                                 </div>
                             </div>
@@ -1052,10 +1116,21 @@
                     </div>
                 </div>
                 {% if panel_testigo.testigo_id %}
-                <form class="microedit-form" method="post" action="/expediente/{{ expediente.id }}/valoracion/workbench/testigo/{{ panel_testigo.testigo_id }}">
+                <form class="microedit-form"
+                    method="post"
+                    action="/expediente/{{ expediente.id }}/valoracion/workbench/testigo/{{ panel_testigo.testigo_id }}"
+                    data-autosave-form
+                    data-autosave-url="/expediente/{{ expediente.id }}/valoracion/workbench/testigo/{{ panel_testigo.testigo_id }}/autosave"
+                    data-autosave-status="#autosave_wb_{{ panel_testigo.testigo_id }}"
+                    data-autosave-updated-at="#wb_updated_at_{{ panel_testigo.testigo_id }}"
+                    data-autosave-debounce="1200">
                     <input type="hidden" name="filtro" value="{{ view_state.filtro }}">
                     <input type="hidden" name="ordenar" value="{{ view_state.ordenar }}">
                     <input type="hidden" name="dir" value="{{ view_state.dir }}">
+                    <input id="wb_updated_at_{{ panel_testigo.testigo_id }}" type="hidden" name="updated_at" value="{{ panel_testigo.updated_at or '' }}">
+                    {% set autosave_status_id = "autosave_wb_" ~ panel_testigo.testigo_id %}
+                    {% set autosave_status_label = "Listo para editar" %}
+                    {% include "components/autosave_status.html" %}
 
                     <label class="microedit-inline" for="wb_incluido_{{ panel_testigo.testigo_id }}">
                         <input id="wb_incluido_{{ panel_testigo.testigo_id }}" name="incluido_calculo" type="checkbox" value="1"

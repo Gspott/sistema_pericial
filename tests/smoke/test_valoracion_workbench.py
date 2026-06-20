@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 
@@ -807,6 +809,175 @@ def test_valoracion_workbench_microedicion_valida_y_redirect(isolated_import):
     assert vinculo["representatividad"] == "media_alta"
     assert vinculo["motivo_ponderacion"] == "Peso ajustado desde workbench."
     assert vinculo["observaciones_ponderacion"] == "Observación técnica breve."
+
+
+def test_valoracion_workbench_autosave_renderiza_contrato_comun(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur)
+        expediente_id, testigos = _crear_expediente_workbench_con_testigos(cur, user_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.get(
+        f"/expediente/{expediente_id}/valoracion/workbench?testigo_id={testigos[0]}"
+    )
+
+    assert response.status_code == 200
+    assert "/static/js/autosave.js" in response.text
+    assert "data-autosave-form" in response.text
+    assert "data-autosave-url=" in response.text
+    assert "data-autosave-debounce=\"1200\"" in response.text
+    assert "Listo para editar" in response.text
+    assert "name=\"updated_at\"" in response.text
+
+
+def test_valoracion_workbench_autosave_guarda_y_persiste(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur)
+        expediente_id, testigos = _crear_expediente_workbench_con_testigos(cur, user_id)
+        vinculo = cur.execute(
+            """
+            SELECT updated_at
+            FROM valoracion_expediente_testigos
+            WHERE expediente_id = ? AND testigo_id = ?
+            """,
+            (expediente_id, testigos[0]),
+        ).fetchone()
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.post(
+        f"/expediente/{expediente_id}/valoracion/workbench/testigo/{testigos[0]}/autosave",
+        data={
+            "updated_at": vinculo["updated_at"] or "",
+            "incluido_calculo": "1",
+            "peso_porcentaje": "42",
+            "representatividad": "alta",
+            "motivo_ponderacion": "Autosave prueba persistente.",
+            "motivo_exclusion": "",
+            "observaciones_ponderacion": "Guardado AJAX desde smoke.",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["updated_at"]
+    assert payload["saved_at"]
+    assert payload["message"] == "Guardado correctamente"
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        guardado = cur.execute(
+            """
+            SELECT peso_porcentaje, motivo_ponderacion, observaciones_ponderacion
+            FROM valoracion_expediente_testigos
+            WHERE expediente_id = ? AND testigo_id = ?
+            """,
+            (expediente_id, testigos[0]),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert guardado["peso_porcentaje"] == 42
+    assert guardado["motivo_ponderacion"] == "Autosave prueba persistente."
+    assert guardado["observaciones_ponderacion"] == "Guardado AJAX desde smoke."
+
+    reload_response = client.get(
+        f"/expediente/{expediente_id}/valoracion/workbench?testigo_id={testigos[0]}"
+    )
+    assert reload_response.status_code == 200
+    assert "Autosave prueba persistente." in reload_response.text
+
+
+def test_valoracion_workbench_autosave_detecta_conflicto_updated_at(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur)
+        expediente_id, testigos = _crear_expediente_workbench_con_testigos(cur, user_id)
+        cur.execute(
+            """
+            UPDATE valoracion_expediente_testigos
+            SET updated_at = ?
+            WHERE expediente_id = ? AND testigo_id = ?
+            """,
+            ("2026-06-19 10:00:00", expediente_id, testigos[0]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    response = client.post(
+        f"/expediente/{expediente_id}/valoracion/workbench/testigo/{testigos[0]}/autosave",
+        data={
+            "updated_at": "2026-06-19 09:00:00",
+            "incluido_calculo": "1",
+            "peso_porcentaje": "55",
+            "representatividad": "alta",
+            "motivo_ponderacion": "No debe sobrescribir.",
+            "motivo_exclusion": "",
+            "observaciones_ponderacion": "",
+        },
+    )
+
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["conflict"] is True
+    assert payload["message"] == "Otro proceso ha modificado el registro."
+    assert payload["updated_at"] == "2026-06-19 10:00:00"
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        guardado = cur.execute(
+            """
+            SELECT motivo_ponderacion
+            FROM valoracion_expediente_testigos
+            WHERE expediente_id = ? AND testigo_id = ?
+            """,
+            (expediente_id, testigos[0]),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert guardado["motivo_ponderacion"] != "No debe sobrescribir."
+
+
+def test_autosave_js_estados_reintento_y_fallback_manual():
+    fuente = Path("static/js/autosave.js").read_text(encoding="utf-8")
+
+    assert "Cambios pendientes" in fuente
+    assert "Guardando..." in fuente
+    assert "Guardado" in fuente
+    assert "Error al guardar" in fuente
+    assert "Otro proceso ha modificado el registro." in fuente
+    assert "Reintentando" in fuente
+    assert "beforeunload" in fuente
+    assert "submit" in fuente
 
 
 def test_valoracion_workbench_microedicion_rechaza_ajeno_e_invalido(isolated_import):

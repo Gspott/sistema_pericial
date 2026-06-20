@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
+    <script src="/static/js/autosave.js?v=1" defer></script>
 
     <title>Editar registro</title>
 </head>
@@ -24,6 +25,12 @@
         <div class="actions">
             <a class="boton secundario" href="{{ next_url or ('/registrar-patologias/' ~ registro.visita_id) }}">Volver a patologías</a>
         </div>
+
+        {% if error %}
+        <div class="card">
+            <p class="error">{{ error }}</p>
+        </div>
+        {% endif %}
 
         {% if objeto_visita_label %}
         <div class="card">
@@ -41,8 +48,17 @@
         {% endif %}
 
         <div class="card">
-            <form method="post" action="/actualizar-registro/{{ registro.id }}" enctype="multipart/form-data">
+            <form method="post" action="/actualizar-registro/{{ registro.id }}" enctype="multipart/form-data"
+                data-autosave-form
+                data-autosave-url="/patologias/registros/{{ registro.id }}/autosave"
+                data-autosave-status="#autosave_registro_{{ registro.id }}"
+                data-autosave-updated-at="#registro_updated_at_{{ registro.id }}"
+                data-autosave-debounce="1200">
                 <input type="hidden" name="next" value="{{ next_url or '' }}">
+                <input type="hidden" id="registro_updated_at_{{ registro.id }}" name="updated_at" value="{{ registro.updated_at_token or '' }}">
+                {% set autosave_status_id = "autosave_registro_" ~ registro.id %}
+                {% set autosave_status_label = "Listo para editar" %}
+                {% include "components/autosave_status.html" %}
                 <label for="estancia_id">Estancia</label>
                 <select id="estancia_id" name="estancia_id" required>
                     {% for estancia in estancias %}

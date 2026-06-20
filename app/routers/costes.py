@@ -4,12 +4,13 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import UPLOAD_DIR
 from app.database import get_connection
 from app.services.bc3_parser import parsear_bc3
 from app.services.costes_ocr import extraer_coste_desde_imagen
+from app.utils.timezone import now_madrid_iso
 
 router = APIRouter()
 
@@ -50,6 +51,24 @@ def render_template(request: Request, template_name: str, context: dict | None =
 
 def limpiar_texto(valor: str | None) -> str:
     return (valor or "").strip()
+
+
+def existe_conflicto_updated_at(valor_actual: str | None, valor_cliente: str | None) -> bool:
+    actual = limpiar_texto(valor_actual)
+    cliente = limpiar_texto(valor_cliente)
+    return bool(actual and cliente and actual != cliente)
+
+
+def respuesta_autosave_conflicto(updated_at: str | None = None) -> JSONResponse:
+    return JSONResponse(
+        {
+            "ok": False,
+            "conflict": True,
+            "updated_at": limpiar_texto(updated_at),
+            "message": "Otro proceso ha modificado el registro.",
+        },
+        status_code=409,
+    )
 
 
 def parse_float(valor: str | None, default: float = 0.0) -> float:
@@ -1490,6 +1509,88 @@ def detalle_coste(
     )
 
 
+@router.post("/costes/{concepto_id}/autosave")
+async def autosave_coste(request: Request, concepto_id: int):
+    get_current_user(request)
+    form = await request.form()
+    payload = construir_concepto_payload(
+        form.get("base_id"),
+        form.get("capitulo_id"),
+        form.get("codigo"),
+        form.get("tipo"),
+        form.get("unidad"),
+        form.get("resumen"),
+        form.get("descripcion"),
+        form.get("precio"),
+        form.get("moneda"),
+        form.get("fecha_base"),
+        form.get("provincia"),
+        form.get("estado"),
+    )
+    error = validar_concepto_payload(payload)
+    if error:
+        return JSONResponse({"ok": False, "message": error}, status_code=400)
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        concepto_actual = obtener_concepto(cur, concepto_id)
+        if concepto_actual is None:
+            raise HTTPException(status_code=404, detail="Partida no encontrada")
+        if existe_conflicto_updated_at(concepto_actual["updated_at"], form.get("updated_at")):
+            return respuesta_autosave_conflicto(concepto_actual["updated_at"])
+        if not payload["base_id"]:
+            return JSONResponse(
+                {"ok": False, "message": "Selecciona una base."},
+                status_code=400,
+            )
+        estado_final = payload["estado"]
+        cambio_relevante = (
+            limpiar_texto(concepto_actual["codigo"]) != payload["codigo"]
+            or round(float(concepto_actual["precio"] or 0), 2) != payload["precio"]
+        )
+        if concepto_actual["estado"] == "validado" and cambio_relevante:
+            estado_final = "borrador"
+        cur.execute(
+            """
+            UPDATE costes_conceptos
+            SET base_id = ?, capitulo_id = ?, codigo = ?, tipo = ?,
+                unidad = ?, resumen = ?, descripcion = ?, precio = ?,
+                moneda = ?, fecha_base = ?, provincia = ?, estado = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                payload["base_id"],
+                payload["capitulo_id"],
+                payload["codigo"],
+                payload["tipo"],
+                payload["unidad"],
+                payload["resumen"],
+                payload["descripcion"],
+                payload["precio"],
+                payload["moneda"],
+                payload["fecha_base"],
+                payload["provincia"],
+                estado_final,
+                concepto_id,
+            ),
+        )
+        actualizado = obtener_concepto(cur, concepto_id)
+        conn.commit()
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "updated_at": limpiar_texto(actualizado["updated_at"] if actualizado else ""),
+            "saved_at": now_madrid_iso(),
+            "message": "Guardado correctamente",
+        }
+    )
+
+
 @router.post("/costes/{concepto_id}")
 def actualizar_coste(
     request: Request,
@@ -1506,6 +1607,7 @@ def actualizar_coste(
     fecha_base: str = Form(""),
     provincia: str = Form(""),
     estado: str = Form("borrador"),
+    updated_at: str = Form(""),
 ):
     get_current_user(request)
     payload = construir_concepto_payload(
@@ -1532,6 +1634,11 @@ def actualizar_coste(
         concepto_actual = obtener_concepto(cur, concepto_id)
         if concepto_actual is None:
             raise HTTPException(status_code=404, detail="Partida no encontrada")
+        if existe_conflicto_updated_at(concepto_actual["updated_at"], updated_at):
+            return redirect_costes(
+                f"/costes/{concepto_id}",
+                error="Otro proceso ha modificado el registro.",
+            )
         if not payload["base_id"]:
             return redirect_costes(f"/costes/{concepto_id}", error="Selecciona una base.")
         estado_final = payload["estado"]

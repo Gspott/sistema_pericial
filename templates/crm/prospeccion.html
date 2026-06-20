@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/js/autosave.js?v=1" defer></script>
     <title>Prospección CRM</title>
     <style>
         body {
@@ -850,6 +851,25 @@
                     <div class="full"><span class="crm-muted">Plantilla prevista</span><br>{{ preview_email.plantilla.nombre }}</div>
                 </div>
 
+                <form id="crm-lead-notes-form" class="crm-send-form" method="post" action="/crm/prospeccion/leads/{{ selected_lead.id }}/notas"
+                    data-autosave-form
+                    data-autosave-url="/crm/prospeccion/leads/{{ selected_lead.id }}/notas/autosave"
+                    data-autosave-status="#autosave_crm_lead_{{ selected_lead.id }}"
+                    data-autosave-updated-at="#crm_lead_updated_at_{{ selected_lead.id }}"
+                    data-autosave-debounce="1200">
+                    <input type="hidden" id="crm_lead_updated_at_{{ selected_lead.id }}" name="updated_at" value="{{ selected_lead.updated_at or '' }}">
+                    {% set autosave_status_id = "autosave_crm_lead_" ~ selected_lead.id %}
+                    {% set autosave_status_label = "Listo para editar" %}
+                    {% include "components/autosave_status.html" %}
+                    <div>
+                        <label for="lead-notas">Notas del lead</label>
+                        <textarea id="lead-notas" name="notas">{{ selected_lead.notas or '' }}</textarea>
+                    </div>
+                    <button class="boton secundario" type="submit">Guardar notas</button>
+                </form>
+
+                <div class="crm-divider"></div>
+
                 <form id="crm-template-switch-form" class="crm-template-switch" method="get" action="/crm/prospeccion">
                     <input type="hidden" name="lead_id" value="{{ selected_lead.id }}">
                     <input type="hidden" name="tipo" value="{{ filtros.tipo }}">
@@ -1004,7 +1024,7 @@
                     {% for email_log in historial.emails %}
                     <div class="crm-history-row">
                         <strong>{{ email_log.estado }}</strong> · {{ email_log.tipo }}<br>
-                        <span class="crm-muted">{{ email_log.fecha_envio }} · {{ email_log.asunto }}</span>
+                        <span class="crm-muted">{{ email_log.fecha_envio|datetime_madrid }} · {{ email_log.asunto }}</span>
                         <div><a href="/crm/prospeccion/enviados?email_id={{ email_log.id }}">Ver email</a></div>
                     </div>
                     {% endfor %}

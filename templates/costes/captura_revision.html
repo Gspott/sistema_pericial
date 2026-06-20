@@ -204,7 +204,7 @@
                 {% if campos_detectados or confianza_ocr or version_parser %}
                 <div class="costes-detection-summary">
                     <strong>Campos detectados</strong>
-                    {% if version_parser %}<p class="subtitle">Parser: {{ version_parser }}{% if captura.updated_at %} · Extracción: {{ captura.updated_at }}{% endif %}{% if confianza_ocr.score is defined %} · Confianza {{ confianza_ocr.score }}{% endif %}</p>{% endif %}
+                    {% if version_parser %}<p class="subtitle">Parser: {{ version_parser }}{% if captura.updated_at %} · Extracción: {{ captura.updated_at|datetime_madrid }}{% endif %}{% if confianza_ocr.score is defined %} · Confianza {{ confianza_ocr.score }}{% endif %}</p>{% endif %}
                     {% if campos_detectados %}
                     <ul>
                         {% for campo, detectado in campos_detectados.items() %}

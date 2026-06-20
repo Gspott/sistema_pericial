@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -106,6 +107,8 @@ HARNESS_REQUIRED_PATHS = {
     "docs/harness/FAILURES/smoke_test_context_keyerror.md",
     "docs/harness/PATTERNS",
     "docs/harness/PATTERNS/README.md",
+    "docs/harness/PATTERNS/autosave_standard.md",
+    "docs/harness/PATTERNS/project_standards_guard.md",
     "docs/harness/PATTERNS/safe_sqlite_migration.md",
     "docs/harness/PATTERNS/build_informe_context_extension.md",
     "docs/harness/PATTERNS/proposal_to_invoice_flow.md",
@@ -160,6 +163,7 @@ CRITICAL_WORKFLOWS = {
 }
 CRITICAL_VALIDATION_DOCS = {
     "docs/harness/VALIDATION/minimal_checks.md",
+    "docs/harness/VALIDATION/project_standards_guard.md",
     "docs/harness/VALIDATION/runner.md",
 }
 CRITICAL_TASK_PACKS = {
@@ -184,6 +188,17 @@ TASK_PACK_SOURCE_LINKS = {
     "docs/harness/TASK_PACKS/backup_restore_change.md": "docs/RESTORE.md",
 }
 MAIN_MONOLITH_WARNING_LINES = 8000
+PROJECT_STANDARDS_TIMEZONE_PATTERNS = [
+    ("datetime.now()", re.compile(r"\bdatetime\.now\s*\(")),
+    ("datetime.utcnow()", re.compile(r"\bdatetime\.utcnow\s*\(")),
+]
+PROJECT_STANDARDS_TIMEZONE_EXCLUDED_PATHS = {
+    "app/utils/timezone.py",
+    "scripts/audit_docs.py",
+}
+PROJECT_STANDARDS_TIMEZONE_EXCLUDED_PREFIXES = (
+    "tests/",
+)
 ACTIVE_PLAN_CLOSED_PATTERNS = [
     re.compile(r"^estado:\s*(cerrado|completado|completed|validado)\s*$", re.MULTILINE),
     re.compile(r"\btarea cerrada\b"),
@@ -414,6 +429,51 @@ def check_active_plan_drift(warnings: list[str]) -> None:
             )
 
 
+def changed_paths_from_git() -> set[str]:
+    paths: set[str] = set()
+    commands = [
+        ["git", "diff", "--name-only", "--diff-filter=ACMRTUXB", "HEAD"],
+        ["git", "ls-files", "--others", "--exclude-standard"],
+    ]
+    for command in commands:
+        try:
+            output = subprocess.check_output(
+                command,
+                cwd=ROOT,
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        paths.update(line.strip() for line in output.splitlines() if line.strip())
+    return paths
+
+
+def check_project_standards_guard(warnings: list[str]) -> None:
+    for rel in sorted(changed_paths_from_git()):
+        if not rel.endswith(".py"):
+            continue
+        if rel in PROJECT_STANDARDS_TIMEZONE_EXCLUDED_PATHS:
+            continue
+        if any(rel.startswith(prefix) for prefix in PROJECT_STANDARDS_TIMEZONE_EXCLUDED_PREFIXES):
+            continue
+        path = ROOT / rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            for label, pattern in PROJECT_STANDARDS_TIMEZONE_PATTERNS:
+                if pattern.search(line):
+                    warnings.append(
+                        "PROJECT-STANDARDS-GUARD-1: posible uso directo de "
+                        f"{label} en {rel}:{line_number}; usar app/utils/timezone.py "
+                        "o justificarlo en el plan."
+                    )
+
+
 def check_completed_plan_quality(errors: list[str], warnings: list[str]) -> None:
     completed_dir = ROOT / "docs" / "harness" / "PLANS" / "completed"
     plan_errors, plan_warnings = audit_completed_plan_quality(completed_dir)
@@ -474,6 +534,7 @@ def main() -> int:
     check_pwa_version_drift(warnings)
     check_monolith_size(warnings)
     check_active_plan_drift(warnings)
+    check_project_standards_guard(warnings)
     check_completed_plan_quality(errors, warnings)
 
     print("Auditoria documental")

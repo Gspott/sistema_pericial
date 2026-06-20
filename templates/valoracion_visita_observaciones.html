@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
+    <script src="/static/js/autosave.js?v=1" defer></script>
 
     <style>
         .valoracion-form details {
@@ -70,6 +71,11 @@
             <p><strong>Técnico:</strong> {{ visita.tecnico }}</p>
             <p>Esta pantalla recoge solo lo observado durante la inspección. La finalidad, documentación, superficies, entorno, método y limitaciones generales se editan en los datos de valoración del expediente.</p>
         </div>
+        {% if error %}
+        <div class="card">
+            <p class="error">{{ error }}</p>
+        </div>
+        {% endif %}
 
         {% set legacy_hay_datos = namespace(valor=false) %}
         {% for _, campos in observacion_grupos %}
@@ -86,7 +92,16 @@
         </div>
         {% endif %}
 
-        <form class="valoracion-form" method="post" action="/visitas/{{ visita.id }}/valoracion-observaciones">
+        <form class="valoracion-form" method="post" action="/visitas/{{ visita.id }}/valoracion-observaciones"
+            data-autosave-form
+            data-autosave-url="/visitas/{{ visita.id }}/valoracion-observaciones/autosave"
+            data-autosave-status="#autosave_valoracion_observaciones_{{ visita.id }}"
+            data-autosave-updated-at="#valoracion_observaciones_updated_at_{{ visita.id }}"
+            data-autosave-debounce="1200">
+            <input id="valoracion_observaciones_updated_at_{{ visita.id }}" type="hidden" name="updated_at" value="{{ observaciones.get('updated_at', '') }}">
+            {% set autosave_status_id = "autosave_valoracion_observaciones_" ~ visita.id %}
+            {% set autosave_status_label = "Listo para editar" %}
+            {% include "components/autosave_status.html" %}
             {% for titulo, campos in observacion_grupos %}
             <details {% if loop.first %}open{% endif %}>
                 <summary>{{ titulo }}</summary>

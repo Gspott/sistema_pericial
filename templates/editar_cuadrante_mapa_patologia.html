@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
+    <script src="/static/js/autosave.js?v=1" defer></script>
 
     <title>Editar cuadrante</title>
 </head>
@@ -26,6 +27,12 @@
             <a class="boton secundario" href="/editar-mapa-patologia/{{ mapa.id }}">Volver al mapa</a>
         </div>
 
+        {% if error %}
+        <div class="card">
+            <p class="error">{{ error }}</p>
+        </div>
+        {% endif %}
+
         <div class="card">
             <p><strong>Mapa:</strong> {{ mapa.titulo }}</p>
             {% if objeto_visita_label %}
@@ -35,7 +42,16 @@
         </div>
 
         <div class="card">
-            <form method="post" action="/actualizar-cuadrante-mapa-patologia/{{ cuadrante.id }}" enctype="multipart/form-data">
+            <form method="post" action="/actualizar-cuadrante-mapa-patologia/{{ cuadrante.id }}" enctype="multipart/form-data"
+                data-autosave-form
+                data-autosave-url="/mapas-patologia/cuadrantes/{{ cuadrante.id }}/autosave"
+                data-autosave-status="#autosave_cuadrante_{{ cuadrante.id }}"
+                data-autosave-updated-at="#cuadrante_updated_at_{{ cuadrante.id }}"
+                data-autosave-debounce="1200">
+                <input type="hidden" id="cuadrante_updated_at_{{ cuadrante.id }}" name="updated_at" value="{{ cuadrante.updated_at_token or '' }}">
+                {% set autosave_status_id = "autosave_cuadrante_" ~ cuadrante.id %}
+                {% set autosave_status_label = "Listo para editar" %}
+                {% include "components/autosave_status.html" %}
                 <label for="descripcion">Descripción</label>
                 <textarea id="descripcion" name="descripcion">{{ cuadrante.descripcion or '' }}</textarea>
 

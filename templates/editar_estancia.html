@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="/static/mobile.css?v=10">
     <script src="/static/pwa.js?v=5" defer></script>
+    <script src="/static/js/autosave.js?v=1" defer></script>
 
     <title>Editar estancia</title>
 </head>
@@ -46,6 +47,12 @@
             <button class="boton secundario" type="submit" form="estancia-form" name="redirect_after_save" value="{{ next_url or estructura_interior_url }}">Volver a estancias</button>
         </div>
 
+        {% if error %}
+        <div class="card">
+            <p class="error">{{ error }}</p>
+        </div>
+        {% endif %}
+
         {% if post_save %}
         <section class="card post-save-card" aria-labelledby="post-save-title">
             <p class="post-save-kicker">Guardado</p>
@@ -64,9 +71,18 @@
         {% endif %}
 
         <div class="card">
-            <form id="estancia-form" method="post" action="/actualizar-estancia/{{ estancia.id }}" enctype="multipart/form-data">
+            <form id="estancia-form" method="post" action="/actualizar-estancia/{{ estancia.id }}" enctype="multipart/form-data"
+                data-autosave-form
+                data-autosave-url="/estancias/{{ estancia.id }}/autosave"
+                data-autosave-status="#autosave_estancia_{{ estancia.id }}"
+                data-autosave-updated-at="#estancia_updated_at_{{ estancia.id }}"
+                data-autosave-debounce="1200">
                 <input type="hidden" name="unidad_id_contexto" value="{{ unidad_id_contexto or '' }}">
                 <input type="hidden" name="next" value="{{ next_url or '' }}">
+                <input type="hidden" id="estancia_updated_at_{{ estancia.id }}" name="updated_at" value="{{ estancia.updated_at_token or '' }}">
+                {% set autosave_status_id = "autosave_estancia_" ~ estancia.id %}
+                {% set autosave_status_label = "Listo para editar" %}
+                {% include "components/autosave_status.html" %}
                 {% if estancia.identificador_unidad_estancia or estancia.nombre_nivel_estancia %}
                 <p><strong>Unidad:</strong> {{ estancia.identificador_unidad_estancia or '-' }}</p>
                 <p><strong>Nivel:</strong> {{ estancia.nombre_nivel_estancia or estancia.nombre_nivel_visita or '-' }}</p>

@@ -387,7 +387,7 @@
                     {% for email_log in historial.emails %}
                     <div class="agenda-history-row">
                         <strong>{{ email_log.estado }}</strong> · {{ email_log.tipo }}<br>
-                        <span class="agenda-muted">{{ email_log.fecha_envio }} · {{ email_log.asunto }}</span>
+                        <span class="agenda-muted">{{ email_log.fecha_envio|datetime_madrid }} · {{ email_log.asunto }}</span>
                     </div>
                     {% endfor %}
                     {% endif %}

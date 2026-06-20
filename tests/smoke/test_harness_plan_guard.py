@@ -97,3 +97,24 @@ def test_audit_completed_error_en_revalidation_vacia(tmp_path):
     assert len(errors) == 1
     assert "demo-revalidation.md" in errors[0]
     assert warnings == []
+
+
+def test_project_standards_guard_avisa_datetime_now_modificado(tmp_path, monkeypatch):
+    from scripts import audit_docs
+
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    target = app_dir / "demo.py"
+    target.write_text(
+        "from datetime import datetime\nfecha = datetime.now()\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(audit_docs, "ROOT", tmp_path)
+    monkeypatch.setattr(audit_docs, "changed_paths_from_git", lambda: {"app/demo.py"})
+
+    warnings = []
+    audit_docs.check_project_standards_guard(warnings)
+
+    assert warnings
+    assert "PROJECT-STANDARDS-GUARD-1" in warnings[0]
+    assert "app/demo.py:2" in warnings[0]

@@ -5,7 +5,6 @@ import os
 import re
 import unicodedata
 from io import BytesIO
-from datetime import datetime
 from collections import OrderedDict
 
 from fastapi import HTTPException, Request
@@ -26,6 +25,7 @@ from app.services.valoracion_comparacion import (
     preparar_resumen_comparacion,
     preparar_testigo_comparacion,
 )
+from app.utils.timezone import format_date_madrid, timestamp_filename_madrid
 
 
 def limpiar_nombre_archivo(texto: str) -> str:
@@ -975,7 +975,7 @@ def add_portada(doc: Document, expediente) -> None:
     )
     add_parrafo(
         doc,
-        f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y')}",
+        f"Fecha de emisión: {format_date_madrid()}",
         centrado=True,
         espacio_despues=8,
     )
@@ -2663,6 +2663,7 @@ def _construir_comparable_nuevo(row) -> dict:
         "representatividad": get_row_value(row, "representatividad"),
         "motivo_exclusion": get_row_value(row, "motivo_exclusion"),
         "observaciones_ponderacion": get_row_value(row, "observaciones_ponderacion"),
+        "updated_at": get_row_value(row, "updated_at"),
         "notas_seleccion": get_row_value(row, "notas_seleccion"),
         "valor_unitario_base": get_row_value(row, "valor_unitario_base"),
         "valor_unitario_ajustado": get_row_value(row, "valor_unitario_ajustado"),
@@ -2989,6 +2990,7 @@ def cargar_comparables_valoracion_con_fallback(cur, expediente_id: int, visitas)
                vet.representatividad,
                vet.motivo_exclusion,
                vet.observaciones_ponderacion,
+               vet.updated_at,
                vet.snapshot_json,
                vet.notas_seleccion,
                vet.valor_unitario_base,
@@ -4674,12 +4676,12 @@ def build_informe_context(
             "expediente": expediente_dict,
             "tipo_informe": tipo_informe,
             "es_valoracion": tipo_informe == "valoracion",
-            "fecha_emision": datetime.now().strftime("%d/%m/%Y"),
+            "fecha_emision": format_date_madrid(),
             "portada": {
                 "tecnico": visitas_contexto[0]["tecnico"] if visitas_contexto else "-",
                 "tipo_trabajo": tipo_trabajo,
                 "direccion": valor_o_guion(expediente["direccion"]),
-                "fecha": datetime.now().strftime("%d/%m/%Y"),
+                "fecha": format_date_madrid(),
             },
             "identificacion": construir_campos_informe(
                 [
@@ -6295,7 +6297,7 @@ def generar_informe(expediente_id: int) -> tuple[str, str]:
     base_nombre = limpiar_nombre_archivo(
         f"{expediente['numero_expediente']}_{expediente['cliente']}"
     )
-    marca_tiempo = datetime.now().strftime("%Y%m%d_%H%M%S")
+    marca_tiempo = timestamp_filename_madrid()
     nombre_archivo = f"informe_{base_nombre}_{marca_tiempo}.docx"
     ruta_archivo = os.path.join(INFORMES_DIR, nombre_archivo)
 
