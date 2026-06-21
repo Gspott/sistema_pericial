@@ -17,4 +17,5 @@ Patrones reutilizables para cambios futuros. No sustituyen specs ni playbooks; c
 - [backup_sandbox_pattern.md](backup_sandbox_pattern.md)
 - [autosave_standard.md](autosave_standard.md)
 - [autosave_rollout_summary.md](autosave_rollout_summary.md)
+- [desktop_workbench_standard.md](desktop_workbench_standard.md)
 - [project_standards_guard.md](project_standards_guard.md)

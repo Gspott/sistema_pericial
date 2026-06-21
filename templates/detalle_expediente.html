@@ -236,6 +236,133 @@
             color: inherit;
         }
 
+        .desktop-room-tree,
+        .desktop-room-units,
+        .desktop-room-list,
+        .desktop-room-actions,
+        .desktop-room-badges {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .desktop-room-tree {
+            display: grid;
+            gap: 12px;
+        }
+
+        .desktop-room-level {
+            display: grid;
+            gap: 8px;
+        }
+
+        .desktop-room-level-title,
+        .desktop-room-unit-title,
+        .desktop-room-link {
+            min-width: 0;
+        }
+
+        .desktop-room-level-title {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .desktop-room-units,
+        .desktop-room-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .desktop-room-unit {
+            padding-left: 10px;
+            border-left: 2px solid #dbe3ef;
+        }
+
+        .desktop-room-unit-title {
+            margin: 0 0 6px;
+            color: #475569;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .desktop-room-item {
+            display: grid;
+            gap: 6px;
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        .desktop-room-mainline {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .desktop-room-link {
+            color: #0f172a;
+            font-weight: 800;
+            text-decoration: none;
+            overflow-wrap: anywhere;
+        }
+
+        .desktop-room-link:hover,
+        .desktop-room-link:focus-visible {
+            text-decoration: underline;
+        }
+
+        .desktop-room-status {
+            flex: 0 0 auto;
+            color: #475569;
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .desktop-room-status-pending {
+            color: #92400e;
+        }
+
+        .desktop-room-badges,
+        .desktop-room-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .desktop-room-badge {
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            color: #334155;
+            font-size: 0.74rem;
+            font-weight: 700;
+        }
+
+        .desktop-room-action {
+            color: #1d4ed8;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .desktop-room-action:hover,
+        .desktop-room-action:focus-visible {
+            text-decoration: underline;
+        }
+
+        .desktop-sidebar,
+        .desktop-inspector,
+        .desktop-toolbar-meta,
+        .desktop-toolbar-actions {
+            display: none;
+        }
+
         @media (max-width: 640px) {
             .expediente-tree {
                 gap: 10px;
@@ -276,6 +403,176 @@
                     display: grid;
                 }
         }
+
+        @media (min-width: 1280px) {
+            .desktop-shell {
+                max-width: 1680px;
+            }
+
+            .desktop-toolbar {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: start;
+                gap: 18px;
+                margin-bottom: 18px;
+            }
+
+            .desktop-toolbar h1 {
+                margin-bottom: 6px;
+            }
+
+            .desktop-toolbar-meta {
+                margin: 0;
+                color: #475569;
+                line-height: 1.45;
+            }
+
+            .desktop-toolbar-actions {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                gap: 8px;
+            }
+
+            .desktop-layout {
+                display: grid;
+                grid-template-columns: minmax(260px, 0.95fr) minmax(0, 2.2fr) minmax(300px, 1fr);
+                gap: 16px;
+                align-items: start;
+            }
+
+            .desktop-sidebar,
+            .desktop-inspector {
+                display: grid;
+                gap: 14px;
+                align-content: start;
+                align-self: start;
+                position: sticky;
+                top: 82px;
+            }
+
+            .desktop-sidebar {
+                max-height: calc(100vh - 106px);
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                padding-right: 4px;
+            }
+
+            .desktop-main {
+                min-width: 0;
+            }
+
+            .desktop-main > .expediente-status-card,
+            .desktop-main > .expediente-secondary-actions {
+                display: none;
+            }
+
+            .desktop-panel {
+                border: 1px solid #dbe3ef;
+                border-radius: 14px;
+                background: #ffffff;
+                padding: 16px;
+                box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+            }
+
+            .desktop-panel h2 {
+                margin: 0 0 10px;
+                font-size: 1rem;
+            }
+
+            .desktop-panel p {
+                margin: 0;
+            }
+
+            .desktop-panel p + p,
+            .desktop-panel .actions + p {
+                margin-top: 8px;
+            }
+
+            .desktop-summary-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            .desktop-summary-item {
+                padding: 10px;
+                border-radius: 10px;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+            }
+
+            .desktop-summary-item span {
+                display: block;
+                color: #64748b;
+                font-size: 0.78rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+            }
+
+            .desktop-summary-item strong {
+                display: block;
+                margin-top: 4px;
+                font-size: 1.12rem;
+            }
+
+            .desktop-quick-actions {
+                display: grid;
+                gap: 8px;
+            }
+
+            .desktop-quick-actions .boton {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .desktop-timeline {
+                display: grid;
+                gap: 10px;
+            }
+
+            .desktop-timeline-item {
+                padding-left: 12px;
+                border-left: 3px solid #cbd5e1;
+            }
+
+            .desktop-timeline-item strong {
+                display: block;
+            }
+
+            .desktop-room-panel {
+                padding-bottom: 14px;
+            }
+        }
+
+        @media (min-width: 1920px) {
+            .desktop-shell {
+                max-width: 1840px;
+            }
+
+            .desktop-layout {
+                grid-template-columns: minmax(300px, 0.85fr) minmax(0, 2.35fr) minmax(340px, 1fr);
+                gap: 20px;
+            }
+
+            .desktop-sidebar,
+            .desktop-inspector {
+                gap: 16px;
+            }
+        }
+
+        @media (min-width: 2560px) {
+            .desktop-shell {
+                width: calc(100% - 96px);
+                max-width: none;
+            }
+
+            .desktop-layout {
+                grid-template-columns: minmax(360px, 0.75fr) minmax(1200px, 1.8fr) minmax(420px, 0.85fr);
+                gap: 24px;
+            }
+        }
     </style>
 
     <title>Detalle expediente</title>
@@ -283,7 +580,7 @@
 
 <body>
     {% include "partials/_app_shell_start.html" %}
-<div class="page"><h1>Expediente {{ expediente.numero_expediente }}</h1>
+<div class="page desktop-shell">
 
         {% set estado = namespace(total_estancias=0, total_patologias=0) %}
         {% for visita_estado in visitas %}
@@ -291,6 +588,133 @@
         {% set estado.total_patologias = estado.total_patologias + (visita_estado.total_patologias or 0) + (visita_estado.total_patologias_exteriores or 0) %}
         {% endfor %}
         {% set ultima_visita = visitas[0] if visitas else none %}
+
+        <header class="desktop-toolbar">
+            <div>
+                <h1>Expediente {{ expediente.numero_expediente }}</h1>
+                <p class="desktop-toolbar-meta">{{ expediente.tipo_informe_label }} · {{ expediente.cliente }}{% if expediente.direccion %} · {{ expediente.direccion }}{% endif %}</p>
+            </div>
+            <nav class="desktop-toolbar-actions" aria-label="Acciones rápidas de expediente">
+                <a class="boton secundario" href="/expedientes">Expedientes</a>
+                <a class="boton secundario" href="/editar-expediente/{{ expediente.id }}">Editar</a>
+                <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Informe</a>
+            </nav>
+        </header>
+
+        <div class="desktop-layout">
+        <aside class="desktop-sidebar" aria-label="Resumen desktop del expediente">
+            <section class="desktop-panel">
+                <h2>Resumen</h2>
+                <p><strong>{{ expediente.tipo_informe_label }}</strong></p>
+                <p>{{ expediente.direccion or "Sin direccion" }}</p>
+                <p>{{ expediente.destinatario_label }} · {{ expediente.tipo_inmueble or "Inmueble sin tipo" }}</p>
+            </section>
+
+            <section class="desktop-panel">
+                <h2>Métricas</h2>
+                <div class="desktop-summary-grid">
+                    <div class="desktop-summary-item">
+                        <span>Visitas</span>
+                        <strong>{{ visitas|length }}</strong>
+                    </div>
+                    <div class="desktop-summary-item">
+                        <span>Estancias</span>
+                        <strong>{{ estado.total_estancias }}</strong>
+                    </div>
+                    <div class="desktop-summary-item">
+                        <span>Patologías</span>
+                        <strong>{{ estado.total_patologias }}</strong>
+                    </div>
+                    <div class="desktop-summary-item">
+                        <span>Pendientes</span>
+                        <strong>{{ revision_informe.total if revision_informe else 0 }}</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="desktop-panel">
+                <h2>Acciones rápidas</h2>
+                <div class="desktop-quick-actions">
+                    {% if not visitas %}
+                    <a class="boton" href="/nueva-visita/{{ expediente.id }}">Crear visita</a>
+                    {% else %}
+                    <a class="boton secundario" href="/nueva-visita/{{ expediente.id }}">Registrar nueva visita</a>
+                    {% endif %}
+                    {% if ultima_visita %}
+                    <a class="boton secundario" href="/definir-estancias/{{ ultima_visita.id }}">Estancias</a>
+                    {% if expediente.es_informe_patologias %}
+                    <a class="boton secundario" href="/registrar-patologias/{{ ultima_visita.id }}">Patologías</a>
+                    {% endif %}
+                    {% endif %}
+                    {% if expediente.es_informe_valoracion %}
+                    <a class="boton secundario" href="/expediente/{{ expediente.id }}/valoracion/workbench">Valoración</a>
+                    {% endif %}
+                    {% if expediente.es_informe_patologias %}
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/pericial-workbench">Documentos</a>
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/actuaciones-reparacion">Costes</a>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="desktop-panel desktop-room-panel" aria-labelledby="desktop-room-tree-title">
+                <h2 id="desktop-room-tree-title">Estructura del inmueble</h2>
+                {% if estructura_estancias_desktop and estructura_estancias_desktop.hay_estancias %}
+                <p>{{ estructura_estancias_desktop.total_estancias }} estancia{% if estructura_estancias_desktop.total_estancias != 1 %}s{% endif %}{% if estructura_estancias_desktop.total_pendientes %} · {{ estructura_estancias_desktop.total_pendientes }} pendiente{% if estructura_estancias_desktop.total_pendientes != 1 %}s{% endif %}{% endif %}</p>
+                <ol class="desktop-room-tree">
+                    {% for grupo in estructura_estancias_desktop.grupos %}
+                    <li class="desktop-room-level">
+                        <p class="desktop-room-level-title">{{ grupo.titulo }}</p>
+                        <ol class="desktop-room-units">
+                            {% for unidad in grupo.unidades %}
+                            <li class="desktop-room-unit">
+                                {% if unidad.identificador and unidad.identificador != "Sin unidad asignada" %}
+                                <p class="desktop-room-unit-title">{{ unidad.identificador }}</p>
+                                {% endif %}
+                                <ol class="desktop-room-list">
+                                    {% for estancia in unidad.estancias %}
+                                    <li class="desktop-room-item">
+                                        <div class="desktop-room-mainline">
+                                            <a class="desktop-room-link" href="/editar-estancia/{{ estancia.id }}">{{ estancia.nombre or ("Estancia #" ~ estancia.id) }}</a>
+                                            <span class="desktop-room-status {% if estancia.esta_pendiente %}desktop-room-status-pending{% endif %}">{{ "Pendiente" if estancia.esta_pendiente else "Revisada" }}</span>
+                                        </div>
+                                        <div class="desktop-room-badges" aria-label="Indicadores de estancia">
+                                            {% if estancia.tipo_estancia %}
+                                            <span class="desktop-room-badge">{{ estancia.tipo_estancia }}</span>
+                                            {% endif %}
+                                            {% if estancia.total_patologias %}
+                                            <span class="desktop-room-badge">{{ estancia.total_patologias }} patología{% if estancia.total_patologias != 1 %}s{% endif %}</span>
+                                            {% endif %}
+                                            {% if estancia.total_fotos %}
+                                            <span class="desktop-room-badge">{{ estancia.total_fotos }} foto{% if estancia.total_fotos != 1 %}s{% endif %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="desktop-room-actions" aria-label="Acciones de estancia">
+                                            <a class="desktop-room-action" href="/editar-estancia/{{ estancia.id }}">Abrir</a>
+                                            <a class="desktop-room-action" href="/editar-estancia/{{ estancia.id }}">Registrar datos</a>
+                                            {% if expediente.es_informe_patologias %}
+                                            <a class="desktop-room-action" href="/registrar-patologias/{{ estancia.visita_id }}?estancia_id={{ estancia.id }}#formulario_patologia_interior">Registrar patologías</a>
+                                            {% endif %}
+                                            <a class="desktop-room-action" href="/definir-estancias/{{ estancia.visita_id }}#estructura-interior">Revisar</a>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ol>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <p class="empty">No hay estancias registradas.</p>
+                {% if ultima_visita %}
+                <p><a href="/definir-estancias/{{ ultima_visita.id }}">Definir estructura</a></p>
+                {% endif %}
+                {% endif %}
+            </section>
+        </aside>
+
+        <main class="desktop-main" aria-label="Actividad del expediente">
 
         <section class="card expediente-status-card" aria-labelledby="estado-expediente-title">
             <div class="expediente-status-header">
@@ -1099,6 +1523,77 @@
                 {% endif %}
             </div>
         </section>
+        </main>
+
+        <aside class="desktop-inspector" aria-label="Inspector desktop del expediente">
+            <section class="desktop-panel">
+                <h2>Tareas</h2>
+                {% if revision_informe and revision_informe.total %}
+                <p><strong>{{ revision_informe.total }} pendiente{% if revision_informe.total != 1 %}s{% endif %}</strong></p>
+                <p>{{ revision_informe.siguiente_accion.titulo }}</p>
+                <p><a href="{{ revision_informe.siguiente_accion.url }}">Continuar pendiente</a></p>
+                {% else %}
+                <p>Sin pendientes críticos detectados.</p>
+                {% endif %}
+            </section>
+
+            <section class="desktop-panel">
+                <h2>Actividad reciente</h2>
+                <div class="desktop-timeline">
+                    {% if visitas %}
+                    {% for visita in visitas[:3] %}
+                    <div class="desktop-timeline-item">
+                        <strong>Visita {{ visita.fecha or visita.id }}</strong>
+                        <span>{{ visita.tecnico or "Sin técnico" }} · {{ visita.total_estancias or 0 }} estancia{% if (visita.total_estancias or 0) != 1 %}s{% endif %}</span>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <p>No hay visitas registradas.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="desktop-panel">
+                <h2>Documentos y fotos</h2>
+                <p>Revisión centralizada desde informe, búsqueda y workbenches asociados.</p>
+                <div class="actions">
+                    <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}?q=foto">Fotos</a>
+                    {% if expediente.es_informe_patologias %}
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/pericial-workbench#documentacion-aportada">Documentos</a>
+                    {% endif %}
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/informe-v2-editor">Informe V2</a>
+                </div>
+            </section>
+
+            <section class="desktop-panel">
+                <h2>Estado económico</h2>
+                {% if timeline_economico %}
+                <p>{{ timeline_economico|length }} movimiento{% if timeline_economico|length != 1 %}s{% endif %} económico{% if timeline_economico|length != 1 %}s{% endif %} vinculado{% if timeline_economico|length != 1 %}s{% endif %}.</p>
+                {% else %}
+                <p>Sin movimientos económicos vinculados.</p>
+                {% endif %}
+                <p><a href="/facturacion/facturas/nueva?expediente_id={{ expediente.id }}">Crear factura</a></p>
+            </section>
+
+            <section class="desktop-panel">
+                <h2>Checklist de cierre</h2>
+                <div class="desktop-timeline">
+                    <div class="desktop-timeline-item">
+                        <strong>Visita</strong>
+                        <span>{{ "Completada" if visitas else "Pendiente" }}</span>
+                    </div>
+                    <div class="desktop-timeline-item">
+                        <strong>Estructura</strong>
+                        <span>{{ "Con estancias" if estado.total_estancias else "Sin estancias" }}</span>
+                    </div>
+                    <div class="desktop-timeline-item">
+                        <strong>Informe</strong>
+                        <span>{{ "Revisar pendientes" if revision_informe and revision_informe.total else "Listo para revisión" }}</span>
+                    </div>
+                </div>
+            </section>
+        </aside>
+        </div>
     </div>
     {% include "partials/_app_shell_end.html" %}
 

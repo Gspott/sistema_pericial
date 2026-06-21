@@ -5892,6 +5892,73 @@ def preparar_grupos_estructura_estancias(estancias: list[dict]) -> list[dict]:
     return grupos
 
 
+def preparar_estructura_estancias_desktop(cur, expediente_id: int) -> dict:
+    estancias = []
+    for row in cur.execute(
+        """
+        SELECT es.id,
+               es.visita_id,
+               es.nombre,
+               es.tipo_estancia,
+               es.planta,
+               es.ventilacion,
+               es.acabado_pavimento,
+               es.acabado_paramento,
+               es.acabado_techo,
+               es.observaciones,
+               es.unidad_id,
+               v.fecha AS visita_fecha,
+               ue.identificador AS unidad_identificador,
+               ue.tipo_unidad AS unidad_tipo_unidad,
+               ue.uso AS unidad_uso,
+               ne.nombre_nivel AS nivel_nombre,
+               (
+                   SELECT COUNT(*)
+                   FROM registros_patologias rp
+                   WHERE rp.estancia_id = es.id
+               ) AS total_patologias,
+               (
+                   SELECT COUNT(*)
+                   FROM estancia_fotos ef
+                   WHERE ef.estancia_id = es.id
+               ) AS total_fotos
+        FROM estancias es
+        JOIN visitas v ON es.visita_id = v.id
+        LEFT JOIN unidades_expediente ue ON es.unidad_id = ue.id
+        LEFT JOIN niveles_edificio ne ON ue.nivel_id = ne.id
+        WHERE v.expediente_id = ?
+        ORDER BY
+            CASE WHEN ne.orden_nivel IS NULL THEN 1 ELSE 0 END,
+            COALESCE(ne.orden_nivel, 999999),
+            COALESCE(ne.nombre_nivel, ''),
+            COALESCE(es.planta, ''),
+            COALESCE(ue.identificador, ''),
+            es.id ASC
+        """,
+        (expediente_id,),
+    ).fetchall():
+        estancia = dict(row)
+        estancia["esta_rellena"] = calcular_estancia_rellena(estancia)
+        estancia["esta_pendiente"] = not estancia["esta_rellena"]
+        estancia["unidad_tipo_unidad_label"] = etiquetar_opcion(
+            estancia.get("unidad_tipo_unidad", ""), TIPO_UNIDAD_LABELS
+        )
+        estancia["nivel_nombre"] = (
+            limpiar_texto(estancia.get("nivel_nombre"))
+            or limpiar_texto(estancia.get("planta"))
+        )
+        estancias.append(estancia)
+
+    grupos = preparar_grupos_estructura_estancias(estancias)
+    pendientes = sum(1 for estancia in estancias if estancia["esta_pendiente"])
+    return {
+        "grupos": grupos,
+        "hay_estancias": bool(estancias),
+        "total_estancias": len(estancias),
+        "total_pendientes": pendientes,
+    }
+
+
 def preparar_pendientes_revision_expediente(cur, expediente_id: int) -> dict:
     pendientes = []
 
@@ -13056,6 +13123,7 @@ def detalle_expediente(request: Request, expediente_id: int, q: str = Query(""))
 
     tipo_informe = limpiar_texto(expediente["tipo_informe"])
     estructura_multiunidad = cargar_estructura_multiunidad(cur, expediente_id)
+    estructura_estancias_desktop = preparar_estructura_estancias_desktop(cur, expediente_id)
     visitas_data = []
     resumen_tipo = {}
     revision_informe = preparar_pendientes_revision_expediente(cur, expediente_id)
@@ -13416,6 +13484,7 @@ def detalle_expediente(request: Request, expediente_id: int, q: str = Query(""))
             "revision_informe": revision_informe,
             "timeline_economico": timeline_economico,
             "busqueda_expediente": busqueda_expediente,
+            "estructura_estancias_desktop": estructura_estancias_desktop,
             "tiene_presupuesto_reparacion": (
                 presupuesto_reparacion["tiene_costes"]
                 or actuaciones_reparacion["total_pem"] > 0

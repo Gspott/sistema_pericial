@@ -70,6 +70,23 @@ Toda mejora transversal debe incluir smoke tests o prueba antirregresion proporc
 
 Las mejoras desktop son capas adicionales. No deben romper flujos moviles, Safari iOS/macOS ni inspeccion en campo.
 
+### DESKTOP-WORKBENCH-STANDARD-1
+
+Todo flujo usado principalmente despues de la visita debe evaluar una capa de
+escritorio comoda cuando implique revision, redaccion, comparacion,
+organizacion documental, fotos, costes, CRM, propuestas, facturacion, dashboard
+o busqueda.
+
+La visita en campo y la captura tactil de evidencias siguen siendo
+mobile-first. Desktop workbench es capa adicional, no sustitucion.
+
+La referencia principal de productividad desktop es 2560x1440 (QHD, 16:9).
+Las capas workbench no deben arrastrar `max-width` estrechos si generan areas
+vacias en escritorio ancho; deben aprovechar >=1920px y especialmente QHD con
+paneles simultaneos o columnas mas amplias cuando aporte productividad.
+
+Cuando aplique, seguir [desktop_workbench_standard.md](desktop_workbench_standard.md).
+
 ### Documental y PDF
 
 Las mejoras documentales deben respetar, cuando aplique:

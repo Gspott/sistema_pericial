@@ -44,6 +44,9 @@ Usar esta checklist en tareas que toquen formularios largos, fechas, templates, 
 - El flujo movil existente sigue disponible.
 - La mejora desktop es una capa adicional, no un reemplazo opaco.
 - No se introducen dependencias SPA ni patrones incompatibles con Safari iOS/macOS.
+- Si el flujo se trabaja despues de la visita, se evalua `DESKTOP-WORKBENCH-STANDARD-1`.
+- El registro de visita en campo mantiene prioridad movil y no se densifica por escritorio.
+- Las vistas desktop reutilizan rutas SSR, shell/drawer y patrones existentes.
 
 ### Documental y PDF
 
