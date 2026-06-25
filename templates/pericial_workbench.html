@@ -371,6 +371,7 @@
                 <div class="actions">
                     <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver al expediente</a>
                     <a class="boton secundario" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/crear-derivado">Crear derivado</a>
                     <a class="boton primario" href="/expedientes/{{ expediente.id }}/informe-v2-editor">Editar informe</a>
                     <a class="boton secundario" href="/generar-informe-v2-pdf/{{ expediente.id }}">Generar PDF</a>
                     <a class="boton secundario" href="/informes/{{ expediente.id }}/imprimir">Ver informe actual</a>
@@ -393,6 +394,44 @@
             <div class="diagnostic-item"><span class="metric-label">Capítulos parciales</span><span class="metric-value">{{ diagnostico | selectattr("estado", "equalto", "parcial") | list | length }}</span></div>
             <div class="diagnostic-item"><span class="metric-label">Limitaciones candidatas</span><span class="metric-value">{{ limitaciones_candidatas | length }}</span></div>
             <div class="diagnostic-item"><span class="metric-label">Recomendaciones candidatas</span><span class="metric-value">{{ recomendaciones_candidatas | length }}</span></div>
+        </section>
+
+        <section class="workbench-section" aria-labelledby="workbench-relacionados-title">
+            <div class="section-head">
+                <div>
+                    <h2 id="workbench-relacionados-title">Expedientes relacionados</h2>
+                    <p class="section-note">Antecedentes y actuaciones derivadas disponibles como contexto documental, sin fusionar PDFs ni duplicar evidencias.</p>
+                </div>
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/crear-derivado">Crear expediente derivado</a>
+            </div>
+            {% if workbench.expedientes_relacionados.tiene_relaciones %}
+                {% if workbench.expedientes_relacionados.origenes %}
+                <h3>Expediente origen</h3>
+                <ul class="candidate-list">
+                    {% for relacionado in workbench.expedientes_relacionados.origenes %}
+                    <li class="candidate-item">
+                        <strong><a href="/detalle-expediente/{{ relacionado.id }}">{{ relacionado.numero_expediente }}</a></strong>
+                        · {{ relacionado.objeto_pericia or relacionado.direccion or "Sin objeto" }}
+                        <span class="muted">· {{ relacionado.tipo_relacion_label }}{% if relacionado.created_at %} · {{ relacionado.created_at }}{% endif %}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if workbench.expedientes_relacionados.derivados %}
+                <h3>Expedientes derivados</h3>
+                <ul class="candidate-list">
+                    {% for relacionado in workbench.expedientes_relacionados.derivados %}
+                    <li class="candidate-item">
+                        <strong><a href="/detalle-expediente/{{ relacionado.id }}">{{ relacionado.numero_expediente }}</a></strong>
+                        · {{ relacionado.objeto_pericia or relacionado.direccion or "Sin objeto" }}
+                        <span class="muted">· {{ relacionado.tipo_relacion_label }}{% if relacionado.created_at %} · {{ relacionado.created_at }}{% endif %}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            {% else %}
+            <p class="muted">No hay expedientes relacionados registrados.</p>
+            {% endif %}
         </section>
 
         <section id="documentacion-aportada" class="workbench-section">

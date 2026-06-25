@@ -344,6 +344,245 @@ def test_pericial_workbench_renderiza_diagnostico_y_datos(isolated_import):
     assert "Editar informe" in response.text
 
 
+def test_expediente_derivado_copia_marco_fisico_y_no_evidencias(isolated_import):
+    main_module = isolated_import("app.main")
+
+    from app.database import get_connection, init_db
+
+    init_db()
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        user_id = _crear_usuario(cur, "pericial_derivado")
+        expediente_id = _crear_expediente_patologias(cur, user_id)
+        cur.execute(
+            """
+            UPDATE expedientes
+            SET referencia_catastral = ?,
+                codigo_postal = ?,
+                superficie_construida = ?,
+                superficie_util = ?,
+                orientacion_inmueble = ?,
+                anio_construccion = ?,
+                uso_inmueble = ?,
+                observaciones_generales = ?,
+                metodologia_pericial = ?,
+                alcance_limitaciones = ?
+            WHERE id = ?
+            """,
+            (
+                "1234567VK4713S0001AB",
+                "28001",
+                "120",
+                "98",
+                "Sur",
+                "1985",
+                "Residencial",
+                "Observación técnica que no debe heredarse.",
+                "Metodología cerrada que no debe heredarse.",
+                "Limitación del informe origen que no debe heredarse.",
+                expediente_id,
+            ),
+        )
+        cur.execute(
+            """
+            INSERT INTO niveles_edificio (
+                expediente_id, nombre_nivel, orden_nivel, tipo_nivel, observaciones
+            )
+            VALUES (?, 'Planta primera', 1, 'planta_tipo', 'No copiar nota de nivel')
+            """,
+            (expediente_id,),
+        )
+        nivel_id = cur.lastrowid
+        cur.execute(
+            """
+            INSERT INTO unidades_expediente (
+                expediente_id, nivel_id, identificador, tipo_unidad, uso, superficie,
+                referencia_catastral_unidad, es_principal, tiene_varias_plantas,
+                numero_plantas, observaciones
+            )
+            VALUES (?, ?, 'Vivienda A', 'vivienda', 'Residencial', '98',
+                    '1234567VK4713S0001AB', 1, 0, 1, 'No copiar nota de unidad')
+            """,
+            (expediente_id, nivel_id),
+        )
+        visita_id = cur.execute(
+            "SELECT id FROM visitas WHERE expediente_id=? LIMIT 1",
+            (expediente_id,),
+        ).fetchone()["id"]
+        cur.execute(
+            """
+            INSERT INTO visita_fotos (visita_id, categoria, ruta, descripcion)
+            VALUES (?, 'exterior', 'demo/foto-origen.jpg', 'Foto origen')
+            """,
+            (visita_id,),
+        )
+        cur.execute(
+            """
+            INSERT INTO expediente_documentos (
+                expediente_id, nombre_visible, tipo_documento, archivo_ruta,
+                archivo_nombre_original, mime_type, orden, updated_at
+            )
+            VALUES (?, 'Documento origen', 'Documentación aportada',
+                    'expediente_documentos/origen.pdf', 'origen.pdf',
+                    'application/pdf', 1, CURRENT_TIMESTAMP)
+            """,
+            (expediente_id,),
+        )
+        cur.execute(
+            """
+            INSERT INTO informe_v2_capitulos (
+                expediente_id, clave, orden, titulo, contenido, editado_manual,
+                generado_desde, estado_revision, updated_at
+            )
+            VALUES (?, 'conclusiones', 10, 'Conclusiones',
+                    'Conclusión del origen', 1, 'test', 'En revisión',
+                    CURRENT_TIMESTAMP)
+            """,
+            (expediente_id,),
+        )
+        cur.execute(
+            """
+            INSERT INTO valoracion_expediente (
+                expediente_id, finalidad_valoracion, superficie_construida
+            )
+            VALUES (?, 'garantia_hipotecaria', '120')
+            """,
+            (expediente_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    client = _autenticar_cliente(main_module, user_id)
+    formulario = client.get(f"/expedientes/{expediente_id}/crear-derivado")
+    assert formulario.status_code == 200
+    assert "Crear expediente derivado" in formulario.text
+
+    response = client.post(
+        f"/expedientes/{expediente_id}/crear-derivado",
+        data={
+            "tipo_relacion": "complementario",
+            "numero_expediente": "EXP-PER-DER-1",
+            "tipo_informe": "inspeccion",
+            "objeto_pericia": "Inspección estructural complementaria y prueba de estanqueidad",
+            "descripcion": "Antecedente documental sin duplicar evidencias.",
+        },
+    )
+    assert response.status_code == 200
+    assert "Expediente derivado creado" in response.text
+    assert "Expediente origen" in response.text
+    assert "EXP-PER-WB-1" in response.text
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        derivado = cur.execute(
+            """
+            SELECT *
+            FROM expedientes
+            WHERE numero_expediente = ?
+            """,
+            ("EXP-PER-DER-1",),
+        ).fetchone()
+        assert derivado is not None
+        derivado_id = derivado["id"]
+        assert derivado["direccion"] == "Calle Pericial 1"
+        assert derivado["referencia_catastral"] == "1234567VK4713S0001AB"
+        assert derivado["codigo_postal"] == "28001"
+        assert derivado["superficie_construida"] == "120"
+        assert derivado["superficie_util"] == "98"
+        assert derivado["orientacion_inmueble"] == "Sur"
+        assert derivado["anio_construccion"] == "1985"
+        assert derivado["uso_inmueble"] == "Residencial"
+        assert derivado["tipo_informe"] == "inspeccion"
+        assert (
+            derivado["objeto_pericia"]
+            == "Inspección estructural complementaria y prueba de estanqueidad"
+        )
+        assert not derivado["observaciones_generales"]
+        assert not derivado["metodologia_pericial"]
+        assert not derivado["alcance_limitaciones"]
+        assert cur.execute(
+            "SELECT COUNT(*) FROM visitas WHERE expediente_id=?",
+            (derivado_id,),
+        ).fetchone()[0] == 0
+        assert cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM registros_patologias rp
+            JOIN visitas v ON v.id = rp.visita_id
+            WHERE v.expediente_id = ?
+            """,
+            (derivado_id,),
+        ).fetchone()[0] == 0
+        assert cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM registro_patologia_fotos rpf
+            JOIN registros_patologias rp ON rp.id = rpf.registro_id
+            JOIN visitas v ON v.id = rp.visita_id
+            WHERE v.expediente_id = ?
+            """,
+            (derivado_id,),
+        ).fetchone()[0] == 0
+        assert cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM visita_fotos vf
+            JOIN visitas v ON v.id = vf.visita_id
+            WHERE v.expediente_id = ?
+            """,
+            (derivado_id,),
+        ).fetchone()[0] == 0
+        assert cur.execute(
+            "SELECT COUNT(*) FROM expediente_documentos WHERE expediente_id=?",
+            (derivado_id,),
+        ).fetchone()[0] == 0
+        assert cur.execute(
+            "SELECT COUNT(*) FROM informe_v2_capitulos WHERE expediente_id=?",
+            (derivado_id,),
+        ).fetchone()[0] == 0
+        assert cur.execute(
+            "SELECT COUNT(*) FROM valoracion_expediente WHERE expediente_id=?",
+            (derivado_id,),
+        ).fetchone()[0] == 0
+        assert cur.execute(
+            "SELECT COUNT(*) FROM niveles_edificio WHERE expediente_id=?",
+            (derivado_id,),
+        ).fetchone()[0] == 1
+        assert cur.execute(
+            "SELECT COUNT(*) FROM unidades_expediente WHERE expediente_id=?",
+            (derivado_id,),
+        ).fetchone()[0] == 1
+        assert cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM expediente_relaciones
+            WHERE expediente_origen_id = ?
+              AND expediente_derivado_id = ?
+              AND tipo_relacion = 'complementario'
+            """,
+            (expediente_id, derivado_id),
+        ).fetchone()[0] == 1
+    finally:
+        conn.close()
+
+    origen_response = client.get(f"/detalle-expediente/{expediente_id}")
+    derivado_response = client.get(f"/detalle-expediente/{derivado_id}")
+    workbench_response = client.get(f"/expedientes/{expediente_id}/pericial-workbench")
+
+    assert origen_response.status_code == 200
+    assert derivado_response.status_code == 200
+    assert workbench_response.status_code == 200
+    assert "Expedientes relacionados" in origen_response.text
+    assert "EXP-PER-DER-1" in origen_response.text
+    assert "Expediente origen" in derivado_response.text
+    assert "EXP-PER-WB-1" in derivado_response.text
+    assert "Expedientes relacionados" in workbench_response.text
+    assert "EXP-PER-DER-1" in workbench_response.text
+
+
 def test_expediente_search_encuentra_datos_persistidos_y_contexto(isolated_import):
     main_module = isolated_import("app.main")
 

@@ -1125,6 +1125,32 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS expediente_relaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expediente_origen_id INTEGER NOT NULL,
+            expediente_derivado_id INTEGER NOT NULL,
+            tipo_relacion TEXT NOT NULL DEFAULT 'derivado',
+            descripcion TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (expediente_origen_id) REFERENCES expedientes (id),
+            FOREIGN KEY (expediente_derivado_id) REFERENCES expedientes (id)
+        )
+        """
+    )
+    asegurar_columna(cur, "expediente_relaciones", "expediente_origen_id", "INTEGER")
+    asegurar_columna(cur, "expediente_relaciones", "expediente_derivado_id", "INTEGER")
+    asegurar_columna(cur, "expediente_relaciones", "tipo_relacion", "TEXT NOT NULL DEFAULT 'derivado'")
+    asegurar_columna(cur, "expediente_relaciones", "descripcion", "TEXT")
+    asegurar_columna(cur, "expediente_relaciones", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    cur.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_expediente_relaciones_unicas
+        ON expediente_relaciones (expediente_origen_id, expediente_derivado_id, tipo_relacion)
+        """
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS visitas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             expediente_id INTEGER NOT NULL,

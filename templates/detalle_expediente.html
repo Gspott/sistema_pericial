@@ -653,6 +653,7 @@
                     <a class="boton secundario" href="/expedientes/{{ expediente.id }}/pericial-workbench">Documentos</a>
                     <a class="boton secundario" href="/expedientes/{{ expediente.id }}/actuaciones-reparacion">Costes</a>
                     {% endif %}
+                    <a class="boton secundario" href="/expedientes/{{ expediente.id }}/crear-derivado">Crear expediente derivado</a>
                 </div>
             </section>
 
@@ -870,6 +871,7 @@
                 <a class="boton secundario" href="/nueva-visita/{{ expediente.id }}">Registrar nueva visita</a>
                 {% endif %}
                 <a class="boton secundario" href="/editar-expediente/{{ expediente.id }}">Editar expediente</a>
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/crear-derivado">Crear expediente derivado</a>
                 {% if expediente.es_informe_valoracion %}
                 <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion">Editar datos de valoración</a>
                 <a class="boton secundario" href="/expedientes/{{ expediente.id }}/valoracion/testigos">Testigos de valoración</a>
@@ -900,6 +902,38 @@
                     onsubmit="return confirm('¿Seguro que quieres borrar este expediente y todos sus datos asociados?');">
                     <button class="boton secundario boton-peligro" type="submit">Borrar expediente</button>
                 </form>
+            </div>
+        </section>
+
+        <section class="form-section" aria-labelledby="expedientes-relacionados-title">
+            <h2 id="expedientes-relacionados-title">Expedientes relacionados</h2>
+            {% if expedientes_relacionados.tiene_relaciones %}
+                {% if expedientes_relacionados.origenes %}
+                <h3>Expediente origen</h3>
+                {% for relacionado in expedientes_relacionados.origenes %}
+                <article class="inner-card">
+                    <p><strong><a href="/detalle-expediente/{{ relacionado.id }}">{{ relacionado.numero_expediente }}</a></strong> · {{ relacionado.objeto_pericia or relacionado.direccion or "Sin objeto" }}</p>
+                    <p class="empty">{{ relacionado.tipo_relacion_label }}{% if relacionado.created_at %} · {{ relacionado.created_at }}{% endif %}</p>
+                    {% if relacionado.descripcion %}<p>{{ relacionado.descripcion }}</p>{% endif %}
+                </article>
+                {% endfor %}
+                {% endif %}
+
+                {% if expedientes_relacionados.derivados %}
+                <h3>Expedientes derivados</h3>
+                {% for relacionado in expedientes_relacionados.derivados %}
+                <article class="inner-card">
+                    <p><strong><a href="/detalle-expediente/{{ relacionado.id }}">{{ relacionado.numero_expediente }}</a></strong> · {{ relacionado.objeto_pericia or relacionado.direccion or "Sin objeto" }}</p>
+                    <p class="empty">{{ relacionado.tipo_relacion_label }}{% if relacionado.created_at %} · {{ relacionado.created_at }}{% endif %}</p>
+                    {% if relacionado.descripcion %}<p>{{ relacionado.descripcion }}</p>{% endif %}
+                </article>
+                {% endfor %}
+                {% endif %}
+            {% else %}
+            <p class="empty">No hay expedientes relacionados registrados.</p>
+            {% endif %}
+            <div class="actions">
+                <a class="boton secundario" href="/expedientes/{{ expediente.id }}/crear-derivado">Crear expediente derivado</a>
             </div>
         </section>
 

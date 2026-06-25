@@ -160,6 +160,40 @@ TIPO_INFORME_LABELS = {
     "valoracion": "Valoración inmobiliaria",
     "habitabilidad": "Habitabilidad",
 }
+TIPOS_RELACION_EXPEDIENTE = ("derivado", "complementario", "seguimiento")
+TIPO_RELACION_EXPEDIENTE_LABELS = {
+    "derivado": "Derivado",
+    "complementario": "Complementario",
+    "seguimiento": "Seguimiento",
+}
+EXPEDIENTE_DERIVADO_CAMPOS_COPIADOS = (
+    "tipo_informe",
+    "destinatario",
+    "cliente",
+    "referencia_catastral",
+    "direccion",
+    "codigo_postal",
+    "ciudad",
+    "provincia",
+    "tipo_inmueble",
+    "orientacion_inmueble",
+    "anio_construccion",
+    "plantas_bajo_rasante",
+    "plantas_sobre_baja",
+    "uso_inmueble",
+    "planta_unidad",
+    "puerta_unidad",
+    "analisis_unidades",
+    "superficie_construida",
+    "superficie_util",
+    "dormitorios_unidad",
+    "banos_unidad",
+    "observaciones_bloque",
+    "observaciones_unidad",
+    "reformado",
+    "fecha_reforma",
+    "observaciones_reforma",
+)
 DESTINATARIO_LABELS = {
     "particular": "Cliente particular / empresa",
     "judicial": "Encargo judicial",
@@ -5532,6 +5566,79 @@ def get_owned_expediente(cur, expediente_id: int, user_id: int):
     ).fetchone()
 
 
+def normalizar_tipo_relacion_expediente(tipo_relacion: str | None) -> str:
+    tipo = limpiar_texto(tipo_relacion).lower()
+    return tipo if tipo in TIPOS_RELACION_EXPEDIENTE else "derivado"
+
+
+def obtener_expedientes_relacionados(cur, expediente_id: int, user_id: int) -> dict:
+    origenes = [
+        {
+            **dict(row),
+            "tipo_relacion_label": TIPO_RELACION_EXPEDIENTE_LABELS.get(
+                row["tipo_relacion"], row["tipo_relacion"]
+            ),
+        }
+        for row in cur.execute(
+            """
+            SELECT
+                er.id AS relacion_id,
+                er.tipo_relacion,
+                er.descripcion,
+                er.created_at,
+                e.id,
+                e.numero_expediente,
+                e.objeto_pericia,
+                e.direccion,
+                e.cliente
+            FROM expediente_relaciones er
+            JOIN expedientes e ON e.id = er.expediente_origen_id
+            WHERE er.expediente_derivado_id = ?
+              AND e.owner_user_id = ?
+            ORDER BY er.created_at DESC, er.id DESC
+            """,
+            (expediente_id, user_id),
+        ).fetchall()
+    ]
+    derivados = [
+        {
+            **dict(row),
+            "tipo_relacion_label": TIPO_RELACION_EXPEDIENTE_LABELS.get(
+                row["tipo_relacion"], row["tipo_relacion"]
+            ),
+        }
+        for row in cur.execute(
+            """
+            SELECT
+                er.id AS relacion_id,
+                er.tipo_relacion,
+                er.descripcion,
+                er.created_at,
+                e.id,
+                e.numero_expediente,
+                e.objeto_pericia,
+                e.direccion,
+                e.cliente
+            FROM expediente_relaciones er
+            JOIN expedientes e ON e.id = er.expediente_derivado_id
+            WHERE er.expediente_origen_id = ?
+              AND e.owner_user_id = ?
+            ORDER BY er.created_at DESC, er.id DESC
+            """,
+            (expediente_id, user_id),
+        ).fetchall()
+    ]
+    return {
+        "origenes": origenes,
+        "derivados": derivados,
+        "tiene_relaciones": bool(origenes or derivados),
+        "tipos": [
+            {"value": tipo, "label": TIPO_RELACION_EXPEDIENTE_LABELS[tipo]}
+            for tipo in TIPOS_RELACION_EXPEDIENTE
+        ],
+    }
+
+
 def get_owned_nivel(cur, nivel_id: int, user_id: int):
     return cur.execute(
         """
@@ -5665,6 +5772,143 @@ def cargar_estructura_multiunidad(cur, expediente_id: int):
         "anejos_sueltos": anejos_sueltos,
         "unidades_principales": unidades_principales,
     }
+
+
+def copiar_estructura_multiunidad_expediente(cur, origen_id: int, derivado_id: int) -> None:
+    niveles_origen = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT id, nombre_nivel, orden_nivel, tipo_nivel
+            FROM niveles_edificio
+            WHERE expediente_id = ?
+            ORDER BY id ASC
+            """,
+            (origen_id,),
+        ).fetchall()
+    ]
+    nivel_id_map = {}
+    for nivel in niveles_origen:
+        cur.execute(
+            """
+            INSERT INTO niveles_edificio (
+                expediente_id, nombre_nivel, orden_nivel, tipo_nivel
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                derivado_id,
+                nivel.get("nombre_nivel"),
+                nivel.get("orden_nivel"),
+                nivel.get("tipo_nivel"),
+            ),
+        )
+        nivel_id_map[nivel["id"]] = cur.lastrowid
+
+    unidades_origen = [
+        dict(row)
+        for row in cur.execute(
+            """
+            SELECT
+                id, nivel_id, identificador, tipo_unidad, uso, superficie,
+                referencia_catastral_unidad, es_principal, unidad_principal_id,
+                tipo_anejo, vinculo_unidad, tiene_varias_plantas, numero_plantas
+            FROM unidades_expediente
+            WHERE expediente_id = ?
+            ORDER BY id ASC
+            """,
+            (origen_id,),
+        ).fetchall()
+    ]
+    unidad_id_map = {}
+    unidades_pendientes_padre = []
+    for unidad in unidades_origen:
+        cur.execute(
+            """
+            INSERT INTO unidades_expediente (
+                expediente_id, nivel_id, identificador, tipo_unidad, uso, superficie,
+                referencia_catastral_unidad, es_principal, unidad_principal_id,
+                tipo_anejo, vinculo_unidad, tiene_varias_plantas, numero_plantas
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
+            """,
+            (
+                derivado_id,
+                nivel_id_map.get(unidad.get("nivel_id")),
+                unidad.get("identificador"),
+                unidad.get("tipo_unidad"),
+                unidad.get("uso"),
+                unidad.get("superficie"),
+                unidad.get("referencia_catastral_unidad"),
+                unidad.get("es_principal"),
+                unidad.get("tipo_anejo"),
+                unidad.get("vinculo_unidad"),
+                unidad.get("tiene_varias_plantas"),
+                unidad.get("numero_plantas"),
+            ),
+        )
+        unidad_id_map[unidad["id"]] = cur.lastrowid
+        if unidad.get("unidad_principal_id"):
+            unidades_pendientes_padre.append(unidad)
+
+    for unidad in unidades_pendientes_padre:
+        nuevo_padre_id = unidad_id_map.get(unidad.get("unidad_principal_id"))
+        if nuevo_padre_id:
+            cur.execute(
+                """
+                UPDATE unidades_expediente
+                SET unidad_principal_id = ?
+                WHERE id = ?
+                """,
+                (nuevo_padre_id, unidad_id_map[unidad["id"]]),
+            )
+
+
+def crear_expediente_derivado(
+    cur,
+    expediente_origen,
+    numero_expediente: str,
+    tipo_informe: str,
+    objeto_pericia: str,
+    tipo_relacion: str,
+    descripcion_relacion: str,
+) -> int:
+    expediente_base = dict(expediente_origen)
+    campos = {campo: expediente_base.get(campo) for campo in EXPEDIENTE_DERIVADO_CAMPOS_COPIADOS}
+    campos["tipo_informe"] = tipo_informe
+    campos["objeto_pericia"] = objeto_pericia
+    campos["owner_user_id"] = expediente_base.get("owner_user_id")
+    columnas = ["numero_expediente", *campos.keys()]
+    valores = [numero_expediente, *campos.values()]
+    placeholders = ", ".join("?" for _ in columnas)
+    cur.execute(
+        f"""
+        INSERT INTO expedientes ({", ".join(columnas)})
+        VALUES ({placeholders})
+        """,
+        valores,
+    )
+    expediente_derivado_id = cur.lastrowid
+    copiar_estructura_multiunidad_expediente(
+        cur,
+        expediente_base["id"],
+        expediente_derivado_id,
+    )
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO expediente_relaciones (
+            expediente_origen_id, expediente_derivado_id, tipo_relacion, descripcion
+        )
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            expediente_base["id"],
+            expediente_derivado_id,
+            normalizar_tipo_relacion_expediente(tipo_relacion),
+            descripcion_relacion,
+        ),
+    )
+    return expediente_derivado_id
 
 
 def preparar_resumen_registro_expediente(cur, expediente_id: int):
@@ -11134,6 +11378,11 @@ def preparar_pericial_workbench(cur, expediente) -> dict:
     metricas["actuaciones"] = len(actuaciones["actuaciones"])
     metricas["pem_total"] = actuaciones["total_pem"]
     documentos_aportados = obtener_documentos_aportados_expediente(cur, expediente_id)
+    expedientes_relacionados = obtener_expedientes_relacionados(
+        cur,
+        expediente_id,
+        expediente_dict.get("owner_user_id"),
+    )
 
     inventario = []
     if visita_ids:
@@ -11391,6 +11640,7 @@ def preparar_pericial_workbench(cur, expediente) -> dict:
         "borrador_informe": borrador_informe,
         "actuaciones": actuaciones,
         "documentos_aportados": documentos_aportados,
+        "expedientes_relacionados": expedientes_relacionados,
         "tipos_documentales_anexo_a": TIPOS_DOCUMENTALES_ANEXO_A,
         "advertencias": advertencias,
     }
@@ -12751,6 +13001,109 @@ def guardar_expediente(
     )
 
 
+@app.get("/expedientes/{expediente_id}/crear-derivado", response_class=HTMLResponse)
+def formulario_crear_expediente_derivado(request: Request, expediente_id: int, error: str = ""):
+    current_user = get_current_user(request)
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+    finally:
+        conn.close()
+
+    expediente_data = dict(expediente)
+    expediente_data["tipo_informe_label"] = etiquetar_opcion(
+        expediente_data.get("tipo_informe", ""),
+        TIPO_INFORME_LABELS,
+    )
+    return render_template(
+        request,
+        "crear_expediente_derivado.html",
+        {
+            "expediente": expediente_data,
+            "numero_expediente_sugerido": generar_numero_expediente(),
+            "tipos_relacion": [
+                {"value": tipo, "label": TIPO_RELACION_EXPEDIENTE_LABELS[tipo]}
+                for tipo in TIPOS_RELACION_EXPEDIENTE
+            ],
+            "tipos_informe": TIPO_INFORME_LABELS,
+            "error": limpiar_texto(error),
+        },
+    )
+
+
+@app.post("/expedientes/{expediente_id}/crear-derivado")
+def guardar_expediente_derivado(
+    request: Request,
+    expediente_id: int,
+    tipo_relacion: str = Form("derivado"),
+    numero_expediente: str = Form(...),
+    tipo_informe: str = Form("inspeccion"),
+    objeto_pericia: str = Form(...),
+    descripcion: str = Form(""),
+):
+    current_user = get_current_user(request)
+    numero_limpio = limpiar_texto(numero_expediente)
+    objeto_limpio = limpiar_texto(objeto_pericia)
+    tipo_informe_limpio = limpiar_texto(tipo_informe)
+    if tipo_informe_limpio not in TIPO_INFORME_LABELS:
+        tipo_informe_limpio = "inspeccion"
+    if not numero_limpio or not objeto_limpio:
+        return RedirectResponse(
+            url=(
+                f"/expedientes/{expediente_id}/crear-derivado?"
+                "error=Numero%20y%20objeto%20son%20obligatorios."
+            ),
+            status_code=303,
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("BEGIN IMMEDIATE")
+        expediente = get_owned_expediente(cur, expediente_id, current_user["id"])
+        require_row(expediente, "Expediente no encontrado")
+        existe_numero = cur.execute(
+            """
+            SELECT id
+            FROM expedientes
+            WHERE numero_expediente = ?
+            """,
+            (numero_limpio,),
+        ).fetchone()
+        if existe_numero:
+            conn.rollback()
+            return RedirectResponse(
+                url=(
+                    f"/expedientes/{expediente_id}/crear-derivado?"
+                    "error=Ya%20existe%20un%20expediente%20con%20ese%20numero."
+                ),
+                status_code=303,
+            )
+        derivado_id = crear_expediente_derivado(
+            cur,
+            expediente,
+            numero_limpio,
+            tipo_informe_limpio,
+            objeto_limpio,
+            tipo_relacion,
+            limpiar_texto(descripcion),
+        )
+        conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url=f"/detalle-expediente/{derivado_id}?mensaje=Expediente%20derivado%20creado.",
+        status_code=303,
+    )
+
+
 @app.get("/expedientes/{expediente_id}/presupuesto-reparacion", response_class=HTMLResponse)
 def presupuesto_reparacion_expediente(request: Request, expediente_id: int):
     current_user = get_current_user(request)
@@ -13134,6 +13487,11 @@ def detalle_expediente(request: Request, expediente_id: int, q: str = Query(""))
         expediente_id,
         current_user["id"],
     )
+    expedientes_relacionados = obtener_expedientes_relacionados(
+        cur,
+        expediente_id,
+        current_user["id"],
+    )
 
     for visita in visitas:
         visita_data = dict(visita)
@@ -13483,6 +13841,7 @@ def detalle_expediente(request: Request, expediente_id: int, q: str = Query(""))
             "resumen_tipo": resumen_tipo,
             "revision_informe": revision_informe,
             "timeline_economico": timeline_economico,
+            "expedientes_relacionados": expedientes_relacionados,
             "busqueda_expediente": busqueda_expediente,
             "estructura_estancias_desktop": estructura_estancias_desktop,
             "tiene_presupuesto_reparacion": (

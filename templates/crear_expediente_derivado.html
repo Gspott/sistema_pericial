@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="stylesheet" href="/static/mobile.css?v=10">
+    <script src="/static/pwa.js?v=5" defer></script>
+    <title>Crear expediente derivado · {{ expediente.numero_expediente }}</title>
+</head>
+
+<body>
+    {% include "partials/_app_shell_start.html" %}
+    <main class="page">
+        <header class="page-header">
+            <div>
+                <p class="section-note">Expediente origen {{ expediente.numero_expediente }}</p>
+                <h1>Crear expediente derivado</h1>
+                <p>{{ expediente.direccion or "Sin direccion" }} · {{ expediente.cliente }}</p>
+            </div>
+            <nav class="actions" aria-label="Acciones del expediente">
+                <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Volver</a>
+            </nav>
+        </header>
+
+        {% if error %}
+        <div class="flash error">{{ error }}</div>
+        {% endif %}
+
+        <section class="form-section">
+            <h2>Vinculación</h2>
+            <p class="empty">Se reutiliza solo el marco físico del inmueble. El nuevo expediente nace sin visitas, patologías, fotos, documentos, valoraciones ni capítulos de informe.</p>
+            <form method="post" action="/expedientes/{{ expediente.id }}/crear-derivado">
+                <label for="tipo_relacion">Tipo de relación</label>
+                <select id="tipo_relacion" name="tipo_relacion">
+                    {% for tipo in tipos_relacion %}
+                    <option value="{{ tipo.value }}" {% if tipo.value == "derivado" %}selected{% endif %}>{{ tipo.label }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="numero_expediente">Nuevo número de expediente</label>
+                <input id="numero_expediente" name="numero_expediente" type="text" value="{{ numero_expediente_sugerido }}" required>
+
+                <label for="tipo_informe">Tipo de informe</label>
+                <select id="tipo_informe" name="tipo_informe">
+                    {% for value, label in tipos_informe.items() %}
+                    <option value="{{ value }}" {% if value == "inspeccion" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="objeto_pericia">Título / objeto del nuevo expediente</label>
+                <textarea id="objeto_pericia" name="objeto_pericia" rows="5" required>Inspección estructural complementaria, realización de catas y prueba de estanqueidad para determinación del estado real de la estructura y verificación de la resolución de las filtraciones detectadas en el expediente {{ expediente.numero_expediente }}.</textarea>
+
+                <label for="descripcion">Observaciones de vinculación</label>
+                <textarea id="descripcion" name="descripcion" rows="4" placeholder="Antecedente documental, motivo de la segunda actuación o alcance de la relación."></textarea>
+
+                <div class="actions">
+                    <button class="boton primario" type="submit">Crear expediente derivado</button>
+                    <a class="boton secundario" href="/detalle-expediente/{{ expediente.id }}">Cancelar</a>
+                </div>
+            </form>
+        </section>
+    </main>
+    {% include "partials/_app_shell_end.html" %}
+</body>
+
+</html>
